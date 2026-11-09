@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Symbol } from "@/components/Logo";
 import { KakaoButton } from "@/components/KakaoButton";
 import { Button } from "@/components/ui";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { JOIN_AUTO_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
 import { JoinButton } from "@/screens/JoinButton";
@@ -15,7 +15,11 @@ export const dynamic = "force-dynamic";
 export default async function JoinPage({ params }: { params: Promise<{ code: string }> }) {
   const { code: raw } = await params;
   const code = raw.toUpperCase();
-  const loggedIn = Boolean((await cookies()).get(SESSION_COOKIE)?.value);
+  const jar = await cookies();
+  const loggedIn = Boolean(jar.get(SESSION_COOKIE)?.value);
+  // 이 초대 링크에서 막 로그인하고 돌아온 경우(콜백이 남긴 표시)만 "합류하기" 없이 바로 합류한다.
+  // 로그인한 채 링크를 그냥 연 경우는 실수 합류를 막으려고 확인 버튼을 그대로 둔다
+  const autoJoin = loggedIn && jar.get(JOIN_AUTO_COOKIE)?.value?.toUpperCase() === code;
   const { data, error } = await serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, {
     auth: false,
     from: `/join/${code}`,
@@ -40,7 +44,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
           <p className="mt-[18px] text-[16px] font-medium text-soft">합류하면 같은 달력을 함께 보고, 모두 비는 시간을 바로 찾아요</p>
           <div className="mt-10">
             {loggedIn ? (
-              <JoinButton code={code} />
+              <JoinButton code={code} auto={autoJoin} />
             ) : (
               <KakaoButton next={`/join/${code}`} label="카카오로 로그인하고 합류하기" />
             )}

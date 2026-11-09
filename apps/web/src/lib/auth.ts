@@ -69,6 +69,16 @@ export function decodeNextFromApi(raw: string | null | undefined): string {
   return safeNext(`${m[1] || "/"}?${query}`);
 }
 
+/** 초대 링크에서 로그인한 직후 바로 합류시키는 표시 쿠키 (`/join/<code>` 가 읽고 지운다) */
+export const JOIN_AUTO_COOKIE = "wwm_join_auto";
+export const JOIN_AUTO_MAX_AGE = 300; // 5분
+
+/** next 가 초대 수락 화면이면 그 코드(대문자), 아니면 null */
+export function joinCodeOf(next: string): string | null {
+  const m = /^\/join\/([A-Za-z0-9]{1,32})$/.exec(next.split("?")[0]);
+  return m ? m[1].toUpperCase() : null;
+}
+
 /** JWT 모양(점으로 나뉜 3조각) 만 확인. 서명 검증은 API 가 한다 */
 export function looksLikeJwt(token: string | null | undefined): token is string {
   if (!token) return false;
