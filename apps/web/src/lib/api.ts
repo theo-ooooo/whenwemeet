@@ -26,14 +26,16 @@ function currentPath(): string {
 
 export async function api<T>(
   path: string,
-  init: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; signal?: AbortSignal } = {},
+  init: { method?: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; form?: FormData; signal?: AbortSignal } = {},
 ): Promise<T> {
   let res: Response;
+  // form 은 multipart 로 보낸다. Content-Type(boundary 포함) 은 브라우저가 붙인다
+  const sendsJson = init.form === undefined && init.body !== undefined;
   try {
     res = await fetch(`/api${path}`, {
       method: init.method ?? "GET",
-      headers: init.body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      headers: sendsJson ? { "Content-Type": "application/json" } : undefined,
+      body: init.form ?? (sendsJson ? JSON.stringify(init.body) : undefined),
       signal: init.signal,
       cache: "no-store",
     });

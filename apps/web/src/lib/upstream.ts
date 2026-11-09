@@ -16,15 +16,21 @@ export async function upstream(opts: {
   method: string;
   path: string; // '/groups' (prefix /v1 제외)
   search?: string; // '?from=...'
-  body?: string | null; // JSON 문자열
+  body?: string | ArrayBuffer | null; // JSON 문자열, multipart 면 원본 바이트
+  contentType?: string | null; // multipart 일 때만. 없으면 JSON
   token: string | null;
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, token } = opts;
+  const { method, path, search = "", body = null, contentType = null, token } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
     let parsed: Record<string, unknown> | null = null;
-    if (body) {
+    if (body instanceof ArrayBuffer) {
+      // 목은 업로드한 사진을 data URL 로 들고 있는다 (R2 대신)
+      const form = await new Response(body, { headers: { "Content-Type": contentType ?? "" } }).formData();
+      const file = form.get("file");
+      parsed = file instanceof Blob ? { file: { type: file.type, size: file.size, dataUrl: await toDataUrl(file) } } : {};
+    } else if (body) {
       try {
         parsed = JSON.parse(body) as Record<string, unknown>;
       } catch {
@@ -42,7 +48,7 @@ export async function upstream(opts: {
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body) headers["Content-Type"] = "application/json";
+  if (body) headers["Content-Type"] = contentType ?? "application/json";
   try {
     const res = await fetch(`${apiUrl()}/v1${path}${search}`, {
       method,
@@ -66,4 +72,9 @@ export async function upstream(opts: {
       body: errorBody(502, "INTERNAL", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요"),
     };
   }
+}
+
+async function toDataUrl(file: Blob): Promise<string> {
+  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+  return `data:${file.type || "application/octet-stream"};base64,${base64}`;
 }

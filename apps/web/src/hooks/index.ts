@@ -28,6 +28,9 @@ export { useUpdateAnniversary } from "./useUpdateAnniversary";
 export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useDeleteMe } from "./useDeleteMe";
+export { useUpdateMe } from "./useUpdateMe";
+export { useUploadAvatar } from "./useUploadAvatar";
+export { useDeleteAvatar } from "./useDeleteAvatar";
 
 // 공통 이벤트
 export { useGroupGone } from "./useGroupGone";
