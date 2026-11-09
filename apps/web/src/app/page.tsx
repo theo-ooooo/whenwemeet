@@ -4,7 +4,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { GROUP_COOKIE, SESSION_COOKIE } from "@/lib/auth";
-import { serverApi } from "@/lib/upstream";
+import { serverApi } from "@/lib/server-api";
 import type { GroupSummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

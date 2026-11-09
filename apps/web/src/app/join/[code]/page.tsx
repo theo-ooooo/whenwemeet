@@ -6,7 +6,7 @@ import { KakaoButton } from "@/components/KakaoButton";
 import { Button } from "@/components/ui";
 import { SESSION_COOKIE } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
-import { serverApi } from "@/lib/upstream";
+import { serverApi } from "@/lib/server-api";
 import { JoinButton } from "@/screens/JoinButton";
 
 export const metadata: Metadata = { title: "초대" };
