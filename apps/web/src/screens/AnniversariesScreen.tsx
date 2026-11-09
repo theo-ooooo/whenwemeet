@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
+import { IconPlus } from "@/components/icons";
 import { Button, ErrorState, Field, MemberDot, Sheet, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { dday, formatDateKo, hundredHint, todayKey } from "@/lib/date";
@@ -85,13 +86,14 @@ export function AnniversariesScreen({ groupId }: { groupId: string }) {
 
   return (
     <div className="pt-1">
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-4 flex items-end justify-between gap-3 lg:mt-0">
         <div>
           <h1 className="t-title">기념일</h1>
-          <p className="t-sub mt-1">가장 가까운 날이 달력 위에 보여요</p>
+          <p className="t-sub mt-1.5">가장 가까운 날이 달력에 보여요</p>
         </div>
         <Button size="sm" onClick={() => open({ mode: "new" })}>
-          + 기념일 추가
+          <IconPlus size={14} strokeWidth={2.6} />
+          기념일 추가
         </Button>
       </div>
 
@@ -101,35 +103,34 @@ export function AnniversariesScreen({ groupId }: { groupId: string }) {
         ) : items === null ? (
           <SkeletonList rows={2} />
         ) : items.length === 0 ? (
-          <p className="rounded-lg bg-paper px-5 py-8 text-center text-[14px] leading-relaxed text-ink-2">
+          <p className="rounded-xl bg-paper px-5 py-8 text-center text-[14px] font-semibold leading-relaxed text-ink-2">
             기념일을 등록하면 달력 위에 D-day 가 보여요.
             <br />첫 기념일을 추가해 보세요
           </p>
         ) : (
-          <ul className="space-y-2">
-            {items.map((a) => {
+          <ul className="rounded-xl bg-paper px-4 py-1">
+            {items.map((a, i) => {
               const d = dday(a.date, today);
               const hint = hundredHint(d.diff);
               return (
-                <li key={a.id}>
+                <li key={a.id} className={i === 0 ? "" : "border-t border-line"}>
                   <button
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
-                    className="flex w-full items-center gap-4 rounded-lg bg-paper px-4 py-3.5 text-left hover:bg-brand-soft/40"
+                    aria-haspopup="dialog"
+                    className="flex w-full items-center gap-4 py-3.5 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold">{a.name}</span>
-                      <span className="t-sub mt-0.5 flex items-center gap-1.5">
+                      <b className="block truncate text-[16px] font-bold tracking-[-0.02em]">{a.name}</b>
+                      <span className="mt-0.5 flex items-center gap-1.5 text-[12px] font-semibold text-ink-2">
                         {formatDateKo(a.date, true)}
-                        <MemberDot className="ml-1" color={a.creator.color} size={6} />
+                        <MemberDot className="ml-1" color={a.creator.color} size={8} />
                         {a.creator.displayName}
                       </span>
-                      {hint && <span className="mt-1 block text-[12px] font-semibold text-brand">{hint}</span>}
+                      {hint && <span className="mt-1 block text-[12px] font-bold text-soft">{hint}</span>}
                     </span>
                     <span
-                      className={`shrink-0 rounded-sm px-2.5 py-1 text-[15px] font-bold tabular-nums ${
-                        d.diff === 0 ? "bg-brand text-paper" : d.diff < 0 ? "bg-brand-soft text-brand" : "bg-surface text-ink"
-                      }`}
+                      className={`shrink-0 text-[22px] font-extrabold tracking-[-0.04em] tabular-nums ${d.diff === 0 ? "text-brand" : ""}`}
                     >
                       {d.label}
                     </span>
@@ -166,7 +167,7 @@ export function AnniversariesScreen({ groupId }: { groupId: string }) {
             {editing?.mode === "edit" ? "저장" : "추가"}
           </Button>
           {editing?.mode === "edit" && (
-            <Button type="button" variant="danger" size="md" full onClick={() => remove(editing.item)}>
+            <Button type="button" variant="danger" size="lg" full onClick={() => remove(editing.item)}>
               삭제
             </Button>
           )}

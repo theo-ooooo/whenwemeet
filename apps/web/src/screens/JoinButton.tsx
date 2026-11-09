@@ -20,7 +20,7 @@ export function JoinButton({ code }: { code: string }) {
   return (
     <div>
       {error && (
-        <p role="alert" className="mb-3 text-[14px] text-danger">
+        <p role="alert" className="mb-3 text-[14px] font-semibold text-danger">
           {error}
         </p>
       )}
