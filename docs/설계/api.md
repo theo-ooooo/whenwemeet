@@ -38,10 +38,10 @@
 |------|------|
 | `DATABASE_URL` | `mysql://user:pass@host:3306/whenwemeet` |
 | `PORT` | 기본 4000 |
-| `WEB_ORIGIN` | CORS 허용 origin 이자 로그인 후 리다이렉트 대상 (`https://whenwemeet.app`, 로컬 `http://localhost:3000`) |
+| `WEB_ORIGIN` | CORS 허용 origin 이자 로그인 후 리다이렉트 대상 (`https://whenwemeet.day`, 로컬 `http://localhost:3000`) |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | HS256 비밀키, `30d` |
 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI`, `KAKAO_ADMIN_KEY` | 인증흐름.md |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://img.whenwemeet.app`). docs/운영/cloudflare-r2.md |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://img.whenwemeet.day`). docs/운영/cloudflare-r2.md |
 
 ## 2. 엔드포인트
 

@@ -9,7 +9,7 @@
 
 ## 2. 공개 접근
 버킷 > Settings > Public access
-- 운영: Custom Domains 에 `img.whenwemeet.app` 연결 (Cloudflare DNS 에 도메인이 있어야 함). `R2_PUBLIC_BASE_URL=https://img.whenwemeet.app`
+- 운영: Custom Domains 에 `img.whenwemeet.day` 연결 (Cloudflare DNS 에 도메인이 있어야 함). `R2_PUBLIC_BASE_URL=https://img.whenwemeet.day`
 - 개발: R2.dev subdomain 을 Allow 로 켜고 그 주소를 `R2_PUBLIC_BASE_URL` 로 (`https://pub-xxxx.r2.dev`). 운영에선 r2.dev 를 끈다 (속도 제한, 캐시 없음)
 
 ## 3. API 토큰
