@@ -14,7 +14,7 @@ const ACTION_LABEL: Record<NewsItem["action"], string> = {
   DELETED: "삭제했어요",
 };
 
-export function NewsScreen({ groupId }: { groupId: string }) {
+export function NewsScreen({ groupId }: { groupId: number }) {
   const router = useRouter();
   const { clearUnread } = useGroupContext();
   const newsQ = useNews(groupId);

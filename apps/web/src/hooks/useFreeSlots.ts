@@ -13,6 +13,6 @@ export type FreeSlotsParams = {
 };
 
 /** 빈 시간 GET /groups/:id/free-slots?... */
-export function useFreeSlots(groupId: string, params: FreeSlotsParams, opts?: QueryOptions<FreeSlots>) {
+export function useFreeSlots(groupId: number, params: FreeSlotsParams, opts?: QueryOptions<FreeSlots>) {
   return useQuery<FreeSlots>(`/groups/${groupId}/free-slots${qs(params)}`, opts);
 }

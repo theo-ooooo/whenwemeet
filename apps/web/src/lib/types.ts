@@ -3,7 +3,7 @@
 export type GroupType = "PERSONAL" | "TEAM";
 
 export type Member = {
-  userId: string | null;
+  userId: number | null;
   displayName: string;
   color: string;
   profileImageUrl: string | null;
@@ -11,7 +11,7 @@ export type Member = {
 };
 
 export type GroupSummary = {
-  id: string;
+  id: number;
   type: GroupType;
   name: string;
   memberCount: number;
@@ -20,7 +20,7 @@ export type GroupSummary = {
 };
 
 export type GroupDetail = {
-  id: string;
+  id: number;
   type: GroupType;
   name: string;
   inviteCode: string | null;
@@ -39,16 +39,16 @@ export type EventInput = {
 };
 
 export type Event = EventInput & {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   creator: Member;
   createdAt: string;
   updatedAt: string;
 };
 
 export type Anniversary = {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   name: string;
   date: string; // YYYY-MM-DD (KST)
   creator: Member;
@@ -63,9 +63,9 @@ export type FreeSlots = {
 export type NewsAction = "CREATED" | "UPDATED" | "DELETED";
 
 export type NewsItem = {
-  id: string;
+  id: number;
   action: NewsAction;
-  eventId: string | null;
+  eventId: number | null;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -78,7 +78,7 @@ export type NewsItem = {
 export type News = { items: NewsItem[]; lastSeenAt: string | null };
 
 export type Me = {
-  id: string;
+  id: number;
   nickname: string;
   profileImageUrl: string | null;
   createdAt: string;

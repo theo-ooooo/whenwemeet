@@ -9,7 +9,7 @@ import type { Anniversary } from "@/lib/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 
-export function AnniversariesScreen({ groupId }: { groupId: string }) {
+export function AnniversariesScreen({ groupId }: { groupId: number }) {
   const toast = useToast();
   const today = todayKey();
   const listQ = useAnniversaries(groupId);

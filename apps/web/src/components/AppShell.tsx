@@ -14,7 +14,7 @@ import { IconBell, IconCalendar, IconChevronDown, IconClock, IconHeart, IconPlus
 import { Avatar, Sheet, Skeleton } from "./ui";
 
 type GroupCtx = {
-  groupId: string;
+  groupId: number;
   groups: GroupSummary[] | null;
   group: GroupDetail | null;
   error: string | null;
@@ -56,14 +56,14 @@ function TabIcon({ name, active }: { name: (typeof TABS)[number]["key"]; active:
 }
 
 /** 사이드바 팀 점 색: 개인 달력은 먹색, 팀은 목록 순서대로 멤버 색 순환 (목업 PC) */
-function teamDotColors(groups: GroupSummary[]): Map<string, string> {
-  const map = new Map<string, string>();
+function teamDotColors(groups: GroupSummary[]): Map<number, string> {
+  const map = new Map<number, string>();
   let i = 0;
   for (const g of groups) map.set(g.id, g.type === "PERSONAL" ? "var(--ink)" : cycleColor(i++));
   return map;
 }
 
-export function AppShell({ groupId, children }: { groupId: string; children: React.ReactNode }) {
+export function AppShell({ groupId, children }: { groupId: number; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -124,7 +124,7 @@ export function AppShell({ groupId, children }: { groupId: string; children: Rea
 
   if (gone) return <GroupGone />;
 
-  function switchTo(id: string) {
+  function switchTo(id: number) {
     setSwitcher(false);
     if (id === groupId) return;
     rememberGroup(id);
