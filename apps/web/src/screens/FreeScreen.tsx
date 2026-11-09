@@ -35,7 +35,7 @@ const TIME_OPTIONS = Array.from({ length: 37 }, (_, i) => {
   return `${String(h).padStart(2, "0")}:${m}`;
 });
 
-export function FreeScreen({ groupId }: { groupId: string }) {
+export function FreeScreen({ groupId }: { groupId: number }) {
   const today = todayKey();
   const [period, setPeriod] = useState<Period>("thisWeek");
   const [customFrom, setCustomFrom] = useState(today);

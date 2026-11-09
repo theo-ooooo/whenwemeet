@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/AppShell";
+import { idParam } from "@/lib/id";
 
 export default async function GroupLayout({
   children,
@@ -7,6 +8,6 @@ export default async function GroupLayout({
   children: React.ReactNode;
   params: Promise<{ groupId: string }>;
 }) {
-  const { groupId } = await params;
+  const groupId = idParam((await params).groupId);
   return <AppShell key={groupId} groupId={groupId}>{children}</AppShell>;
 }

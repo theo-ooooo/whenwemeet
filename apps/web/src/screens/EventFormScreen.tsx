@@ -8,10 +8,10 @@ import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
 import type { Event, EventInput } from "@/lib/types";
 
 type Props = {
-  groupId: string;
-  eventId?: string;
+  groupId: number;
+  eventId?: number;
   /** 복제할 일정 ID. 값만 채우고 새 일정으로 저장한다 */
-  copyFrom?: string;
+  copyFrom?: number;
   initialStart?: string | null;
   initialEnd?: string | null;
 };

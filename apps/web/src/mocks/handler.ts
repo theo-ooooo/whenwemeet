@@ -1,6 +1,7 @@
 // API_MOCK=1 메모리 API. api.md 의 봉투와 상태 코드를 그대로 따른다. 응답은 전부 ok / err 를 거친다 (봉투 모양은 lib/envelope.ts).
 import { addDays, dateKeyOf, kstToIso } from "@/lib/date";
 import { errorBody, okBody } from "@/lib/envelope";
+import { parseId } from "@/lib/id";
 import { MEMBER_COLORS } from "@/lib/types";
 import {
   buildStore,
@@ -15,10 +16,10 @@ export type MockResult = { status: number; body: unknown };
 
 type Ctx = {
   method: string;
-  path: string; // '/groups/g_team/events'
+  path: string; // '/groups/2/events'
   query: URLSearchParams;
   body: Record<string, unknown> | null;
-  userId: string | null;
+  userId: number | null;
 };
 
 // dev HMR 로 모듈이 다시 평가돼도 상태가 남도록 globalThis 에 둔다
@@ -34,12 +35,12 @@ const err = (status: number, code: string, message: string): MockResult => ({
   body: errorBody(status, code, message),
 });
 
-const nextId = (prefix: string) => `${prefix}_${(store().seq += 1)}`;
+const nextId = () => (store().seq += 1);
 const nowIso = () => new Date().toISOString();
 
 const DAY_MS = 86_400_000;
 
-function groupDetail(s: Store, groupId: string, userId: string) {
+function groupDetail(s: Store, groupId: number, userId: number) {
   const grp = s.groups.find((x) => x.id === groupId)!;
   const members = s.memberships
     .filter((m) => m.groupId === groupId)
@@ -72,7 +73,7 @@ function eventOut(s: Store, e: EventRow) {
   };
 }
 
-function unread(s: Store, groupId: string, userId: string) {
+function unread(s: Store, groupId: number, userId: number) {
   const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
   const seen = ms?.lastSeenAt ?? "";
   return s.logs.filter(
@@ -104,7 +105,7 @@ function rangeCheck(startsAt: string, endsAt: string): MockResult | null {
   return null;
 }
 
-function leastUsedColor(s: Store, groupId: string): string {
+function leastUsedColor(s: Store, groupId: number): string {
   const used = s.memberships.filter((m) => m.groupId === groupId).map((m) => m.color);
   let best: string = MEMBER_COLORS[0];
   let bestCount = Infinity;
@@ -118,7 +119,7 @@ function leastUsedColor(s: Store, groupId: string): string {
   return best;
 }
 
-function freeSlots(s: Store, groupId: string, q: URLSearchParams): MockResult {
+function freeSlots(s: Store, groupId: number, q: URLSearchParams): MockResult {
   const fromRaw = q.get("from");
   const toRaw = q.get("to");
   if (!fromRaw || !toRaw) return err(400, "VALIDATION_FAILED", "조회 기간을 입력해 주세요");
@@ -242,7 +243,7 @@ export function mockHandle(ctx: Ctx): MockResult {
       if (name.length < 1 || name.length > 30) {
         return err(400, "VALIDATION_FAILED", "팀 이름은 1~30자로 입력해 주세요");
       }
-      const id = nextId("g");
+      const id = nextId();
       const code = Array.from({ length: 6 }, () =>
         "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
       ).join("");
@@ -278,7 +279,8 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   // /groups/:groupId/...
   if (seg[0] === "groups" && seg[1]) {
-    const groupId = seg[1];
+    const groupId = parseId(seg[1]);
+    if (groupId === null) return err(400, "VALIDATION_FAILED", "groupId 은(는) 양의 정수여야 해요");
     const grp = s.groups.find((x) => x.id === groupId);
     if (!grp) return err(404, "NOT_FOUND", "팀을 찾을 수 없어요");
     const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
@@ -360,7 +362,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         const v = validateEvent(input, false) ?? rangeCheck(String(input.startsAt), String(input.endsAt));
         if (v) return v;
         const row: EventRow = {
-          id: nextId("e"),
+          id: nextId(),
           groupId,
           title: String(input.title).trim(),
           startsAt: new Date(String(input.startsAt)).toISOString(),
@@ -373,7 +375,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         };
         s.events.push(row);
         s.logs.push({
-          id: nextId("l"),
+          id: nextId(),
           groupId,
           action: "CREATED",
           eventId: row.id,
@@ -386,7 +388,8 @@ export function mockHandle(ctx: Ctx): MockResult {
         });
         return ok(eventOut(s, row), 201);
       }
-      const eventId = rest[1];
+      const eventId = parseId(rest[1]);
+      if (eventId === null) return err(400, "VALIDATION_FAILED", "eventId 은(는) 양의 정수여야 해요");
       const e = s.events.find((x) => x.id === eventId && x.groupId === groupId);
       if (!e) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
       if (method === "GET") return ok(eventOut(s, e));
@@ -403,7 +406,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         if (input.memo !== undefined) e.memo = input.memo ? String(input.memo) : null;
         e.updatedAt = nowIso();
         s.logs.push({
-          id: nextId("l"),
+          id: nextId(),
           groupId,
           action: "UPDATED",
           eventId: e.id,
@@ -419,7 +422,7 @@ export function mockHandle(ctx: Ctx): MockResult {
       if (method === "DELETE") {
         s.events = s.events.filter((x) => x.id !== e.id);
         s.logs.push({
-          id: nextId("l"),
+          id: nextId(),
           groupId,
           action: "DELETED",
           eventId: null,
@@ -467,7 +470,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         const v = validate(body?.name, body?.date, false);
         if (v) return v;
         const row = {
-          id: nextId("a"),
+          id: nextId(),
           groupId,
           name: String(body!.name).trim(),
           date: String(body!.date),
@@ -477,7 +480,9 @@ export function mockHandle(ctx: Ctx): MockResult {
         s.anniversaries.push(row);
         return ok(out(row), 201);
       }
-      const a = s.anniversaries.find((x) => x.id === rest[1] && x.groupId === groupId);
+      const anniversaryId = parseId(rest[1]);
+      if (anniversaryId === null) return err(400, "VALIDATION_FAILED", "anniversaryId 은(는) 양의 정수여야 해요");
+      const a = s.anniversaries.find((x) => x.id === anniversaryId && x.groupId === groupId);
       if (!a) return err(404, "NOT_FOUND", "기념일을 찾을 수 없어요");
       if (method === "PATCH") {
         const v = validate(body?.name, body?.date, true);
@@ -526,10 +531,10 @@ export function mockHandle(ctx: Ctx): MockResult {
   return err(404, "NOT_FOUND", "요청한 주소가 없어요");
 }
 
-/** 목 토큰에서 사용자 추출. 'mock.<userId>.sig' 형태, 아니면 기본 사용자 */
-export function mockUserFromToken(token: string | null): string | null {
+/** 목 토큰에서 사용자 추출. 'mock.<userId>.sig' 형태(userId 는 숫자), 'mock.me.sig' 는 기본 사용자 */
+export function mockUserFromToken(token: string | null): number | null {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
-  return parts[1] && parts[1] !== "me" ? parts[1] : ME_ID;
+  return parts[1] === "me" ? ME_ID : parseId(parts[1]);
 }

@@ -13,7 +13,7 @@ import type { GroupDetail } from "@/lib/types";
 
 const COLOR_NAMES = ["레드", "블루", "보라", "그린", "오렌지"];
 
-export function SettingsScreen({ groupId, openInvite }: { groupId: string; openInvite: boolean }) {
+export function SettingsScreen({ groupId, openInvite }: { groupId: number; openInvite: boolean }) {
   const { group, error, refresh, setGroup } = useGroupContext();
 
   if (error && !group) {
@@ -307,7 +307,7 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
 }
 
 /* 나가기 */
-function LeaveSection({ group, groupId }: { group: GroupDetail; groupId: string }) {
+function LeaveSection({ group, groupId }: { group: GroupDetail; groupId: number }) {
   const router = useRouter();
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);

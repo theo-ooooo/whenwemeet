@@ -36,9 +36,9 @@ import { iGa } from "@/lib/text";
 import type { Event, FreeSlots } from "@/lib/types";
 import { useIsDesktop } from "@/lib/useIsDesktop";
 
-type Props = { groupId: string; initialDate: string | null };
+type Props = { groupId: number; initialDate: string | null };
 
-const newEventHref = (groupId: string, start: string, end: string) =>
+const newEventHref = (groupId: number, start: string, end: string) =>
   `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
 /** 30분 단위로 올림한 지금 (오늘 비는 시간의 시작을 지금 이후로 자른다) */
@@ -463,7 +463,7 @@ function FreeTile({
 }: {
   label: string;
   slot: { startsAt: string; endsAt: string } | null | undefined;
-  groupId: string;
+  groupId: number;
   onRetry?: () => void;
 }) {
   const cls = "block rounded-lg bg-[var(--hl-tile)] px-4 py-3.5 text-left text-white hover:brightness-110 lg:px-[18px] lg:py-4";
@@ -639,7 +639,7 @@ function EventDetail({
   panel = false,
 }: {
   event: Event;
-  groupId: string;
+  groupId: number;
   titleId?: string;
   onClose: () => void;
   onDelete: () => void;
@@ -699,7 +699,7 @@ function EventDetail({
         </button>
         <button
           type="button"
-          onClick={() => router.push(`/g/${groupId}/events/new?copy=${encodeURIComponent(ev.id)}`)}
+          onClick={() => router.push(`/g/${groupId}/events/new?copy=${ev.id}`)}
           className="h-[52px] flex-1 rounded-full bg-surface text-[15px] font-bold"
         >
           복제
