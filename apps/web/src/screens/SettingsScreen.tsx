@@ -294,7 +294,7 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
             className={inputClass}
             value={displayName}
             maxLength={20}
-            placeholder="비우면 카카오 닉네임"
+            placeholder="비우면 내 닉네임"
             onChange={(e) => setDisplayName(e.target.value)}
           />
           <Button type="submit" disabled={!dirty} loading={saving}>

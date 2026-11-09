@@ -30,6 +30,8 @@
 | NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
 | KAKAO_ERROR | 502 | 카카오 토큰 교환/사용자 조회/unlink 실패 |
+| STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
+| KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 환경 변수 (apps/api/.env)
