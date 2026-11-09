@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass } from "@/components/ui";
-import { ApiError, api, messageOf } from "@/lib/api";
+import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
 import type { Event, EventInput } from "@/lib/types";
 
@@ -34,45 +34,53 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
   const [endTime, setEndTime] = useState(timeOf(defaultEnd));
   const [memo, setMemo] = useState("");
   const [touched, setTouched] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
+  // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
+  const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true });
+  const update = useUpdateEvent(groupId, { keepPendingAfterSuccess: true });
+  const remove = useDeleteEvent(groupId, { keepPendingAfterSuccess: true });
+  const saving = create.isPending || update.isPending;
+  const deleting = remove.isPending;
+
+  // 수정이면 기존 일정을 받아 폼에 채운다
+  const eventQ = useEvent(groupId, eventId);
+  const loadedEvent = eventQ.data;
   useEffect(() => {
-    if (!eventId) return;
-    let alive = true;
-    api<Event>(`/groups/${groupId}/events/${eventId}`)
-      .then((ev) => {
-        if (!alive) return;
-        setTitle(ev.title);
-        setAllDay(ev.allDay);
-        setStartDate(dateKeyOf(ev.startsAt));
-        setStartTime(timeOf(ev.startsAt));
-        if (ev.allDay) {
-          setEndDate(addDays(dateKeyOf(ev.endsAt), -1));
-          setEndTime("00:00");
-        } else {
-          setEndDate(dateKeyOf(ev.endsAt));
-          setEndTime(timeOf(ev.endsAt));
-        }
-        setMemo(ev.memo ?? "");
-        setCreator(ev.creator);
-        setLoaded(true);
-      })
-      .catch((e) => {
-        if (!alive) return;
-        if (e instanceof ApiError && e.status === 404) {
-          toast.show("이미 삭제된 일정이에요");
-          router.replace(`/g/${groupId}/calendar`);
-          return;
-        }
-        setSaveError(messageOf(e, "일정을 불러오지 못했어요. 새로고침해 주세요"));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [eventId, groupId, router, toast]);
+    if (!loadedEvent) return;
+    const ev = loadedEvent;
+    // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
+    queueMicrotask(() => {
+      setTitle(ev.title);
+      setAllDay(ev.allDay);
+      setStartDate(dateKeyOf(ev.startsAt));
+      setStartTime(timeOf(ev.startsAt));
+      if (ev.allDay) {
+        setEndDate(addDays(dateKeyOf(ev.endsAt), -1));
+        setEndTime("00:00");
+      } else {
+        setEndDate(dateKeyOf(ev.endsAt));
+        setEndTime(timeOf(ev.endsAt));
+      }
+      setMemo(ev.memo ?? "");
+      setCreator(ev.creator);
+      setLoaded(true);
+    });
+  }, [loadedEvent]);
+
+  const loadError = eventQ.error;
+  useEffect(() => {
+    if (!loadError) return;
+    queueMicrotask(() => {
+      if (loadError.status === 404) {
+        toast.show("이미 삭제된 일정이에요");
+        router.replace(`/g/${groupId}/calendar`);
+        return;
+      }
+      setSaveError(messageOf(loadError, "일정을 불러오지 못했어요. 새로고침해 주세요"));
+    });
+  }, [loadError, groupId, router, toast]);
 
   // 전송할 값 (종일이면 KST 자정 ~ 다음 날 자정)
   const payload = useMemo<EventInput | null>(() => {
@@ -113,37 +121,30 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
     e.preventDefault();
     setTouched(true);
     if (!canSave || !payload) return;
-    setSaving(true);
     setSaveError(null);
-    try {
-      if (editing) {
-        await api<Event>(`/groups/${groupId}/events/${eventId}`, { method: "PATCH", body: payload });
-      } else {
-        await api<Event>(`/groups/${groupId}/events`, { method: "POST", body: payload });
-      }
+    const r = eventId ? await update.mutate({ eventId, input: payload }) : await create.mutate(payload);
+    if (r.ok) {
       router.push(`/g/${groupId}/calendar?date=${dateKeyOf(payload.startsAt)}`);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        toast.show("이미 삭제된 일정이에요");
-        router.replace(`/g/${groupId}/calendar`);
-        return;
-      }
-      setSaveError(messageOf(err, "저장하지 못했어요. 입력 내용은 그대로 있으니 다시 저장해 주세요"));
-      setSaving(false);
+      return;
     }
+    if (r.error.status === 404) {
+      toast.show("이미 삭제된 일정이에요");
+      router.replace(`/g/${groupId}/calendar`);
+      return;
+    }
+    setSaveError(messageOf(r.error, "저장하지 못했어요. 입력 내용은 그대로 있으니 다시 저장해 주세요"));
   }
 
-  async function remove() {
-    setDeleting(true);
-    try {
-      await api(`/groups/${groupId}/events/${eventId}`, { method: "DELETE" });
+  async function removeEvent() {
+    if (!eventId) return;
+    const r = await remove.mutate(eventId);
+    if (r.ok) {
       toast.show("일정을 삭제했어요");
       router.replace(`/g/${groupId}/calendar?date=${startDate}`);
-    } catch (err) {
-      setConfirmDelete(false);
-      setDeleting(false);
-      setSaveError(messageOf(err, "삭제하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    setConfirmDelete(false);
+    setSaveError(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
   }
 
   return (
@@ -285,7 +286,7 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
         confirmLabel="삭제"
         danger
         loading={deleting}
-        onConfirm={remove}
+        onConfirm={removeEvent}
         onCancel={() => setConfirmDelete(false)}
       />
     </form>

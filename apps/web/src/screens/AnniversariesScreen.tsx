@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ErrorState, Field, MemberDot, Sheet, SkeletonList, inputClass } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { dday, formatDateKo, hundredHint, todayKey } from "@/lib/date";
 import type { Anniversary } from "@/lib/types";
 
@@ -11,28 +11,19 @@ type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 export function AnniversariesScreen({ groupId }: { groupId: string }) {
   const toast = useToast();
   const today = todayKey();
-  const [items, setItems] = useState<Anniversary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const listQ = useAnniversaries(groupId);
+  const items = listQ.data;
+  const setItems = listQ.setData;
+  const error = listQ.error ? messageOf(listQ.error, "기념일을 불러오지 못했어요") : null;
+  const load = listQ.refetch;
+  const create = useCreateAnniversary(groupId);
+  const update = useUpdateAnniversary(groupId);
+  const del = useDeleteAnniversary(groupId);
   const [editing, setEditing] = useState<Editing>(null);
   const [name, setName] = useState("");
   const [date, setDate] = useState(today);
-  const [saving, setSaving] = useState(false);
+  const saving = create.isPending || update.isPending;
   const [formError, setFormError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const list = await api<Anniversary[]>(`/groups/${groupId}/anniversaries`);
-      setError(null);
-      setItems(list);
-    } catch (e) {
-      setError(messageOf(e, "기념일을 불러오지 못했어요"));
-    }
-  }, [groupId]);
-
-  useEffect(() => {
-    // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
-    queueMicrotask(() => void load());
-  }, [load]);
 
   function open(next: Editing) {
     setEditing(next);
@@ -51,56 +42,45 @@ export function AnniversariesScreen({ groupId }: { groupId: string }) {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!valid || !editing) return;
-    setSaving(true);
     setFormError(null);
-    try {
-      if (editing.mode === "new") {
-        const created = await api<Anniversary>(`/groups/${groupId}/anniversaries`, {
-          method: "POST",
-          body: { name: name.trim(), date },
-        });
-        setItems((prev) => [...(prev ?? []), created].sort((a, b) => a.date.localeCompare(b.date)));
-      } else {
-        const updated = await api<Anniversary>(`/groups/${groupId}/anniversaries/${editing.item.id}`, {
-          method: "PATCH",
-          body: { name: name.trim(), date },
-        });
-        setItems((prev) =>
-          (prev ?? []).map((a) => (a.id === updated.id ? updated : a)).sort((a, b) => a.date.localeCompare(b.date)),
-        );
-      }
-      setEditing(null);
-    } catch (err) {
-      setFormError(messageOf(err, "저장하지 못했어요. 다시 시도해 주세요"));
-    } finally {
-      setSaving(false);
+    const input = { name: name.trim(), date };
+    const r = editing.mode === "new" ? await create.mutate(input) : await update.mutate({ id: editing.item.id, input });
+    if (!r.ok) {
+      setFormError(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    const saved = r.data;
+    if (editing.mode === "new") {
+      setItems((prev) => [...(prev ?? []), saved].sort((a, b) => a.date.localeCompare(b.date)));
+    } else {
+      setItems((prev) =>
+        (prev ?? []).map((a) => (a.id === saved.id ? saved : a)).sort((a, b) => a.date.localeCompare(b.date)),
+      );
+    }
+    setEditing(null);
   }
 
   // 확인 없이 삭제 + 5초 되돌리기 (같은 값으로 다시 POST)
   async function remove(item: Anniversary) {
     setEditing(null);
     setItems((prev) => (prev ?? []).filter((a) => a.id !== item.id));
-    try {
-      await api(`/groups/${groupId}/anniversaries/${item.id}`, { method: "DELETE" });
-      toast.show(`'${item.name}' 을 삭제했어요`, {
-        actionLabel: "되돌리기",
-        onAction: async () => {
-          try {
-            const restored = await api<Anniversary>(`/groups/${groupId}/anniversaries`, {
-              method: "POST",
-              body: { name: item.name, date: item.date },
-            });
-            setItems((prev) => [...(prev ?? []), restored].sort((a, b) => a.date.localeCompare(b.date)));
-          } catch (err) {
-            toast.show(messageOf(err, "되돌리지 못했어요. 다시 추가해 주세요"));
-          }
-        },
-      });
-    } catch (err) {
+    const r = await del.mutate(item.id);
+    if (!r.ok) {
       setItems((prev) => [...(prev ?? []), item].sort((a, b) => a.date.localeCompare(b.date)));
-      toast.show(messageOf(err, "삭제하지 못했어요. 다시 시도해 주세요"));
+      toast.show(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    toast.show(`'${item.name}' 을 삭제했어요`, {
+      actionLabel: "되돌리기",
+      onAction: async () => {
+        const restored = await create.mutate({ name: item.name, date: item.date });
+        if (!restored.ok) {
+          toast.show(messageOf(restored.error, "되돌리지 못했어요. 다시 추가해 주세요"));
+          return;
+        }
+        setItems((prev) => [...(prev ?? []), restored.data].sort((a, b) => a.date.localeCompare(b.date)));
+      },
+    });
   }
 
   return (

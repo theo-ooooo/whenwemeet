@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ErrorState, MemberDot, Skeleton, SkeletonList } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useAnniversaries, useEvents } from "@/hooks";
 import {
   addDays,
   dateKeyOf,
@@ -18,7 +18,7 @@ import {
   todayKey,
   WEEKDAYS,
 } from "@/lib/date";
-import type { Anniversary, Event } from "@/lib/types";
+import type { Event } from "@/lib/types";
 
 type Props = { groupId: string; initialDate: string | null };
 
@@ -29,51 +29,23 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
     const p = parseKey(initialDate ?? today);
     return { y: p.y, m: p.m };
   });
-  // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
-  const [events, setEvents] = useState<Event[] | null>(null);
-  const [eventsError, setEventsError] = useState<string | null>(null);
-  const [anniversaries, setAnniversaries] = useState<Anniversary[] | null>(null);
-  // 월을 빠르게 넘기거나 재시도가 겹칠 때 늦게 온 응답이 최신 상태를 덮지 않도록 요청 순번을 센다
-  const eventsReq = useRef(0);
-
   const grid = useMemo(() => monthGrid(y, m), [y, m]);
 
-  const loadEvents = useCallback(async () => {
-    const seq = ++eventsReq.current;
-    setEventsError(null);
-    try {
-      const from = kstToIso(grid[0]);
-      const to = kstToIso(addDays(grid[41], 1));
-      const list = await api<Event[]>(
-        `/groups/${groupId}/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-      );
-      if (seq !== eventsReq.current) return;
-      setEvents(list);
-    } catch (e) {
-      if (seq !== eventsReq.current) return;
-      // 오류 상태로 확정한다. 스켈레톤(로딩)이 남지 않도록 events 는 건드리지 않고 메시지로 갈아 끼운다 (#18)
-      setEventsError(messageOf(e, "일정을 불러오지 못했어요"));
-    }
-  }, [groupId, grid]);
+  // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
+  // 월을 빠르게 넘기거나 재시도가 겹칠 때 늦게 온 응답이 최신 상태를 덮지 않는 것은 훅이 보장한다.
+  // 오류가 나도 스켈레톤(로딩)이 남지 않도록 events 는 직전 값을 유지하고 메시지로 갈아 끼운다 (#18)
+  const eventsQ = useEvents(groupId, { from: kstToIso(grid[0]), to: kstToIso(addDays(grid[41], 1)) });
+  const events = eventsQ.data;
+  const eventsError = eventsQ.error ? messageOf(eventsQ.error, "일정을 불러오지 못했어요") : null;
+  const loadEvents = eventsQ.refetch;
 
-  useEffect(() => {
-    // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
-    queueMicrotask(() => void loadEvents());
-  }, [loadEvents]);
-
-  useEffect(() => {
-    let alive = true;
-    api<Anniversary[]>(`/groups/${groupId}/anniversaries`)
-      .then((list) => {
-        if (alive) setAnniversaries(list);
-      })
-      .catch(() => {
-        if (alive) setAnniversaries([]);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [groupId]);
+  // 기념일은 못 받아도 빈 목록으로 본다 (띠만 안 보이면 됨)
+  const anniversariesQ = useAnniversaries(groupId);
+  const { data: anniversaryData, error: anniversaryError } = anniversariesQ;
+  const anniversaries = useMemo(
+    () => anniversaryData ?? (anniversaryError ? [] : null),
+    [anniversaryData, anniversaryError],
+  );
 
   // 선택 날짜를 URL 에 남긴다 (새로고침, 공유용)
   useEffect(() => {
