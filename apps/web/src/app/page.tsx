@@ -19,11 +19,12 @@ export default async function Home() {
   // 숫자 ID 가 아닌 값(예전 cuid 등)은 무시
   const remembered = parseId(raw);
 
-  const { data, status } = await serverApi<GroupSummary[]>("/groups");
+  // 서버 장애(연결 실패, 500)면 serverApi 가 /maintenance 로 보낸다 (#54)
+  const { data, status } = await serverApi<GroupSummary[]>("/groups", { from: "/" });
   // 쿠키를 지우지 않고 /login 으로 보내면 /login ↔ / 가 반복된다. 쿠키를 지우는 route handler 경유 (#37)
   if (status === 401) redirect(expiredUrl("/"));
 
-  // 목록을 못 받은 경우(API 장애 등)는 검증할 수 없으니 기억한 팀으로 보내고, 그 화면의 오류 상태에 맡긴다
+  // 그 밖의 이유로 목록을 못 받은 경우는 검증할 수 없으니 기억한 팀으로 보내고, 그 화면의 오류 상태에 맡긴다
   if (!data) {
     if (remembered !== null) redirect(`/g/${remembered}/calendar`);
     redirect("/groups/new");

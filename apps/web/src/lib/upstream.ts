@@ -1,10 +1,24 @@
 // 서버 전용. 웹 → API 호출의 단일 통로.
 // API_MOCK=1 이면 메모리 목(src/mocks)으로, 아니면 `${API_URL}/v1/<path>` 로 전달한다.
 import { errorBody } from "./envelope";
+import { UPSTREAM_UNAVAILABLE } from "./maintenance";
 
 export type UpstreamResult = { status: number; body: unknown };
 
 export const isMock = () => process.env.API_MOCK === "1";
+
+/** API 응답을 기다리는 최대 시간. 넘으면 504 UPSTREAM_UNAVAILABLE (사진 업로드를 고려해 넉넉히) */
+const UPSTREAM_TIMEOUT_MS = 15_000;
+
+const UNAVAILABLE_MESSAGE = "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요";
+
+/** fetch 예외가 시간 초과인지 (전체 타임아웃, undici 연결/헤더 타임아웃) */
+function isTimeout(e: unknown): boolean {
+  const err = e as { name?: string; cause?: { code?: string; name?: string } } | null;
+  if (err?.name === "TimeoutError") return true;
+  const code = err?.cause?.code;
+  return code === "UND_ERR_CONNECT_TIMEOUT" || code === "UND_ERR_HEADERS_TIMEOUT" || err?.cause?.name === "TimeoutError";
+}
 
 export function apiUrl(): string {
   const url = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
@@ -55,6 +69,7 @@ export async function upstream(opts: {
       headers,
       body,
       cache: "no-store",
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     const text = await res.text();
     let json: unknown = null;
@@ -66,11 +81,10 @@ export async function upstream(opts: {
       }
     }
     return { status: res.status, body: json };
-  } catch {
-    return {
-      status: 502,
-      body: errorBody(502, "INTERNAL", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요"),
-    };
+  } catch (e) {
+    // 연결 거부, DNS 실패 등은 502, 시간 초과는 504. 클라이언트와 서버 컴포넌트는 이 코드를 보고 점검 화면으로 보낸다 (#54)
+    const status = isTimeout(e) ? 504 : 502;
+    return { status, body: errorBody(status, UPSTREAM_UNAVAILABLE, UNAVAILABLE_MESSAGE) };
   }
 }
 

@@ -12,6 +12,7 @@ export { useEvent } from "./useEvent";
 export { useAnniversaries } from "./useAnniversaries";
 export { useFreeSlots, type FreeSlotsParams } from "./useFreeSlots";
 export { useNews } from "./useNews";
+export { useHealth, type Health } from "./useHealth";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
