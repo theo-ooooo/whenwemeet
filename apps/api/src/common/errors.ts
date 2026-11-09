@@ -32,17 +32,35 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   KAKAO_NOT_CONFIGURED: '카카오 로그인이 설정되지 않았어요',
 };
 
-export interface ErrorBody {
-  error: { code: ErrorCode; message: string };
+/** 검증 실패 시 필드별 위반 항목 (api.md 1장 `error.details`) */
+export interface FieldViolation {
+  field: string;
+  message: string;
 }
 
-/** 코드가 붙은 예외. 예외 필터가 그대로 `{ error: { code, message } }` 로 내려보낸다 */
+/** 실패 응답 봉투 (api.md 1장, 결정기록 D-33). `status` 는 HTTP 상태 코드와 같다 */
+export interface ErrorBody {
+  status: number;
+  data: null;
+  message: string;
+  error: { code: ErrorCode; details?: FieldViolation[] };
+}
+
+/** 코드가 붙은 예외. 예외 필터가 `{ status, data: null, message, error: { code, details? } }` 로 내려보낸다 */
 export class ApiException extends HttpException {
   readonly code: ErrorCode;
+  readonly details?: FieldViolation[];
 
-  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGE[code]) {
-    super({ error: { code, message } } satisfies ErrorBody, ERROR_STATUS[code]);
+  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGE[code], details?: FieldViolation[]) {
+    super(message, ERROR_STATUS[code]);
     this.code = code;
-    this.message = message;
+    this.details = details;
+  }
+
+  /** 응답 본문. details 가 없으면 키 자체를 빼서 성공/실패 어느 쪽도 undefined 키를 내리지 않는다 */
+  toBody(): ErrorBody {
+    const error: ErrorBody['error'] = { code: this.code };
+    if (this.details) error.details = this.details;
+    return { status: this.getStatus(), data: null, message: this.message, error };
   }
 }

@@ -1,17 +1,28 @@
-import { BadRequestException, InternalServerErrorException, NotFoundException, UnauthorizedException, ValidationError } from '@nestjs/common';
+import { BadRequestException, ConflictException, InternalServerErrorException, NotFoundException, UnauthorizedException, ValidationError } from '@nestjs/common';
 import { firstValueFrom, of } from 'rxjs';
 import { ApiException, DEFAULT_MESSAGE } from './errors.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
 import { DELETED_MEMBER, MEMBER_COLORS, MemberResolver, pickLeastUsedColor, toMember } from './member.js';
 import { ResponseInterceptor } from './response.interceptor.js';
-import { createValidationPipe, firstValidationMessage, isCalendarDate, parseIsoDate } from './validation.js';
+import { collectViolations, createValidationPipe, firstValidationMessage, isCalendarDate, parseIsoDate } from './validation.js';
 
 describe('ApiException', () => {
-  it('코드별 HTTP 상태와 기본 문구를 가진다', () => {
+  it('코드별 HTTP 상태와 기본 문구로 실패 봉투를 만든다', () => {
     const e = new ApiException('INVITE_NOT_FOUND');
     expect(e.getStatus()).toBe(404);
-    expect(e.getResponse()).toEqual({ error: { code: 'INVITE_NOT_FOUND', message: DEFAULT_MESSAGE.INVITE_NOT_FOUND } });
-    expect(new ApiException('FORBIDDEN', '직접 문구').getResponse()).toEqual({ error: { code: 'FORBIDDEN', message: '직접 문구' } });
+    expect(e.toBody()).toEqual({ status: 404, data: null, message: DEFAULT_MESSAGE.INVITE_NOT_FOUND, error: { code: 'INVITE_NOT_FOUND' } });
+    expect(new ApiException('FORBIDDEN', '직접 문구').toBody()).toEqual({ status: 403, data: null, message: '직접 문구', error: { code: 'FORBIDDEN' } });
+  });
+
+  it('details 가 있으면 error.details 로, 없으면 키를 넣지 않는다', () => {
+    const details = [{ field: 'name', message: '이름' }];
+    expect(new ApiException('VALIDATION_FAILED', '이름', details).toBody()).toEqual({
+      status: 400,
+      data: null,
+      message: '이름',
+      error: { code: 'VALIDATION_FAILED', details },
+    });
+    expect(new ApiException('VALIDATION_FAILED').toBody().error).not.toHaveProperty('details');
   });
 });
 
@@ -29,14 +40,28 @@ describe('HttpExceptionFilter', () => {
   ])('%s → %i %s', (exception, status, code) => {
     const result = filter.translate(exception);
     expect(result.status).toBe(status);
+    expect(result.body.status).toBe(status);
+    expect(result.body.data).toBeNull();
     expect(result.body.error.code).toBe(code);
   });
 
   it('400 은 Nest 응답의 첫 메시지를 쓰고, 500 은 고정 문구', () => {
-    expect(filter.translate(new BadRequestException(['첫 번째', '두 번째'])).body.error.message).toBe('첫 번째');
-    expect(filter.translate(new BadRequestException('하나')).body.error.message).toBe('하나');
-    expect(filter.translate(new BadRequestException({ message: '' })).body.error.message).toBe(DEFAULT_MESSAGE.VALIDATION_FAILED);
-    expect(filter.translate(new Error('x')).body.error.message).toBe('잠시 후 다시 시도해 주세요');
+    expect(filter.translate(new BadRequestException(['첫 번째', '두 번째'])).body.message).toBe('첫 번째');
+    expect(filter.translate(new BadRequestException('하나')).body.message).toBe('하나');
+    expect(filter.translate(new BadRequestException({ message: '' })).body.message).toBe(DEFAULT_MESSAGE.VALIDATION_FAILED);
+    expect(filter.translate(new Error('x')).body.message).toBe('잠시 후 다시 시도해 주세요');
+  });
+
+  it('5xx HttpException 은 내부 문구를 숨기고, 표에 없는 4xx 는 400 VALIDATION_FAILED', () => {
+    expect(filter.translate(new InternalServerErrorException('DB 비밀번호 틀림')).body).toEqual({
+      status: 500,
+      data: null,
+      message: DEFAULT_MESSAGE.INTERNAL,
+      error: { code: 'INTERNAL' },
+    });
+    const conflict = filter.translate(new ConflictException('충돌'));
+    expect(conflict.status).toBe(400);
+    expect(conflict.body).toMatchObject({ status: 400, message: '충돌', error: { code: 'VALIDATION_FAILED' } });
   });
 
   it('catch 는 상태와 본문을 응답에 쓴다', () => {
@@ -45,7 +70,7 @@ describe('HttpExceptionFilter', () => {
     const host = { switchToHttp: () => ({ getResponse: () => res }) };
     filter.catch(new ApiException('FORBIDDEN'), host as never);
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(json).toHaveBeenCalledWith({ error: { code: 'FORBIDDEN', message: DEFAULT_MESSAGE.FORBIDDEN } });
+    expect(json).toHaveBeenCalledWith({ status: 403, data: null, message: DEFAULT_MESSAGE.FORBIDDEN, error: { code: 'FORBIDDEN' } });
 
     const errorSpy = vi.spyOn(filter['logger'], 'error').mockImplementation(() => undefined);
     filter.catch(new Error('boom'), host as never);
@@ -55,10 +80,14 @@ describe('HttpExceptionFilter', () => {
 });
 
 describe('ResponseInterceptor', () => {
-  it('{ data } 로 감싼다', async () => {
+  const contextWith = (statusCode: number) => ({ switchToHttp: () => ({ getResponse: () => ({ statusCode }) }) }) as never;
+
+  it('{ status: 응답 코드, data, message: "OK" } 로 감싼다', async () => {
     const interceptor = new ResponseInterceptor();
-    const out = await firstValueFrom(interceptor.intercept({} as never, { handle: () => of({ ok: true }) }));
-    expect(out).toEqual({ data: { ok: true } });
+    const out = await firstValueFrom(interceptor.intercept(contextWith(200), { handle: () => of({ ok: true }) }));
+    expect(out).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
+    const created = await firstValueFrom(interceptor.intercept(contextWith(201), { handle: () => of([1]) }));
+    expect(created).toEqual({ status: 201, data: [1], message: 'OK' });
   });
 });
 
@@ -73,12 +102,36 @@ describe('validation', () => {
     expect(firstValidationMessage([{ property: 'empty' }])).toBe('입력값을 확인해 주세요');
   });
 
-  it('createValidationPipe 의 exceptionFactory 는 ApiException', () => {
+  it('collectViolations 는 필드마다 한 줄, 중첩은 parent.child 경로', () => {
+    expect(
+      collectViolations([
+        { property: 'title', constraints: { maxLength: '50자 이하', isString: '문자열' } },
+        { property: 'extra', constraints: { whitelistValidation: 'x' } },
+        { property: 'nested', children: [{ property: 'inner', constraints: { isString: '안쪽' } }] },
+        { property: 'empty' },
+      ]),
+    ).toEqual([
+      { field: 'title', message: '문자열' },
+      { field: 'extra', message: 'extra 은(는) 허용되지 않는 항목이에요' },
+      { field: 'nested.inner', message: '안쪽' },
+    ]);
+  });
+
+  it('createValidationPipe 의 exceptionFactory 는 details 를 단 ApiException', () => {
     const pipe = createValidationPipe();
     const factory = (pipe as unknown as { exceptionFactory: (e: ValidationError[]) => unknown }).exceptionFactory;
-    const error = factory([{ property: 'name', constraints: { isString: '이름' } }]) as ApiException;
+    const error = factory([
+      { property: 'name', constraints: { isString: '이름' } },
+      { property: 'color', constraints: { matches: '색' } },
+    ]) as ApiException;
     expect(error).toBeInstanceOf(ApiException);
     expect(error.code).toBe('VALIDATION_FAILED');
+    expect(error.message).toBe('이름');
+    expect(error.details).toEqual([
+      { field: 'name', message: '이름' },
+      { field: 'color', message: '색' },
+    ]);
+    expect((factory([]) as ApiException).message).toBe(DEFAULT_MESSAGE.VALIDATION_FAILED);
   });
 
   it('isCalendarDate / parseIsoDate', () => {
@@ -87,6 +140,11 @@ describe('validation', () => {
     expect(isCalendarDate('2026-2-3')).toBe(false);
     expect(parseIsoDate('2026-11-09T05:00:00.000Z', 'from').toISOString()).toBe('2026-11-09T05:00:00.000Z');
     expect(() => parseIsoDate('nope', 'from')).toThrow(ApiException);
+    try {
+      parseIsoDate('nope', 'from');
+    } catch (error) {
+      expect((error as ApiException).details).toEqual([{ field: 'from', message: 'from 은(는) ISO 8601 날짜시각이어야 해요' }]);
+    }
   });
 });
 

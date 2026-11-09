@@ -153,7 +153,12 @@ describe('카카오 OAuth (e2e)', () => {
 
   it('dev-login 검증: nickname 없으면 400', async () => {
     const res = await api(app).post('/v1/auth/dev-login').send({}).expect(400);
-    expect(res.body.error).toEqual({ code: 'VALIDATION_FAILED', message: 'nickname 은 문자열이어야 해요' });
+    expect(res.body).toEqual({
+      status: 400,
+      data: null,
+      message: 'nickname 은 문자열이어야 해요',
+      error: { code: 'VALIDATION_FAILED', details: [{ field: 'nickname', message: 'nickname 은 문자열이어야 해요' }] },
+    });
   });
 
   it('운영(NODE_ENV=production) 에서는 dev-login 이 404', async () => {

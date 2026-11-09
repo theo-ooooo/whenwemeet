@@ -24,9 +24,9 @@ describe('핵심 흐름 (e2e)', () => {
     await app.close();
   });
 
-  it('health 는 인증 없이 { data: { ok } }', async () => {
+  it('health 는 인증 없이 { status: 200, data: { ok }, message: OK }', async () => {
     const res = await api(app).get('/v1/health').expect(200);
-    expect(res.body).toEqual({ data: { ok: true } });
+    expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
   });
 
   it('dev-login 은 같은 닉네임이면 같은 사용자를 돌려준다', async () => {
@@ -54,6 +54,7 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('POST /groups 는 201 + TEAM + 초대 코드', async () => {
     const res = await api(app).post('/v1/groups').set(auth(alice)).send({ name: '우리 모임' }).expect(201);
+    expect(res.body.status).toBe(201);
     const detail = res.body.data;
     expect(detail).toMatchObject({ type: 'TEAM', name: '우리 모임' });
     expect(detail.inviteCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/);
@@ -73,7 +74,7 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('참여 전에는 403 FORBIDDEN', async () => {
     const res = await api(app).get(`/v1/groups/${groupId}`).set(auth(bob)).expect(403);
-    expect(res.body.error).toEqual({ code: 'FORBIDDEN', message: expect.any(String) });
+    expect(res.body).toEqual({ status: 403, data: null, message: '이 팀의 멤버가 아니에요', error: { code: 'FORBIDDEN' } });
   });
 
   it('POST /groups/join 은 200, 두 번째 멤버는 팔레트 두 번째 색, 두 번 눌러도 멱등', async () => {
@@ -98,7 +99,7 @@ describe('핵심 흐름 (e2e)', () => {
     expect(reset.body.data.displayName).toBe('밥');
 
     const bad = await api(app).patch(`/v1/groups/${groupId}/me`).set(auth(bob)).send({ color: 'red' }).expect(400);
-    expect(bad.body.error.code).toBe('VALIDATION_FAILED');
+    expect(bad.body.error).toEqual({ code: 'VALIDATION_FAILED', details: [{ field: 'color', message: expect.any(String) }] });
   });
 
   it('PATCH /groups/:id 이름 변경과 초대 코드 재발급 (이전 코드 무효)', async () => {
@@ -156,7 +157,12 @@ describe('핵심 흐름 (e2e)', () => {
       .set(auth(alice))
       .send({ title: 'x', startsAt: '2026-12-01T00:00:00.000Z', endsAt: '2026-12-01T01:00:00.000Z', allDay: false, color: '#fff' })
       .expect(400);
-    expect(unknown.body.error).toEqual({ code: 'VALIDATION_FAILED', message: 'color 은(는) 허용되지 않는 항목이에요' });
+    expect(unknown.body).toEqual({
+      status: 400,
+      data: null,
+      message: 'color 은(는) 허용되지 않는 항목이에요',
+      error: { code: 'VALIDATION_FAILED', details: [{ field: 'color', message: 'color 은(는) 허용되지 않는 항목이에요' }] },
+    });
   });
 
   it('일정 목록은 겹침 조건 + 62일 제한, 단건 조회, 다른 팀 ID 는 404', async () => {
@@ -183,6 +189,7 @@ describe('핵심 흐름 (e2e)', () => {
 
     const missingQuery = await api(app).get(`/v1/groups/${groupId}/events`).set(auth(bob)).expect(400);
     expect(missingQuery.body.error.code).toBe('VALIDATION_FAILED');
+    expect(missingQuery.body.error.details.map((d: { field: string }) => d.field)).toContain('from');
 
     const one = await api(app).get(`/v1/groups/${groupId}/events/${eventId}`).set(auth(bob)).expect(200);
     expect(one.body.data.id).toBe(eventId);
@@ -280,7 +287,7 @@ describe('핵심 흐름 (e2e)', () => {
       .set(auth(alice))
       .query({ ...base, dayStart: '22:00', dayEnd: '09:00' })
       .expect(400);
-    expect(badWindow.body.error.code).toBe('VALIDATION_FAILED');
+    expect(badWindow.body.error).toEqual({ code: 'VALIDATION_FAILED', details: [{ field: 'dayStart', message: badWindow.body.message }] });
 
     const badMinutes = await api(app)
       .get(`/v1/groups/${groupId}/free-slots`)
@@ -316,7 +323,7 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('일정 삭제는 DELETED 스냅샷을 남기고 eventId 는 null 이 된다', async () => {
     const res = await api(app).delete(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(200);
-    expect(res.body).toEqual({ data: { ok: true } });
+    expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
     await api(app).get(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(404);
 
     const news = await api(app).get(`/v1/groups/${groupId}/news`).set(auth(bob)).expect(200);
