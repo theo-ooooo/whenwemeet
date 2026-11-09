@@ -1,29 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { Member, MemberResolver } from '../common/member.js';
-import { Db, MembershipService } from '../groups/membership.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { MembershipService } from '../groups/membership.service.js';
+import { AnniversariesRepository, AnniversaryRow } from './anniversaries.repository.js';
 import type { CreateAnniversaryDto, UpdateAnniversaryDto } from './dto/anniversary.dto.js';
-
-const ANNIVERSARY_SELECT = {
-  id: true,
-  groupId: true,
-  name: true,
-  date: true,
-  creatorId: true,
-  createdAt: true,
-  creator: { select: { nickname: true, profileImageUrl: true } },
-} as const;
-
-type AnniversaryRow = {
-  id: string;
-  groupId: string;
-  name: string;
-  date: Date;
-  creatorId: string | null;
-  createdAt: Date;
-  creator: { nickname: string; profileImageUrl: string | null } | null;
-};
 
 export interface AnniversaryView {
   id: string;
@@ -58,41 +38,30 @@ export function toAnniversaryView(row: AnniversaryRow, resolver: MemberResolver)
 @Injectable()
 export class AnniversariesService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly anniversaries: AnniversariesRepository,
     private readonly memberships: MembershipService,
   ) {}
 
   async list(userId: string, groupId: string): Promise<AnniversaryView[]> {
     await this.memberships.assertMember(userId, groupId);
-    const rows = await this.prisma.anniversary.findMany({
-      where: { groupId },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-      select: ANNIVERSARY_SELECT,
-    });
+    const rows = await this.anniversaries.listByGroup(groupId);
     const resolver = await this.memberships.resolverFor(groupId);
     return rows.map((row) => toAnniversaryView(row, resolver));
   }
 
   async create(userId: string, groupId: string, dto: CreateAnniversaryDto): Promise<AnniversaryView> {
     await this.memberships.assertMember(userId, groupId);
-    const row = await this.prisma.anniversary.create({
-      data: { groupId, name: dto.name, date: dateStringToDb(dto.date), creatorId: userId },
-      select: ANNIVERSARY_SELECT,
-    });
+    const row = await this.anniversaries.create({ groupId, name: dto.name, date: dateStringToDb(dto.date), creatorId: userId });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);
   }
 
   async update(userId: string, groupId: string, anniversaryId: string, dto: UpdateAnniversaryDto): Promise<AnniversaryView> {
     await this.memberships.assertMember(userId, groupId);
-    await this.findInGroup(this.prisma, groupId, anniversaryId);
-    const row = await this.prisma.anniversary.update({
-      where: { id: anniversaryId },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.date !== undefined ? { date: dateStringToDb(dto.date) } : {}),
-      },
-      select: ANNIVERSARY_SELECT,
+    await this.assertInGroup(groupId, anniversaryId);
+    const row = await this.anniversaries.update(anniversaryId, {
+      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.date !== undefined ? { date: dateStringToDb(dto.date) } : {}),
     });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);
@@ -100,14 +69,14 @@ export class AnniversariesService {
 
   async remove(userId: string, groupId: string, anniversaryId: string): Promise<{ ok: true }> {
     await this.memberships.assertMember(userId, groupId);
-    await this.findInGroup(this.prisma, groupId, anniversaryId);
-    await this.prisma.anniversary.delete({ where: { id: anniversaryId } });
+    await this.assertInGroup(groupId, anniversaryId);
+    await this.anniversaries.delete(anniversaryId);
     return { ok: true };
   }
 
-  private async findInGroup(db: Db, groupId: string, anniversaryId: string): Promise<{ id: string }> {
-    const row = await db.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true } });
+  /** 다른 팀 자원을 가리키는 ID 도 NOT_FOUND */
+  private async assertInGroup(groupId: string, anniversaryId: string): Promise<void> {
+    const row = await this.anniversaries.findIdInGroup(groupId, anniversaryId);
     if (!row) throw new ApiException('NOT_FOUND', '기념일을 찾을 수 없어요');
-    return row;
   }
 }
