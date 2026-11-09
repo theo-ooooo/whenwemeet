@@ -281,7 +281,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           <Link
             href={newHref}
             aria-label="일정 추가"
-            className="grid size-16 shrink-0 place-items-center rounded-full bg-ink text-surface shadow-[0_8px_30px_rgba(0,0,0,0.18)]"
+            className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
           >
             <IconPlus size={26} strokeWidth={2.2} />
           </Link>
@@ -318,7 +318,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
         <Link
           href="/groups/new"
           onClick={() => setSwitcher(false)}
-          className="mt-4 flex h-[52px] items-center justify-center gap-1.5 rounded-full bg-ink text-[15px] font-bold text-surface"
+          className="mt-4 flex h-[52px] items-center justify-center gap-1.5 rounded-full bg-btn text-[15px] font-bold text-on-btn"
         >
           <IconPlus size={18} />새 팀 만들기
         </Link>

@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass } from "@/components/ui";
@@ -26,11 +26,15 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
 
   const defaultStart = initialStart ?? kstToIso(todayKey(), "10:00");
   const defaultEnd = initialEnd ?? kstToIso(todayKey(), "11:00");
+  // 달력 빠른 추가의 "자세히"(#46) 가 넘긴 제목, 종일. 새 일정일 때만 쓴다
+  const query = useSearchParams();
+  const draftTitle = sourceId ? "" : (query.get("title") ?? "").slice(0, 100);
+  const draftAllDay = !sourceId && query.get("allDay") === "1";
 
   const [loaded, setLoaded] = useState(!sourceId);
   const [creator, setCreator] = useState<Event["creator"] | null>(null);
-  const [title, setTitle] = useState("");
-  const [allDay, setAllDay] = useState(false);
+  const [title, setTitle] = useState(draftTitle);
+  const [allDay, setAllDay] = useState(draftAllDay);
   const [startDate, setStartDate] = useState(dateKeyOf(defaultStart));
   const [startTime, setStartTime] = useState(timeOf(defaultStart));
   const [endDate, setEndDate] = useState(dateKeyOf(defaultEnd));

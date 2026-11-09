@@ -2,11 +2,13 @@
 // 4 달력. 목업 docs/설계/img/디자인-2026.html(모바일) 과 디자인-2026-PC.html(PC, ≥1024px) 을 그대로 옮긴다.
 // 모바일: 큰 월 숫자 → 비는 시간/D-day 타일 → 달력 타일 → 선택일 목록 타일. 일정 탭 → 바텀 시트
 // PC: 가운데 큰 달력(칸 안 일정 칩) + 우측 패널(비는 시간, D-day, 선택일 일정 또는 일정 상세, 이번 주 빈 시간)
+// 바로 추가(#46): 모바일은 선택된 날짜 재탭 = 빠른 추가 시트, PC 는 날짜 칸 빈 곳 클릭 = 칸 옆 팝오버
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { IconArrowRight, IconChevronLeft, IconChevronRight, IconClose, IconPlus } from "@/components/icons";
+import { QuickAddPopover, QuickAddSheet } from "@/components/QuickAdd";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog, ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
@@ -70,6 +72,9 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
   const [detail, setDetail] = useState<Event | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closeDetail = useCallback(() => setDetail(null), []);
+  // 빠른 추가: 날짜와 (PC 팝오버를 붙일) 날짜 칸
+  const [quick, setQuick] = useState<{ date: DateKey; anchor: HTMLElement | null } | null>(null);
+  const closeQuick = useCallback(() => setQuick(null), []);
 
   // 6주 그리드. 마지막 주가 통째로 다음 달이면 5주만 그린다 (목업처럼)
   const grid42 = useMemo(() => monthGrid(y, m), [y, m]);
@@ -163,6 +168,27 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
     if (p.y !== y || p.m !== m) setMonth({ y: p.y, m: p.m });
   }
 
+  /** 날짜 칸을 눌렀을 때. 모바일은 1탭 선택, 선택된 칸 재탭 = 빠른 추가. PC 는 선택 + 칸 옆 팝오버 */
+  function onCell(key: DateKey, cell: HTMLElement) {
+    if (isDesktop) {
+      pick(key);
+      setQuick({ date: key, anchor: cell });
+      return;
+    }
+    if (key === selected) setQuick({ date: key, anchor: null });
+    else pick(key);
+  }
+  function openQuick(key: DateKey) {
+    const cell = isDesktop ? document.querySelector<HTMLElement>(`[data-date="${key}"]`) : null;
+    setQuick({ date: key, anchor: cell });
+  }
+  function onQuickSaved(ev: Event) {
+    setQuick(null);
+    toast.show("일정을 추가했어요");
+    pick(dateKeyOf(ev.startsAt));
+    void loadEvents();
+  }
+
   const remove = useDeleteEvent(groupId);
   async function removeEvent() {
     if (!detail) return;
@@ -237,7 +263,7 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
     <>
       <h2 className="flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.02em]">
         {dayHeading}
-        {selected === today && <em className="rounded-full bg-ink px-2 py-[3px] text-[11px] font-bold not-italic text-surface">오늘</em>}
+        {selected === today && <em className="rounded-full bg-today px-2 py-[3px] text-[11px] font-bold not-italic text-today-ink">오늘</em>}
         {holidayOf(selected) && <span className="text-[12px] font-bold text-holiday">{holidayOf(selected)}</span>}
       </h2>
       {eventsError ? (
@@ -257,10 +283,17 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
           ))}
         </div>
       ) : dayEvents.length === 0 ? (
-        <p className="py-6 text-center text-[14px] font-semibold leading-relaxed text-ink-2">
-          이 날은 아직 일정이 없어요.
-          <br />+ 를 눌러 첫 일정을 추가해 보세요
-        </p>
+        <div className="flex flex-col items-center gap-3 py-5 text-center">
+          <p className="text-[14px] font-semibold leading-relaxed text-ink-2">이 날은 아직 일정이 없어요. 바로 추가해 보세요</p>
+          <button
+            type="button"
+            onClick={() => openQuick(selected)}
+            aria-haspopup="dialog"
+            className="flex h-11 items-center gap-1.5 rounded-full bg-today px-5 text-[14px] font-bold text-sel-ink hover:brightness-[.97]"
+          >
+            <IconPlus size={16} strokeWidth={2.6} />이 날 일정 추가
+          </button>
+        </div>
       ) : (
         <ul className="mt-1">
           {dayEvents.map((ev, i) => (
@@ -314,7 +347,7 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
             </button>
             <Link
               href={newHref}
-              className="hidden h-9 items-center gap-1 rounded-full bg-ink px-4 text-[13px] font-bold text-surface lg:flex"
+              className="hidden h-9 items-center gap-1 rounded-full bg-pri px-4 text-[13px] font-bold text-on-pri hover:brightness-95 lg:flex"
             >
               <IconPlus size={14} strokeWidth={2.6} />
               일정 추가
@@ -348,9 +381,10 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
                 inMonth={parseKey(key).m === m}
                 isToday={key === today}
                 isSelected={key === selected}
+                isDesktop={isDesktop}
                 events={byDay.get(key) ?? []}
                 loading={events === null}
-                onPick={() => pick(key)}
+                onPick={(cell) => onCell(key, cell)}
                 onOpen={(ev) => {
                   pick(key);
                   setDetail(ev);
@@ -439,6 +473,14 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
         </DetailSheet>
       )}
 
+      {/* 빠른 추가 */}
+      {quick &&
+        (isDesktop ? (
+          <QuickAddPopover key={quick.date} groupId={groupId} date={quick.date} anchor={quick.anchor} onClose={closeQuick} onSaved={onQuickSaved} />
+        ) : (
+          <QuickAddSheet key={quick.date} groupId={groupId} date={quick.date} onClose={closeQuick} onSaved={onQuickSaved} />
+        ))}
+
       <ConfirmDialog
         open={confirmDelete}
         title="이 일정을 삭제할까요?"
@@ -453,7 +495,7 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
   );
 }
 
-/* ---------- 오늘 비는 시간 타일 (포인트 색) ---------- */
+/* ---------- 오늘 비는 시간 타일 (연한 코랄 면, #46) ---------- */
 
 function FreeTile({
   label,
@@ -466,11 +508,12 @@ function FreeTile({
   groupId: number;
   onRetry?: () => void;
 }) {
-  const cls = "block rounded-lg bg-[var(--hl-tile)] px-4 py-3.5 text-left text-white hover:brightness-110 lg:px-[18px] lg:py-4";
+  const cls = "block rounded-lg bg-[var(--hl-tile)] px-4 py-3.5 text-left text-[var(--hl-ink)] hover:brightness-[.98] lg:px-[18px] lg:py-4";
+  const sub = "block text-[12px] font-semibold text-[var(--hl-ink)]/80";
   if (onRetry && slot === undefined) {
     return (
       <button type="button" onClick={onRetry} className={`${cls} w-full`}>
-        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
+        <small className={sub}>{label}</small>
         <b className="mt-1 block text-[15px] font-bold leading-snug">계산하지 못했어요. 눌러서 다시 시도</b>
       </button>
     );
@@ -478,27 +521,27 @@ function FreeTile({
   if (slot === undefined) {
     return (
       <div className={cls} aria-busy="true">
-        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
-        <span className="mt-2 block h-6 w-28 animate-pulse rounded-[7px] bg-white/30" />
+        <small className={sub}>{label}</small>
+        <span className="mt-2 block h-6 w-28 animate-pulse rounded-[7px] bg-[var(--hl-ink)]/15" />
       </div>
     );
   }
   if (slot === null) {
     return (
       <Link href={`/g/${groupId}/free`} className={cls}>
-        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
+        <small className={sub}>{label}</small>
         <b className="mt-1 block text-[15px] font-bold leading-snug tracking-[-0.02em]">오늘은 모두 비는 시간이 없어요</b>
-        <small className="mt-1.5 block text-[12px] font-semibold text-white/70">다른 날 찾아보기</small>
+        <small className={`mt-1.5 ${sub}`}>다른 날 찾아보기</small>
       </Link>
     );
   }
   return (
     <Link href={newEventHref(groupId, slot.startsAt, slot.endsAt)} className={cls}>
-      <small className="block text-[12px] font-semibold text-white/70">{label}</small>
+      <small className={sub}>{label}</small>
       <b className="mt-1 block text-[22px] font-extrabold tracking-[-0.04em] text-[var(--hl-time)]">
         {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
       </b>
-      <small className="mt-1.5 block text-[12px] font-semibold text-white/70">
+      <small className={`mt-1.5 ${sub}`}>
         <span className="lg:hidden">탭하면</span>
         <span className="hidden lg:inline">클릭하면</span> 바로 약속으로
       </small>
@@ -513,6 +556,7 @@ function DayCell({
   inMonth,
   isToday,
   isSelected,
+  isDesktop,
   events,
   loading,
   onPick,
@@ -522,17 +566,20 @@ function DayCell({
   inMonth: boolean;
   isToday: boolean;
   isSelected: boolean;
+  isDesktop: boolean;
   events: Event[];
   loading: boolean;
-  onPick: () => void;
+  /** 칸(li)을 넘긴다. PC 팝오버를 그 옆에 붙인다 */
+  onPick: (cell: HTMLElement) => void;
   onOpen: (ev: Event) => void;
 }) {
   const p = parseKey(dateKey);
   const dow = dowOf(dateKey);
   const holiday = holidayOf(dateKey);
   const red = dow === 0 || dow === 6 || Boolean(holiday);
-  const numColor = isSelected
-    ? "text-surface"
+  // 선택 칸 = 옅은 코랄 면 + 코랄 숫자, 선택 안 된 오늘 = 코랄 테두리 + 코랄 숫자 (#46 A안)
+  const numColor = isSelected || (isToday && inMonth)
+    ? "text-today-ink"
     : !inMonth
       ? red
         ? "text-[var(--holiday-faint)] font-medium"
@@ -540,7 +587,8 @@ function DayCell({
       : red
         ? "text-holiday"
         : "";
-  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
+  const hint = isDesktop ? ", 눌러서 일정 추가" : isSelected ? ", 한 번 더 누르면 일정 추가" : "";
+  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}${hint}`;
 
   // 모바일: 색 바(멤버 색 최대 3개) + 그날 시작하는(또는 주 첫 칸의) 첫 일정 제목
   const colors = Array.from(new Set(events.map((e) => e.creator.color))).slice(0, 3);
@@ -551,22 +599,24 @@ function DayCell({
 
   return (
     <li
+      data-date={dateKey}
       className={`anim-pick relative h-[52px] overflow-hidden rounded-sm px-[3px] pt-1.5 text-center text-[14px] font-bold lg:h-auto lg:min-h-0 lg:px-2 lg:pb-1 lg:pt-2 lg:text-left lg:text-[13px] ${
-        isSelected ? "bg-ink" : isToday ? "ring-[1.5px] ring-ink ring-inset" : ""
+        isSelected ? "bg-today" : isToday ? "ring-[1.5px] ring-pri ring-inset" : ""
       }`}
     >
       <button
         type="button"
-        onClick={onPick}
+        onClick={(e) => onPick(e.currentTarget.parentElement as HTMLElement)}
         aria-pressed={isSelected}
         aria-label={label}
+        aria-haspopup={isDesktop || isSelected ? "dialog" : undefined}
         className={`absolute inset-0 rounded-sm ${isSelected ? "" : "hover:bg-surface/60"}`}
       />
       <span className={`pointer-events-none relative block leading-[1.25] ${numColor}`}>{p.d}</span>
       {holiday && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none relative block truncate text-[8.5px] font-bold leading-[1.3] lg:inline lg:pl-1.5 lg:text-[11px] ${isSelected ? "text-surface/80" : inMonth ? "text-holiday" : "text-[var(--holiday-faint)]"}`}
+          className={`pointer-events-none relative block truncate text-[8.5px] font-bold leading-[1.3] lg:inline lg:pl-1.5 lg:text-[11px] ${inMonth ? "text-holiday" : "text-[var(--holiday-faint)]"}`}
         >
           {holiday}
         </span>
@@ -582,7 +632,7 @@ function DayCell({
               ))}
             </span>
             {labelEvent && (
-              <span className={`mt-0.5 block truncate text-[9px] font-bold ${isSelected ? "text-surface" : "text-soft"}`}>{labelEvent.title}</span>
+              <span className={`mt-0.5 block truncate text-[9px] font-bold ${isSelected ? "text-today-ink" : "text-soft"}`}>{labelEvent.title}</span>
             )}
           </>
         ) : null}
@@ -600,7 +650,7 @@ function DayCell({
               onClick={() => onOpen(ev)}
               aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
               className={`mt-[5px] flex w-full items-center gap-[5px] overflow-hidden rounded-xs px-1.5 py-[3px] text-left text-[11px] font-semibold whitespace-nowrap ${
-                band ? "" : isSelected ? "bg-surface/15 text-surface" : "bg-surface"
+                band ? "" : isSelected ? "bg-paper/80" : "bg-surface"
               }`}
               style={style}
             >
@@ -613,7 +663,7 @@ function DayCell({
           );
         })}
         {more > 0 && (
-          <span aria-hidden="true" className={`pointer-events-none mt-1 block text-[11px] font-semibold ${isSelected ? "text-surface/80" : "text-ink-2"}`}>
+          <span aria-hidden="true" className={`pointer-events-none mt-1 block text-[11px] font-semibold ${isSelected ? "text-today-ink" : "text-ink-2"}`}>
             +{more}개 더
           </span>
         )}
@@ -693,7 +743,7 @@ function EventDetail({
         <button
           type="button"
           onClick={() => router.push(`/g/${groupId}/events/${ev.id}`)}
-          className="h-[52px] flex-1 rounded-full bg-ink text-[15px] font-bold text-surface"
+          className="h-[52px] flex-1 rounded-full bg-btn text-[15px] font-bold text-on-btn"
         >
           수정
         </button>
