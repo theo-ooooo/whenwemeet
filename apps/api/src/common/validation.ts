@@ -1,4 +1,5 @@
 import { ValidationError, ValidationPipe } from '@nestjs/common';
+import { Transform } from 'class-transformer';
 import { ApiException, FieldViolation } from './errors.js';
 
 /**
@@ -43,6 +44,14 @@ export function firstValidationMessage(errors: ValidationError[]): string {
 function rank(constraint: string): number {
   const index = CONSTRAINT_PRIORITY.indexOf(constraint);
   return index === -1 ? CONSTRAINT_PRIORITY.length : index;
+}
+
+/**
+ * 문자열이면 앞뒤 공백을 잘라 검증과 저장에 쓴다. 공백만이면 빈 문자열이 되어 길이 검증에서 걸린다 (#59).
+ * 문자열이 아니면 그대로 두어 IsString 이 형식 오류를 내게 한다
+ */
+export function Trim(): PropertyDecorator {
+  return Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value));
 }
 
 /** 전역 ValidationPipe. whitelist + transform + forbidNonWhitelisted (agents/backend.md) */

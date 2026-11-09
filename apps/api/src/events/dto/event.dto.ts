@@ -1,6 +1,8 @@
 import { IsBoolean, IsDateString, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { Trim } from '../../common/validation.js';
 
 export class EventInputDto {
+  @Trim()
   @IsString({ message: '제목은 문자열이어야 해요' })
   @Length(1, 50, { message: '제목은 1~50자여야 해요' })
   title!: string;
@@ -22,6 +24,7 @@ export class EventInputDto {
 
 export class EventPatchDto {
   @IsOptional()
+  @Trim()
   @IsString({ message: '제목은 문자열이어야 해요' })
   @Length(1, 50, { message: '제목은 1~50자여야 해요' })
   title?: string;
