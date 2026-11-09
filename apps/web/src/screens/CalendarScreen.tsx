@@ -466,11 +466,11 @@ function FreeTile({
   groupId: string;
   onRetry?: () => void;
 }) {
-  const cls = "block rounded-lg bg-brand px-4 py-3.5 text-left text-white hover:brightness-105 lg:px-[18px] lg:py-4";
+  const cls = "block rounded-lg bg-[var(--hl-tile)] px-4 py-3.5 text-left text-white hover:brightness-110 lg:px-[18px] lg:py-4";
   if (onRetry && slot === undefined) {
     return (
       <button type="button" onClick={onRetry} className={`${cls} w-full`}>
-        <small className="block text-[12px] font-semibold">{label}</small>
+        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
         <b className="mt-1 block text-[15px] font-bold leading-snug">계산하지 못했어요. 눌러서 다시 시도</b>
       </button>
     );
@@ -478,7 +478,7 @@ function FreeTile({
   if (slot === undefined) {
     return (
       <div className={cls} aria-busy="true">
-        <small className="block text-[12px] font-semibold">{label}</small>
+        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
         <span className="mt-2 block h-6 w-28 animate-pulse rounded-[7px] bg-white/30" />
       </div>
     );
@@ -486,19 +486,19 @@ function FreeTile({
   if (slot === null) {
     return (
       <Link href={`/g/${groupId}/free`} className={cls}>
-        <small className="block text-[12px] font-semibold">{label}</small>
+        <small className="block text-[12px] font-semibold text-white/70">{label}</small>
         <b className="mt-1 block text-[15px] font-bold leading-snug tracking-[-0.02em]">오늘은 모두 비는 시간이 없어요</b>
-        <small className="mt-1.5 block text-[12px] font-semibold">다른 날 찾아보기</small>
+        <small className="mt-1.5 block text-[12px] font-semibold text-white/70">다른 날 찾아보기</small>
       </Link>
     );
   }
   return (
     <Link href={newEventHref(groupId, slot.startsAt, slot.endsAt)} className={cls}>
-      <small className="block text-[12px] font-semibold">{label}</small>
-      <b className="mt-1 block text-[22px] font-extrabold tracking-[-0.04em]">
+      <small className="block text-[12px] font-semibold text-white/70">{label}</small>
+      <b className="mt-1 block text-[22px] font-extrabold tracking-[-0.04em] text-[var(--hl-time)]">
         {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
       </b>
-      <small className="mt-1.5 block text-[12px] font-semibold">
+      <small className="mt-1.5 block text-[12px] font-semibold text-white/70">
         <span className="lg:hidden">탭하면</span>
         <span className="hidden lg:inline">클릭하면</span> 바로 약속으로
       </small>

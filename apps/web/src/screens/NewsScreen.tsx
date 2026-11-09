@@ -81,7 +81,7 @@ export function NewsScreen({ groupId }: { groupId: string }) {
                 </>
               );
               const cls = `flex w-full items-start gap-3 rounded-[18px] px-3.5 py-3.5 text-left ${
-                item.isNew ? "bg-brand-soft" : ""
+                item.isNew ? "bg-surface" : ""
               } ${clickable ? "hover:bg-surface" : ""}`;
               return (
                 <li key={item.id}>

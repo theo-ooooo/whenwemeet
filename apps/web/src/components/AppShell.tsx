@@ -249,7 +249,7 @@ export function AppShell({ groupId, children }: { groupId: string; children: Rea
           </header>
 
           <main
-            className={`flex-1 px-4 pb-[calc(110px+env(safe-area-inset-bottom))] lg:px-0 lg:pb-0 ${
+            className={`flex-1 px-4 pb-[calc(64px+22px+32px+env(safe-area-inset-bottom))] lg:px-0 lg:pb-0 ${
               isCalendar ? "" : "lg:mx-auto lg:w-full lg:max-w-[760px] lg:px-8 lg:py-[26px]"
             }`}
           >

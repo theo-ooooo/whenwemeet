@@ -55,6 +55,9 @@
   --line: #ececef;
   --acc: #ff3d1f;
   --acc-soft: #ffece8;
+  /* 오늘 모두 비는 시간 타일: 먹색 면 + 시간만 코랄 (#24 리뷰 C안) */
+  --hl-tile: #1c1c1e;
+  --hl-time: #ff6b57;
   --holiday: #e5322d;
   --holiday-faint: #f2b8b5;
   --m1: #ff3d1f;
@@ -83,6 +86,7 @@
     --line: #26262a;
     --acc: #ff4a2e;
     --acc-soft: #2c1512;
+    --hl-tile: #2c2c30;
     --holiday-faint: #5a2a28;
     --m1: #ff4a2e;
     --m2: #3b74ff;
@@ -106,6 +110,7 @@
   --line: #26262a;
   --acc: #ff4a2e;
   --acc-soft: #2c1512;
+  --hl-tile: #2c2c30;
   --holiday-faint: #5a2a28;
   --m1: #ff4a2e;
   --m2: #3b74ff;
