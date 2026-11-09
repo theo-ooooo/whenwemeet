@@ -1,10 +1,14 @@
-import { asPrisma, createPrismaMock, membershipRow, PrismaMock } from '../testing/prisma-mock.js';
+import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
+import { GroupsRepository } from './groups.repository.js';
 import { GroupsService } from './groups.service.js';
 import { generateInviteCode, INVITE_CODE_PATTERN, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
 import { MembershipService } from './membership.service.js';
 
 const config = { getOrThrow: (key: string) => (key === 'WEB_ORIGIN' ? 'http://web' : '') } as never;
 const GROUP = { id: 'g1', type: 'TEAM' as const, name: '팀', inviteCode: 'ABCDEF', createdAt: new Date('2026-11-01T00:00:00.000Z') };
+const INVITE_GROUP = { id: 'g1', name: '팀', memberCount: 1 };
 
 describe('invite-code', () => {
   it('generateInviteCode 는 허용 알파벳 6자', () => {
@@ -19,20 +23,22 @@ describe('invite-code', () => {
 });
 
 describe('MembershipService', () => {
-  let prisma: PrismaMock;
+  let membershipsRepo: RepositoryMock<MembershipsRepository>;
+  let groupsRepo: RepositoryMock<GroupsRepository>;
   let service: MembershipService;
 
   beforeEach(() => {
-    prisma = createPrismaMock();
-    service = new MembershipService(asPrisma(prisma), config);
+    membershipsRepo = mockRepository(MembershipsRepository);
+    groupsRepo = mockRepository(GroupsRepository);
+    service = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
   });
 
   it('assertMember: 없으면 FORBIDDEN, 있으면 행 반환', async () => {
-    prisma.membership.findUnique.mockResolvedValueOnce(null);
+    membershipsRepo.findByUserAndGroup.mockResolvedValueOnce(null);
     await expect(service.assertMember('u1', 'g1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    prisma.membership.findUnique.mockResolvedValueOnce(membershipRow());
+    membershipsRepo.findByUserAndGroup.mockResolvedValueOnce(membershipRow());
     expect((await service.assertMember('u1', 'g1')).id).toBe('m1');
-    expect(prisma.membership.findUnique).toHaveBeenLastCalledWith(expect.objectContaining({ where: { userId_groupId: { userId: 'u1', groupId: 'g1' } } }));
+    expect(membershipsRepo.findByUserAndGroup).toHaveBeenLastCalledWith('u1', 'g1');
   });
 
   it('inviteUrl 은 WEB_ORIGIN/join/<code>, null 이면 null', () => {
@@ -41,14 +47,14 @@ describe('MembershipService', () => {
   });
 
   it('groupDetail: 팀 없음 NOT_FOUND, 내 멤버십 없음 FORBIDDEN, 정상 조립', async () => {
-    prisma.group.findUnique.mockResolvedValueOnce(null);
+    groupsRepo.findById.mockResolvedValueOnce(null);
     await expect(service.groupDetail('g1', 'u1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
-    prisma.group.findUnique.mockResolvedValue(GROUP);
-    prisma.membership.findMany.mockResolvedValueOnce([membershipRow({ userId: 'u2' })]);
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.listByGroup.mockResolvedValueOnce([membershipRow({ userId: 'u2' })]);
     await expect(service.groupDetail('g1', 'u1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
-    prisma.membership.findMany.mockResolvedValueOnce([membershipRow(), membershipRow({ id: 'm2', userId: 'u2', displayName: '별명', color: '#F2994A' })]);
+    membershipsRepo.listByGroup.mockResolvedValueOnce([membershipRow(), membershipRow({ id: 'm2', userId: 'u2', displayName: '별명', color: '#F2994A' })]);
     const detail = await service.groupDetail('g1', 'u1');
     expect(detail).toMatchObject({ id: 'g1', type: 'TEAM', inviteCode: 'ABCDEF', inviteUrl: 'http://web/join/ABCDEF' });
     expect(detail.members.map((m) => m.displayName)).toEqual(['앨리스', '별명']);
@@ -57,149 +63,152 @@ describe('MembershipService', () => {
 });
 
 describe('GroupsService', () => {
-  let prisma: PrismaMock;
+  let groupsRepo: RepositoryMock<GroupsRepository>;
+  let membershipsRepo: RepositoryMock<MembershipsRepository>;
+  let eventLogs: RepositoryMock<EventLogsRepository>;
   let service: GroupsService;
 
   beforeEach(() => {
-    prisma = createPrismaMock();
-    service = new GroupsService(asPrisma(prisma), new MembershipService(asPrisma(prisma), config));
+    groupsRepo = mockRepository(GroupsRepository);
+    membershipsRepo = mockRepository(MembershipsRepository);
+    eventLogs = mockRepository(EventLogsRepository);
+    const memberships = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
+    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships);
   });
 
-  it('list: PERSONAL 먼저, unreadNewsCount 는 내 변경 제외(actorId null 포함)', async () => {
-    prisma.membership.findMany.mockResolvedValueOnce([
+  it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
+    membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
       { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 't1', type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
       { color: '#2', displayName: '나', lastSeenAt: new Date('2026-11-02T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 'p1', type: 'PERSONAL', name: '내 달력', _count: { memberships: 1 } } },
     ]);
-    prisma.eventLog.count.mockResolvedValueOnce(0).mockResolvedValueOnce(4);
+    eventLogs.countUnseenByOthers.mockResolvedValueOnce(0).mockResolvedValueOnce(4);
     const list = await service.list('u1');
     expect(list.map((g) => g.id)).toEqual(['p1', 't1']);
     expect(list[0]).toEqual({ id: 'p1', type: 'PERSONAL', name: '내 달력', memberCount: 1, me: { color: '#2', displayName: '나' }, unreadNewsCount: 0 });
     expect(list[1].unreadNewsCount).toBe(4);
-    expect(prisma.eventLog.count).toHaveBeenLastCalledWith({
-      where: { groupId: 't1', createdAt: { gt: new Date('2026-11-01T00:00:00.000Z') }, OR: [{ actorId: null }, { actorId: { not: 'u1' } }] },
-    });
+    expect(eventLogs.countUnseenByOthers).toHaveBeenLastCalledWith('t1', new Date('2026-11-01T00:00:00.000Z'), 'u1');
   });
 
   it('create: TEAM + 초대 코드 + 첫 멤버, 코드 충돌(P2002) 이면 재시도', async () => {
-    prisma.group.create.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce({ id: 'g1' });
-    prisma.group.findUnique.mockResolvedValue(GROUP);
-    prisma.membership.findMany.mockResolvedValue([membershipRow()]);
+    groupsRepo.createTeam.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce({ id: 'g1' });
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     const detail = await service.create('u1', '팀');
     expect(detail.id).toBe('g1');
-    expect(prisma.group.create).toHaveBeenCalledTimes(2);
-    const data = prisma.group.create.mock.calls[1][0].data;
-    expect(data).toMatchObject({ type: 'TEAM', name: '팀', memberships: { create: { userId: 'u1', color: '#F26D6D' } } });
-    expect(data.inviteCode).toMatch(INVITE_CODE_PATTERN);
+    expect(groupsRepo.createTeam).toHaveBeenCalledTimes(2);
+    const input = groupsRepo.createTeam.mock.calls[1][0];
+    expect(input).toMatchObject({ name: '팀', firstMember: { userId: 'u1', color: '#F26D6D' } });
+    expect(input.inviteCode).toMatch(INVITE_CODE_PATTERN);
+    expect(groupsRepo.createTeam.mock.calls[0][0].inviteCode).not.toBe(input.inviteCode);
   });
 
   it('create: 다른 오류는 그대로 던진다', async () => {
-    prisma.group.create.mockRejectedValueOnce(new Error('db down'));
+    groupsRepo.createTeam.mockRejectedValueOnce(new Error('db down'));
     await expect(service.create('u1', '팀')).rejects.toThrow('db down');
   });
 
   it('detail / rename 은 멤버십 확인 후 진행', async () => {
-    prisma.membership.findUnique.mockResolvedValue(null);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(null);
     await expect(service.detail('u1', 'g1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.rename('u1', 'g1', '새')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(prisma.group.update).not.toHaveBeenCalled();
+    expect(groupsRepo.rename).not.toHaveBeenCalled();
 
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.group.findUnique.mockResolvedValue({ ...GROUP, name: '새' });
-    prisma.membership.findMany.mockResolvedValue([membershipRow()]);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    groupsRepo.findById.mockResolvedValue({ ...GROUP, name: '새' });
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     expect((await service.rename('u1', 'g1', '새')).name).toBe('새');
-    expect(prisma.group.update).toHaveBeenCalledWith({ where: { id: 'g1' }, data: { name: '새' } });
+    expect(groupsRepo.rename).toHaveBeenCalledWith('g1', '새');
     expect((await service.detail('u1', 'g1')).id).toBe('g1');
   });
 
   it('rotateInviteCode: PERSONAL → GROUP_NOT_INVITABLE, 팀 없음 → NOT_FOUND, 충돌 재시도', async () => {
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.group.findUnique.mockResolvedValueOnce({ type: 'PERSONAL' });
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    groupsRepo.findType.mockResolvedValueOnce({ type: 'PERSONAL' });
     await expect(service.rotateInviteCode('u1', 'g1')).rejects.toMatchObject({ code: 'GROUP_NOT_INVITABLE' });
 
-    prisma.group.findUnique.mockResolvedValueOnce(null);
+    groupsRepo.findType.mockResolvedValueOnce(null);
     await expect(service.rotateInviteCode('u1', 'g1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(groupsRepo.setInviteCode).not.toHaveBeenCalled();
 
-    prisma.group.findUnique.mockResolvedValueOnce({ type: 'TEAM' });
-    prisma.group.update.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce({});
+    groupsRepo.findType.mockResolvedValueOnce({ type: 'TEAM' });
+    groupsRepo.setInviteCode.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce(undefined);
     const result = await service.rotateInviteCode('u1', 'g1');
     expect(result.inviteCode).toMatch(INVITE_CODE_PATTERN);
     expect(result.inviteUrl).toBe(`http://web/join/${result.inviteCode}`);
-    expect(prisma.group.update).toHaveBeenCalledTimes(2);
+    expect(groupsRepo.setInviteCode).toHaveBeenCalledTimes(2);
+    expect(groupsRepo.setInviteCode).toHaveBeenLastCalledWith('g1', result.inviteCode);
 
-    prisma.group.findUnique.mockResolvedValueOnce({ type: 'TEAM' });
-    prisma.group.update.mockRejectedValueOnce(new Error('x'));
+    groupsRepo.findType.mockResolvedValueOnce({ type: 'TEAM' });
+    groupsRepo.setInviteCode.mockRejectedValueOnce(new Error('x'));
     await expect(service.rotateInviteCode('u1', 'g1')).rejects.toThrow('x');
   });
 
   it('invitePreview: 정규화해서 조회, 없거나 빈 코드는 INVITE_NOT_FOUND', async () => {
-    prisma.group.findUnique.mockResolvedValueOnce({ id: 'g1', name: '팀', _count: { memberships: 2 } });
+    groupsRepo.findByInviteCode.mockResolvedValueOnce({ id: 'g1', name: '팀', memberCount: 2 });
     expect(await service.invitePreview(' abcdef ')).toEqual({ groupName: '팀', memberCount: 2 });
-    expect(prisma.group.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { inviteCode: 'ABCDEF' } }));
+    expect(groupsRepo.findByInviteCode).toHaveBeenCalledWith('ABCDEF');
 
-    prisma.group.findUnique.mockResolvedValueOnce(null);
+    groupsRepo.findByInviteCode.mockResolvedValueOnce(null);
     await expect(service.invitePreview('ZZZZZZ')).rejects.toMatchObject({ code: 'INVITE_NOT_FOUND' });
     await expect(service.invitePreview('   ')).rejects.toMatchObject({ code: 'INVITE_NOT_FOUND' });
-    expect(prisma.group.findUnique).toHaveBeenCalledTimes(2);
+    expect(groupsRepo.findByInviteCode).toHaveBeenCalledTimes(2);
   });
 
-  it('join: 신규면 가장 적게 쓰인 색으로 멤버십 생성, 이미 멤버면 생성 없이 같은 응답', async () => {
-    prisma.group.findUnique.mockResolvedValue({ ...GROUP, _count: { memberships: 1 } });
-    prisma.membership.findUnique.mockResolvedValueOnce(null);
-    prisma.membership.findMany
-      .mockResolvedValueOnce([{ color: '#F26D6D' }])
-      .mockResolvedValueOnce([membershipRow(), membershipRow({ id: 'm2', userId: 'u2', color: '#F2994A' })]);
+  it('join: 가장 적게 쓰인 색을 고르는 규칙을 넘겨 멤버십을 만들고 상세를 돌려준다', async () => {
+    groupsRepo.findByInviteCode.mockResolvedValue(INVITE_GROUP);
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.addMemberIfAbsentTx.mockResolvedValue(undefined);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 'm2', userId: 'u2', color: '#F2994A' })]);
     const detail = await service.join('u2', 'abcdef');
-    expect(prisma.membership.create).toHaveBeenCalledWith({ data: { userId: 'u2', groupId: 'g1', color: '#F2994A' } });
     expect(detail.me.userId).toBe('u2');
-
-    prisma.membership.findUnique.mockResolvedValueOnce({ id: 'm2' });
-    prisma.membership.findMany.mockResolvedValueOnce([membershipRow(), membershipRow({ id: 'm2', userId: 'u2' })]);
-    await service.join('u2', 'ABCDEF');
-    expect(prisma.membership.create).toHaveBeenCalledTimes(1);
+    expect(membershipsRepo.addMemberIfAbsentTx).toHaveBeenCalledWith('u2', 'g1', expect.any(Function));
+    const pickColor = membershipsRepo.addMemberIfAbsentTx.mock.calls[0][2];
+    expect(pickColor(['#F26D6D'])).toBe('#F2994A');
+    expect(pickColor([])).toBe('#F26D6D');
   });
 
   it('join: 동시 참여로 P2002 가 나도 성공, 다른 오류는 전파', async () => {
-    prisma.group.findUnique.mockResolvedValue({ ...GROUP, _count: { memberships: 1 } });
-    prisma.membership.findUnique.mockResolvedValue(null);
-    prisma.membership.findMany.mockResolvedValue([membershipRow(), membershipRow({ id: 'm2', userId: 'u2' })]);
-    prisma.membership.create.mockRejectedValueOnce({ code: 'P2002' });
+    groupsRepo.findByInviteCode.mockResolvedValue(INVITE_GROUP);
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 'm2', userId: 'u2' })]);
+    membershipsRepo.addMemberIfAbsentTx.mockRejectedValueOnce({ code: 'P2002' });
     expect((await service.join('u2', 'ABCDEF')).id).toBe('g1');
 
-    prisma.membership.create.mockRejectedValueOnce(new Error('boom'));
+    membershipsRepo.addMemberIfAbsentTx.mockRejectedValueOnce(new Error('boom'));
     await expect(service.join('u2', 'ABCDEF')).rejects.toThrow('boom');
   });
 
   it('updateMe: color 는 대문자로, displayName null 은 되돌림, undefined 는 미변경', async () => {
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.membership.update.mockResolvedValue({ ...membershipRow(), color: '#ABCDEF', displayName: null });
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.updateMe.mockResolvedValue({ ...membershipRow(), color: '#ABCDEF', displayName: null });
     const member = await service.updateMe('u1', 'g1', { color: '#abcdef', displayName: null });
-    expect(prisma.membership.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'm1' }, data: { color: '#ABCDEF', displayName: null } }));
+    expect(membershipsRepo.updateMe).toHaveBeenCalledWith('m1', { color: '#ABCDEF', displayName: null });
     expect(member).toMatchObject({ userId: 'u1', displayName: '앨리스', color: '#ABCDEF' });
 
     await service.updateMe('u1', 'g1', {});
-    expect(prisma.membership.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: {} }));
+    expect(membershipsRepo.updateMe).toHaveBeenLastCalledWith('m1', {});
   });
 
-  it('leave: PERSONAL → GROUP_PERSONAL_LEAVE, 팀 없음 → NOT_FOUND', async () => {
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.group.findUnique.mockResolvedValueOnce({ type: 'PERSONAL' });
+  it('leave: 멤버 아님 → FORBIDDEN, PERSONAL → GROUP_PERSONAL_LEAVE, 팀 없음 → NOT_FOUND', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValueOnce(null);
+    await expect(service.leave('u1', 'g1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    groupsRepo.findType.mockResolvedValueOnce({ type: 'PERSONAL' });
     await expect(service.leave('u1', 'g1')).rejects.toMatchObject({ code: 'GROUP_PERSONAL_LEAVE' });
-    prisma.group.findUnique.mockResolvedValueOnce(null);
+    groupsRepo.findType.mockResolvedValueOnce(null);
     await expect(service.leave('u1', 'g1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(prisma.membership.delete).not.toHaveBeenCalled();
+    expect(membershipsRepo.leaveGroupTx).not.toHaveBeenCalled();
   });
 
-  it('leave: 남은 멤버가 있으면 false, 0 이면 팀 삭제 + true (한 트랜잭션)', async () => {
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.group.findUnique.mockResolvedValue({ type: 'TEAM' });
-    prisma.membership.count.mockResolvedValueOnce(1);
+  it('leave: 트랜잭션 결과를 groupDeleted 로 돌려준다', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    groupsRepo.findType.mockResolvedValue({ type: 'TEAM' });
+    membershipsRepo.leaveGroupTx.mockResolvedValueOnce(false);
     expect(await service.leave('u1', 'g1')).toEqual({ groupDeleted: false });
-    expect(prisma.membership.delete).toHaveBeenCalledWith({ where: { id: 'm1' } });
-    expect(prisma.group.delete).not.toHaveBeenCalled();
+    expect(membershipsRepo.leaveGroupTx).toHaveBeenCalledWith('m1', 'g1');
 
-    prisma.membership.count.mockResolvedValueOnce(0);
+    membershipsRepo.leaveGroupTx.mockResolvedValueOnce(true);
     expect(await service.leave('u1', 'g1')).toEqual({ groupDeleted: true });
-    expect(prisma.group.delete).toHaveBeenCalledWith({ where: { id: 'g1' } });
-    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 });

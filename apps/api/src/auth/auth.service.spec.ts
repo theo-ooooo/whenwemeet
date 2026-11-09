@@ -1,14 +1,15 @@
-import { asPrisma, createPrismaMock, PrismaMock } from '../testing/prisma-mock.js';
+import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
+import { UsersRepository } from '../users/users.repository.js';
 import { AuthService, PERSONAL_GROUP_NAME } from './auth.service.js';
 
 describe('AuthService', () => {
-  let prisma: PrismaMock;
+  let users: RepositoryMock<UsersRepository>;
   let service: AuthService;
   const jwt = { signAsync: vi.fn(async (payload: { sub: string }) => `jwt-for-${payload.sub}`) };
 
   beforeEach(() => {
-    prisma = createPrismaMock();
-    service = new AuthService(asPrisma(prisma), jwt as never);
+    users = mockRepository(UsersRepository);
+    service = new AuthService(users as never, jwt as never);
   });
 
   it('sanitizeNext 는 / 로 시작하는 경로만 허용', () => {
@@ -34,41 +35,40 @@ describe('AuthService', () => {
   });
 
   it('upsertKakaoUser: 기존 사용자는 프로필만 갱신', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
-    prisma.user.update.mockResolvedValue({ id: 'u1', nickname: '새닉', profileImageUrl: null, createdAt: new Date() });
+    users.findByKakaoId.mockResolvedValue({ id: 'u1' });
+    users.updateProfile.mockResolvedValue({ id: 'u1', nickname: '새닉', profileImageUrl: null, createdAt: new Date() });
     const user = await service.upsertKakaoUser({ kakaoId: 10n, nickname: '새닉', profileImageUrl: null });
     expect(user.id).toBe('u1');
-    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1' }, data: { nickname: '새닉', profileImageUrl: null } }));
-    expect(prisma.group.create).not.toHaveBeenCalled();
+    expect(users.findByKakaoId).toHaveBeenCalledWith(10n);
+    expect(users.updateProfile).toHaveBeenCalledWith('u1', { nickname: '새닉', profileImageUrl: null });
+    expect(users.createWithPersonalGroupTx).not.toHaveBeenCalled();
   });
 
-  it('upsertKakaoUser: 신규면 사용자 + PERSONAL 팀 + 첫 색 멤버십', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
-    prisma.user.create.mockResolvedValue({ id: 'u2', nickname: '신규', profileImageUrl: 'img', createdAt: new Date() });
+  it('upsertKakaoUser: 신규면 사용자 + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로', async () => {
+    users.findByKakaoId.mockResolvedValue(null);
+    users.createWithPersonalGroupTx.mockResolvedValue({ id: 'u2', nickname: '신규', profileImageUrl: 'img', createdAt: new Date() });
     const user = await service.upsertKakaoUser({ kakaoId: 11n, nickname: '신규', profileImageUrl: 'img' });
     expect(user.id).toBe('u2');
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(prisma.group.create).toHaveBeenCalledWith({
-      data: {
-        type: 'PERSONAL',
-        name: PERSONAL_GROUP_NAME,
-        inviteCode: null,
-        memberships: { create: { userId: 'u2', color: '#F26D6D' } },
-      },
-    });
+    expect(users.updateProfile).not.toHaveBeenCalled();
+    expect(users.createWithPersonalGroupTx).toHaveBeenCalledWith(
+      { kakaoId: 11n, nickname: '신규', profileImageUrl: 'img' },
+      { name: PERSONAL_GROUP_NAME, color: '#F26D6D' },
+    );
   });
 
   it('upsertDevUser: 같은 닉네임의 개발 사용자가 있으면 재사용, 없으면 음수 kakaoId 로 생성', async () => {
-    prisma.user.findFirst.mockResolvedValueOnce({ id: 'dev1', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
+    users.findDevUserByNickname.mockResolvedValueOnce({ id: 'dev1', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
     expect((await service.upsertDevUser('개발')).id).toBe('dev1');
-    expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { nickname: '개발', kakaoId: { lt: 0n } } }));
+    expect(users.findDevUserByNickname).toHaveBeenCalledWith('개발');
+    expect(users.findByKakaoId).not.toHaveBeenCalled();
 
-    prisma.user.findFirst.mockResolvedValueOnce(null);
-    prisma.user.findUnique.mockResolvedValue(null);
-    prisma.user.create.mockResolvedValue({ id: 'dev2', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
+    users.findDevUserByNickname.mockResolvedValueOnce(null);
+    users.findByKakaoId.mockResolvedValue(null);
+    users.createWithPersonalGroupTx.mockResolvedValue({ id: 'dev2', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
     expect((await service.upsertDevUser('개발')).id).toBe('dev2');
-    const kakaoId = prisma.user.create.mock.calls[0][0].data.kakaoId as bigint;
-    expect(kakaoId < 0n).toBe(true);
+    const input = users.createWithPersonalGroupTx.mock.calls[0][0];
+    expect(input.kakaoId < 0n).toBe(true);
+    expect(input).toMatchObject({ nickname: '개발', profileImageUrl: null });
   });
 
   it('signToken 은 { sub } 로 서명', async () => {

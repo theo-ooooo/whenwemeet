@@ -3,8 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { ApiException } from '../common/errors.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { AuthUser, USER_SELECT } from './auth.service.js';
+import { UsersRepository } from '../users/users.repository.js';
+import type { AuthUser } from './auth.service.js';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 
@@ -19,7 +19,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
-    private readonly prisma: PrismaService,
+    private readonly users: UsersRepository,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,7 +42,7 @@ export class JwtAuthGuard implements CanActivate {
       throw new ApiException('UNAUTHORIZED');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: sub }, select: USER_SELECT });
+    const user = await this.users.findById(sub);
     if (!user) throw new ApiException('UNAUTHORIZED');
     request.user = user;
     return true;

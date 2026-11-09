@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { KakaoClient } from '../auth/kakao.client.js';
 import { ApiException } from '../common/errors.js';
-import { GroupsService } from '../groups/groups.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { AccountCleanupPlan, UsersRepository } from '../users/users.repository.js';
 
 @Injectable()
 export class MeService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly users: UsersRepository,
+    private readonly membershipsRepo: MembershipsRepository,
     private readonly kakao: KakaoClient,
-    private readonly groups: GroupsService,
   ) {}
 
   /**
@@ -18,26 +18,18 @@ export class MeService {
    * 2. 한 트랜잭션: PERSONAL 팀 삭제 → TEAM 멤버십마다 나가기 → User 삭제 (FK SetNull 로 "탈퇴한 멤버")
    */
   async deleteAccount(userId: string): Promise<{ ok: true }> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { kakaoId: true } });
+    const user = await this.users.findKakaoId(userId);
     if (!user) throw new ApiException('UNAUTHORIZED');
 
     // 개발 전용 사용자(kakaoId 음수) 는 카카오에 연결된 적이 없다 (결정기록 D-29)
     if (user.kakaoId >= 0n) await this.kakao.unlink(user.kakaoId);
 
-    await this.prisma.$transaction(async (tx) => {
-      const memberships = await tx.membership.findMany({
-        where: { userId },
-        select: { id: true, groupId: true, group: { select: { type: true } } },
-      });
-      for (const membership of memberships) {
-        if (membership.group.type === 'PERSONAL') {
-          await tx.group.delete({ where: { id: membership.groupId } });
-        } else {
-          await this.groups.removeMembership(tx, membership.id, membership.groupId);
-        }
-      }
-      await tx.user.delete({ where: { id: userId } });
-    });
+    const plan: AccountCleanupPlan = { deleteGroupIds: [], leave: [] };
+    for (const membership of await this.membershipsRepo.listByUserWithGroupType(userId)) {
+      if (membership.groupType === 'PERSONAL') plan.deleteGroupIds.push(membership.groupId);
+      else plan.leave.push({ membershipId: membership.id, groupId: membership.groupId });
+    }
+    await this.users.deleteAccountTx(userId, plan);
     return { ok: true };
   }
 }
