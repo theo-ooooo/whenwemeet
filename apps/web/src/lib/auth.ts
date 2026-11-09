@@ -5,6 +5,11 @@ export const GROUP_COOKIE = "wwm_group";
 export const SESSION_MAX_AGE = 2_592_000; // 30일
 export const GROUP_MAX_AGE = 31_536_000; // 1년
 
+/** 만료 세션 쿠키를 정리하는 route handler 경로 (app/auth/expired/route.ts, #37) */
+export const EXPIRED_PATH = "/auth/expired";
+/** /login 에 붙는 만료 표시. 이 값이 있으면 /login 은 쿠키와 무관하게 항상 화면을 그린다 (루프 차단, #37) */
+export const EXPIRED_REASON = "expired";
+
 /** next 는 `/` 로 시작하는 웹 경로만 허용, 아니면 `/` */
 export function safeNext(raw: string | null | undefined): string {
   if (!raw) return "/";

@@ -2,6 +2,7 @@
 // 브라우저용 fetch 래퍼. 항상 웹의 /api/<path> 프록시를 부르고 봉투를 푼다(모양은 lib/envelope.ts 만 안다).
 // 화면/컴포넌트는 이 파일을 직접 쓰지 않고 src/hooks/use*.ts 를 통해서만 부른다 (agents/frontend.md 데이터 접근).
 import { readEnvelope, type ApiErrorDetail } from "./envelope";
+import { EXPIRED_PATH } from "./auth";
 
 export class ApiError extends Error {
   code: string;
@@ -50,10 +51,10 @@ export async function api<T>(
   const env = readEnvelope<T>(res.status, json);
 
   if (res.status === 401) {
-    // 세션이 끝났다. 로그인으로 보내고 돌아올 자리를 남긴다
-    const login = new URL("/login", window.location.origin);
-    login.searchParams.set("next", currentPath());
-    window.location.assign(login.toString());
+    // 세션이 끝났다. 쿠키(wwm_session, wwm_group)를 지우는 route handler 를 거쳐 로그인으로 보내고 돌아올 자리를 남긴다 (#37)
+    const expired = new URL(EXPIRED_PATH, window.location.origin);
+    expired.searchParams.set("next", currentPath());
+    window.location.assign(expired.toString());
     throw new ApiError(401, "UNAUTHORIZED", env.error?.message ?? "");
   }
   if (res.status === 403) {

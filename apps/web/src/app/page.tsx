@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { GROUP_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import { serverApi } from "@/lib/server-api";
+import { expiredUrl } from "@/lib/session";
 import type { GroupSummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export default async function Home() {
   const remembered = raw && /^[A-Za-z0-9_-]+$/.test(raw) ? raw : null;
 
   const { data, status } = await serverApi<GroupSummary[]>("/groups");
-  if (status === 401) redirect("/login");
+  // 쿠키를 지우지 않고 /login 으로 보내면 /login ↔ / 가 반복된다. 쿠키를 지우는 route handler 경유 (#37)
+  if (status === 401) redirect(expiredUrl("/"));
 
   // 목록을 못 받은 경우(API 장애 등)는 검증할 수 없으니 기억한 팀으로 보내고, 그 화면의 오류 상태에 맡긴다
   if (!data) {
