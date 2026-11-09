@@ -10,21 +10,24 @@ import type { Event, EventInput } from "@/lib/types";
 type Props = {
   groupId: string;
   eventId?: string;
+  /** 복제할 일정 ID. 값만 채우고 새 일정으로 저장한다 */
+  copyFrom?: string;
   initialStart?: string | null;
   initialEnd?: string | null;
 };
 
 const DAY_MS = 86_400_000;
 
-export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: Props) {
+export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, initialEnd }: Props) {
   const router = useRouter();
   const toast = useToast();
   const editing = Boolean(eventId);
+  const sourceId = eventId ?? copyFrom;
 
   const defaultStart = initialStart ?? kstToIso(todayKey(), "10:00");
   const defaultEnd = initialEnd ?? kstToIso(todayKey(), "11:00");
 
-  const [loaded, setLoaded] = useState(!editing);
+  const [loaded, setLoaded] = useState(!sourceId);
   const [creator, setCreator] = useState<Event["creator"] | null>(null);
   const [title, setTitle] = useState("");
   const [allDay, setAllDay] = useState(false);
@@ -44,8 +47,8 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
   const saving = create.isPending || update.isPending;
   const deleting = remove.isPending;
 
-  // 수정이면 기존 일정을 받아 폼에 채운다
-  const eventQ = useEvent(groupId, eventId);
+  // 수정(또는 복제)이면 기존 일정을 받아 폼에 채운다
+  const eventQ = useEvent(groupId, sourceId);
   const loadedEvent = eventQ.data;
   useEffect(() => {
     if (!loadedEvent) return;
@@ -64,10 +67,10 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
         setEndTime(timeOf(ev.endsAt));
       }
       setMemo(ev.memo ?? "");
-      setCreator(ev.creator);
+      if (eventId) setCreator(ev.creator);
       setLoaded(true);
     });
-  }, [loadedEvent]);
+  }, [loadedEvent, eventId]);
 
   const loadError = eventQ.error;
   useEffect(() => {
@@ -149,20 +152,19 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
 
   return (
     <form onSubmit={save} className="pt-1">
-      <div className="flex h-11 items-center justify-between">
+      <div className="mt-4 flex items-center justify-between lg:mt-0">
+        <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
         <button
           type="button"
           onClick={() => router.back()}
-          className="-ml-2 rounded-sm px-2 py-1 text-[14px] text-ink-2 hover:bg-paper"
+          className="h-9 rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95"
         >
           취소
         </button>
-        <h1 className="text-[16px] font-bold">{editing ? "일정 수정" : "새 일정"}</h1>
-        <span className="w-10" aria-hidden="true" />
       </div>
 
       {saveError && (
-        <p role="alert" className="mt-3 rounded-sm bg-paper px-4 py-3 text-[14px] text-danger">
+        <p role="alert" className="mt-3 rounded-lg bg-paper px-4 py-3 text-[14px] font-semibold text-danger">
           {saveError}
         </p>
       )}
@@ -175,14 +177,14 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
           <Skeleton className="h-24 w-full" />
         </div>
       ) : (
-        <div className="mt-4 space-y-5">
-          <div className="rounded-lg bg-paper px-4 py-4">
+        <div className="mt-4 space-y-2">
+          <div className="rounded-xl bg-paper px-5 py-5">
             <label htmlFor="ev-title" className="sr-only">
               제목
             </label>
             <input
               id="ev-title"
-              className="w-full bg-transparent text-[22px] font-bold tracking-[-0.02em] placeholder:font-semibold placeholder:text-ink-2/60 focus:outline-none"
+              className="w-full bg-transparent text-[26px] font-extrabold tracking-[-0.04em] placeholder:font-bold placeholder:text-faint focus:outline-none"
               placeholder="무슨 일정인가요?"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -199,7 +201,7 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
             )}
           </div>
 
-          <div className="rounded-lg bg-paper px-4 py-3">
+          <div className="rounded-xl bg-paper px-5 py-4">
             <Toggle checked={allDay} onChange={toggleAllDay} label="종일" />
             <div className="mt-3 space-y-4 border-t border-line pt-4">
               {(
@@ -209,7 +211,7 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
                 ] as const
               ).map((row) => (
                 <div key={row.key}>
-                  <span className="mb-1.5 block text-[13px] font-semibold text-ink-2">{row.label}</span>
+                  <span className="mb-2 block text-[12px] font-semibold text-ink-2">{row.label}</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="date"
@@ -243,7 +245,7 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
             {rangeError && !touched && <p className="t-sub mt-3">{rangeError}</p>}
           </div>
 
-          <div className="rounded-lg bg-paper px-4 py-4">
+          <div className="rounded-xl bg-paper px-5 py-4">
             <Field label="메모" hint={`${memo.length}/500`}>
               {(id, describedBy) => (
                 <textarea
@@ -260,18 +262,18 @@ export function EventFormScreen({ groupId, eventId, initialStart, initialEnd }: 
           </div>
 
           {editing && creator && (
-            <p className="flex items-center gap-1.5 px-1 text-[13px] text-ink-2">
-              <MemberDot color={creator.color} size={8} />
+            <p className="flex items-center gap-1.5 px-2 pt-1 text-[13px] font-semibold text-ink-2">
+              <MemberDot color={creator.color} size={10} round />
               {creator.displayName}님이 등록한 일정
             </p>
           )}
 
-          <div className="space-y-3 pt-2">
-            <Button type="submit" size="lg" full disabled={!canSave} loading={saving}>
+          <div className="flex gap-2 pt-3">
+            <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">
               {editing ? "저장" : "일정 추가"}
             </Button>
             {editing && (
-              <Button type="button" variant="danger" size="lg" full onClick={() => setConfirmDelete(true)}>
+              <Button type="button" variant="tile" size="lg" onClick={() => setConfirmDelete(true)} className="text-danger!">
                 삭제
               </Button>
             )}

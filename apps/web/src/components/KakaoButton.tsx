@@ -16,7 +16,7 @@ export function KakaoButton({ next, label = "카카오로 시작하기" }: { nex
         }
         setGoing(true);
       }}
-      className={`flex h-13 w-full items-center justify-center gap-2.5 rounded-sm bg-kakao px-4 text-[16px] font-bold text-kakao-ink ${going ? "pointer-events-none opacity-70" : "hover:brightness-95"}`}
+      className={`flex h-[58px] w-full items-center justify-center gap-2 rounded-full bg-kakao px-4 text-[16px] font-bold text-kakao-ink ${going ? "pointer-events-none opacity-70" : "hover:brightness-95"}`}
     >
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" className="shrink-0">
         <path

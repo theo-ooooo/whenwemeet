@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { IconArrowRight } from "@/components/icons";
 import { Chip, ErrorState, Skeleton, Toggle, inputClass } from "@/components/ui";
 import { messageOf, useFreeSlots } from "@/hooks";
 import {
@@ -85,12 +86,12 @@ export function FreeScreen({ groupId }: { groupId: string }) {
 
   return (
     <div className="pt-1">
-      <h1 className="t-title mt-2">빈 시간 찾기</h1>
-      <p className="t-sub mt-1">모두 비는 시간을 골라 바로 일정으로 만들어요</p>
+      <h1 className="t-title mt-4 lg:mt-0">빈 시간 찾기</h1>
+      <p className="t-sub mt-1.5">모두 비는 시간을 골라 바로 일정으로 만들어요</p>
 
-      <section className="mt-5 space-y-4 rounded-lg bg-paper px-4 py-4">
+      <section className="mt-5 space-y-5 rounded-xl bg-paper px-5 py-5">
         <div>
-          <h2 className="mb-2 text-[13px] font-semibold text-ink-2">기간</h2>
+          <h2 className="mb-2 text-[12px] font-semibold text-ink-2">기간</h2>
           <div className="flex gap-2 overflow-x-auto">
             <Chip selected={period === "thisWeek"} onClick={() => setPeriod("thisWeek")}>
               이번 주
@@ -125,7 +126,7 @@ export function FreeScreen({ groupId }: { groupId: string }) {
         </div>
 
         <div>
-          <h2 className="mb-2 text-[13px] font-semibold text-ink-2">시간대</h2>
+          <h2 className="mb-2 text-[12px] font-semibold text-ink-2">시간대</h2>
           <div className="flex items-center gap-2">
             <select
               aria-label="시작 시각"
@@ -139,7 +140,7 @@ export function FreeScreen({ groupId }: { groupId: string }) {
                 </option>
               ))}
             </select>
-            <span className="shrink-0 text-ink-2">부터</span>
+            <span className="shrink-0 text-[13px] font-semibold text-ink-2">부터</span>
             <select
               aria-label="끝나는 시각"
               className={`${inputClass} py-2.5`}
@@ -156,7 +157,7 @@ export function FreeScreen({ groupId }: { groupId: string }) {
         </div>
 
         <div>
-          <h2 className="mb-2 text-[13px] font-semibold text-ink-2">최소 길이</h2>
+          <h2 className="mb-2 text-[12px] font-semibold text-ink-2">최소 길이</h2>
           <div className="flex gap-2 overflow-x-auto">
             {MIN_OPTIONS.map((o) => (
               <Chip key={o.value} selected={minMinutes === o.value} onClick={() => setMinMinutes(o.value)}>
@@ -178,53 +179,56 @@ export function FreeScreen({ groupId }: { groupId: string }) {
 
       <section className="mt-5" aria-live="polite">
         {conditionError ? (
-          <p role="alert" className="px-1 text-[14px] text-danger">
+          <p role="alert" className="px-2 text-[14px] font-semibold text-danger">
             {conditionError}
           </p>
         ) : error ? (
           <ErrorState message={error} onRetry={freeQ.refetch} />
         ) : loading && !result ? (
-          <div className="space-y-2" aria-busy="true" aria-label="계산 중">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
+          <div className="space-y-2 rounded-xl bg-paper p-4" aria-busy="true" aria-label="계산 중">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-12 w-full rounded-[12px]" />
+            <Skeleton className="h-12 w-full rounded-[12px]" />
+            <Skeleton className="h-12 w-full rounded-[12px]" />
           </div>
         ) : result && result.slots.length === 0 ? (
-          <p className="rounded-lg bg-paper px-5 py-8 text-center text-[14px] leading-relaxed text-ink-2">
+          <p className="rounded-xl bg-paper px-5 py-8 text-center text-[14px] font-semibold leading-relaxed text-ink-2">
             이 조건에 모두 비는 시간이 없어요.
             <br />
             기간을 늘리거나 최소 길이를 줄여 보세요
           </p>
         ) : result ? (
           <div className={loading ? "opacity-60 transition-opacity" : ""}>
-            <p className="px-1 text-[14px] text-ink-2">
-              <span className="font-semibold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
+            <p className="px-2 text-[13px] font-semibold text-ink-2">
+              <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
               일정도 반영됐어요
             </p>
-            <div className="mt-3 space-y-4">
+            <div className="mt-3 space-y-2">
               {grouped.map(([key, slots]) => {
                 const p = parseKey(key);
                 return (
-                  <div key={key}>
-                    <h3 className="px-1 text-[15px] font-bold">
+                  <div key={key} className="rounded-xl bg-paper p-4">
+                    <h3 className="flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.02em]">
                       {WEEKDAYS[dowOf(key)]} {p.m}/{p.d}
-                      {key === today && <span className="ml-2 text-[13px] font-semibold text-brand">오늘</span>}
+                      {key === today && <em className="rounded-full bg-ink px-2 py-[3px] text-[11px] font-bold not-italic text-surface">오늘</em>}
                     </h3>
-                    <ul className="mt-1.5 space-y-1.5">
+                    <ul className="mt-2 space-y-2">
                       {slots.map((s) => {
                         const mins = Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000);
                         return (
                           <li key={s.startsAt}>
                             <Link
                               href={`/g/${groupId}/events/new?start=${encodeURIComponent(s.startsAt)}&end=${encodeURIComponent(s.endsAt)}`}
-                              className="flex items-center justify-between rounded-lg border border-brand/25 bg-paper px-4 py-3 hover:bg-brand-soft"
+                              className="flex items-center justify-between rounded-[14px] bg-surface px-4 py-3 hover:brightness-95"
                             >
-                              <span className="text-[15px] font-semibold tabular-nums">
+                              <span className="text-[16px] font-bold tracking-[-0.02em] tabular-nums">
                                 {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
-                                <span className="ml-2 text-[13px] font-medium text-ink-2">({formatMinutes(mins)})</span>
+                                <span className="ml-2 text-[12px] font-semibold text-ink-2">{formatMinutes(mins)}</span>
                               </span>
-                              <span className="text-[13px] font-semibold text-brand">일정 만들기</span>
+                              <span className="flex items-center gap-1 text-[13px] font-bold">
+                                일정 만들기
+                                <IconArrowRight size={14} />
+                              </span>
                             </Link>
                           </li>
                         );

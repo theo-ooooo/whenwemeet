@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Logo } from "@/components/Logo";
+import { Symbol } from "@/components/Logo";
 import { Button, Field, inputClass } from "@/components/ui";
 import { messageOf, useCreateGroup } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
@@ -26,23 +26,23 @@ export function NewGroupScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] lg:pt-[26px]">
       <div className="flex items-center justify-between">
-        <Logo variant="symbol" size={28} />
-        <Link href="/" className="rounded-sm px-2 py-1 text-[14px] text-ink-2 hover:bg-paper">
+        <Symbol size={36} />
+        <Link href="/" className="flex h-9 items-center rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95">
           닫기
         </Link>
       </div>
 
-      <form onSubmit={submit} className="mt-10 flex flex-1 flex-col">
-        <h1 className="text-[28px] font-extrabold leading-[1.2] tracking-[-0.03em]">
+      <form onSubmit={submit} className="mt-10 flex flex-1 flex-col px-1.5">
+        <h1 className="text-[40px] font-extrabold leading-[1.05] tracking-[-0.06em]">
           어떤 모임의
           <br />
           달력인가요?
         </h1>
-        <p className="mt-3 text-[15px] text-ink-2">커플, 가족, 친구 모임 어디든 좋아요</p>
+        <p className="mt-3 text-[16px] font-medium text-soft">커플, 가족, 친구 모임 어디든 좋아요</p>
 
-        <div className="mt-8">
+        <div className="mt-8 rounded-xl bg-paper px-5 py-5">
           <Field label="팀 이름" hint={`${trimmed.length}/30`} error={error}>
             {(id, describedBy) => (
               <input
