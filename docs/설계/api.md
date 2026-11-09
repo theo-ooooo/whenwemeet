@@ -7,8 +7,9 @@
 
 | 항목 | 규칙 |
 |------|------|
-| 성공 | `200 { data }`. 생성은 `201 { data }`. 삭제는 `200 { data: { ok: true } }` |
-| 실패 | `{ error: { code, message } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장 |
+| 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값 |
+| 성공 | `200 { status: 200, data, message: "OK" }`. 생성은 201. 삭제는 `data: { ok: true }`. 이 문서의 엔드포인트 표에 적힌 `{ data: ... }` 는 `data` 필드의 모양이다 |
+| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록 |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
 | 날짜시각 | ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
