@@ -1,0 +1,534 @@
+// API_MOCK=1 메모리 API. api.md 의 봉투 { data } / { error: { code, message } } 와 상태 코드를 그대로 따른다.
+import { addDays, dateKeyOf, kstToIso } from "@/lib/date";
+import { MEMBER_COLORS } from "@/lib/types";
+import {
+  buildStore,
+  inviteUrlOf,
+  ME_ID,
+  memberOf,
+  type EventRow,
+  type Store,
+} from "./fixtures";
+
+export type MockResult = { status: number; body: unknown };
+
+type Ctx = {
+  method: string;
+  path: string; // '/groups/g_team/events'
+  query: URLSearchParams;
+  body: Record<string, unknown> | null;
+  userId: string | null;
+};
+
+// dev HMR 로 모듈이 다시 평가돼도 상태가 남도록 globalThis 에 둔다
+const g = globalThis as unknown as { __wwmMockStore?: Store };
+function store(): Store {
+  if (!g.__wwmMockStore) g.__wwmMockStore = buildStore();
+  return g.__wwmMockStore;
+}
+
+const ok = (data: unknown, status = 200): MockResult => ({ status, body: { data } });
+const err = (status: number, code: string, message: string): MockResult => ({
+  status,
+  body: { error: { code, message } },
+});
+
+const nextId = (prefix: string) => `${prefix}_${(store().seq += 1)}`;
+const nowIso = () => new Date().toISOString();
+
+const DAY_MS = 86_400_000;
+
+function groupDetail(s: Store, groupId: string, userId: string) {
+  const grp = s.groups.find((x) => x.id === groupId)!;
+  const members = s.memberships
+    .filter((m) => m.groupId === groupId)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .map((m) => memberOf(s, groupId, m.userId));
+  return {
+    id: grp.id,
+    type: grp.type,
+    name: grp.name,
+    inviteCode: grp.inviteCode,
+    inviteUrl: grp.inviteCode ? inviteUrlOf(grp.inviteCode) : null,
+    createdAt: grp.createdAt,
+    members,
+    me: memberOf(s, groupId, userId),
+  };
+}
+
+function eventOut(s: Store, e: EventRow) {
+  return {
+    id: e.id,
+    groupId: e.groupId,
+    title: e.title,
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    allDay: e.allDay,
+    memo: e.memo ?? undefined,
+    creator: memberOf(s, e.groupId, e.creatorId),
+    createdAt: e.createdAt,
+    updatedAt: e.updatedAt,
+  };
+}
+
+function unread(s: Store, groupId: string, userId: string) {
+  const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
+  const seen = ms?.lastSeenAt ?? "";
+  return s.logs.filter(
+    (l) => l.groupId === groupId && l.actorId !== userId && l.createdAt > seen,
+  ).length;
+}
+
+function validateEvent(input: Partial<EventRow>, partial: boolean): MockResult | null {
+  if (!partial || input.title !== undefined) {
+    const t = typeof input.title === "string" ? input.title.trim() : "";
+    if (t.length < 1 || t.length > 50) {
+      return err(400, "VALIDATION_FAILED", "제목은 1~50자로 입력해 주세요");
+    }
+  }
+  if (input.memo !== undefined && input.memo !== null && String(input.memo).length > 500) {
+    return err(400, "VALIDATION_FAILED", "메모는 500자까지 쓸 수 있어요");
+  }
+  return null;
+}
+
+function rangeCheck(startsAt: string, endsAt: string): MockResult | null {
+  const s = Date.parse(startsAt);
+  const e = Date.parse(endsAt);
+  if (Number.isNaN(s) || Number.isNaN(e)) {
+    return err(400, "VALIDATION_FAILED", "시작과 종료 시각을 확인해 주세요");
+  }
+  if (e <= s) return err(400, "EVENT_RANGE_INVALID", "종료 시각은 시작보다 뒤여야 해요");
+  if (e - s > 30 * DAY_MS) return err(400, "EVENT_RANGE_INVALID", "일정은 30일을 넘길 수 없어요");
+  return null;
+}
+
+function leastUsedColor(s: Store, groupId: string): string {
+  const used = s.memberships.filter((m) => m.groupId === groupId).map((m) => m.color);
+  let best: string = MEMBER_COLORS[0];
+  let bestCount = Infinity;
+  for (const c of MEMBER_COLORS) {
+    const n = used.filter((u) => u.toUpperCase() === c).length;
+    if (n < bestCount) {
+      best = c;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
+function freeSlots(s: Store, groupId: string, q: URLSearchParams): MockResult {
+  const fromRaw = q.get("from");
+  const toRaw = q.get("to");
+  if (!fromRaw || !toRaw) return err(400, "VALIDATION_FAILED", "조회 기간을 입력해 주세요");
+  let from = Date.parse(fromRaw);
+  const to = Date.parse(toRaw);
+  if (Number.isNaN(from) || Number.isNaN(to) || to - from > 31 * DAY_MS || to <= from) {
+    return err(400, "EVENT_RANGE_INVALID", "조회 기간은 31일 이내로 잡아 주세요");
+  }
+  from = Math.max(from, Date.now());
+  const dayStart = q.get("dayStart") ?? "09:00";
+  const dayEnd = q.get("dayEnd") ?? "23:00";
+  const minMinutes = Number(q.get("minMinutes") ?? 120);
+  const includeAllDay = q.get("includeAllDay") === "true";
+  if (dayStart >= dayEnd || minMinutes < 30 || minMinutes > 720) {
+    return err(400, "VALIDATION_FAILED", "시간대와 최소 길이를 확인해 주세요");
+  }
+
+  const memberIds = s.memberships.filter((m) => m.groupId === groupId).map((m) => m.userId);
+  const allGroupIds = new Set(
+    s.memberships.filter((m) => memberIds.includes(m.userId)).map((m) => m.groupId),
+  );
+  const busy = s.events
+    .filter(
+      (e) =>
+        allGroupIds.has(e.groupId) &&
+        Date.parse(e.startsAt) < to &&
+        Date.parse(e.endsAt) > from &&
+        (includeAllDay || !e.allDay),
+    )
+    .map((e) => [Date.parse(e.startsAt), Date.parse(e.endsAt)] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const b of busy) {
+    const last = merged[merged.length - 1];
+    if (last && b[0] <= last[1]) last[1] = Math.max(last[1], b[1]);
+    else merged.push([b[0], b[1]]);
+  }
+
+  const slots: { startsAt: string; endsAt: string }[] = [];
+  let dayKey = dateKeyOf(from);
+  const endKey = dateKeyOf(to - 1);
+  while (dayKey <= endKey && slots.length < 100) {
+    const ws = Math.max(Date.parse(kstToIso(dayKey, dayStart)), from);
+    const we = Math.min(Date.parse(kstToIso(dayKey, dayEnd)), to);
+    let cursor = ws;
+    for (const [bs, be] of merged) {
+      if (be <= cursor) continue;
+      if (bs >= we) break;
+      if (bs - cursor >= minMinutes * 60000) {
+        slots.push({ startsAt: new Date(cursor).toISOString(), endsAt: new Date(bs).toISOString() });
+      }
+      cursor = Math.max(cursor, be);
+    }
+    if (we - cursor >= minMinutes * 60000) {
+      slots.push({ startsAt: new Date(cursor).toISOString(), endsAt: new Date(we).toISOString() });
+    }
+    dayKey = addDays(dayKey, 1);
+  }
+  return ok({ slots: slots.slice(0, 100), memberCount: memberIds.length });
+}
+
+export function mockHandle(ctx: Ctx): MockResult {
+  const s = store();
+  const { method, query, body } = ctx;
+  const path = ctx.path.replace(/\/+$/, "") || "/";
+  const seg = path.split("/").filter(Boolean);
+
+  if (method === "GET" && path === "/health") return ok({ ok: true });
+
+  // 공개: 초대 미리보기
+  if (method === "GET" && seg[0] === "invites" && seg[1]) {
+    const code = seg[1].toUpperCase();
+    const grp = s.groups.find((x) => x.inviteCode === code);
+    if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
+    return ok({
+      groupName: grp.name,
+      memberCount: s.memberships.filter((m) => m.groupId === grp.id).length,
+    });
+  }
+
+  const userId = ctx.userId;
+  if (!userId || !s.users.find((u) => u.id === userId)) {
+    return err(401, "UNAUTHORIZED", "로그인이 필요해요");
+  }
+
+  // /me
+  if (seg[0] === "me" && seg.length === 1) {
+    const u = s.users.find((x) => x.id === userId)!;
+    if (method === "GET") {
+      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt });
+    }
+    if (method === "DELETE") {
+      // 목에서는 탈퇴 처리 대신 성공만 돌려주고 상태는 초기화한다
+      g.__wwmMockStore = buildStore();
+      return ok({ ok: true });
+    }
+  }
+
+  // /groups
+  if (seg[0] === "groups" && seg.length === 1) {
+    if (method === "GET") {
+      const mine = s.memberships
+        .filter((m) => m.userId === userId)
+        .map((m) => ({ m, grp: s.groups.find((x) => x.id === m.groupId)! }))
+        .sort((a, b) => {
+          if (a.grp.type !== b.grp.type) return a.grp.type === "PERSONAL" ? -1 : 1;
+          return a.m.joinedAt.localeCompare(b.m.joinedAt);
+        })
+        .map(({ m, grp }) => ({
+          id: grp.id,
+          type: grp.type,
+          name: grp.name,
+          memberCount: s.memberships.filter((x) => x.groupId === grp.id).length,
+          me: { color: m.color, displayName: memberOf(s, grp.id, userId).displayName },
+          unreadNewsCount: unread(s, grp.id, userId),
+        }));
+      return ok(mine);
+    }
+    if (method === "POST") {
+      const name = typeof body?.name === "string" ? body.name.trim() : "";
+      if (name.length < 1 || name.length > 30) {
+        return err(400, "VALIDATION_FAILED", "팀 이름은 1~30자로 입력해 주세요");
+      }
+      const id = nextId("g");
+      const code = Array.from({ length: 6 }, () =>
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
+      ).join("");
+      s.groups.push({ id, type: "TEAM", name, inviteCode: code, createdAt: nowIso() });
+      s.memberships.push({
+        userId,
+        groupId: id,
+        color: MEMBER_COLORS[0],
+        displayName: null,
+        joinedAt: nowIso(),
+        lastSeenAt: nowIso(),
+      });
+      return ok(groupDetail(s, id, userId), 201);
+    }
+  }
+
+  if (seg[0] === "groups" && seg[1] === "join" && method === "POST") {
+    const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
+    const grp = s.groups.find((x) => x.inviteCode === code);
+    if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
+    if (!s.memberships.find((m) => m.groupId === grp.id && m.userId === userId)) {
+      s.memberships.push({
+        userId,
+        groupId: grp.id,
+        color: leastUsedColor(s, grp.id),
+        displayName: null,
+        joinedAt: nowIso(),
+        lastSeenAt: nowIso(),
+      });
+    }
+    return ok(groupDetail(s, grp.id, userId));
+  }
+
+  // /groups/:groupId/...
+  if (seg[0] === "groups" && seg[1]) {
+    const groupId = seg[1];
+    const grp = s.groups.find((x) => x.id === groupId);
+    if (!grp) return err(404, "NOT_FOUND", "팀을 찾을 수 없어요");
+    const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
+    if (!ms) return err(403, "FORBIDDEN", "이 팀에 더 이상 속해 있지 않아요");
+    const rest = seg.slice(2);
+
+    if (rest.length === 0) {
+      if (method === "GET") return ok(groupDetail(s, groupId, userId));
+      if (method === "PATCH") {
+        const name = typeof body?.name === "string" ? body.name.trim() : "";
+        if (name.length < 1 || name.length > 30) {
+          return err(400, "VALIDATION_FAILED", "팀 이름은 1~30자로 입력해 주세요");
+        }
+        grp.name = name;
+        return ok(groupDetail(s, groupId, userId));
+      }
+    }
+
+    if (rest[0] === "invite-code" && method === "POST") {
+      if (grp.type === "PERSONAL") {
+        return err(400, "GROUP_NOT_INVITABLE", "개인 달력에는 초대 코드를 만들 수 없어요");
+      }
+      const code = Array.from({ length: 6 }, () =>
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
+      ).join("");
+      grp.inviteCode = code;
+      return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code) });
+    }
+
+    if (rest[0] === "me" && rest.length === 1) {
+      if (method === "PATCH") {
+        if (body && "color" in body) {
+          const c = body.color;
+          if (typeof c !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(c)) {
+            return err(400, "VALIDATION_FAILED", "색 값이 올바르지 않아요");
+          }
+          ms.color = c;
+        }
+        if (body && "displayName" in body) {
+          const dn = body.displayName;
+          if (dn === null || dn === "") ms.displayName = null;
+          else if (typeof dn === "string" && dn.trim().length <= 20) ms.displayName = dn.trim();
+          else return err(400, "VALIDATION_FAILED", "표시 이름은 20자까지 쓸 수 있어요");
+        }
+        return ok(memberOf(s, groupId, userId));
+      }
+      if (method === "DELETE") {
+        if (grp.type === "PERSONAL") {
+          return err(400, "GROUP_PERSONAL_LEAVE", "개인 달력은 나갈 수 없어요");
+        }
+        s.memberships = s.memberships.filter((m) => !(m.groupId === groupId && m.userId === userId));
+        const remain = s.memberships.filter((m) => m.groupId === groupId).length;
+        if (remain === 0) {
+          s.groups = s.groups.filter((x) => x.id !== groupId);
+          s.events = s.events.filter((e) => e.groupId !== groupId);
+          s.anniversaries = s.anniversaries.filter((a) => a.groupId !== groupId);
+          s.logs = s.logs.filter((l) => l.groupId !== groupId);
+        }
+        return ok({ groupDeleted: remain === 0 });
+      }
+    }
+
+    if (rest[0] === "events") {
+      if (rest.length === 1 && method === "GET") {
+        const from = Date.parse(query.get("from") ?? "");
+        const to = Date.parse(query.get("to") ?? "");
+        if (Number.isNaN(from) || Number.isNaN(to)) {
+          return err(400, "VALIDATION_FAILED", "조회 기간을 확인해 주세요");
+        }
+        if (to - from > 62 * DAY_MS) return err(400, "EVENT_RANGE_INVALID", "조회 기간은 62일 이내예요");
+        const list = s.events
+          .filter((e) => e.groupId === groupId && Date.parse(e.startsAt) < to && Date.parse(e.endsAt) > from)
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+          .map((e) => eventOut(s, e));
+        return ok(list);
+      }
+      if (rest.length === 1 && method === "POST") {
+        const input = (body ?? {}) as Partial<EventRow>;
+        const v = validateEvent(input, false) ?? rangeCheck(String(input.startsAt), String(input.endsAt));
+        if (v) return v;
+        const row: EventRow = {
+          id: nextId("e"),
+          groupId,
+          title: String(input.title).trim(),
+          startsAt: new Date(String(input.startsAt)).toISOString(),
+          endsAt: new Date(String(input.endsAt)).toISOString(),
+          allDay: Boolean(input.allDay),
+          memo: input.memo ? String(input.memo) : null,
+          creatorId: userId,
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+        };
+        s.events.push(row);
+        s.logs.push({
+          id: nextId("l"),
+          groupId,
+          action: "CREATED",
+          eventId: row.id,
+          title: row.title,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          allDay: row.allDay,
+          actorId: userId,
+          createdAt: nowIso(),
+        });
+        return ok(eventOut(s, row), 201);
+      }
+      const eventId = rest[1];
+      const e = s.events.find((x) => x.id === eventId && x.groupId === groupId);
+      if (!e) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
+      if (method === "GET") return ok(eventOut(s, e));
+      if (method === "PATCH") {
+        const input = (body ?? {}) as Partial<EventRow>;
+        const v =
+          validateEvent(input, true) ??
+          rangeCheck(String(input.startsAt ?? e.startsAt), String(input.endsAt ?? e.endsAt));
+        if (v) return v;
+        if (input.title !== undefined) e.title = String(input.title).trim();
+        if (input.startsAt !== undefined) e.startsAt = new Date(String(input.startsAt)).toISOString();
+        if (input.endsAt !== undefined) e.endsAt = new Date(String(input.endsAt)).toISOString();
+        if (input.allDay !== undefined) e.allDay = Boolean(input.allDay);
+        if (input.memo !== undefined) e.memo = input.memo ? String(input.memo) : null;
+        e.updatedAt = nowIso();
+        s.logs.push({
+          id: nextId("l"),
+          groupId,
+          action: "UPDATED",
+          eventId: e.id,
+          title: e.title,
+          startsAt: e.startsAt,
+          endsAt: e.endsAt,
+          allDay: e.allDay,
+          actorId: userId,
+          createdAt: nowIso(),
+        });
+        return ok(eventOut(s, e));
+      }
+      if (method === "DELETE") {
+        s.events = s.events.filter((x) => x.id !== e.id);
+        s.logs.push({
+          id: nextId("l"),
+          groupId,
+          action: "DELETED",
+          eventId: null,
+          title: e.title,
+          startsAt: e.startsAt,
+          endsAt: e.endsAt,
+          allDay: e.allDay,
+          actorId: userId,
+          createdAt: nowIso(),
+        });
+        return ok({ ok: true });
+      }
+    }
+
+    if (rest[0] === "anniversaries") {
+      const out = (a: (typeof s.anniversaries)[number]) => ({
+        id: a.id,
+        groupId: a.groupId,
+        name: a.name,
+        date: a.date,
+        creator: memberOf(s, groupId, a.creatorId),
+        createdAt: a.createdAt,
+      });
+      const validate = (name: unknown, date: unknown, partial: boolean): MockResult | null => {
+        if (!partial || name !== undefined) {
+          const n = typeof name === "string" ? name.trim() : "";
+          if (n.length < 1 || n.length > 30) return err(400, "VALIDATION_FAILED", "이름은 1~30자로 입력해 주세요");
+        }
+        if (!partial || date !== undefined) {
+          if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return err(400, "VALIDATION_FAILED", "날짜를 확인해 주세요");
+          }
+        }
+        return null;
+      };
+      if (rest.length === 1 && method === "GET") {
+        return ok(
+          s.anniversaries
+            .filter((a) => a.groupId === groupId)
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .map(out),
+        );
+      }
+      if (rest.length === 1 && method === "POST") {
+        const v = validate(body?.name, body?.date, false);
+        if (v) return v;
+        const row = {
+          id: nextId("a"),
+          groupId,
+          name: String(body!.name).trim(),
+          date: String(body!.date),
+          creatorId: userId,
+          createdAt: nowIso(),
+        };
+        s.anniversaries.push(row);
+        return ok(out(row), 201);
+      }
+      const a = s.anniversaries.find((x) => x.id === rest[1] && x.groupId === groupId);
+      if (!a) return err(404, "NOT_FOUND", "기념일을 찾을 수 없어요");
+      if (method === "PATCH") {
+        const v = validate(body?.name, body?.date, true);
+        if (v) return v;
+        if (body?.name !== undefined) a.name = String(body.name).trim();
+        if (body?.date !== undefined) a.date = String(body.date);
+        return ok(out(a));
+      }
+      if (method === "DELETE") {
+        s.anniversaries = s.anniversaries.filter((x) => x.id !== a.id);
+        return ok({ ok: true });
+      }
+    }
+
+    if (rest[0] === "free-slots" && method === "GET") return freeSlots(s, groupId, query);
+
+    if (rest[0] === "news") {
+      if (rest.length === 1 && method === "GET") {
+        const seen = ms.lastSeenAt ?? "";
+        const cutoff = new Date(Date.now() - 30 * DAY_MS).toISOString();
+        const items = s.logs
+          .filter((l) => l.groupId === groupId && l.actorId !== userId && l.createdAt >= cutoff)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, 50)
+          .map((l) => ({
+            id: l.id,
+            action: l.action,
+            eventId: l.eventId,
+            title: l.title,
+            startsAt: l.startsAt,
+            endsAt: l.endsAt,
+            allDay: l.allDay,
+            actor: memberOf(s, groupId, l.actorId),
+            createdAt: l.createdAt,
+            isNew: l.createdAt > seen,
+          }));
+        return ok({ items, lastSeenAt: ms.lastSeenAt });
+      }
+      if (rest[1] === "seen" && method === "POST") {
+        ms.lastSeenAt = nowIso();
+        return ok({ lastSeenAt: ms.lastSeenAt });
+      }
+    }
+  }
+
+  return err(404, "NOT_FOUND", "요청한 주소가 없어요");
+}
+
+/** 목 토큰에서 사용자 추출. 'mock.<userId>.sig' 형태, 아니면 기본 사용자 */
+export function mockUserFromToken(token: string | null): string | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  return parts[1] && parts[1] !== "me" ? parts[1] : ME_ID;
+}
