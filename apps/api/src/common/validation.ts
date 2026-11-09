@@ -1,5 +1,5 @@
 import { ValidationError, ValidationPipe } from '@nestjs/common';
-import { ApiException } from './errors.js';
+import { ApiException, FieldViolation } from './errors.js';
 
 /**
  * 한 속성에 위반이 여럿이면 형식 오류를 먼저 말한다 ("abc" 에 "720 이하" 라고 하지 않도록).
@@ -17,20 +17,27 @@ const CONSTRAINT_PRIORITY = [
   'calendarDate',
 ];
 
+/**
+ * 검증 실패 목록을 필드별 위반 항목으로 편다 (api.md 1장 `error.details`).
+ * 필드마다 한 줄, 중첩 필드는 `parent.child` 경로. 순서는 class-validator 가 준 순서 그대로
+ */
+export function collectViolations(errors: ValidationError[], parent = ''): FieldViolation[] {
+  const violations: FieldViolation[] = [];
+  for (const error of errors) {
+    const field = parent ? `${parent}.${error.property}` : error.property;
+    const [first] = Object.entries(error.constraints ?? {}).sort(([a], [b]) => rank(a) - rank(b));
+    if (first) {
+      const [key, text] = first;
+      violations.push({ field, message: key === 'whitelistValidation' ? `${error.property} 은(는) 허용되지 않는 항목이에요` : text });
+    }
+    if (error.children?.length) violations.push(...collectViolations(error.children, field));
+  }
+  return violations;
+}
+
 /** 검증 실패 목록에서 첫 번째 위반 항목의 문구를 고른다 (api.md: message 는 첫 번째 위반 항목) */
 export function firstValidationMessage(errors: ValidationError[]): string {
-  for (const error of errors) {
-    const entries = Object.entries(error.constraints ?? {}).sort(([a], [b]) => rank(a) - rank(b));
-    for (const [key, text] of entries) {
-      if (key === 'whitelistValidation') return `${error.property} 은(는) 허용되지 않는 항목이에요`;
-      return text;
-    }
-    if (error.children?.length) {
-      const nested = firstValidationMessage(error.children);
-      if (nested) return nested;
-    }
-  }
-  return '입력값을 확인해 주세요';
+  return collectViolations(errors)[0]?.message ?? '입력값을 확인해 주세요';
 }
 
 function rank(constraint: string): number {
@@ -45,7 +52,10 @@ export function createValidationPipe(): ValidationPipe {
     transform: true,
     forbidNonWhitelisted: true,
     transformOptions: { enableImplicitConversion: false },
-    exceptionFactory: (errors) => new ApiException('VALIDATION_FAILED', firstValidationMessage(errors)),
+    exceptionFactory: (errors) => {
+      const details = collectViolations(errors);
+      return new ApiException('VALIDATION_FAILED', details[0]?.message, details);
+    },
   });
 }
 
@@ -60,7 +70,8 @@ export function isCalendarDate(value: string): boolean {
 export function parseIsoDate(value: string, field: string): Date {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    throw new ApiException('VALIDATION_FAILED', `${field} 은(는) ISO 8601 날짜시각이어야 해요`);
+    const message = `${field} 은(는) ISO 8601 날짜시각이어야 해요`;
+    throw new ApiException('VALIDATION_FAILED', message, [{ field, message }]);
   }
   return date;
 }

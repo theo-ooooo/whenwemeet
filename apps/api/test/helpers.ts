@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import request from 'supertest';
+import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
@@ -35,7 +35,7 @@ export interface Session {
 
 /** 개발 전용 로그인으로 세션 하나 */
 export async function devLogin(app: TestApp, nickname: string): Promise<Session> {
-  const res = await request(app.getHttpServer()).post('/v1/auth/dev-login').send({ nickname }).expect(200);
+  const res = await api(app).post('/v1/auth/dev-login').send({ nickname }).expect(200);
   return { token: res.body.data.token as string, userId: res.body.data.user.id as string, nickname };
 }
 
@@ -43,6 +43,39 @@ export function auth(session: Session): { Authorization: string } {
   return { Authorization: `Bearer ${session.token}` };
 }
 
-export function api(app: TestApp) {
-  return request(app.getHttpServer());
+/**
+ * 응답 봉투 불변식 (api.md 1장, 결정기록 D-33). 리다이렉트(3xx) 는 봉투 대상이 아니라 건너뛴다
+ * - 공통: `status` 는 실제 HTTP 상태 코드와 같다
+ * - 성공: `{ status, data, message: "OK" }`, error 없음
+ * - 실패: `{ status, data: null, message, error: { code, details? } }`
+ */
+export function assertEnvelope(res: Response): void {
+  if (res.status >= 300 && res.status < 400) return;
+  expect(res.body.status).toBe(res.status);
+  if (res.status < 300) {
+    expect(Object.keys(res.body).sort()).toEqual(['data', 'message', 'status']);
+    expect(res.body.message).toBe('OK');
+    return;
+  }
+  expect(res.body.data).toBeNull();
+  expect(typeof res.body.message).toBe('string');
+  expect(res.body.message).not.toBe('');
+  expect(typeof res.body.error.code).toBe('string');
+  expect(Object.keys(res.body.error).every((key) => key === 'code' || key === 'details')).toBe(true);
+}
+
+const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options']);
+
+/** supertest 요청. 모든 응답에 assertEnvelope 를 자동으로 건다 */
+export function api(app: TestApp): ReturnType<typeof request> {
+  const agent = request(app.getHttpServer());
+  return new Proxy(agent, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver) as unknown;
+      if (typeof prop === 'string' && HTTP_METHODS.has(prop) && typeof value === 'function') {
+        return (...args: unknown[]) => (value as (...a: unknown[]) => request.Test).apply(target, args).expect(assertEnvelope);
+      }
+      return value;
+    },
+  });
 }
