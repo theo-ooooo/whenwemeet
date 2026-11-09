@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes, randomInt } from 'node:crypto';
 import { MEMBER_COLORS } from '../common/member.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { UsersRepository } from '../users/users.repository.js';
 import type { KakaoProfile } from './kakao.client.js';
 
 /** 로그인 후 돌아갈 웹 경로. 인증흐름.md 2단계 규칙 */
@@ -26,7 +26,7 @@ export const PERSONAL_GROUP_NAME = '내 달력';
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly users: UsersRepository,
     private readonly jwt: JwtService,
   ) {}
 
@@ -52,31 +52,13 @@ export class AuthService {
     }
   }
 
-  /** kakaoId 로 upsert. 신규면 같은 트랜잭션에서 PERSONAL 팀 + 멤버십 생성 */
+  /** kakaoId 로 upsert. 기존이면 프로필만 갱신, 신규면 PERSONAL 팀 + 첫 색 멤버십까지 한 트랜잭션 */
   async upsertKakaoUser(profile: KakaoProfile): Promise<AuthUser> {
-    return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({ where: { kakaoId: profile.kakaoId } });
-      if (existing) {
-        return tx.user.update({
-          where: { id: existing.id },
-          data: { nickname: profile.nickname, profileImageUrl: profile.profileImageUrl },
-          select: USER_SELECT,
-        });
-      }
-      const user = await tx.user.create({
-        data: { kakaoId: profile.kakaoId, nickname: profile.nickname, profileImageUrl: profile.profileImageUrl },
-        select: USER_SELECT,
-      });
-      await tx.group.create({
-        data: {
-          type: 'PERSONAL',
-          name: PERSONAL_GROUP_NAME,
-          inviteCode: null,
-          memberships: { create: { userId: user.id, color: MEMBER_COLORS[0] } },
-        },
-      });
-      return user;
-    });
+    const existing = await this.users.findByKakaoId(profile.kakaoId);
+    if (existing) {
+      return this.users.updateProfile(existing.id, { nickname: profile.nickname, profileImageUrl: profile.profileImageUrl });
+    }
+    return this.users.createWithPersonalGroupTx(profile, { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] });
   }
 
   /**
@@ -84,11 +66,7 @@ export class AuthService {
    * 같은 닉네임의 개발 사용자가 있으면 재사용해 프론트가 반복 로그인할 수 있게 한다
    */
   async upsertDevUser(nickname: string): Promise<AuthUser> {
-    const existing = await this.prisma.user.findFirst({
-      where: { nickname, kakaoId: { lt: 0n } },
-      select: USER_SELECT,
-      orderBy: { createdAt: 'asc' },
-    });
+    const existing = await this.users.findDevUserByNickname(nickname);
     if (existing) return existing;
     const kakaoId = -BigInt(randomInt(1, 2 ** 31 - 1)) * 1_000_000n - BigInt(randomInt(0, 999_999));
     return this.upsertKakaoUser({ kakaoId, nickname, profileImageUrl: null });
@@ -98,5 +76,3 @@ export class AuthService {
     return this.jwt.signAsync({ sub: userId });
   }
 }
-
-export const USER_SELECT = { id: true, nickname: true, profileImageUrl: true, createdAt: true } as const;
