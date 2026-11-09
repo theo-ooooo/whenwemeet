@@ -57,11 +57,25 @@ describe('FreeSlotsService', () => {
     expect(prisma.event.findMany.mock.calls[0][0].where).not.toHaveProperty('allDay');
   });
 
-  it('from 이 과거면 현재 시각으로 잘라 계산한다', async () => {
+  it('from 이 과거면 현재 시각으로 잘라 계산한다 (정각이면 그대로)', async () => {
     const later = new Date('2026-11-10T05:00:00.000Z');
     const result = await service.find('u1', 'g1', query(), later);
     expect(result.slots[0].startsAt).toEqual(later);
     expect(prisma.event.findMany.mock.calls[0][0].where.endsAt).toEqual({ gt: later });
+  });
+
+  it('from 이 과거면 현재 시각을 다음 30분 경계로 올린다 (05:37 → 06:00, 이슈 #16)', async () => {
+    const later = new Date('2026-11-10T05:37:00.000Z');
+    const rounded = new Date('2026-11-10T06:00:00.000Z');
+    const result = await service.find('u1', 'g1', query(), later);
+    expect(result.slots[0].startsAt).toEqual(rounded);
+    expect(prisma.event.findMany.mock.calls[0][0].where.endsAt).toEqual({ gt: rounded });
+  });
+
+  it('올림한 시각이 to 이상이면 빈 결과', async () => {
+    const result = await service.find('u1', 'g1', query(), new Date('2026-11-10T23:45:00.000Z'));
+    expect(result).toEqual({ slots: [], memberCount: 2 });
+    expect(prisma.event.findMany).not.toHaveBeenCalled();
   });
 
   it('범위 전체가 과거면 빈 결과, 조회는 안 한다', async () => {

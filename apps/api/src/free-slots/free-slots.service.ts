@@ -4,7 +4,7 @@ import { parseRange } from '../events/events.service.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { FreeSlotsQueryDto } from './dto/free-slots-query.dto.js';
-import { findFreeSlots, Interval, parseHHmm } from './slots.js';
+import { clampFromToNow, findFreeSlots, Interval, parseHHmm } from './slots.js';
 
 /** 조회 범위 상한 (결정기록 D-13) */
 export const MAX_FREE_SLOT_DAYS = 31;
@@ -35,8 +35,8 @@ export class FreeSlotsService {
     const members = await this.prisma.membership.findMany({ where: { groupId }, select: { userId: true } });
     const memberIds = members.map((m) => m.userId);
 
-    // from 이 과거면 현재 시각으로 잘라서 계산
-    const from = requestedFrom.getTime() < now.getTime() ? now : requestedFrom;
+    // from 이 과거면 현재 시각을 다음 30분 경계로 올려서 계산 (결정기록 D-30)
+    const from = clampFromToNow(requestedFrom, now);
     if (from.getTime() >= to.getTime()) return { slots: [], memberCount: memberIds.length };
 
     // 2. 멤버들이 속한 모든 팀 (개인 팀 포함), 중복 없이

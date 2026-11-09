@@ -104,6 +104,7 @@ Event      = EventInput & { id, groupId, creator: Member|탈퇴자, createdAt, u
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
 - 팀원 누구나 수정/삭제. 등록자 제한 없음
+- 단건(GET/PATCH/DELETE)의 `eventId` 는 `groupId` 안에서만 찾는다. 멤버가 아니면 403 FORBIDDEN, 멤버이지만 다른 팀 소속 일정이면 없는 ID 와 똑같이 404 NOT_FOUND (존재 여부 비노출. 결정기록 D-31)
 
 ### 2.4 기념일
 
@@ -128,7 +129,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 | 쿼리 | 기본 | 제약 |
 |------|------|------|
-| `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각으로 잘라서 계산 |
+| `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각을 **다음 30분 경계로 올려** 잘라서 계산 (14:37 → 15:00, 14:00 은 그대로. 결정기록 D-30) |
 | `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart < dayEnd` |
 | `minMinutes` | `120` | 30~720 |
 | `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
