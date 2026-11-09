@@ -28,7 +28,7 @@ export async function upstream(opts: {
       try {
         parsed = JSON.parse(body) as Record<string, unknown>;
       } catch {
-        return { status: 400, body: errorBody("VALIDATION_FAILED", "본문을 읽을 수 없어요") };
+        return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "본문을 읽을 수 없어요") };
       }
     }
     return mockHandle({
@@ -56,14 +56,14 @@ export async function upstream(opts: {
       try {
         json = JSON.parse(text);
       } catch {
-        json = errorBody("INTERNAL", "잠시 후 다시 시도해 주세요");
+        json = errorBody(res.status, "INTERNAL", "잠시 후 다시 시도해 주세요");
       }
     }
     return { status: res.status, body: json };
   } catch {
     return {
       status: 502,
-      body: errorBody("INTERNAL", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요"),
+      body: errorBody(502, "INTERNAL", "서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요"),
     };
   }
 }

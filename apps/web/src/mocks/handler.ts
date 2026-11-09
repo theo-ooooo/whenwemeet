@@ -28,10 +28,10 @@ function store(): Store {
   return g.__wwmMockStore;
 }
 
-const ok = (data: unknown, status = 200): MockResult => ({ status, body: okBody(data) });
+const ok = (data: unknown, status = 200): MockResult => ({ status, body: okBody(data, status) });
 const err = (status: number, code: string, message: string): MockResult => ({
   status,
-  body: errorBody(code, message),
+  body: errorBody(status, code, message),
 });
 
 const nextId = (prefix: string) => `${prefix}_${(store().seq += 1)}`;

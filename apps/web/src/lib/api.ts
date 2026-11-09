@@ -1,15 +1,17 @@
 "use client";
 // 브라우저용 fetch 래퍼. 항상 웹의 /api/<path> 프록시를 부르고 봉투를 푼다(모양은 lib/envelope.ts 만 안다).
 // 화면/컴포넌트는 이 파일을 직접 쓰지 않고 src/hooks/use*.ts 를 통해서만 부른다 (agents/frontend.md 데이터 접근).
-import { readEnvelope } from "./envelope";
+import { readEnvelope, type ApiErrorDetail } from "./envelope";
 
 export class ApiError extends Error {
   code: string;
   status: number;
-  constructor(status: number, code: string, message: string) {
+  details?: ApiErrorDetail[];
+  constructor(status: number, code: string, message: string, details?: ApiErrorDetail[]) {
     super(message);
     this.code = code;
     this.status = status;
+    if (details) this.details = details;
   }
 }
 
@@ -61,7 +63,7 @@ export async function api<T>(
     throw new ApiError(403, "FORBIDDEN", env.error?.message ?? "");
   }
   if (!env.ok) {
-    throw new ApiError(res.status, env.error?.code ?? "INTERNAL", env.error?.message ?? "");
+    throw new ApiError(res.status, env.error?.code ?? "INTERNAL", env.error?.message ?? "", env.error?.details);
   }
   return env.data as T;
 }
