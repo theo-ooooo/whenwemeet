@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 type ToastOptions = { actionLabel?: string; onAction?: () => void; duration?: number };
 type ToastItem = { id: number; message: string } & ToastOptions;
@@ -27,18 +27,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     },
     [dismiss],
   );
-
-  // 403 등으로 페이지를 떠나며 남긴 토스트를 첫 진입에 보여준다
-  useEffect(() => {
-    try {
-      const pending = sessionStorage.getItem("wwm_toast");
-      if (pending) {
-        sessionStorage.removeItem("wwm_toast");
-        const t = setTimeout(() => show(pending), 0);
-        return () => clearTimeout(t);
-      }
-    } catch {}
-  }, [show]);
 
   const value = useMemo(() => ({ show }), [show]);
 
