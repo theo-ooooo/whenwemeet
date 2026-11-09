@@ -38,13 +38,14 @@
 
 ## Git 정책
 - 원격: `github.com/theo-ooooo/whenwemeet`. 커밋 계정은 이 저장소 로컬 설정(theo-ooooo / kkw.theo@gmail.com) 사용
-- `main` 에 직접 push 금지. **모든 변경은 이슈 → 브랜치 → PR → 머지**
+- 브랜치 흐름: `feature → develop → main`. `develop` 이 기본 브랜치(통합), `main` 은 배포본. 둘 다 직접 push 금지. **모든 변경은 이슈 → 브랜치 → PR(→ develop) → 머지**
+- 배포는 `develop → main` PR 하나로 (제목 `release: vX.Y.Z`), 머지 후 태그
 - 브랜치: `<type>/<이슈번호>-<짧은-영문>` (예: `docs/1-planning`, `feat/4-auth-kakao`, `fix/12-event-overlap`)
 - 커밋: `<type>: 메시지 (#이슈번호)` — type 은 feat, fix, docs, chore, refactor, test, infra
 - PR 제목 = 커밋 type 규칙과 동일. 본문은 `.github/PULL_REQUEST_TEMPLATE.md` 채움. 머지는 squash
 - GATE 승인(기획/설계) 은 **해당 PR 승인 또는 "기획 승인" 댓글** 로 대체
 - 이슈 라벨: `planning` `design` `backend` `frontend` `infra` `qa` `bug`. 마일스톤 `MVP`
-- **병렬 작업은 각자 `git worktree`** 에서 한다 (`git worktree add ../whenwemeet-<이슈> -b <브랜치> main`). 한 워킹 트리에서 두 에이전트가 브랜치를 바꾸면 서로의 파일이 섞인다
+- **병렬 작업은 각자 `git worktree`** 에서 한다 (`git worktree add ../whenwemeet-<이슈> -b <브랜치> develop`). 한 워킹 트리에서 두 에이전트가 브랜치를 바꾸면 서로의 파일이 섞인다
 
 ## 토큰 절약 규칙
 - 에이전트 md 는 **그 역할에 필요한 것만** 담는다. 공통 내용은 이 파일에만 둔다.
