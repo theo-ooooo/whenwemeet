@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 import { api, assertEnvelope, auth, createTestApp, devLogin, resetDb, Session, TestApp } from './helpers.js';
 
 /**
@@ -6,6 +7,7 @@ import { api, assertEnvelope, auth, createTestApp, devLogin, resetDb, Session, T
  * - #58 빈 시간 dayEnd 는 24:00 (그날 자정 끝) 까지 받는다. dayStart 는 23:59 까지
  * - #59 이름/제목은 앞뒤 공백을 잘라 검증하고 저장. 공백만이면 400 VALIDATION_FAILED
  * - #61 날짜시각은 오프셋(Z 또는 ±HH:mm) 필수. 없으면 400 (서버 시간대에 따라 저장값이 달라지지 않게)
+ * - #62 바뀐 것 없는 일정 PATCH 는 EventLog 를 남기지 않고 updatedAt 도 그대로
  * - #60 잘못된 JSON 은 400 VALIDATION_FAILED, 본문 크기 초과는 413 PAYLOAD_TOO_LARGE. 둘 다 한국어 문구
  */
 describe('입력 규칙 (e2e)', () => {
@@ -123,6 +125,34 @@ describe('입력 규칙 (e2e)', () => {
       expect(events.body.error.details[0].field).toBe('from');
       const free = await api(app).get(`/v1/groups/${groupId}/free-slots`).set(auth(alice)).query({ from: '2026-12-01T00:00:00Z', to: '2026-12-02T00:00' }).expect(400);
       expect(free.body.error.details[0].field).toBe('to');
+    });
+  });
+
+  describe('바뀐 것 없는 일정 수정 (#62)', () => {
+    it('빈 본문, 같은 값, 같은 순간의 다른 표기는 200 + 현재 값, 로그와 updatedAt 변화 없음', async () => {
+      const prisma = app.get(PrismaService);
+      const created = await api(app)
+        .post(`/v1/groups/${groupId}/events`)
+        .set(auth(alice))
+        .send({ title: '저녁 먹자', startsAt: '2026-12-03T10:00:00.000Z', endsAt: '2026-12-03T12:00:00.000Z', allDay: false, memo: '메모' })
+        .expect(201);
+      const eventId = created.body.data.id as number;
+      const logCount = () => prisma.eventLog.count({ where: { eventId } });
+      expect(await logCount()).toBe(1);
+
+      for (const body of [
+        {},
+        { title: '저녁 먹자', allDay: false, memo: '메모' },
+        { title: ' 저녁 먹자 ', startsAt: '2026-12-03T19:00:00+09:00' },
+      ]) {
+        const res = await api(app).patch(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).send(body).expect(200);
+        expect(res.body.data).toEqual(created.body.data);
+      }
+      expect(await logCount()).toBe(1);
+
+      const changed = await api(app).patch(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).send({ memo: null }).expect(200);
+      expect(changed.body.data.memo).toBeNull();
+      expect(await logCount()).toBe(2);
     });
   });
 });

@@ -101,7 +101,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` startsAt 오름차순 |
 | POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` + EventLog CREATED |
 | GET | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: Event }` |
-| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED |
+| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
 
 ```ts
