@@ -13,6 +13,22 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 /** 응답 상한 (결정기록 D-13) */
 export const MAX_SLOTS = 100;
+/** 시작 시각 올림 단위 (결정기록 D-30) */
+export const SLOT_STEP_MINUTES = 30;
+
+/**
+ * 다음 30분 경계로 올림. 이미 경계면 그대로 (14:37 → 15:00, 14:00 → 14:00).
+ * KST 오프셋이 정시 단위라 UTC 기준 30분 경계가 곧 KST 30분 경계이므로 날짜 창 계산과 어긋나지 않는다
+ */
+export function ceilToSlotStep(date: Date, stepMinutes: number = SLOT_STEP_MINUTES): Date {
+  const stepMs = stepMinutes * MINUTE_MS;
+  return new Date(Math.ceil(date.getTime() / stepMs) * stepMs);
+}
+
+/** from 이 now 보다 과거면 now 를 30분 경계로 올린 시각으로 바꾼다. 미래면 그대로 */
+export function clampFromToNow(from: Date, now: Date): Date {
+  return from.getTime() < now.getTime() ? ceilToSlotStep(now) : from;
+}
 
 /** `HH:mm` → 자정 기준 분. 형식이 틀리면 null */
 export function parseHHmm(value: string): number | null {

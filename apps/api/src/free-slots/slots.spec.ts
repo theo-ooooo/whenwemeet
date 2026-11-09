@@ -1,4 +1,13 @@
-import { buildDayWindows, findFreeSlots, Interval, mergeIntervals, parseHHmm, subtractBusy } from './slots.js';
+import {
+  buildDayWindows,
+  ceilToSlotStep,
+  clampFromToNow,
+  findFreeSlots,
+  Interval,
+  mergeIntervals,
+  parseHHmm,
+  subtractBusy,
+} from './slots.js';
 
 const d = (iso: string) => new Date(iso);
 const iv = (s: string, e: string): Interval => ({ startsAt: d(s), endsAt: d(e) });
@@ -12,6 +21,44 @@ describe('parseHHmm', () => {
     expect(parseHHmm('24:00')).toBeNull();
     expect(parseHHmm('9:00')).toBeNull();
     expect(parseHHmm('09:60')).toBeNull();
+  });
+});
+
+describe('ceilToSlotStep', () => {
+  it.each([
+    ['정각은 그대로', '2026-11-10T14:00:00.000Z', '2026-11-10T14:00:00.000Z'],
+    ['정각+1분 → 30분', '2026-11-10T14:01:00.000Z', '2026-11-10T14:30:00.000Z'],
+    ['29분 → 30분', '2026-11-10T14:29:00.000Z', '2026-11-10T14:30:00.000Z'],
+    ['30분은 그대로', '2026-11-10T14:30:00.000Z', '2026-11-10T14:30:00.000Z'],
+    ['59분 → 다음 정각', '2026-11-10T14:59:00.000Z', '2026-11-10T15:00:00.000Z'],
+    ['37분 → 다음 정각 (이슈 #16 예시)', '2026-11-10T14:37:00.000Z', '2026-11-10T15:00:00.000Z'],
+    ['초가 붙어도 다음 경계', '2026-11-10T14:30:00.001Z', '2026-11-10T15:00:00.000Z'],
+    ['자정 넘김', '2026-11-10T23:45:12.000Z', '2026-11-11T00:00:00.000Z'],
+  ])('%s', (_name, input, expected) => {
+    expect(ceilToSlotStep(d(input)).toISOString()).toBe(expected);
+  });
+
+  it('KST 경계와도 어긋나지 않는다 (KST 14:37 → KST 15:00)', () => {
+    // KST 14:37 = 05:37Z → KST 15:00 = 06:00Z
+    expect(ceilToSlotStep(d('2026-11-10T05:37:00Z')).toISOString()).toBe('2026-11-10T06:00:00.000Z');
+  });
+
+  it('단위를 바꿀 수 있다', () => {
+    expect(ceilToSlotStep(d('2026-11-10T14:07:00Z'), 15).toISOString()).toBe('2026-11-10T14:15:00.000Z');
+  });
+});
+
+describe('clampFromToNow', () => {
+  const now = d('2026-11-10T14:37:00Z');
+
+  it('from 이 과거면 now 를 30분 경계로 올린 값', () => {
+    expect(clampFromToNow(d('2026-11-10T00:00:00Z'), now).toISOString()).toBe('2026-11-10T15:00:00.000Z');
+  });
+
+  it('from 이 now 와 같거나 미래면 그대로 (올림하지 않는다)', () => {
+    const future = d('2026-11-10T14:40:00Z');
+    expect(clampFromToNow(future, now)).toBe(future);
+    expect(clampFromToNow(now, now)).toBe(now);
   });
 });
 
