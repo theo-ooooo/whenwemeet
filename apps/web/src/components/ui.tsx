@@ -13,9 +13,9 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   full?: boolean;
 };
 
-// 알약 버튼. 주 버튼은 먹색(목업 .btns a.pri), 보조는 바탕색, 위험은 바탕색 위 빨간 글자
+// 알약 버튼. 주 버튼은 코랄(#46, 흰 글자 4.5:1 이상인 --btn), 보조는 바탕색, 위험은 바탕색 위 빨간 글자
 const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-ink text-surface hover:opacity-90 disabled:bg-line disabled:text-ink-2 disabled:opacity-100",
+  primary: "bg-btn text-on-btn hover:brightness-95 disabled:bg-line disabled:text-ink-2 disabled:opacity-100",
   secondary: "bg-surface text-ink hover:brightness-95 disabled:text-ink-2",
   tile: "bg-paper text-ink hover:brightness-95 disabled:text-ink-2",
   ghost: "bg-transparent text-ink hover:bg-surface disabled:text-ink-2",
@@ -120,7 +120,7 @@ export function Toggle({
       </span>
       <span
         aria-hidden="true"
-        className={`anim-pick relative inline-block h-7 w-12 shrink-0 rounded-full ${checked ? "bg-ink" : "bg-faint"}`}
+        className={`anim-pick relative inline-block h-7 w-12 shrink-0 rounded-full ${checked ? "bg-pri" : "bg-faint"}`}
       >
         <span
           className={`absolute top-0.5 size-6 rounded-full bg-paper transition-transform duration-120 ${checked ? "translate-x-[22px]" : "translate-x-0.5"}`}
@@ -146,7 +146,7 @@ export function Chip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`anim-pick h-9 shrink-0 rounded-full px-3.5 text-[13px] font-bold ${selected ? "bg-ink text-surface" : "border-[1.5px] border-line text-soft hover:text-ink"}`}
+      className={`anim-pick h-9 shrink-0 rounded-full px-3.5 text-[13px] font-bold ${selected ? "bg-today text-sel-ink" : "border-[1.5px] border-line text-soft hover:text-ink"}`}
     >
       {children}
     </button>

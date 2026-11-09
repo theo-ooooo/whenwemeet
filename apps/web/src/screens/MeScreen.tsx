@@ -32,7 +32,7 @@ function ThemePicker() {
               role="radio"
               aria-checked={on}
               onClick={() => setTheme(t.value)}
-              className={`anim-pick flex h-11 items-center justify-center gap-1.5 rounded-full text-[14px] font-bold ${on ? "bg-ink text-surface" : "text-soft hover:text-ink"}`}
+              className={`anim-pick flex h-11 items-center justify-center gap-1.5 rounded-full text-[14px] font-bold ${on ? "bg-today text-sel-ink" : "text-soft hover:text-ink"}`}
             >
               {t.icon}
               {t.label}

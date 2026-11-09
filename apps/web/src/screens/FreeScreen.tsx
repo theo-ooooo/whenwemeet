@@ -210,7 +210,7 @@ export function FreeScreen({ groupId }: { groupId: number }) {
                   <div key={key} className="rounded-xl bg-paper p-4">
                     <h3 className="flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.02em]">
                       {WEEKDAYS[dowOf(key)]} {p.m}/{p.d}
-                      {key === today && <em className="rounded-full bg-ink px-2 py-[3px] text-[11px] font-bold not-italic text-surface">오늘</em>}
+                      {key === today && <em className="rounded-full bg-today px-2 py-[3px] text-[11px] font-bold not-italic text-today-ink">오늘</em>}
                     </h3>
                     <ul className="mt-2 space-y-2">
                       {slots.map((s) => {
