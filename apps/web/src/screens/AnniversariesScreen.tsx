@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { IconPlus } from "@/components/icons";
+import { DatePicker } from "@/components/pickers";
 import { Button, ErrorState, Field, MemberDot, Sheet, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { dday, formatDateKo, hundredHint, todayKey } from "@/lib/date";
@@ -160,7 +161,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
           </Field>
           <Field label="날짜">
             {(id) => (
-              <input id={id} type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
+              <DatePicker id={id} label="기념일 날짜" value={date} onChange={setDate} withYear />
             )}
           </Field>
           <Button type="submit" size="lg" full disabled={!valid} loading={saving}>

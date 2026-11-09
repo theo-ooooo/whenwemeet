@@ -2,7 +2,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { IconArrowRight } from "@/components/icons";
-import { Chip, ErrorState, Skeleton, Toggle, inputClass } from "@/components/ui";
+import { DatePicker, TimePicker } from "@/components/pickers";
+import { minutesOf } from "@/components/pickers/time";
+import { Chip, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useFreeSlots } from "@/hooks";
 import {
   addDays,
@@ -28,12 +30,8 @@ const MIN_OPTIONS = [
   { value: 360, label: "반나절" },
 ];
 
-// 30분 단위 시각 옵션 (06:00 ~ 24:00)
-const TIME_OPTIONS = Array.from({ length: 37 }, (_, i) => {
-  const h = Math.floor(i / 2) + 6;
-  const m = i % 2 === 0 ? "00" : "30";
-  return `${String(h).padStart(2, "0")}:${m}`;
-});
+// 시간대 시각 피커 범위(분). 시작은 00:00~23:30, 끝은 00:30~24:00 (24:00 = 자정까지, #58)
+const DAY_END_MAX = 24 * 60;
 
 export function FreeScreen({ groupId }: { groupId: number }) {
   const today = todayKey();
@@ -61,7 +59,7 @@ export function FreeScreen({ groupId }: { groupId: number }) {
     return { from: customFrom, to: addDays(customTo, 1), error: null as string | null };
   }, [period, customFrom, customTo, today]);
 
-  const timeError = dayStart >= dayEnd ? "끝나는 시각은 시작보다 뒤여야 해요" : null;
+  const timeError = (minutesOf(dayStart) ?? 0) >= (minutesOf(dayEnd) ?? 0) ? "끝나는 시각은 시작보다 뒤여야 해요" : null;
   const conditionError = range.error ?? timeError;
 
   // 조건이 바뀌면 300ms 뒤에 다시 계산한다. 조건이 불완전하면 요청하지 않고 직전 결과를 둔다
@@ -105,22 +103,18 @@ export function FreeScreen({ groupId }: { groupId: number }) {
           </div>
           {period === "custom" && (
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                aria-label="시작일"
-                className={inputClass}
+              <DatePicker
+                label="시작일"
                 value={customFrom}
                 min={today}
-                onChange={(e) => setCustomFrom(e.target.value)}
+                onChange={(v) => {
+                  // 시작일을 종료일 뒤로 옮기면 기간 길이를 유지하게 종료일도 민다 (#67)
+                  const len = Math.max(0, daysBetween(customFrom, customTo));
+                  setCustomFrom(v);
+                  if (v > customTo) setCustomTo(addDays(v, len));
+                }}
               />
-              <input
-                type="date"
-                aria-label="종료일"
-                className={inputClass}
-                value={customTo}
-                min={customFrom || today}
-                onChange={(e) => setCustomTo(e.target.value)}
-              />
+              <DatePicker label="종료일" value={customTo} min={customFrom || today} onChange={setCustomTo} />
             </div>
           )}
         </div>
@@ -128,31 +122,13 @@ export function FreeScreen({ groupId }: { groupId: number }) {
         <div>
           <h2 className="mb-2 text-[12px] font-semibold text-ink-2">시간대</h2>
           <div className="flex items-center gap-2">
-            <select
-              aria-label="시작 시각"
-              className={`${inputClass} py-2.5`}
-              value={dayStart}
-              onChange={(e) => setDayStart(e.target.value)}
-            >
-              {TIME_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-0 flex-1">
+              <TimePicker label="시작 시각" value={dayStart} onChange={setDayStart} to={DAY_END_MAX - 30} />
+            </div>
             <span className="shrink-0 text-[13px] font-semibold text-ink-2">부터</span>
-            <select
-              aria-label="끝나는 시각"
-              className={`${inputClass} py-2.5`}
-              value={dayEnd}
-              onChange={(e) => setDayEnd(e.target.value)}
-            >
-              {TIME_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-0 flex-1">
+              <TimePicker label="끝나는 시각" value={dayEnd} onChange={setDayEnd} from={30} allow24 />
+            </div>
           </div>
         </div>
 

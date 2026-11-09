@@ -129,7 +129,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setEditing(false);
                 }}
-                maxLength={NICKNAME_MAX + 10}
+                maxLength={NICKNAME_MAX}
                 autoComplete="nickname"
                 autoFocus
                 aria-invalid={nickError ? true : undefined}
