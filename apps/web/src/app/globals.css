@@ -1,24 +1,29 @@
 @import "tailwindcss";
 
-/* docs/설계/디자인토큰.md 의 값을 그대로 옮긴다. 새 색을 추가하지 않는다 */
-@theme {
+/* docs/설계/디자인토큰.md (2026) 의 값을 그대로 옮긴다. 원본: docs/설계/img/디자인-2026*.html
+ * 색은 :root 변수로 두고 테마(라이트/다크)에서 값만 바꾼다. 유틸리티 이름은 기존 화면과 맞춘다
+ *   surface = 바탕(bg), paper = 타일(tile), ink = 먹, ink-2 = 보조 글자(mute), brand = 포인트(acc) */
+@theme inline {
   --color-*: initial;
-  --color-brand: #6e4bff;
-  --color-brand-soft: #efeaff;
-  --color-member-1: #3fb0ff;
-  --color-member-2: #ff5c8a;
-  --color-member-3: #2ed3a5;
-  --color-member-4: #ffb224;
-  --color-member-5: #ff7a45;
-  --color-ink: #17171c;
-  --color-ink-2: #6b6b76;
-  --color-line: #e6e6eb;
-  --color-surface: #f2f2f5;
-  --color-paper: #ffffff;
-  --color-night: #15141c;
+  --color-surface: var(--bg);
+  --color-paper: var(--tile);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--mute);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-brand: var(--acc);
+  --color-brand-soft: var(--acc-soft);
+  --color-holiday: var(--holiday);
+  --color-danger: var(--holiday);
+  --color-member-1: var(--m1);
+  --color-member-2: var(--m2);
+  --color-member-3: var(--m3);
+  --color-member-4: var(--m4);
+  --color-member-5: var(--m5);
+  --color-glass: var(--glass);
   --color-kakao: #fee500;
   --color-kakao-ink: #191919;
-  --color-danger: #d9344a;
   --color-white: #ffffff;
   --color-black: #000000;
   --color-transparent: transparent;
@@ -27,24 +32,100 @@
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
-  --radius-sm: 8px;
-  --radius-lg: 16px;
+  /* 모서리: 작은 칩 7, 입력/칸 14, 타일 22, 큰 타일 26, 시트 30 */
+  --radius-xs: 7px;
+  --radius-sm: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 26px;
+  --radius-2xl: 30px;
 
   --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* 라이트 (기본) */
 :root {
   color-scheme: light;
+  --bg: #f2f2f4;
+  --tile: #ffffff;
+  --ink: #0f0f10;
+  /* 목업의 #8E8E93 은 흰 바탕 대비 3.3:1 이라 글자용 보조색만 4.5:1 이상인 값으로 낮춘다 */
+  --mute: #6c6c70;
+  --soft: #555555;
+  --faint: #c7c7cc;
+  --line: #ececef;
+  --acc: #ff3d1f;
+  --acc-soft: #ffece8;
+  --holiday: #e5322d;
+  --holiday-faint: #f2b8b5;
+  --m1: #ff3d1f;
+  --m2: #1f5bff;
+  --m3: #9a1dff;
+  --m4: #2ed3a5;
+  --m5: #ff9f1c;
+  --glass: rgba(255, 255, 255, 0.78);
+  --pill: rgba(255, 255, 255, 0.7);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --grab: #d9d9de;
+  --login-bg: #ffffff;
+  --chip-line: #e3e3e6;
+}
+
+/* 다크: 시스템 설정을 따르고(수동 라이트가 아닐 때), 수동 다크는 data-theme 로 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0b0d;
+    --tile: #19191c;
+    --ink: #f5f5f7;
+    --mute: #8e8e93;
+    --soft: #a1a1a6;
+    --faint: #3a3a3f;
+    --line: #26262a;
+    --acc: #ff4a2e;
+    --acc-soft: #2c1512;
+    --holiday-faint: #5a2a28;
+    --m1: #ff4a2e;
+    --m2: #3b74ff;
+    --m3: #a855f7;
+    --glass: rgba(32, 32, 36, 0.82);
+    --pill: rgba(40, 40, 44, 0.8);
+    --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --grab: #3a3a3f;
+    --login-bg: #0b0b0d;
+    --chip-line: #2a2a2e;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0b0d;
+  --tile: #19191c;
+  --ink: #f5f5f7;
+  --mute: #8e8e93;
+  --soft: #a1a1a6;
+  --faint: #3a3a3f;
+  --line: #26262a;
+  --acc: #ff4a2e;
+  --acc-soft: #2c1512;
+  --holiday-faint: #5a2a28;
+  --m1: #ff4a2e;
+  --m2: #3b74ff;
+  --m3: #a855f7;
+  --glass: rgba(32, 32, 36, 0.82);
+  --pill: rgba(40, 40, 44, 0.8);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --grab: #3a3a3f;
+  --login-bg: #0b0b0d;
+  --chip-line: #2a2a2e;
 }
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  background: var(--color-surface);
-  color: var(--color-ink);
+  background: var(--bg);
+  color: var(--ink);
   font-family: var(--font-sans);
   font-size: 15px;
   font-weight: 500;
@@ -54,48 +135,58 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 서체 역할 (디자인토큰.md 서체 표) */
-.t-display {
-  font-size: 40px;
+/* 서체 역할 */
+.t-title {
+  font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1;
-}
-.t-title {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
+  line-height: 1.15;
 }
 .t-sub {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.4;
-  color: var(--color-ink-2);
+  color: var(--mute);
 }
 
 /* 포커스는 항상 보이게 */
 :focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
-input,
-textarea,
-select,
-button {
-  font: inherit;
-  letter-spacing: inherit;
+/* 요소 기본값은 base 레이어에 둬야 Tailwind 유틸리티(text-[26px] 등)가 이긴다 */
+@layer base {
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    min-height: 48px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 }
 
-input[type="date"],
-input[type="time"],
-input[type="datetime-local"] {
-  min-height: 44px;
-  -webkit-appearance: none;
-  appearance: none;
+/* 반투명 알약(상단 팀 이름, 새 소식) 과 떠 있는 탭 */
+.glass-pill {
+  background: var(--pill);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+.glass-dock {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--dock-shadow);
 }
 
 /* 시트 열림 200ms, 날짜 선택 120ms. 모션 축소 환경에서는 즉시 */
@@ -142,8 +233,8 @@ input[type="datetime-local"] {
 
 /* 스켈레톤 */
 .skeleton {
-  background: var(--color-line);
-  border-radius: var(--radius-sm);
+  background: var(--line);
+  border-radius: var(--radius-xs);
   animation: pulse 1.2s ease-in-out infinite;
 }
 @keyframes pulse {
