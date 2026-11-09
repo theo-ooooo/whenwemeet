@@ -19,7 +19,18 @@ R2 > Manage R2 API Tokens > Create API token
 - 발급되는 Access Key ID / Secret Access Key → `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
 - 계정 ID(대시보드 우측 또는 R2 개요) → `R2_ACCOUNT_ID`. S3 엔드포인트는 `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`
 
-## 4. .env
+## 4. 운영 (#50)
+1. 버킷 `whenwemeet` (Location: APAC) 이 없으면 만든다
+2. 버킷 > Settings > Public access > **Custom Domains > Connect Domain** > `images.whenwemeet.day`. Cloudflare 가 DNS 레코드를 자동으로 만든다 (DNS 화면에서 직접 만들지 않는다). Status 가 Active 가 될 때까지 대기
+3. 같은 화면의 **R2.dev subdomain 은 Disallow** (운영에선 커스텀 도메인만)
+4. API 토큰은 개발용과 **따로** 만든다: Object Read & Write, 버킷 `whenwemeet` 만. 발급값은 Railway API 서비스 변수에만 넣는다 ([railway.md](./railway.md))
+5. 확인: 웹에서 프로필 사진을 바꾼 뒤 이미지 주소가 `https://images.whenwemeet.day/...` 로 열리는지
+
+운영 변수 (Railway): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=whenwemeet`, `R2_PUBLIC_BASE_URL=https://images.whenwemeet.day`. 운영에서는 다섯 개 모두 필수라 하나라도 비면 API 가 기동하지 않는다.
+
+업로드는 API 서버가 S3 API 로 하므로 버킷 CORS 설정은 필요 없다.
+
+## 5. .env (로컬)
 ```
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
@@ -28,7 +39,7 @@ R2_BUCKET=whenwemeet-dev
 R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
 ```
 
-## 5. 수명 주기 (선택)
+## 6. 수명 주기 (선택)
 버킷 > Settings > Object lifecycle rules: `tmp/` 접두사 1일 후 삭제 (업로드 중 실패한 임시 파일용)
 
 ## 비용

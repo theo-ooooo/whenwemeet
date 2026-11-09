@@ -73,7 +73,12 @@ pnpm --filter @whenwemeet/api exec prisma migrate dev
 
 ## 외부 서비스 설정
 
-카카오 개발자센터 앱 등록과 키 발급은 [docs/운영/카카오-개발자센터.md](docs/운영/카카오-개발자센터.md) 를 본다.
+- 카카오 개발자센터 앱 등록과 키 발급: [docs/운영/카카오-개발자센터.md](docs/운영/카카오-개발자센터.md)
+- 프로필 사진 저장소(R2): [docs/운영/cloudflare-r2.md](docs/운영/cloudflare-r2.md)
+
+## 배포
+
+운영 배포 흐름, 환경 변수, 비용은 [docs/운영/배포.md](docs/운영/배포.md). 플랫폼별 설정은 [Railway (API + MySQL)](docs/운영/railway.md), [Vercel (웹)](docs/운영/vercel.md).
 
 ## CI
 

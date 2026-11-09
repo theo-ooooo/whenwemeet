@@ -34,9 +34,12 @@
 | KAKAO_ERROR | 502 | 카카오 토큰 교환/사용자 조회/unlink 실패 |
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
+| DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 환경 변수 (apps/api/.env)
+
+`NODE_ENV=production` 이면 `PORT`, `JWT_EXPIRES_IN` 을 뺀 아래 값이 모두 있어야 기동한다 (`src/config/env.validation.ts`, 운영 목록은 docs/운영/배포.md).
 
 | 이름 | 용도 |
 |------|------|
@@ -53,7 +56,7 @@
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/health` | 없음 | - | `{ data: { ok: true } }` |
+| GET | `/health` | 없음 | - | `{ data: { ok: true } }`. DB 에 `SELECT 1` 을 보내 실패하면 503 DB_UNAVAILABLE |
 | GET | `/auth/kakao` | 없음 | 쿼리 `next?` (`/` 로 시작하는 웹 경로, 기본 `/`) | 302 → kauth 인가 페이지 |
 | GET | `/auth/kakao/callback` | 없음 | 쿼리 `code`, `state` | 302 → `${WEB_ORIGIN}/auth/callback?token=<JWT>&next=<path>`. 실패 시 302 → `${WEB_ORIGIN}/login?error=<code>` |
 | GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt } }` |
