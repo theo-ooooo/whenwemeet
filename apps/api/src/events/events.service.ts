@@ -13,8 +13,8 @@ export const MAX_EVENT_DAYS = 30;
 export const MAX_RANGE_DAYS = 62;
 
 export interface EventView {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -71,7 +71,7 @@ export class EventsService {
   ) {}
 
   /** 겹침 조건 `startsAt < to AND endsAt > from`, startsAt 오름차순 */
-  async list(userId: string, groupId: string, fromRaw: string, toRaw: string): Promise<EventView[]> {
+  async list(userId: number, groupId: number, fromRaw: string, toRaw: string): Promise<EventView[]> {
     await this.memberships.assertMember(userId, groupId);
     const { from, to } = parseRange(fromRaw, toRaw, MAX_RANGE_DAYS);
     const rows = await this.events.listInRange(groupId, from, to);
@@ -79,14 +79,14 @@ export class EventsService {
     return rows.map((row) => toEventView(row, resolver));
   }
 
-  async get(userId: string, groupId: string, eventId: string): Promise<EventView> {
+  async get(userId: number, groupId: number, eventId: number): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const row = await this.findInGroup(groupId, eventId);
     const resolver = await this.memberships.resolverFor(groupId);
     return toEventView(row, resolver);
   }
 
-  async create(userId: string, groupId: string, dto: EventInputDto): Promise<EventView> {
+  async create(userId: number, groupId: number, dto: EventInputDto): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const startsAt = parseIsoDate(dto.startsAt, 'startsAt');
     const endsAt = parseIsoDate(dto.endsAt, 'endsAt');
@@ -101,7 +101,7 @@ export class EventsService {
   }
 
   /** 부분 변경은 현재 값과 합쳐 검증한 뒤 UPDATED 로그와 함께 저장 */
-  async update(userId: string, groupId: string, eventId: string, dto: EventPatchDto): Promise<EventView> {
+  async update(userId: number, groupId: number, eventId: number, dto: EventPatchDto): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     const startsAt = dto.startsAt !== undefined ? parseIsoDate(dto.startsAt, 'startsAt') : current.startsAt;
@@ -123,7 +123,7 @@ export class EventsService {
   }
 
   /** 삭제 전 스냅샷으로 DELETED 로그를 남긴다 */
-  async remove(userId: string, groupId: string, eventId: string): Promise<{ ok: true }> {
+  async remove(userId: number, groupId: number, eventId: number): Promise<{ ok: true }> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     await this.events.deleteWithLogTx(current, userId);
@@ -131,7 +131,7 @@ export class EventsService {
   }
 
   /** 다른 팀 자원을 가리키는 ID 도 NOT_FOUND */
-  private async findInGroup(groupId: string, eventId: string): Promise<EventRow> {
+  private async findInGroup(groupId: number, eventId: number): Promise<EventRow> {
     const row = await this.events.findInGroup(groupId, eventId);
     if (!row) throw new ApiException('NOT_FOUND', '일정을 찾을 수 없어요');
     return row;

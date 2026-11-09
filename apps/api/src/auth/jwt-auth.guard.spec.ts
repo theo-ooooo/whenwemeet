@@ -3,8 +3,8 @@ import { UsersRepository } from '../users/users.repository.js';
 import { readCookie } from './auth.controller.js';
 import { IS_PUBLIC_KEY, JwtAuthGuard } from './jwt-auth.guard.js';
 
-function contextOf(headers: Record<string, string>, isPublic = false) {
-  const request: { headers: Record<string, string>; user?: unknown } = { headers };
+function contextOf(headers: Record<string, string | undefined>, isPublic = false) {
+  const request: { headers: Record<string, string | undefined>; user?: unknown } = { headers };
   return {
     request,
     context: {
@@ -38,7 +38,7 @@ describe('JwtAuthGuard', () => {
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
 
-  it('서명/만료 실패, sub 없음, 사용자 없음(탈퇴) → UNAUTHORIZED', async () => {
+  it('서명/만료 실패, sub 없음, sub 가 양의 정수 문자열이 아님, 사용자 없음(탈퇴) → UNAUTHORIZED', async () => {
     const { context, reflector } = contextOf({ authorization: 'Bearer t' });
     const guard = new JwtAuthGuard(reflector, jwt as never, users as never);
 
@@ -48,20 +48,28 @@ describe('JwtAuthGuard', () => {
     jwt.verifyAsync.mockResolvedValueOnce({});
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
 
-    jwt.verifyAsync.mockResolvedValueOnce({ sub: 'gone' });
+    // 예전 cuid 토큰, 숫자 타입, 0, 앞자리 0
+    for (const sub of ['ckabc123', 7, '0', '007']) {
+      jwt.verifyAsync.mockResolvedValueOnce({ sub });
+      await expect(guard.canActivate(context)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    }
+    expect(users.findById).not.toHaveBeenCalled();
+
+    jwt.verifyAsync.mockResolvedValueOnce({ sub: '404' });
     users.findById.mockResolvedValueOnce(null);
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(users.findById).toHaveBeenCalledWith(404);
   });
 
   it('유효하면 request.user 를 채운다 (대소문자 무관 bearer)', async () => {
     const { context, reflector, request } = contextOf({ authorization: 'bearer good' });
     const guard = new JwtAuthGuard(reflector, jwt as never, users as never);
-    jwt.verifyAsync.mockResolvedValueOnce({ sub: 'u1' });
-    const user = { id: 'u1', nickname: '닉', profileImageUrl: null, createdAt: new Date() };
+    jwt.verifyAsync.mockResolvedValueOnce({ sub: '1' });
+    const user = { id: 1, nickname: '닉', profileImageUrl: null, createdAt: new Date() };
     users.findById.mockResolvedValueOnce(user);
     expect(await guard.canActivate(context)).toBe(true);
     expect(request.user).toEqual(user);
-    expect(users.findById).toHaveBeenCalledWith('u1');
+    expect(users.findById).toHaveBeenCalledWith(1);
   });
 });
 

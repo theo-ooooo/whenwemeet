@@ -24,19 +24,20 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.anniversary.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.group.deleteMany();
+  await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();
 }
 
 export interface Session {
   token: string;
-  userId: string;
+  userId: number;
   nickname: string;
 }
 
 /** 개발 전용 로그인으로 세션 하나 */
 export async function devLogin(app: TestApp, nickname: string): Promise<Session> {
   const res = await api(app).post('/v1/auth/dev-login').send({ nickname }).expect(200);
-  return { token: res.body.data.token as string, userId: res.body.data.user.id as string, nickname };
+  return { token: res.body.data.token as string, userId: res.body.data.user.id as number, nickname };
 }
 
 export function auth(session: Session): { Authorization: string } {

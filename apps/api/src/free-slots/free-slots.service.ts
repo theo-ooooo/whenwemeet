@@ -24,7 +24,7 @@ export class FreeSlotsService {
   ) {}
 
   /** api.md 2.5 쿼리 전략. DB 조회 3번, 일정 내용은 select 하지 않는다 (결정기록 D-14) */
-  async find(userId: string, groupId: string, query: FreeSlotsQueryDto, now: Date = new Date()): Promise<FreeSlotsResult> {
+  async find(userId: number, groupId: number, query: FreeSlotsQueryDto, now: Date = new Date()): Promise<FreeSlotsResult> {
     // 1. 멤버십 확인 → 요청 팀의 멤버
     await this.memberships.assertMember(userId, groupId);
     const { from: requestedFrom, to } = parseRange(query.from, query.to, MAX_FREE_SLOT_DAYS);

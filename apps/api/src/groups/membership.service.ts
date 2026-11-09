@@ -6,7 +6,7 @@ import { MembershipsRepository, MembershipWithUser } from '../memberships/member
 import { GroupsRepository } from './groups.repository.js';
 
 export interface GroupDetail {
-  id: string;
+  id: number;
   type: 'PERSONAL' | 'TEAM';
   name: string;
   inviteCode: string | null;
@@ -26,17 +26,17 @@ export class MembershipService {
   ) {}
 
   /** 멤버가 아니면 403 FORBIDDEN. 팀이 없어도 멤버십이 없으므로 같은 403 */
-  async assertMember(userId: string, groupId: string): Promise<MembershipWithUser> {
+  async assertMember(userId: number, groupId: number): Promise<MembershipWithUser> {
     const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
     if (!membership) throw new ApiException('FORBIDDEN');
     return membership;
   }
 
-  async listMembers(groupId: string): Promise<MembershipWithUser[]> {
+  async listMembers(groupId: number): Promise<MembershipWithUser[]> {
     return this.membershipsRepo.listByGroup(groupId);
   }
 
-  async resolverFor(groupId: string): Promise<MemberResolver> {
+  async resolverFor(groupId: number): Promise<MemberResolver> {
     return new MemberResolver(await this.listMembers(groupId));
   }
 
@@ -46,7 +46,7 @@ export class MembershipService {
   }
 
   /** GroupDetail 조립. 호출 전에 멤버십이 확인돼 있어야 한다 */
-  async groupDetail(groupId: string, userId: string): Promise<GroupDetail> {
+  async groupDetail(groupId: number, userId: number): Promise<GroupDetail> {
     const group = await this.groupsRepo.findById(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
     const members = (await this.listMembers(groupId)).map(toMember);

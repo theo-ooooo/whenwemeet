@@ -1,19 +1,33 @@
 -- CreateTable
 CREATE TABLE `User` (
-    `id` VARCHAR(191) NOT NULL,
-    `kakaoId` BIGINT NOT NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
     `nickname` VARCHAR(50) NOT NULL,
     `profileImageUrl` VARCHAR(500) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `User_kakaoId_key`(`kakaoId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `AuthAccount` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `provider` ENUM('KAKAO', 'APPLE', 'GOOGLE', 'NAVER', 'DEV') NOT NULL,
+    `providerUserId` VARCHAR(191) NOT NULL,
+    `email` VARCHAR(255) NULL,
+    `rawProfile` JSON NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `AuthAccount_userId_idx`(`userId`),
+    UNIQUE INDEX `AuthAccount_provider_providerUserId_key`(`provider`, `providerUserId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `Group` (
-    `id` VARCHAR(191) NOT NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
     `type` ENUM('PERSONAL', 'TEAM') NOT NULL,
     `name` VARCHAR(30) NOT NULL,
     `inviteCode` CHAR(6) NULL,
@@ -26,9 +40,9 @@ CREATE TABLE `Group` (
 
 -- CreateTable
 CREATE TABLE `Membership` (
-    `id` VARCHAR(191) NOT NULL,
-    `userId` VARCHAR(191) NOT NULL,
-    `groupId` VARCHAR(191) NOT NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `groupId` INTEGER NOT NULL,
     `color` CHAR(7) NOT NULL,
     `displayName` VARCHAR(20) NULL,
     `lastSeenAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -41,14 +55,14 @@ CREATE TABLE `Membership` (
 
 -- CreateTable
 CREATE TABLE `Event` (
-    `id` VARCHAR(191) NOT NULL,
-    `groupId` VARCHAR(191) NOT NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `groupId` INTEGER NOT NULL,
     `title` VARCHAR(50) NOT NULL,
     `startsAt` DATETIME(3) NOT NULL,
     `endsAt` DATETIME(3) NOT NULL,
     `allDay` BOOLEAN NOT NULL DEFAULT false,
     `memo` VARCHAR(500) NULL,
-    `creatorId` VARCHAR(191) NULL,
+    `creatorId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -59,11 +73,11 @@ CREATE TABLE `Event` (
 
 -- CreateTable
 CREATE TABLE `Anniversary` (
-    `id` VARCHAR(191) NOT NULL,
-    `groupId` VARCHAR(191) NOT NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `groupId` INTEGER NOT NULL,
     `name` VARCHAR(30) NOT NULL,
     `date` DATE NOT NULL,
-    `creatorId` VARCHAR(191) NULL,
+    `creatorId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -73,10 +87,10 @@ CREATE TABLE `Anniversary` (
 
 -- CreateTable
 CREATE TABLE `EventLog` (
-    `id` VARCHAR(191) NOT NULL,
-    `groupId` VARCHAR(191) NOT NULL,
-    `eventId` VARCHAR(191) NULL,
-    `actorId` VARCHAR(191) NULL,
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `groupId` INTEGER NOT NULL,
+    `eventId` INTEGER NULL,
+    `actorId` INTEGER NULL,
     `action` ENUM('CREATED', 'UPDATED', 'DELETED') NOT NULL,
     `title` VARCHAR(50) NOT NULL,
     `startsAt` DATETIME(3) NOT NULL,
@@ -87,6 +101,9 @@ CREATE TABLE `EventLog` (
     INDEX `EventLog_groupId_createdAt_idx`(`groupId`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `AuthAccount` ADD CONSTRAINT `AuthAccount_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Membership` ADD CONSTRAINT `Membership_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

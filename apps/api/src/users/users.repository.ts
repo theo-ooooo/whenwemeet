@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AuthProvider, RawProfile } from '../auth/providers/auth-provider.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -6,27 +7,34 @@ export const USER_SELECT = { id: true, nickname: true, profileImageUrl: true, cr
 
 /** 응답과 request.user 에 쓰는 사용자 요약 */
 export interface UserSummary {
-  id: string;
+  id: number;
   nickname: string;
   profileImageUrl: string | null;
   createdAt: Date;
 }
 
-export interface UserProfileInput {
+/** 가입 시 만들 사용자와 연결 계정 */
+export interface NewAccountInput {
+  provider: AuthProvider;
+  providerUserId: string;
+  email: string | null;
+  rawProfile: RawProfile;
   nickname: string;
   profileImageUrl: string | null;
 }
 
-export interface KakaoUserInput extends UserProfileInput {
-  kakaoId: bigint;
+/** 탈퇴 시 제공자별 unlink 대상 */
+export interface AuthAccountRef {
+  provider: AuthProvider;
+  providerUserId: string;
 }
 
 /** 탈퇴 시 지울 것. Service 가 멤버십 목록을 보고 정한다 */
 export interface AccountCleanupPlan {
   /** 통째로 지울 팀 (PERSONAL) */
-  deleteGroupIds: string[];
+  deleteGroupIds: number[];
   /** 나가기 처리할 TEAM 멤버십 */
-  leave: { membershipId: string; groupId: string }[];
+  leave: { membershipId: number; groupId: number }[];
 }
 
 @Injectable()
@@ -36,36 +44,52 @@ export class UsersRepository {
     private readonly memberships: MembershipsRepository,
   ) {}
 
-  findById(id: string): Promise<UserSummary | null> {
+  findById(id: number): Promise<UserSummary | null> {
     return this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
   }
 
-  findByKakaoId(kakaoId: bigint): Promise<{ id: string } | null> {
-    return this.prisma.user.findUnique({ where: { kakaoId }, select: { id: true } });
-  }
-
-  findKakaoId(id: string): Promise<{ kakaoId: bigint } | null> {
-    return this.prisma.user.findUnique({ where: { id }, select: { kakaoId: true } });
-  }
-
-  /** 개발 전용 사용자(kakaoId 음수) 중 같은 닉네임, 가장 먼저 만든 것 */
-  findDevUserByNickname(nickname: string): Promise<UserSummary | null> {
-    return this.prisma.user.findFirst({
-      where: { nickname, kakaoId: { lt: 0n } },
-      select: USER_SELECT,
-      orderBy: { createdAt: 'asc' },
+  /** (provider, providerUserId) 로 연결 계정 하나 */
+  findAuthAccount(provider: AuthProvider, providerUserId: string): Promise<{ id: number } | null> {
+    return this.prisma.authAccount.findUnique({
+      where: { provider_providerUserId: { provider, providerUserId } },
+      select: { id: true },
     });
   }
 
-  updateProfile(id: string, profile: UserProfileInput): Promise<UserSummary> {
-    return this.prisma.user.update({ where: { id }, data: profile, select: USER_SELECT });
+  /** 재로그인 시 제공자 원본 프로필만 갱신하고 연결된 사용자를 돌려준다. User 의 닉네임/사진은 건드리지 않는다 (D-36) */
+  async updateRawProfile(authAccountId: number, rawProfile: RawProfile): Promise<UserSummary> {
+    const account = await this.prisma.authAccount.update({
+      where: { id: authAccountId },
+      data: { rawProfile },
+      select: { user: { select: USER_SELECT } },
+    });
+    return account.user;
   }
 
-  /** 사용자 생성 + PERSONAL 팀 + 첫 멤버십을 한 트랜잭션으로 */
-  createWithPersonalGroupTx(input: KakaoUserInput, personalGroup: { name: string; color: string }): Promise<UserSummary> {
+  listAuthAccounts(userId: number): Promise<AuthAccountRef[]> {
+    return this.prisma.authAccount.findMany({
+      where: { userId },
+      orderBy: { id: 'asc' },
+      select: { provider: true, providerUserId: true },
+    });
+  }
+
+  /** 사용자 + 연결 계정 + PERSONAL 팀 + 첫 멤버십을 한 트랜잭션으로 */
+  createWithAccountTx(input: NewAccountInput, personalGroup: { name: string; color: string }): Promise<UserSummary> {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
-        data: { kakaoId: input.kakaoId, nickname: input.nickname, profileImageUrl: input.profileImageUrl },
+        data: {
+          nickname: input.nickname,
+          profileImageUrl: input.profileImageUrl,
+          authAccounts: {
+            create: {
+              provider: input.provider,
+              providerUserId: input.providerUserId,
+              email: input.email,
+              rawProfile: input.rawProfile,
+            },
+          },
+        },
         select: USER_SELECT,
       });
       await tx.group.create({
@@ -80,8 +104,8 @@ export class UsersRepository {
     });
   }
 
-  /** 팀 삭제 → 멤버십마다 나가기 → User 삭제 (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로 */
-  async deleteAccountTx(userId: string, plan: AccountCleanupPlan): Promise<void> {
+  /** 팀 삭제 → 멤버십마다 나가기 → 연결 계정 삭제 → User 삭제 (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로 */
+  async deleteAccountTx(userId: number, plan: AccountCleanupPlan): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const groupId of plan.deleteGroupIds) {
         await tx.group.delete({ where: { id: groupId } });
@@ -89,6 +113,7 @@ export class UsersRepository {
       for (const { membershipId, groupId } of plan.leave) {
         await this.memberships.removeWithGroupPrune(tx, membershipId, groupId);
       }
+      await tx.authAccount.deleteMany({ where: { userId } });
       await tx.user.delete({ where: { id: userId } });
     });
   }

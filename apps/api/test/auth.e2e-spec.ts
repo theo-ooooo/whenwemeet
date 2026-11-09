@@ -1,5 +1,5 @@
 import { PrismaService } from '../src/prisma/prisma.service.js';
-import { KAKAO_ME_URL, KAKAO_TOKEN_URL, KAKAO_UNLINK_URL } from '../src/auth/kakao.client.js';
+import { KAKAO_ME_URL, KAKAO_TOKEN_URL, KAKAO_UNLINK_URL } from '../src/auth/providers/kakao.provider.js';
 import { urlOf } from '../src/testing/fetch-url.js';
 import { api, auth, createTestApp, devLogin, resetDb, TestApp } from './helpers.js';
 
@@ -87,6 +87,17 @@ describe('카카오 OAuth (e2e)', () => {
 
     const me = await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200);
     expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: 'https://img.example/p.png' });
+    expect(Number.isInteger(me.body.data.id)).toBe(true);
+
+    // 카카오 회원번호는 AuthAccount(KAKAO) 에 문자열로
+    const account = await app.get(PrismaService).authAccount.findUniqueOrThrow({
+      where: { provider_providerUserId: { provider: 'KAKAO', providerUserId: '4000000001' } },
+    });
+    expect(account).toMatchObject({
+      userId: me.body.data.id,
+      email: null,
+      rawProfile: { id: 4_000_000_001, nickname: '카카오유저', profile_image_url: 'https://img.example/p.png' },
+    });
 
     const groups = await api(app).get('/v1/groups').set({ Authorization: `Bearer ${token}` }).expect(200);
     expect(groups.body.data).toHaveLength(1);
@@ -100,17 +111,28 @@ describe('카카오 OAuth (e2e)', () => {
     expect(body.get('grant_type')).toBe('authorization_code');
   });
 
-  it('같은 kakaoId 로 다시 로그인하면 닉네임만 갱신되고 팀은 늘지 않는다', async () => {
+  it('같은 카카오 계정으로 다시 로그인하면 rawProfile 만 갱신, 닉네임/사진은 그대로, 팀은 늘지 않는다 (D-36)', async () => {
     globalThis.fetch = kakaoFetch({ id: 4_000_000_001, nickname: '바뀐닉네임' });
     const { cookie, state } = await startLogin(app);
     const res = await api(app).get('/v1/auth/kakao/callback').set('Cookie', cookie).query({ code: 'c', state }).expect(302);
     const token = new URL(res.headers.location).searchParams.get('token')!;
     const me = await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200);
-    expect(me.body.data).toMatchObject({ nickname: '바뀐닉네임', profileImageUrl: null });
+    expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: 'https://img.example/p.png' });
 
     const prisma = app.get(PrismaService);
     expect(await prisma.user.count()).toBe(1);
+    expect(await prisma.authAccount.count()).toBe(1);
     expect(await prisma.group.count()).toBe(1);
+    const account = await prisma.authAccount.findFirstOrThrow();
+    expect(account.rawProfile).toEqual({ id: 4_000_000_001, nickname: '바뀐닉네임', profile_image_url: null });
+  });
+
+  it('카카오와 개발 계정은 같은 닉네임이어도 서로 다른 사용자다', async () => {
+    const dev = await devLogin(app, '카카오유저');
+    const prisma = app.get(PrismaService);
+    const kakao = await prisma.authAccount.findFirstOrThrow({ where: { provider: 'KAKAO' } });
+    expect(dev.userId).not.toBe(kakao.userId);
+    await api(app).delete('/v1/me').set(auth(dev)).expect(200);
   });
 
   it('state 불일치, 쿠키 없음, code 없음 → /login?error=OAUTH_STATE', async () => {
@@ -194,6 +216,7 @@ describe('카카오 OAuth (e2e)', () => {
       globalThis.fetch = unlink;
       await api(app).delete('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200);
       await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(401);
+      expect(await app.get(PrismaService).authAccount.count({ where: { providerUserId: '4000000003' } })).toBe(0);
 
       const [input, init] = unlink.mock.calls[0];
       expect(urlOf(input)).toBe(KAKAO_UNLINK_URL);
@@ -201,6 +224,22 @@ describe('카카오 OAuth (e2e)', () => {
       const body = init!.body as URLSearchParams;
       expect(body.get('target_id_type')).toBe('user_id');
       expect(body.get('target_id')).toBe('4000000003');
+    });
+
+    it('개발 계정만 연결된 사용자는 카카오를 부르지 않고 탈퇴', async () => {
+      const session = await devLogin(app, '개발탈퇴');
+      const fetchSpy = vi.fn<typeof fetch>();
+      globalThis.fetch = fetchSpy;
+      await api(app).delete('/v1/me').set(auth(session)).expect(200);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(await app.get(PrismaService).authAccount.count({ where: { provider: 'DEV', providerUserId: '개발탈퇴' } })).toBe(0);
+    });
+
+    it('예전 cuid sub 를 가진 토큰은 401', async () => {
+      const { JwtService } = await import('@nestjs/jwt');
+      const legacy = await app.get(JwtService).signAsync({ sub: 'ckxxxxxxxxxxxxxxxxxxxxxxx' });
+      const res = await api(app).get('/v1/me').set({ Authorization: `Bearer ${legacy}` }).expect(401);
+      expect(res.body.error.code).toBe('UNAUTHORIZED');
     });
 
     it('KAKAO_ADMIN_KEY 가 없으면 503 KAKAO_NOT_CONFIGURED', async () => {

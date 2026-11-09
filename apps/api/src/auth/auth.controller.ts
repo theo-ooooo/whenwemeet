@@ -5,7 +5,8 @@ import { ApiException } from '../common/errors.js';
 import { AuthService } from './auth.service.js';
 import { DevLoginDto } from './dto/dev-login.dto.js';
 import { Public } from './jwt-auth.guard.js';
-import { KakaoClient } from './kakao.client.js';
+import { DevProvider } from './providers/dev.provider.js';
+import { KakaoProvider } from './providers/kakao.provider.js';
 
 /** CSRF 대조용 nonce 쿠키 (인증흐름.md 1장). API 도메인, Path=/v1/auth, 10분 */
 export const STATE_COOKIE = 'wwm_oauth_state';
@@ -15,7 +16,8 @@ const STATE_COOKIE_MAX_AGE_MS = 600 * 1000;
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
-    private readonly kakao: KakaoClient,
+    private readonly kakao: KakaoProvider,
+    private readonly dev: DevProvider,
     private readonly config: ConfigService,
   ) {}
 
@@ -50,9 +52,8 @@ export class AuthController {
     }
 
     try {
-      const accessToken = await this.kakao.exchangeCode(code);
-      const profile = await this.kakao.fetchProfile(accessToken);
-      const user = await this.auth.upsertKakaoUser(profile);
+      const profile = await this.kakao.exchangeCode(code);
+      const user = await this.auth.login(this.kakao.provider, profile);
       const token = await this.auth.signToken(user.id);
       const params = new URLSearchParams({ token, next: state.next });
       res.redirect(302, `${webOrigin}/auth/callback?${params.toString()}`);
@@ -62,13 +63,13 @@ export class AuthController {
     }
   }
 
-  /** 개발 전용 (결정기록 D-29). 운영에서는 존재하지 않는 경로처럼 404 */
+  /** 개발 전용 (결정기록 D-29). AuthAccount(DEV, 닉네임) 로 로그인. 운영에서는 존재하지 않는 경로처럼 404 */
   @Public()
   @Post('dev-login')
   @HttpCode(200)
   async devLogin(@Body() dto: DevLoginDto): Promise<{ token: string; user: unknown }> {
     if (process.env.NODE_ENV === 'production') throw new ApiException('NOT_FOUND');
-    const user = await this.auth.upsertDevUser(dto.nickname);
+    const user = await this.auth.login(this.dev.provider, await this.dev.exchangeCode(dto.nickname));
     const token = await this.auth.signToken(user.id);
     return { token, user };
   }

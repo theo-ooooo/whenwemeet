@@ -15,10 +15,10 @@ export const EVENT_LOG_SELECT = {
 } as const;
 
 export interface EventLogRow {
-  id: string;
+  id: number;
   action: 'CREATED' | 'UPDATED' | 'DELETED';
-  eventId: string | null;
-  actorId: string | null;
+  eventId: number | null;
+  actorId: number | null;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -33,7 +33,7 @@ export class EventLogsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** `after` 이후, 내 변경 제외 (actorId null 인 탈퇴자 변경은 포함) */
-  countUnseenByOthers(groupId: string, after: Date, userId: string): Promise<number> {
+  countUnseenByOthers(groupId: number, after: Date, userId: number): Promise<number> {
     return this.prisma.eventLog.count({
       where: {
         groupId,
@@ -44,7 +44,7 @@ export class EventLogsRepository {
   }
 
   /** `since` 이후, 내 변경 제외, 최신순 `limit` 건 */
-  listRecentByOthers(groupId: string, userId: string, since: Date, limit: number): Promise<EventLogRow[]> {
+  listRecentByOthers(groupId: number, userId: number, since: Date, limit: number): Promise<EventLogRow[]> {
     return this.prisma.eventLog.findMany({
       where: {
         groupId,

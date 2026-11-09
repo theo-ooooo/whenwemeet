@@ -33,11 +33,12 @@ export class JwtAuthGuard implements CanActivate {
     const token = extractBearer(request.headers.authorization);
     if (!token) throw new ApiException('UNAUTHORIZED');
 
-    let sub: string;
+    let sub: number;
     try {
       const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
-      if (typeof payload.sub !== 'string' || !payload.sub) throw new Error('sub 없음');
-      sub = payload.sub;
+      // sub 는 양의 정수 문자열. 예전 cuid 토큰도 여기서 401 이 된다
+      if (typeof payload.sub !== 'string' || !/^[1-9]\d{0,9}$/.test(payload.sub)) throw new Error('sub 형식 아님');
+      sub = Number(payload.sub);
     } catch {
       throw new ApiException('UNAUTHORIZED');
     }
