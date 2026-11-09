@@ -101,10 +101,10 @@ export function buildStore(): Store {
   ];
 
   const memberships: MembershipRow[] = [
-    { userId: ME_ID, groupId: PERSONAL_ID, color: "#3FB0FF", displayName: null, joinedAt: hoursAgo(24 * 40), lastSeenAt: hoursAgo(24 * 2) },
-    { userId: ME_ID, groupId: TEAM_ID, color: "#3FB0FF", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: hoursAgo(20) },
-    { userId: OTHER_ID, groupId: TEAM_ID, color: "#FF5C8A", displayName: null, joinedAt: hoursAgo(24 * 37), lastSeenAt: hoursAgo(1) },
-    { userId: OTHER_ID, groupId: "g_other_personal", color: "#FF5C8A", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: null },
+    { userId: ME_ID, groupId: PERSONAL_ID, color: "#F26D6D", displayName: null, joinedAt: hoursAgo(24 * 40), lastSeenAt: hoursAgo(24 * 2) },
+    { userId: ME_ID, groupId: TEAM_ID, color: "#F26D6D", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: hoursAgo(20) },
+    { userId: OTHER_ID, groupId: TEAM_ID, color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 37), lastSeenAt: hoursAgo(1) },
+    { userId: OTHER_ID, groupId: "g_other_personal", color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: null },
   ];
 
   const ev = (
@@ -135,7 +135,8 @@ export function buildStore(): Store {
   const events: EventRow[] = [
     ev("e1", TEAM_ID, "저녁 약속", d(3), "19:00", d(3), "21:00", OTHER_ID, false, "성수동, 예약 완료"),
     ev("e2", TEAM_ID, "치과", d(7), "10:30", d(7), "11:30", ME_ID),
-    ev("e3", TEAM_ID, "영화", today, "19:30", today, "22:00", OTHER_ID, false, "CGV 용산 8관"),
+    ev("e3", TEAM_ID, "영화", today, "19:30", today, "22:00", ME_ID, false, "CGV 용산 아이맥스. 7시에 4번 출구에서 보자, 팝콘은 내가 살게."),
+    ev("e7", TEAM_ID, "원고 마감", today, "00:00", addDays(today, 1), "00:00", OTHER_ID, true),
     ev("e4", TEAM_ID, "부모님 댁", addDays(today, 1), "00:00", addDays(today, 2), "00:00", ME_ID, true),
     ev("e5", TEAM_ID, "요가", addDays(today, 3), "07:00", addDays(today, 3), "08:00", OTHER_ID),
     ev("e6", TEAM_ID, "제주 여행", d(24), "00:00", d(27), "00:00", ME_ID, true, "항공권 예매함"),
@@ -161,11 +162,11 @@ export function buildStore(): Store {
       id: "l1",
       groupId: TEAM_ID,
       action: "CREATED",
-      eventId: "e3",
-      title: "영화",
-      startsAt: kstToIso(today, "19:30"),
-      endsAt: kstToIso(today, "22:00"),
-      allDay: false,
+      eventId: "e7",
+      title: "원고 마감",
+      startsAt: kstToIso(today),
+      endsAt: kstToIso(addDays(today, 1)),
+      allDay: true,
       actorId: OTHER_ID,
       createdAt: hoursAgo(3),
     },
