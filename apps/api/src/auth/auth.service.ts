@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
+import { AvatarsService } from '../avatars/avatars.service.js';
 import { MEMBER_COLORS } from '../common/member.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js';
@@ -28,6 +29,7 @@ export class AuthService {
   constructor(
     private readonly users: UsersRepository,
     private readonly jwt: JwtService,
+    private readonly avatars: AvatarsService,
   ) {}
 
   sanitizeNext(next: unknown): string {
@@ -55,22 +57,24 @@ export class AuthService {
   /**
    * 소셜 로그인 (인증흐름.md 2장 4단계, 결정기록 D-34).
    * - 연결 계정이 있으면 rawProfile 만 갱신. 닉네임/사진은 우리 서비스 값이라 덮지 않는다 (D-36)
-   * - 없으면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로
+   * - 없으면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로 만들고,
+   *   소셜 프로필 사진을 R2 로 복사한다 (D-37). 복사가 실패해도 가입은 그대로 (사진 없음)
    */
   async login(provider: AuthProvider, profile: ProviderProfile): Promise<AuthUser> {
     const account = await this.users.findAuthAccount(provider, profile.providerUserId);
     if (account) return this.users.updateRawProfile(account.id, profile.raw);
-    return this.users.createWithAccountTx(
+    const user = await this.users.createWithAccountTx(
       {
         provider,
         providerUserId: profile.providerUserId,
         email: profile.email ?? null,
         rawProfile: profile.raw,
         nickname: profile.nickname,
-        profileImageUrl: profile.profileImageUrl,
       },
       { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] },
     );
+    const profileImageUrl = await this.avatars.importFromUrl(user.id, profile.profileImageUrl);
+    return profileImageUrl ? { ...user, profileImageUrl } : user;
   }
 
   /** JWT 표준상 sub 는 문자열이라 숫자 ID 를 문자열로 싣는다. 가드가 다시 정수로 읽는다 */

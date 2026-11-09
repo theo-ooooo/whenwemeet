@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserRow } from '../common/member.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export const EVENT_LOG_SELECT = {
@@ -11,7 +12,7 @@ export const EVENT_LOG_SELECT = {
   endsAt: true,
   allDay: true,
   createdAt: true,
-  actor: { select: { nickname: true, profileImageUrl: true } },
+  actor: USER_PUBLIC_SELECT,
 } as const;
 
 export interface EventLogRow {
@@ -24,7 +25,7 @@ export interface EventLogRow {
   endsAt: Date;
   allDay: boolean;
   createdAt: Date;
-  actor: { nickname: string; profileImageUrl: string | null } | null;
+  actor: UserRow | null;
 }
 
 /** 새 소식 조회. 쓰기는 일정 변경과 한 트랜잭션이라 EventsRepository 의 `...WithLogTx` 가 맡는다 */
@@ -44,8 +45,8 @@ export class EventLogsRepository {
   }
 
   /** `since` 이후, 내 변경 제외, 최신순 `limit` 건 */
-  listRecentByOthers(groupId: number, userId: number, since: Date, limit: number): Promise<EventLogRow[]> {
-    return this.prisma.eventLog.findMany({
+  async listRecentByOthers(groupId: number, userId: number, since: Date, limit: number): Promise<EventLogRow[]> {
+    const rows = await this.prisma.eventLog.findMany({
       where: {
         groupId,
         createdAt: { gte: since },
@@ -55,5 +56,6 @@ export class EventLogsRepository {
       take: limit,
       select: EVENT_LOG_SELECT,
     });
+    return rows.map((row) => ({ ...row, actor: toUserRowOrNull(row.actor) }));
   }
 }

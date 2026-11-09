@@ -5,11 +5,19 @@ import type { App } from 'supertest/types.js';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { StorageService } from '../src/storage/storage.service.js';
 
 export type TestApp = INestApplication<App>;
 
-export async function createTestApp(): Promise<TestApp> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+export interface TestAppOptions {
+  /** R2 대신 쓸 저장소 (MemoryStorage). 없으면 실제 StorageService 가 미설정 상태로 뜬다 */
+  storage?: unknown;
+}
+
+export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
+  const builder = Test.createTestingModule({ imports: [AppModule] });
+  if (options.storage) builder.overrideProvider(StorageService).useValue(options.storage);
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);
   await app.init();
@@ -24,6 +32,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.anniversary.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.group.deleteMany();
+  await prisma.file.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();
 }
