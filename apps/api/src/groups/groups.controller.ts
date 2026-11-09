@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@ne
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/jwt-auth.guard.js';
+import { IdParam } from '../common/id-param.js';
 import { CreateGroupDto, JoinGroupDto, UpdateGroupDto, UpdateMeDto } from './dto/group.dto.js';
 import { GroupsService } from './groups.service.js';
 
@@ -27,28 +28,28 @@ export class GroupsController {
   }
 
   @Get(':groupId')
-  detail(@CurrentUser() user: AuthUser, @Param('groupId') groupId: string) {
+  detail(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number) {
     return this.groups.detail(user.id, groupId);
   }
 
   @Patch(':groupId')
-  rename(@CurrentUser() user: AuthUser, @Param('groupId') groupId: string, @Body() dto: UpdateGroupDto) {
+  rename(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: UpdateGroupDto) {
     return this.groups.rename(user.id, groupId, dto.name);
   }
 
   @Post(':groupId/invite-code')
   @HttpCode(200)
-  rotateInviteCode(@CurrentUser() user: AuthUser, @Param('groupId') groupId: string) {
+  rotateInviteCode(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number) {
     return this.groups.rotateInviteCode(user.id, groupId);
   }
 
   @Patch(':groupId/me')
-  updateMe(@CurrentUser() user: AuthUser, @Param('groupId') groupId: string, @Body() dto: UpdateMeDto) {
+  updateMe(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: UpdateMeDto) {
     return this.groups.updateMe(user.id, groupId, dto);
   }
 
   @Delete(':groupId/me')
-  leave(@CurrentUser() user: AuthUser, @Param('groupId') groupId: string) {
+  leave(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number) {
     return this.groups.leave(user.id, groupId);
   }
 }

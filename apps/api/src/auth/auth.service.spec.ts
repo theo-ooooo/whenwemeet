@@ -34,45 +34,50 @@ describe('AuthService', () => {
     expect(service.parseState(bad)).toEqual({ nonce: 'n', next: '/' });
   });
 
-  it('upsertKakaoUser: 기존 사용자는 프로필만 갱신', async () => {
-    users.findByKakaoId.mockResolvedValue({ id: 'u1' });
-    users.updateProfile.mockResolvedValue({ id: 'u1', nickname: '새닉', profileImageUrl: null, createdAt: new Date() });
-    const user = await service.upsertKakaoUser({ kakaoId: 10n, nickname: '새닉', profileImageUrl: null });
-    expect(user.id).toBe('u1');
-    expect(users.findByKakaoId).toHaveBeenCalledWith(10n);
-    expect(users.updateProfile).toHaveBeenCalledWith('u1', { nickname: '새닉', profileImageUrl: null });
-    expect(users.createWithPersonalGroupTx).not.toHaveBeenCalled();
+  const kakaoProfile = {
+    providerUserId: '123456789012',
+    nickname: '카카오닉',
+    profileImageUrl: 'https://img',
+    raw: { id: 123456789012, nickname: '카카오닉', profile_image_url: 'https://img' },
+  };
+
+  it('login: 연결 계정이 있으면 rawProfile 만 갱신하고 닉네임/사진은 덮지 않는다 (D-36)', async () => {
+    users.findAuthAccount.mockResolvedValue({ id: 7 });
+    const existing = { id: 1, nickname: '내가바꾼닉', profileImageUrl: null, createdAt: new Date() };
+    users.updateRawProfile.mockResolvedValue(existing);
+    expect(await service.login('KAKAO', kakaoProfile)).toBe(existing);
+    expect(users.findAuthAccount).toHaveBeenCalledWith('KAKAO', '123456789012');
+    expect(users.updateRawProfile).toHaveBeenCalledWith(7, kakaoProfile.raw);
+    expect(users.createWithAccountTx).not.toHaveBeenCalled();
   });
 
-  it('upsertKakaoUser: 신규면 사용자 + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로', async () => {
-    users.findByKakaoId.mockResolvedValue(null);
-    users.createWithPersonalGroupTx.mockResolvedValue({ id: 'u2', nickname: '신규', profileImageUrl: 'img', createdAt: new Date() });
-    const user = await service.upsertKakaoUser({ kakaoId: 11n, nickname: '신규', profileImageUrl: 'img' });
-    expect(user.id).toBe('u2');
-    expect(users.updateProfile).not.toHaveBeenCalled();
-    expect(users.createWithPersonalGroupTx).toHaveBeenCalledWith(
-      { kakaoId: 11n, nickname: '신규', profileImageUrl: 'img' },
+  it('login: 신규면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로', async () => {
+    users.findAuthAccount.mockResolvedValue(null);
+    users.createWithAccountTx.mockResolvedValue({ id: 2, nickname: '카카오닉', profileImageUrl: 'https://img', createdAt: new Date() });
+    expect((await service.login('KAKAO', kakaoProfile)).id).toBe(2);
+    expect(users.updateRawProfile).not.toHaveBeenCalled();
+    expect(users.createWithAccountTx).toHaveBeenCalledWith(
+      {
+        provider: 'KAKAO',
+        providerUserId: '123456789012',
+        email: null,
+        rawProfile: kakaoProfile.raw,
+        nickname: '카카오닉',
+        profileImageUrl: 'https://img',
+      },
       { name: PERSONAL_GROUP_NAME, color: '#F26D6D' },
     );
   });
 
-  it('upsertDevUser: 같은 닉네임의 개발 사용자가 있으면 재사용, 없으면 음수 kakaoId 로 생성', async () => {
-    users.findDevUserByNickname.mockResolvedValueOnce({ id: 'dev1', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
-    expect((await service.upsertDevUser('개발')).id).toBe('dev1');
-    expect(users.findDevUserByNickname).toHaveBeenCalledWith('개발');
-    expect(users.findByKakaoId).not.toHaveBeenCalled();
-
-    users.findDevUserByNickname.mockResolvedValueOnce(null);
-    users.findByKakaoId.mockResolvedValue(null);
-    users.createWithPersonalGroupTx.mockResolvedValue({ id: 'dev2', nickname: '개발', profileImageUrl: null, createdAt: new Date() });
-    expect((await service.upsertDevUser('개발')).id).toBe('dev2');
-    const input = users.createWithPersonalGroupTx.mock.calls[0][0];
-    expect(input.kakaoId < 0n).toBe(true);
-    expect(input).toMatchObject({ nickname: '개발', profileImageUrl: null });
+  it('login: 제공자가 이메일을 주면 AuthAccount 에 같이 저장', async () => {
+    users.findAuthAccount.mockResolvedValue(null);
+    users.createWithAccountTx.mockResolvedValue({ id: 3, nickname: 'g', profileImageUrl: null, createdAt: new Date() });
+    await service.login('GOOGLE', { providerUserId: 'sub-1', nickname: 'g', profileImageUrl: null, email: 'g@example.com', raw: {} });
+    expect(users.createWithAccountTx.mock.calls[0][0]).toMatchObject({ provider: 'GOOGLE', email: 'g@example.com' });
   });
 
-  it('signToken 은 { sub } 로 서명', async () => {
-    expect(await service.signToken('u1')).toBe('jwt-for-u1');
-    expect(jwt.signAsync).toHaveBeenCalledWith({ sub: 'u1' });
+  it('signToken 은 숫자 ID 를 문자열 sub 로 서명', async () => {
+    expect(await service.signToken(1)).toBe('jwt-for-1');
+    expect(jwt.signAsync).toHaveBeenCalledWith({ sub: '1' });
   });
 });

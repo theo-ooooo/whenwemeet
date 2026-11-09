@@ -11,9 +11,9 @@ describe('일정 단건 접근 범위 (e2e)', () => {
   let alice: Session;
   let bob: Session;
   let carol: Session;
-  let teamId: string;
-  let bobPersonalId: string;
-  let eventId: string;
+  let teamId: number;
+  let bobPersonalId: number;
+  let eventId: number;
   const patch = { title: '바뀌면 안 되는 제목' };
 
   beforeAll(async () => {
@@ -65,7 +65,7 @@ describe('일정 단건 접근 범위 (e2e)', () => {
 
   it('없는 eventId 와 같은 응답이라 존재 여부를 구분할 수 없다', async () => {
     const cross = await api(app).get(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);
-    const missing = await api(app).get(`/v1/groups/${bobPersonalId}/events/clxxxxxxxxxxxxxxxxxxxxxxx`).set(auth(bob)).expect(404);
+    const missing = await api(app).get(`/v1/groups/${bobPersonalId}/events/2147483647`).set(auth(bob)).expect(404);
     expect(cross.body).toEqual(missing.body);
   });
 

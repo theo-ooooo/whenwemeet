@@ -9,7 +9,7 @@ import { generateInviteCode, isUniqueViolation, normalizeInviteCode } from './in
 import { GroupDetail, MembershipService } from './membership.service.js';
 
 export interface GroupSummary {
-  id: string;
+  id: number;
   type: 'PERSONAL' | 'TEAM';
   name: string;
   memberCount: number;
@@ -30,7 +30,7 @@ export class GroupsService {
   ) {}
 
   /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 count (결정기록 D-23) */
-  async list(userId: string): Promise<GroupSummary[]> {
+  async list(userId: number): Promise<GroupSummary[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
     rows.sort((a, b) => Number(b.group.type === 'PERSONAL') - Number(a.group.type === 'PERSONAL'));
 
@@ -50,7 +50,7 @@ export class GroupsService {
   }
 
   /** TEAM 팀 생성. 요청자가 첫 멤버, 초대 코드 발급 */
-  async create(userId: string, name: string): Promise<GroupDetail> {
+  async create(userId: number, name: string): Promise<GroupDetail> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const group = await this.groupsRepo.createTeam({
@@ -65,19 +65,19 @@ export class GroupsService {
     }
   }
 
-  async detail(userId: string, groupId: string): Promise<GroupDetail> {
+  async detail(userId: number, groupId: number): Promise<GroupDetail> {
     await this.memberships.assertMember(userId, groupId);
     return this.memberships.groupDetail(groupId, userId);
   }
 
-  async rename(userId: string, groupId: string, name: string): Promise<GroupDetail> {
+  async rename(userId: number, groupId: number, name: string): Promise<GroupDetail> {
     await this.memberships.assertMember(userId, groupId);
     await this.groupsRepo.rename(groupId, name);
     return this.memberships.groupDetail(groupId, userId);
   }
 
   /** 새 코드로 교체. 이전 코드는 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE (결정기록 D-04) */
-  async rotateInviteCode(userId: string, groupId: string): Promise<{ inviteCode: string; inviteUrl: string }> {
+  async rotateInviteCode(userId: number, groupId: number): Promise<{ inviteCode: string; inviteUrl: string }> {
     await this.memberships.assertMember(userId, groupId);
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
@@ -101,7 +101,7 @@ export class GroupsService {
   }
 
   /** 코드로 참여. 이미 멤버면 같은 응답 (멱등, 결정기록 D-19). 색은 팀에서 가장 적게 쓰인 것 */
-  async join(userId: string, codeRaw: string): Promise<GroupDetail> {
+  async join(userId: number, codeRaw: string): Promise<GroupDetail> {
     const group = await this.findByInviteCode(codeRaw);
     try {
       await this.membershipsRepo.addMemberIfAbsentTx(userId, group.id, pickLeastUsedColor);
@@ -113,7 +113,7 @@ export class GroupsService {
   }
 
   /** 내 색/표시 이름. displayName null 은 닉네임으로 되돌림 */
-  async updateMe(userId: string, groupId: string, dto: UpdateMeDto): Promise<MemberWithJoin> {
+  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin> {
     const membership = await this.memberships.assertMember(userId, groupId);
     const data: { color?: string; displayName?: string | null } = {};
     if (dto.color !== undefined) data.color = dto.color.toUpperCase();
@@ -123,7 +123,7 @@ export class GroupsService {
   }
 
   /** 팀 나가기 (api.md 2.7). 멤버십 확인 → PERSONAL 거부 → 삭제와 빈 팀 정리는 한 트랜잭션 */
-  async leave(userId: string, groupId: string): Promise<{ groupDeleted: boolean }> {
+  async leave(userId: number, groupId: number): Promise<{ groupDeleted: boolean }> {
     const membership = await this.memberships.assertMember(userId, groupId);
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');

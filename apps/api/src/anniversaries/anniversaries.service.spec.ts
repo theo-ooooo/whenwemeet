@@ -7,8 +7,8 @@ import { AnniversariesService, dateStringToDb, dbToDateString } from './annivers
 
 const config = { getOrThrow: () => 'http://web' } as never;
 const ROW = {
-  id: 'a1',
-  groupId: 'g1',
+  id: 200,
+  groupId: 10,
   name: '기념일',
   date: new Date('2024-03-15T00:00:00.000Z'),
   creatorId: null,
@@ -39,48 +39,48 @@ describe('AnniversariesService', () => {
 
   it('멤버가 아니면 FORBIDDEN', async () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(null);
-    await expect(service.list('u9', 'g1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(service.create('u9', 'g1', { name: 'x', date: '2024-01-01' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(service.update('u9', 'g1', 'a1', {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(service.remove('u9', 'g1', 'a1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.list(9, 10)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.create(9, 10, { name: 'x', date: '2024-01-01' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.update(9, 10, 200, {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.remove(9, 10, 200)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(anniversaries.listByGroup).not.toHaveBeenCalled();
     expect(anniversaries.findIdInGroup).not.toHaveBeenCalled();
   });
 
   it('list: 팀 기념일을 날짜 문자열로, 탈퇴자는 "탈퇴한 멤버"', async () => {
     anniversaries.listByGroup.mockResolvedValue([ROW]);
-    const list = await service.list('u1', 'g1');
-    expect(anniversaries.listByGroup).toHaveBeenCalledWith('g1');
-    expect(list[0]).toMatchObject({ id: 'a1', date: '2024-03-15', creator: { userId: null, displayName: '탈퇴한 멤버' } });
+    const list = await service.list(1, 10);
+    expect(anniversaries.listByGroup).toHaveBeenCalledWith(10);
+    expect(list[0]).toMatchObject({ id: 200, date: '2024-03-15', creator: { userId: null, displayName: '탈퇴한 멤버' } });
   });
 
   it('create: 문자열 날짜를 UTC 자정으로 저장', async () => {
-    anniversaries.create.mockResolvedValue({ ...ROW, creatorId: 'u1', creator: { nickname: '앨리스', profileImageUrl: null } });
-    const created = await service.create('u1', 'g1', { name: '기념일', date: '2024-03-15' });
-    expect(anniversaries.create).toHaveBeenCalledWith({ groupId: 'g1', name: '기념일', date: new Date('2024-03-15T00:00:00.000Z'), creatorId: 'u1' });
+    anniversaries.create.mockResolvedValue({ ...ROW, creatorId: 1, creator: { nickname: '앨리스', profileImageUrl: null } });
+    const created = await service.create(1, 10, { name: '기념일', date: '2024-03-15' });
+    expect(anniversaries.create).toHaveBeenCalledWith({ groupId: 10, name: '기념일', date: new Date('2024-03-15T00:00:00.000Z'), creatorId: 1 });
     expect(created.creator.displayName).toBe('앨리스');
   });
 
   it('update / remove: 다른 팀 ID 는 NOT_FOUND, 부분 변경만 전달', async () => {
     anniversaries.findIdInGroup.mockResolvedValueOnce(null);
-    await expect(service.update('u1', 'g1', 'nope', { name: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.update(1, 10, 999, { name: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(anniversaries.update).not.toHaveBeenCalled();
 
-    anniversaries.findIdInGroup.mockResolvedValue({ id: 'a1' });
+    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
     anniversaries.update.mockResolvedValue({ ...ROW, date: new Date('2024-03-16T00:00:00.000Z') });
-    const updated = await service.update('u1', 'g1', 'a1', { date: '2024-03-16' });
-    expect(anniversaries.update).toHaveBeenCalledWith('a1', { date: new Date('2024-03-16T00:00:00.000Z') });
+    const updated = await service.update(1, 10, 200, { date: '2024-03-16' });
+    expect(anniversaries.update).toHaveBeenCalledWith(200, { date: new Date('2024-03-16T00:00:00.000Z') });
     expect(updated.date).toBe('2024-03-16');
 
-    await service.update('u1', 'g1', 'a1', { name: '새' });
-    expect(anniversaries.update).toHaveBeenLastCalledWith('a1', { name: '새' });
+    await service.update(1, 10, 200, { name: '새' });
+    expect(anniversaries.update).toHaveBeenLastCalledWith(200, { name: '새' });
 
     anniversaries.delete.mockResolvedValue(undefined);
-    expect(await service.remove('u1', 'g1', 'a1')).toEqual({ ok: true });
-    expect(anniversaries.delete).toHaveBeenCalledWith('a1');
+    expect(await service.remove(1, 10, 200)).toEqual({ ok: true });
+    expect(anniversaries.delete).toHaveBeenCalledWith(200);
 
     anniversaries.findIdInGroup.mockResolvedValueOnce(null);
-    await expect(service.remove('u1', 'g1', 'nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.remove(1, 10, 999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(anniversaries.delete).toHaveBeenCalledTimes(1);
   });
 });

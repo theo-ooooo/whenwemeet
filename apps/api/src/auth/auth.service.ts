@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { MEMBER_COLORS } from '../common/member.js';
 import { UsersRepository } from '../users/users.repository.js';
-import type { KakaoProfile } from './kakao.client.js';
+import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js';
 
 /** 로그인 후 돌아갈 웹 경로. 인증흐름.md 2단계 규칙 */
 const NEXT_PATH = /^\/[A-Za-z0-9/_-]*$/;
@@ -14,7 +14,7 @@ export interface OAuthState {
 }
 
 export interface AuthUser {
-  id: string;
+  id: number;
   nickname: string;
   profileImageUrl: string | null;
   createdAt: Date;
@@ -52,27 +52,29 @@ export class AuthService {
     }
   }
 
-  /** kakaoId 로 upsert. 기존이면 프로필만 갱신, 신규면 PERSONAL 팀 + 첫 색 멤버십까지 한 트랜잭션 */
-  async upsertKakaoUser(profile: KakaoProfile): Promise<AuthUser> {
-    const existing = await this.users.findByKakaoId(profile.kakaoId);
-    if (existing) {
-      return this.users.updateProfile(existing.id, { nickname: profile.nickname, profileImageUrl: profile.profileImageUrl });
-    }
-    return this.users.createWithPersonalGroupTx(profile, { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] });
-  }
-
   /**
-   * 개발 전용 사용자 (결정기록 D-29). kakaoId 는 음수라 실제 카카오 회원과 섞이지 않는다.
-   * 같은 닉네임의 개발 사용자가 있으면 재사용해 프론트가 반복 로그인할 수 있게 한다
+   * 소셜 로그인 (인증흐름.md 2장 4단계, 결정기록 D-34).
+   * - 연결 계정이 있으면 rawProfile 만 갱신. 닉네임/사진은 우리 서비스 값이라 덮지 않는다 (D-36)
+   * - 없으면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로
    */
-  async upsertDevUser(nickname: string): Promise<AuthUser> {
-    const existing = await this.users.findDevUserByNickname(nickname);
-    if (existing) return existing;
-    const kakaoId = -BigInt(randomInt(1, 2 ** 31 - 1)) * 1_000_000n - BigInt(randomInt(0, 999_999));
-    return this.upsertKakaoUser({ kakaoId, nickname, profileImageUrl: null });
+  async login(provider: AuthProvider, profile: ProviderProfile): Promise<AuthUser> {
+    const account = await this.users.findAuthAccount(provider, profile.providerUserId);
+    if (account) return this.users.updateRawProfile(account.id, profile.raw);
+    return this.users.createWithAccountTx(
+      {
+        provider,
+        providerUserId: profile.providerUserId,
+        email: profile.email ?? null,
+        rawProfile: profile.raw,
+        nickname: profile.nickname,
+        profileImageUrl: profile.profileImageUrl,
+      },
+      { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] },
+    );
   }
 
-  async signToken(userId: string): Promise<string> {
-    return this.jwt.signAsync({ sub: userId });
+  /** JWT 표준상 sub 는 문자열이라 숫자 ID 를 문자열로 싣는다. 가드가 다시 정수로 읽는다 */
+  async signToken(userId: number): Promise<string> {
+    return this.jwt.signAsync({ sub: String(userId) });
   }
 }

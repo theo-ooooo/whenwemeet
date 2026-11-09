@@ -17,9 +17,9 @@ export function mockRepository<T extends object>(ctor: abstract new (...args: ne
 export const USER_ROW = { nickname: '앨리스', profileImageUrl: null };
 
 export function membershipRow(overrides: Partial<{
-  id: string;
-  userId: string;
-  groupId: string;
+  id: number;
+  userId: number;
+  groupId: number;
   color: string;
   displayName: string | null;
   lastSeenAt: Date;
@@ -27,9 +27,9 @@ export function membershipRow(overrides: Partial<{
   user: { nickname: string; profileImageUrl: string | null };
 }> = {}) {
   return {
-    id: 'm1',
-    userId: 'u1',
-    groupId: 'g1',
+    id: 1001,
+    userId: 1,
+    groupId: 10,
     color: '#F26D6D',
     displayName: null,
     lastSeenAt: new Date('2026-11-01T00:00:00.000Z'),
