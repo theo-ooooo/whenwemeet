@@ -29,19 +29,47 @@ enum EventLogAction {
 /// 사용자. 카카오 로그인으로만 생성. 탈퇴 시 행을 물리 삭제한다 (개인정보 즉시 삭제)
 model User {
   id              String   @id @default(cuid())
-  /// 카카오 회원번호 (kapi /v2/user/me 의 id)
-  kakaoId         BigInt   @unique
-  /// 카카오 닉네임. 로그인할 때마다 최신값으로 갱신
+  /// 표시 이름. 최초 가입 시 소셜 프로필 닉네임, 이후 사용자가 바꿀 수 있음
   nickname        String   @db.VarChar(50)
-  /// 카카오 프로필 이미지 URL. 동의 안 했으면 null
+  /// 프로필 이미지 URL. 동의 안 했으면 null
   profileImageUrl String?  @db.VarChar(500)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  authAccounts  AuthAccount[]
   memberships   Membership[]
   createdEvents Event[]        @relation("EventCreator")
   anniversaries Anniversary[]  @relation("AnniversaryCreator")
   eventLogs     EventLog[]     @relation("EventLogActor")
+}
+
+/// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
+enum AuthProvider {
+  KAKAO
+  APPLE
+  GOOGLE
+  NAVER
+  DEV
+}
+
+/// 한 사용자에 여러 소셜 계정을 연결할 수 있다 (MVP 는 KAKAO 하나)
+model AuthAccount {
+  id             String       @id @default(cuid())
+  userId         String
+  provider       AuthProvider
+  /// 제공자 쪽 사용자 식별자 (카카오 회원번호는 문자열로 저장)
+  providerUserId String       @db.VarChar(191)
+  /// 제공자가 준 이메일. 수집 동의 없으면 null
+  email          String?      @db.VarChar(255)
+  /// 제공자 쪽 원본 프로필(닉네임, 이미지 등). 로그인마다 갱신
+  rawProfile     Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
 }
 
 /// 팀. personal / team 모두 같은 모델. 마지막 멤버가 나가면 삭제

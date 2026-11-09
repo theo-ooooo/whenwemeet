@@ -183,7 +183,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 
 ```
 1. 카카오 unlink: POST https://kapi.kakao.com/v1/user/unlink
-   Authorization: KakaoAK ${KAKAO_ADMIN_KEY}, body target_id_type=user_id&target_id=<kakaoId>
+   Authorization: KakaoAK ${KAKAO_ADMIN_KEY}, body target_id_type=user_id&target_id=<AuthAccount.providerUserId>
    실패(이미 끊긴 경우 제외) → 502 KAKAO_ERROR, DB 는 건드리지 않음 (사용자가 다시 시도)
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
