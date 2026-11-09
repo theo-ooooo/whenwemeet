@@ -41,7 +41,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 보호 라우트
+  // 보호 라우트 (/join 은 코드 입력 화면만. /join/<code> 는 공개라 matcher 에 없다)
   if (!token) {
     const url = new URL("/login", req.nextUrl.origin);
     url.searchParams.set("next", pathname + search);
@@ -55,5 +55,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/g/:path*", "/groups/:path*", "/me"],
+  matcher: ["/", "/login", "/join", "/g/:path*", "/groups/:path*", "/me"],
 };
