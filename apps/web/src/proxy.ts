@@ -1,15 +1,58 @@
-// Next 16 proxy (middleware 후속). 보호 라우트에 세션 쿠키가 없으면 /login?next= 로.
-// 쿠키의 존재만 본다. 유효성은 첫 API 호출의 401 로 드러난다 (인증흐름.md 3)
+// Next 16 proxy (middleware 후속). 세션 쿠키로 화면 진입을 가른다 (인증흐름.md 3, #37).
+// 서명 검증은 하지 않는다. JWT payload 의 exp 만 서명 없이 읽어 "만료/깨진 쿠키" 를 걸러낸다.
+// 그래도 API 가 401 을 주는 경우(서명 불일치, 탈퇴 사용자)는 /auth/expired 가 쿠키를 지워 루프를 끊는다.
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { safeNext, SESSION_COOKIE } from "@/lib/auth";
+import { clearSessionCookies, EXPIRED_REASON, isSessionUsable, loginExpiredUrl } from "@/lib/session";
+
+/** 세션 쿠키를 뺀 요청으로 화면을 그리고, 브라우저에서도 지우게 한다 */
+function renderWithoutSession(req: NextRequest): NextResponse {
+  const headers = new Headers(req.headers);
+  const rest = req.cookies
+    .getAll()
+    .filter((c) => c.name !== SESSION_COOKIE)
+    .map((c) => `${c.name}=${encodeURIComponent(c.value)}`)
+    .join("; ");
+  if (rest) headers.set("cookie", rest);
+  else headers.delete("cookie");
+  return clearSessionCookies(NextResponse.next({ request: { headers } }));
+}
 
 export function proxy(req: NextRequest) {
-  if (req.cookies.get(SESSION_COOKIE)?.value) return NextResponse.next();
-  const url = new URL("/login", req.nextUrl.origin);
-  url.searchParams.set("next", req.nextUrl.pathname + req.nextUrl.search);
-  return NextResponse.redirect(url);
+  const { pathname, search } = req.nextUrl;
+  const token = req.cookies.get(SESSION_COOKIE)?.value ?? null;
+
+  if (pathname === "/login") {
+    if (!token) return NextResponse.next();
+    // 만료로 넘어온 /login 은 쿠키가 무엇이든 무조건 그린다 (왕복 차단 안전장치)
+    if (req.nextUrl.searchParams.get("reason") === EXPIRED_REASON) return renderWithoutSession(req);
+    // 쿠키 "존재" 가 아니라 exp 로 판단. 유효해 보이면 next 로, 만료/디코드 실패면 지우고 로그인 화면
+    if (isSessionUsable(token)) {
+      return NextResponse.redirect(new URL(safeNext(req.nextUrl.searchParams.get("next")), req.nextUrl.origin));
+    }
+    return renderWithoutSession(req);
+  }
+
+  // 홈(/) 은 쿠키가 없으면 page.tsx 가 /login 으로 보낸다. 만료 쿠키만 여기서 정리
+  if (pathname === "/") {
+    if (token && !isSessionUsable(token)) {
+      return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, "/")));
+    }
+    return NextResponse.next();
+  }
+
+  // 보호 라우트
+  if (!token) {
+    const url = new URL("/login", req.nextUrl.origin);
+    url.searchParams.set("next", pathname + search);
+    return NextResponse.redirect(url);
+  }
+  if (!isSessionUsable(token)) {
+    return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, pathname)));
+  }
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/g/:path*", "/groups/:path*", "/me"],
+  matcher: ["/", "/login", "/g/:path*", "/groups/:path*", "/me"],
 };
