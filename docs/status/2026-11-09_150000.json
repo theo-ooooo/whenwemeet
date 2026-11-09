@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-11-09T15:00:00+09:00",
+  "session_topic": "언제볼까(whenwemeet) — 구현 3개 머지, 로컬 실카카오 E2E 통과, QA(#6) 전",
+  "command": "/QA (whenwemeet 파이프라인)",
+  "agent": "오케스트레이터 (다음: agents/qa.md)",
+  "status": "develop 에 #3 인프라, #4 백엔드, #5 프론트 머지. 로컬에서 실제 카카오 로그인 → 팀 생성 → 초대 합류(dev-login) → 일정 → 빈 시간 → 새 소식 F1~F3 전부 동작 확인",
+  "tasks": [
+    {"id": 1, "subject": "기획 #1 (PR #7)", "status": "completed"},
+    {"id": 2, "subject": "설계 #2 (PR #10, 종일 제외 토글 반영)", "status": "completed"},
+    {"id": 3, "subject": "브랜드 #8 로고 1안 (PR #9)", "status": "completed"},
+    {"id": 4, "subject": "인프라 #3 (PR #11), 카카오 문서 docs/운영 이동 (PR #13), develop 도입 (PR #12)", "status": "completed"},
+    {"id": 5, "subject": "백엔드 #4 (PR #14, 테스트 120개, 커버리지 99.7%)", "status": "completed"},
+    {"id": 6, "subject": "프론트 #5 (PR #15, 라우트 11개, 목 모드)", "status": "completed"},
+    {"id": 7, "subject": "로컬 E2E 실카카오 로그인 F1~F3", "status": "completed"},
+    {"id": 8, "subject": "후속 이슈 #16 30분 올림, #17 404/403 통일, #18 wwm_group 쿠키 고착", "status": "pending"},
+    {"id": 9, "subject": "QA #6 시나리오 테스트", "status": "pending"},
+    {"id": 10, "subject": "release: develop → main, 배포(Vercel + Fly/Railway) 설계", "status": "pending"}
+  ],
+  "artifacts": [
+    "~/Workspace/whenwemeet (develop c7c45c6 기준 + 로컬 .env)",
+    "docs/QA/img/e2e-calendar.png, e2e-free.png (로컬 E2E 스크린샷, 미커밋)",
+    "개발 MySQL: ~/Workspace/.wwm-mysql/start.sh (3307)"
+  ],
+  "key_findings": {
+    "kakao": "KOE205 는 동의항목 미설정. 닉네임/프로필 사진 동의항목 켜니 통과. REST API 키가 client_id",
+    "e2e": "실계정 로그인 성공, 두 번째 사용자는 dev-login 으로 합류. 빈 시간은 양쪽 일정 반영해 정확(14:50 시작은 #16 대상)",
+    "bug": "목 모드에서 남은 wwm_group=g_team 쿠키로 403 → 스피너 고착 (#18)"
+  },
+  "recommended_actions": "#18 먼저 수정(사용자 체감 버그) → #16 → QA #6 → 배포 설계(도메인, 카카오 운영 Redirect URI 추가)",
+  "pending_user_input": "다음 단계 선택: QA 먼저 / 후속 버그 먼저 / 배포 설계 먼저"
+}
