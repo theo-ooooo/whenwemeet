@@ -18,6 +18,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
   const loggedIn = Boolean((await cookies()).get(SESSION_COOKIE)?.value);
   const { data, error } = await serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, {
     auth: false,
+    from: `/join/${code}`,
   });
 
   return (
