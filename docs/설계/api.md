@@ -12,7 +12,7 @@
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
 | 날짜시각 | ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
-| ID | cuid 문자열 |
+| ID | 모든 모델 `Int` 자동증가. JSON 에서는 숫자. 경로 파라미터는 양의 정수만 허용(아니면 400 VALIDATION_FAILED) |
 | 검증 | class-validator. 실패 시 400 VALIDATION_FAILED, message 는 첫 번째 위반 항목 |
 | 표시 이름 | 응답의 사람 정보는 항상 `{ userId, displayName, color, profileImageUrl }` 형태의 `member` 객체. displayName = `Membership.displayName ?? User.nickname`. 탈퇴자는 `{ userId: null, displayName: "탈퇴한 멤버", color: "#9CA3AF", profileImageUrl: null }` |
 
