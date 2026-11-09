@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Member } from '../common/member.js';
+import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { MembershipsRepository } from '../memberships/memberships.repository.js';
 
 /** 보존 기간과 건수 (결정기록 D-22) */
 export const NEWS_DAYS = 30;
@@ -23,7 +24,8 @@ export interface NewsItem {
 @Injectable()
 export class NewsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly eventLogs: EventLogsRepository,
+    private readonly membershipsRepo: MembershipsRepository,
     private readonly memberships: MembershipService,
   ) {}
 
@@ -31,27 +33,7 @@ export class NewsService {
   async list(userId: string, groupId: string, now: Date = new Date()): Promise<{ items: NewsItem[]; lastSeenAt: Date }> {
     const me = await this.memberships.assertMember(userId, groupId);
     const since = new Date(now.getTime() - NEWS_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await this.prisma.eventLog.findMany({
-      where: {
-        groupId,
-        createdAt: { gte: since },
-        OR: [{ actorId: null }, { actorId: { not: userId } }],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: NEWS_LIMIT,
-      select: {
-        id: true,
-        action: true,
-        eventId: true,
-        actorId: true,
-        title: true,
-        startsAt: true,
-        endsAt: true,
-        allDay: true,
-        createdAt: true,
-        actor: { select: { nickname: true, profileImageUrl: true } },
-      },
-    });
+    const rows = await this.eventLogs.listRecentByOthers(groupId, userId, since, NEWS_LIMIT);
     const resolver = await this.memberships.resolverFor(groupId);
     const items = rows.map((row) => ({
       id: row.id,
@@ -70,11 +52,7 @@ export class NewsService {
 
   async markSeen(userId: string, groupId: string, now: Date = new Date()): Promise<{ lastSeenAt: Date }> {
     const me = await this.memberships.assertMember(userId, groupId);
-    const updated = await this.prisma.membership.update({
-      where: { id: me.id },
-      data: { lastSeenAt: now },
-      select: { lastSeenAt: true },
-    });
+    const updated = await this.membershipsRepo.markSeen(me.id, now);
     return { lastSeenAt: updated.lastSeenAt };
   }
 }

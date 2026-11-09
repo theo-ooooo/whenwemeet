@@ -1,6 +1,9 @@
 import { ApiException } from '../common/errors.js';
+import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
-import { asPrisma, createPrismaMock, membershipRow, PrismaMock } from '../testing/prisma-mock.js';
+import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
+import { EventsRepository } from './events.repository.js';
 import { assertEventRange, EventsService, parseRange } from './events.service.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
@@ -36,87 +39,101 @@ describe('assertEventRange / parseRange', () => {
 });
 
 describe('EventsService', () => {
-  let prisma: PrismaMock;
+  let events: RepositoryMock<EventsRepository>;
+  let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let service: EventsService;
 
   beforeEach(() => {
-    prisma = createPrismaMock();
-    service = new EventsService(asPrisma(prisma), new MembershipService(asPrisma(prisma), config));
-    prisma.membership.findUnique.mockResolvedValue(membershipRow());
-    prisma.membership.findMany.mockResolvedValue([membershipRow()]);
+    events = mockRepository(EventsRepository);
+    membershipsRepo = mockRepository(MembershipsRepository);
+    const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
+    service = new EventsService(events as never, memberships);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
   });
 
   it('멤버가 아니면 모든 메서드가 FORBIDDEN', async () => {
-    prisma.membership.findUnique.mockResolvedValue(null);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(null);
     const input = { title: 't', startsAt: '2026-12-01T10:00:00Z', endsAt: '2026-12-01T11:00:00Z', allDay: false };
     await expect(service.list('u9', 'g1', '2026-12-01T00:00:00Z', '2026-12-02T00:00:00Z')).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.get('u9', 'g1', 'e1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.create('u9', 'g1', input)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.update('u9', 'g1', 'e1', {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.remove('u9', 'g1', 'e1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(prisma.event.findMany).not.toHaveBeenCalled();
+    expect(events.listInRange).not.toHaveBeenCalled();
+    expect(events.findInGroup).not.toHaveBeenCalled();
   });
 
-  it('list: 겹침 조건 + 정렬, creator 를 Member 로', async () => {
-    prisma.event.findMany.mockResolvedValue([ROW]);
+  it('list: 구간을 Date 로 넘기고 creator 를 Member 로', async () => {
+    events.listInRange.mockResolvedValue([ROW]);
     const list = await service.list('u1', 'g1', '2026-12-01T00:00:00.000Z', '2026-12-02T00:00:00.000Z');
-    expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { groupId: 'g1', startsAt: { lt: new Date('2026-12-02T00:00:00.000Z') }, endsAt: { gt: new Date('2026-12-01T00:00:00.000Z') } },
-      orderBy: { startsAt: 'asc' },
-    }));
+    expect(events.listInRange).toHaveBeenCalledWith('g1', new Date('2026-12-01T00:00:00.000Z'), new Date('2026-12-02T00:00:00.000Z'));
     expect(list[0]).toMatchObject({ id: 'e1', creator: { userId: 'u1', displayName: '앨리스', color: '#F26D6D' } });
     expect(list[0]).not.toHaveProperty('creatorId');
   });
 
   it('get: 다른 팀 ID 는 NOT_FOUND', async () => {
-    prisma.event.findFirst.mockResolvedValueOnce(null);
+    events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.get('u1', 'g1', 'e-other')).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(prisma.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'e-other', groupId: 'g1' } }));
-    prisma.event.findFirst.mockResolvedValueOnce(ROW);
+    expect(events.findInGroup).toHaveBeenCalledWith('g1', 'e-other');
+    events.findInGroup.mockResolvedValueOnce(ROW);
     expect((await service.get('u1', 'g1', 'e1')).id).toBe('e1');
   });
 
-  it('create: 범위 검증 후 트랜잭션에서 일정 + CREATED 로그', async () => {
+  it('create: 범위 검증 후 일정 + CREATED 로그 트랜잭션', async () => {
     await expect(
       service.create('u1', 'g1', { title: 't', startsAt: '2026-12-01T12:00:00Z', endsAt: '2026-12-01T10:00:00Z', allDay: false }),
     ).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });
-    expect(prisma.event.create).not.toHaveBeenCalled();
+    expect(events.createWithLogTx).not.toHaveBeenCalled();
 
-    prisma.event.create.mockResolvedValue(ROW);
+    events.createWithLogTx.mockResolvedValue(ROW);
     const created = await service.create('u1', 'g1', { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe('e1');
-    expect(prisma.event.create.mock.calls[0][0].data).toEqual({
-      groupId: 'g1', title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 'u1',
-    });
-    expect(prisma.eventLog.create).toHaveBeenCalledWith({
-      data: { groupId: 'g1', eventId: 'e1', actorId: 'u1', action: 'CREATED', title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false },
-    });
+    expect(events.createWithLogTx).toHaveBeenCalledWith(
+      { groupId: 'g1', title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 'u1' },
+      'u1',
+    );
   });
 
-  it('update: 부분 변경은 현재 값과 합쳐 검증, UPDATED 로그', async () => {
-    prisma.event.findFirst.mockResolvedValue(ROW);
+  it('update: 부분 변경은 현재 값과 합쳐 검증, UPDATED 로그 트랜잭션', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
     await expect(service.update('u1', 'g1', 'e1', { endsAt: '2026-12-01T09:00:00Z' })).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });
-    expect(prisma.event.update).not.toHaveBeenCalled();
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
 
-    prisma.event.update.mockResolvedValue({ ...ROW, title: '변경', memo: '메모' });
+    events.updateWithLogTx.mockResolvedValue({ ...ROW, title: '변경', memo: '메모' });
     const updated = await service.update('u1', 'g1', 'e1', { title: '변경', memo: '메모' });
     expect(updated.title).toBe('변경');
-    expect(prisma.event.update.mock.calls[0][0].data).toEqual({ title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모' });
-    expect(prisma.eventLog.create.mock.calls[0][0].data).toMatchObject({ action: 'UPDATED', title: '변경', actorId: 'u1' });
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(
+      'e1',
+      { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모' },
+      'u1',
+    );
 
-    prisma.event.findFirst.mockResolvedValueOnce(null);
+    events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.update('u1', 'g1', 'nope', {})).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
-  it('remove: 삭제 전 DELETED 스냅샷', async () => {
-    prisma.event.findFirst.mockResolvedValueOnce(ROW);
-    expect(await service.remove('u1', 'g1', 'e1')).toEqual({ ok: true });
-    const logOrder = prisma.eventLog.create.mock.invocationCallOrder[0];
-    const deleteOrder = prisma.event.delete.mock.invocationCallOrder[0];
-    expect(logOrder).toBeLessThan(deleteOrder);
-    expect(prisma.eventLog.create.mock.calls[0][0].data).toMatchObject({ action: 'DELETED', eventId: 'e1', title: '회의' });
+  it('update: startsAt 만 바꾸면 나머지는 현재 값을 그대로 넘긴다', async () => {
+    const current = { ...ROW, memo: '원래 메모', allDay: true };
+    events.findInGroup.mockResolvedValue(current);
+    events.updateWithLogTx.mockResolvedValue({ ...current, startsAt: new Date('2026-12-01T11:00:00.000Z') });
+    const updated = await service.update('u1', 'g1', 'e1', { startsAt: '2026-12-01T11:00:00.000Z' });
+    expect(updated.startsAt).toEqual(new Date('2026-12-01T11:00:00.000Z'));
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(
+      'e1',
+      { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모' },
+      'u1',
+    );
+  });
 
-    prisma.event.findFirst.mockResolvedValueOnce(null);
+  it('remove: 현재 행을 스냅샷으로 넘겨 DELETED 로그 + 삭제', async () => {
+    events.findInGroup.mockResolvedValueOnce(ROW);
+    events.deleteWithLogTx.mockResolvedValue(undefined);
+    expect(await service.remove('u1', 'g1', 'e1')).toEqual({ ok: true });
+    expect(events.deleteWithLogTx).toHaveBeenCalledWith(ROW, 'u1');
+
+    events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.remove('u1', 'g1', 'nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(events.deleteWithLogTx).toHaveBeenCalledTimes(1);
   });
 });
