@@ -1,0 +1,145 @@
+// 이슈: #2
+// 언제볼까 Prisma 스키마 초안 (Prisma 7 / MySQL 8)
+// - 접속 URL 은 apps/api/prisma.config.ts 의 datasource.url = env("DATABASE_URL") 로 설정 (결정기록 D-01)
+// - 모든 DateTime 은 UTC. 클라이언트가 KST 로 변환
+// - PK 는 cuid 문자열 (URL 에 노출되므로 추측 불가해야 함)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+/// 팀 종류. PERSONAL 은 가입 시 자동 생성되는 1인 팀, TEAM 은 이름을 지어 만드는 여럿 팀
+enum GroupType {
+  PERSONAL
+  TEAM
+}
+
+/// 새 소식에 남기는 일정 변경 종류
+enum EventLogAction {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+/// 사용자. 카카오 로그인으로만 생성. 탈퇴 시 행을 물리 삭제한다 (개인정보 즉시 삭제)
+model User {
+  id              String   @id @default(cuid())
+  /// 카카오 회원번호 (kapi /v2/user/me 의 id)
+  kakaoId         BigInt   @unique
+  /// 카카오 닉네임. 로그인할 때마다 최신값으로 갱신
+  nickname        String   @db.VarChar(50)
+  /// 카카오 프로필 이미지 URL. 동의 안 했으면 null
+  profileImageUrl String?  @db.VarChar(500)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships   Membership[]
+  createdEvents Event[]        @relation("EventCreator")
+  anniversaries Anniversary[]  @relation("AnniversaryCreator")
+  eventLogs     EventLog[]     @relation("EventLogActor")
+}
+
+/// 팀. personal / team 모두 같은 모델. 마지막 멤버가 나가면 삭제
+model Group {
+  id         String    @id @default(cuid())
+  type       GroupType
+  name       String    @db.VarChar(30)
+  /// 6자리 초대 코드. 초대 링크(/join/<code>)와 같은 값. PERSONAL 은 null (초대 불가)
+  inviteCode String?   @unique @db.Char(6)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  memberships   Membership[]
+  events        Event[]
+  anniversaries Anniversary[]
+  eventLogs     EventLog[]
+}
+
+/// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String
+  /// 달력에서 이 멤버의 일정을 구분하는 색. #RRGGBB
+  color       String   @db.Char(7)
+  /// 이 팀에서만 쓰는 표시 이름. null 이면 User.nickname 사용
+  displayName String?  @db.VarChar(20)
+  /// 새 소식 화면을 마지막으로 연 시각. 이 시각 이후의 EventLog 가 "새 소식"
+  lastSeenAt  DateTime @default(now())
+  joinedAt    DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@index([groupId])
+}
+
+/// 일정. 팀의 자산이므로 등록자가 나가거나 탈퇴해도 남는다
+model Event {
+  id        String   @id @default(cuid())
+  groupId   String
+  title     String   @db.VarChar(50)
+  /// 시작 (UTC). 종일 일정은 KST 00:00 에 해당하는 UTC 시각
+  startsAt  DateTime
+  /// 종료 (UTC, 배타적). 종일 일정은 다음 날 KST 00:00
+  endsAt    DateTime
+  allDay    Boolean  @default(false)
+  memo      String?  @db.VarChar(500)
+  /// 등록자. 탈퇴하면 null 이 되고 화면에는 "탈퇴한 멤버" 로 표시
+  creatorId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User? @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  logs    EventLog[]
+
+  @@index([groupId, startsAt])
+  @@index([groupId, endsAt])
+}
+
+/// 기념일. 날짜만 가지며 D-day 계산은 클라이언트가 한다
+model Anniversary {
+  id        String   @id @default(cuid())
+  groupId   String
+  name      String   @db.VarChar(30)
+  /// 기념일 날짜 (KST 달력 날짜). 시각 없음
+  date      DateTime @db.Date
+  creatorId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, date])
+}
+
+/// 새 소식용 일정 변경 이력. 일정이 삭제돼도 남아야 하므로 제목/시각을 스냅샷으로 복사해 둔다
+model EventLog {
+  id       String         @id @default(cuid())
+  groupId  String
+  /// 원본 일정. 삭제되면 null (스냅샷 필드로 표시)
+  eventId  String?
+  /// 변경한 사람. 탈퇴하면 null
+  actorId  String?
+  action   EventLogAction
+  /// 변경 시점의 제목/시각 스냅샷
+  title    String         @db.VarChar(50)
+  startsAt DateTime
+  endsAt   DateTime
+  allDay   Boolean
+  createdAt DateTime      @default(now())
+
+  group Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+}
