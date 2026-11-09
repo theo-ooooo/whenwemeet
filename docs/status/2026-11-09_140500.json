@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-11-09T14:05:00+09:00",
+  "session_topic": "언제볼까(whenwemeet) — GATE 1 통과, 설계(#2) + 브랜드(#8) 착수",
+  "command": "/설계 (whenwemeet 파이프라인)",
+  "agent": "whenwemeet/agents/design.md + agents/frontend.md(브랜드)",
+  "status": "기획 승인 완료(PR #7 머지). 설계 산출물과 로고 시안 작성 중",
+  "tasks": [
+    {"id": 1, "subject": "기획문서 docs/기획/MVP.md (#1, PR #7)", "status": "completed"},
+    {"id": 2, "subject": "설계: 화면흐름/api/schema.prisma/인증흐름/결정기록 (#2)", "status": "in_progress"},
+    {"id": 3, "subject": "브랜드: 로고 SVG, 아이콘, 디자인토큰 (#8)", "status": "in_progress"},
+    {"id": 4, "subject": "GATE 2 설계 승인", "status": "pending"},
+    {"id": 5, "subject": "인프라 #3 / 백엔드 #4 / 프론트 #5 병렬 구현", "status": "pending"},
+    {"id": 6, "subject": "QA #6", "status": "pending"}
+  ],
+  "artifacts": [
+    "whenwemeet/docs/기획/MVP.md (승인본)",
+    "github.com/theo-ooooo/whenwemeet — main 보호, squash 전용, CI build 필수"
+  ],
+  "key_findings": {
+    "기획_확정": "팀 타입 personal/team, 초대 링크+6자리 코드, 알림 제외(새 소식만), 기본 일정+D-day+빈 시간 찾기. 빈 시간 '바쁨' 은 멤버의 모든 팀 일정 사용(내용 비노출)",
+    "git": "gh 는 theo-ooooo 로 로그인됨. 저장소 로컬 user.email=kkw.theo@gmail.com. 상위 cce-ai-hub .gitignore 에 /whenwemeet/ 추가(미커밋)"
+  },
+  "recommended_actions": "설계 PR(#2) 과 브랜드 PR(#8) 을 각각 올리고 사용자 확인 → '설계 승인' 후 #3/#4/#5 병렬",
+  "pending_user_input": "로고 시안 선택, 설계 승인"
+}
