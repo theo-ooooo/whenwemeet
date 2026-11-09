@@ -21,7 +21,7 @@
 
 | code | HTTP | 언제 |
 |------|------|------|
-| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값 |
+| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값, 본문이 JSON 이 아님(message "요청 형식이 올바르지 않아요" 고정) |
 | EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과 |
 | GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청 |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
@@ -29,6 +29,7 @@
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
 | NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
+| PAYLOAD_TOO_LARGE | 413 | JSON 본문이 100KB 초과 (express 기본 한도). message "요청 내용이 너무 커요". 아바타 파일 크기 초과는 해당 없음(400 VALIDATION_FAILED) |
 | KAKAO_ERROR | 502 | 카카오 토큰 교환/사용자 조회/unlink 실패 |
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |

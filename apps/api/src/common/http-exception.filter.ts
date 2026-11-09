@@ -8,7 +8,14 @@ const STATUS_TO_CODE: Record<number, ErrorCode> = {
   [HttpStatus.UNAUTHORIZED]: 'UNAUTHORIZED',
   [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
   [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+  [HttpStatus.PAYLOAD_TOO_LARGE]: 'PAYLOAD_TOO_LARGE',
 };
+
+/**
+ * 우리 코드가 아닌 곳(body-parser 의 잘못된 JSON, 잘못된 경로 인코딩 등) 에서 온 4xx 의 문구.
+ * 프레임워크 원문은 영어라 사용자에게 그대로 보이면 안 된다 (#60)
+ */
+export const MALFORMED_REQUEST_MESSAGE = '요청 형식이 올바르지 않아요';
 
 /** 모든 실패 응답을 `{ status, data: null, message, error: { code, details? } }` 한 가지 모양으로 만든다 (결정기록 D-33) */
 @Catch()
@@ -30,22 +37,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
   }
 }
 
-/** 어떤 예외든 ApiException 하나로 모은다. 5xx 와 알 수 없는 예외는 내부 사정을 숨기고 INTERNAL */
+/**
+ * 어떤 예외든 ApiException 하나로 모은다. 5xx 와 알 수 없는 예외는 내부 사정을 숨기고 INTERNAL.
+ * 우리 코드는 4xx 를 모두 ApiException 으로 던지므로, 그 밖의 4xx 는 프레임워크 원문 대신 고정 문구를 쓴다
+ */
 function toApiException(exception: unknown): ApiException {
   if (exception instanceof ApiException) return exception;
   if (exception instanceof HttpException && exception.getStatus() < 500) {
     const code = STATUS_TO_CODE[exception.getStatus()] ?? 'VALIDATION_FAILED';
-    const message = code === 'VALIDATION_FAILED' ? extractMessage(exception.getResponse()) : DEFAULT_MESSAGE[code];
-    return new ApiException(code, message);
+    return new ApiException(code, code === 'VALIDATION_FAILED' ? MALFORMED_REQUEST_MESSAGE : DEFAULT_MESSAGE[code]);
   }
   return new ApiException('INTERNAL');
-}
-
-/** Nest 예외 응답(`{ message: string | string[] }`) 에서 첫 문장만 꺼낸다 */
-function extractMessage(response: string | object): string {
-  if (typeof response === 'string') return response;
-  const message = (response as { message?: unknown }).message;
-  if (Array.isArray(message) && message.length > 0) return String(message[0]);
-  if (typeof message === 'string' && message) return message;
-  return DEFAULT_MESSAGE.VALIDATION_FAILED;
 }
