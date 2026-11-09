@@ -2,6 +2,8 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** dayEnd 는 그날 자정 끝을 뜻하는 `24:00` 도 받는다 (#58) */
+const HHMM_END = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 export class FreeSlotsQueryDto {
   @IsDateString({}, { message: 'from 은 ISO 8601 날짜시각이어야 해요' })
@@ -15,7 +17,7 @@ export class FreeSlotsQueryDto {
   dayStart: string = '09:00';
 
   @IsOptional()
-  @Matches(HHMM, { message: 'dayEnd 는 HH:mm 형식이어야 해요' })
+  @Matches(HHMM_END, { message: 'dayEnd 는 HH:mm 형식이어야 해요 (00:00~24:00)' })
   dayEnd: string = '23:00';
 
   @IsOptional()

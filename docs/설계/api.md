@@ -138,7 +138,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 | 쿼리 | 기본 | 제약 |
 |------|------|------|
 | `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각을 **다음 30분 경계로 올려** 잘라서 계산 (14:37 → 15:00, 14:00 은 그대로. 결정기록 D-30) |
-| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart < dayEnd` |
+| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart` 는 `00:00`~`23:59`, `dayEnd` 는 `00:00`~`24:00` (`24:00` 은 그날 자정 끝 = 다음 날 00:00). `dayStart < dayEnd` |
 | `minMinutes` | `120` | 30~720 |
 | `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
 
