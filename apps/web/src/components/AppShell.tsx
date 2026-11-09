@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "@/lib/api";
-import { rememberGroup } from "@/lib/group-cookie";
+import { ApiError, GROUP_GONE_EVENT, api } from "@/lib/api";
+import { forgetGroup, rememberGroup } from "@/lib/group-cookie";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
+import { GroupGone } from "./GroupGone";
 import { Avatar, MemberDot, Sheet, Skeleton } from "./ui";
 
 type GroupCtx = {
@@ -75,7 +76,14 @@ export function AppShell({ groupId, children }: { groupId: string; children: Rea
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [group, setGroupState] = useState<GroupDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 이 팀에 더 이상 접근할 수 없음(403 멤버 아님, 404 팀 없음). 남은 wwm_group 쿠키를 지우고 안내 화면으로 (#18)
+  const [gone, setGone] = useState(false);
   const [switcher, setSwitcher] = useState(false);
+
+  const markGone = useCallback(() => {
+    forgetGroup();
+    setGone(true);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -88,14 +96,24 @@ export function AppShell({ groupId, children }: { groupId: string; children: Rea
       setGroupState(g);
       rememberGroup(groupId);
     } catch (e) {
+      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
+        markGone();
+        return;
+      }
       setError((e as Error).message || "팀 정보를 불러오지 못했어요");
     }
-  }, [groupId]);
+  }, [groupId, markGone]);
 
   useEffect(() => {
     // groupId 가 바뀌면 layout 이 key 로 다시 마운트하므로 여기서는 불러오기만 한다
     queueMicrotask(() => void refresh());
   }, [refresh]);
+
+  // 자식 화면(일정, 기념일, 새 소식 등)의 호출이 403 을 받아도 같은 안내로 바꾼다
+  useEffect(() => {
+    window.addEventListener(GROUP_GONE_EVENT, markGone);
+    return () => window.removeEventListener(GROUP_GONE_EVENT, markGone);
+  }, [markGone]);
 
   const clearUnread = useCallback(() => {
     setGroups((prev) => prev?.map((g) => (g.id === groupId ? { ...g, unreadNewsCount: 0 } : g)) ?? prev);
@@ -113,6 +131,8 @@ export function AppShell({ groupId, children }: { groupId: string; children: Rea
 
   const section = pathname.split("/")[3] ?? "calendar";
   const unread = groups?.find((g) => g.id === groupId)?.unreadNewsCount ?? 0;
+
+  if (gone) return <GroupGone />;
 
   function switchTo(id: string) {
     setSwitcher(false);

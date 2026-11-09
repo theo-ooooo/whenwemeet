@@ -12,7 +12,8 @@ export class ApiError extends Error {
   }
 }
 
-export const FORBIDDEN_TOAST_KEY = "wwm_toast";
+/** 팀 접근 권한이 사라졌을 때(403) window 에 쏘는 이벤트. AppShell 이 받아 안내 화면으로 바꾼다 (#18) */
+export const GROUP_GONE_EVENT = "wwm:group-gone";
 
 function currentPath(): string {
   if (typeof window === "undefined") return "/";
@@ -52,11 +53,9 @@ export async function api<T>(
     throw new ApiError(401, "UNAUTHORIZED", json.error?.message ?? "");
   }
   if (res.status === 403) {
-    // 그 팀 멤버가 아니게 된 경우. 토스트를 남기고 홈으로
-    try {
-      sessionStorage.setItem(FORBIDDEN_TOAST_KEY, "이 팀에 더 이상 속해 있지 않아요");
-    } catch {}
-    window.location.assign(new URL("/", window.location.origin).toString());
+    // 그 팀 멤버가 아니게 된 경우. 홈으로 튕기면 남은 wwm_group 쿠키가 다시 이 팀으로 보내 무한 반복되므로
+    // 화면은 그대로 두고 AppShell 에 알려 "접근할 수 없어요" 안내로 바꾼다 (#18)
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(GROUP_GONE_EVENT));
     throw new ApiError(403, "FORBIDDEN", json.error?.message ?? "");
   }
   if (!res.ok || json.error) {

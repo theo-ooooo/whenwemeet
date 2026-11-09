@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorState, MemberDot, Skeleton, SkeletonList } from "@/components/ui";
 import { api, messageOf } from "@/lib/api";
 import {
@@ -29,22 +29,29 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
     const p = parseKey(initialDate ?? today);
     return { y: p.y, m: p.m };
   });
+  // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
   const [events, setEvents] = useState<Event[] | null>(null);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [anniversaries, setAnniversaries] = useState<Anniversary[] | null>(null);
+  // 월을 빠르게 넘기거나 재시도가 겹칠 때 늦게 온 응답이 최신 상태를 덮지 않도록 요청 순번을 센다
+  const eventsReq = useRef(0);
 
   const grid = useMemo(() => monthGrid(y, m), [y, m]);
 
   const loadEvents = useCallback(async () => {
+    const seq = ++eventsReq.current;
+    setEventsError(null);
     try {
       const from = kstToIso(grid[0]);
       const to = kstToIso(addDays(grid[41], 1));
       const list = await api<Event[]>(
         `/groups/${groupId}/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
       );
-      setEventsError(null);
+      if (seq !== eventsReq.current) return;
       setEvents(list);
     } catch (e) {
+      if (seq !== eventsReq.current) return;
+      // 오류 상태로 확정한다. 스켈레톤(로딩)이 남지 않도록 events 는 건드리지 않고 메시지로 갈아 끼운다 (#18)
       setEventsError(messageOf(e, "일정을 불러오지 못했어요"));
     }
   }, [groupId, grid]);
