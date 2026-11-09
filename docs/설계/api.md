@@ -131,6 +131,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 | `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각으로 잘라서 계산 |
 | `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart < dayEnd` |
 | `minMinutes` | `120` | 30~720 |
+| `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
 
 쿼리 전략 (요청 1건에 DB 조회 3번, 일정 내용은 조회하지 않음):
 
@@ -139,7 +140,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 2. allGroupIds = Membership.findMany({ userId in memberIds }).groupId (distinct)
    → 멤버들이 속한 모든 팀 (개인 팀 포함). 같은 팀이 여러 멤버에 걸려도 한 번만
 3. busy = Event.findMany({
-     where: { groupId in allGroupIds, startsAt < to, endsAt > from },
+     where: { groupId in allGroupIds, startsAt < to, endsAt > from, ...(includeAllDay ? {} : { allDay: false }) },
      select: { startsAt, endsAt },          // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
      orderBy: { startsAt: 'asc' } })
 4. busy 를 정렬 상태에서 한 번 훑어 겹치거나 맞닿은 구간을 병합
@@ -149,7 +150,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 ```
 
 - 응답에는 비는 구간만 있다. 누가 왜 바쁜지는 어떤 형태로도 내려주지 않는다
-- 종일 일정도 바쁨으로 센다 (결정기록 D-12)
+- 종일 일정은 기본 제외, `includeAllDay=true` 일 때만 바쁨으로 센다 (결정기록 D-12)
 
 ### 2.6 새 소식
 
