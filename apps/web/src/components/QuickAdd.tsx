@@ -5,8 +5,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { IconClose } from "./icons";
+import { TimeList, TimePicker } from "./pickers";
+import { minutesOf, timeOfMinutes } from "./pickers/time";
 import { Button, Toggle, inputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
+import { clampChars } from "@/lib/chars";
 import { addDays, formatDateKo, kstToIso, type DateKey } from "@/lib/date";
 import type { Event } from "@/lib/types";
 
@@ -30,6 +33,8 @@ function useDialogKeys(ref: React.RefObject<HTMLElement | null>, onClose: () => 
   const [prev] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 안쪽(펼친 시각 목록 등)이 Esc 를 먼저 처리했으면 창은 닫지 않는다
+      if (e.defaultPrevented) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
@@ -67,24 +72,42 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
   const [allDay, setAllDay] = useState(false);
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("11:00");
+  const [timeOpen, setTimeOpen] = useState<"start" | "end" | null>(null);
+  // 펼친 시각 목록을 닫으면 포커스를 그 시각 버튼으로 돌린다
+  function closeTime() {
+    if (timeOpen) document.getElementById(`${ids}-${timeOpen}`)?.focus({ preventScroll: true });
+    setTimeOpen(null);
+  }
   const [touched, setTouched] = useState(false);
   const create = useCreateEvent(groupId);
 
   const titleError = touched && title.trim().length === 0 ? "제목을 입력해 주세요" : null;
-  const rangeError = !allDay && (!start || !end || end <= start) ? "종료는 시작보다 뒤여야 해요" : null;
+  const rangeError = !allDay && (!start || !end || (minutesOf(end) ?? 0) <= (minutesOf(start) ?? 0)) ? "종료는 시작보다 뒤여야 해요" : null;
   const saveError = create.error ? messageOf(create.error, "저장하지 못했어요. 다시 저장해 주세요") : null;
 
   const startsAt = allDay ? kstToIso(date) : kstToIso(date, start || "00:00");
   const endsAt = allDay ? kstToIso(addDays(date, 1)) : kstToIso(date, end || "00:00");
 
   function changeStart(v: string) {
-    // 시작을 바꾸면 길이(기본 1시간)를 유지하게 종료를 같이 민다. 자정을 넘기면 23:59 로 멈춘다
-    const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-    const len = start && end && end > start ? toMin(end) - toMin(start) : 60;
+    // 시작을 바꾸면 길이(기본 1시간)를 유지하게 종료를 같이 민다. 하루 안에서만 잡으므로 자정(24:00) 에서 멈춘다
+    const s0 = minutesOf(start);
+    const e0 = minutesOf(end);
+    const len = s0 !== null && e0 !== null && e0 > s0 ? e0 - s0 : 60;
     setStart(v);
-    if (!v) return;
-    const e = Math.min(toMin(v) + len, 23 * 60 + 59);
-    setEnd(`${String(Math.floor(e / 60)).padStart(2, "0")}:${String(e % 60).padStart(2, "0")}`);
+    const s = minutesOf(v);
+    if (s === null) return;
+    setEnd(timeOfMinutes(Math.min(s + len, 24 * 60)));
+  }
+
+  function changeEnd(v: string) {
+    // 종료가 시작보다 앞서면 시작 1시간 뒤(자정까지) 로 맞춘다 (#67)
+    const s = minutesOf(start);
+    const e = minutesOf(v);
+    if (s !== null && e !== null && e <= s) {
+      setEnd(timeOfMinutes(Math.min(s + 60, 24 * 60)));
+      return;
+    }
+    setEnd(v);
   }
 
   async function save(e: React.FormEvent) {
@@ -126,8 +149,7 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
         className={`${inputClass} mt-4 h-[52px] text-[16px]`}
         placeholder="무슨 일정인가요?"
         value={title}
-        maxLength={100}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => setTitle(clampChars(e.target.value, 50))}
         aria-invalid={Boolean(titleError)}
         aria-describedby={titleError ? `${ids}-title-err` : undefined}
         enterKeyHint="done"
@@ -143,33 +165,50 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
         {!allDay && (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
             <div>
-              <label htmlFor={`${ids}-start`} className="mb-1.5 block text-[12px] font-semibold text-ink-2">
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">
                 시작
-              </label>
-              <input
+              </span>
+              <TimePicker
                 id={`${ids}-start`}
-                type="time"
-                step={300}
+                label="시작 시각"
                 value={start}
-                onChange={(e) => changeStart(e.target.value)}
-                className={`${inputClass} px-3`}
+                onChange={changeStart}
+                to={23 * 60 + 30}
+                inlineOpen={timeOpen === "start"}
+                onInlineToggle={() => setTimeOpen((o) => (o === "start" ? null : "start"))}
               />
             </div>
             <div>
-              <label htmlFor={`${ids}-end`} className="mb-1.5 block text-[12px] font-semibold text-ink-2">
-                종료
-              </label>
-              <input
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">종료</span>
+              <TimePicker
                 id={`${ids}-end`}
-                type="time"
-                step={300}
+                label="종료 시각"
                 value={end}
-                onChange={(e) => setEnd(e.target.value)}
+                onChange={changeEnd}
+                allow24
+                inlineOpen={timeOpen === "end"}
+                onInlineToggle={() => setTimeOpen((o) => (o === "end" ? null : "end"))}
                 aria-invalid={Boolean(rangeError)}
                 aria-describedby={rangeError ? `${ids}-range-err` : undefined}
-                className={`${inputClass} px-3`}
               />
             </div>
+          </div>
+        )}
+        {!allDay && timeOpen && (
+          <div className="mt-2 rounded-md border border-line p-2">
+            <TimeList
+              key={timeOpen}
+              value={timeOpen === "start" ? start : end}
+              to={timeOpen === "start" ? 23 * 60 + 30 : undefined}
+              allow24={timeOpen === "end"}
+              listClassName="max-h-[200px]"
+              onPick={(v) => {
+                if (timeOpen === "start") changeStart(v);
+                else changeEnd(v);
+                closeTime();
+              }}
+              onClose={closeTime}
+            />
           </div>
         )}
       </div>

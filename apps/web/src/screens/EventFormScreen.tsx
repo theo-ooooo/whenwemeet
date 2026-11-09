@@ -2,9 +2,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
+import { DatePicker, TimePicker } from "@/components/pickers";
 import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass } from "@/components/ui";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
+import { charCount, clampChars } from "@/lib/chars";
 import type { Event, EventInput } from "@/lib/types";
 
 type Props = {
@@ -17,6 +19,10 @@ type Props = {
 };
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+// 서버 기준(코드포인트) 글자 수 (#63)
+const TITLE_MAX = 50;
+const MEMO_MAX = 500;
 
 export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, initialEnd }: Props) {
   const router = useRouter();
@@ -28,7 +34,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
   const defaultEnd = initialEnd ?? kstToIso(todayKey(), "11:00");
   // 달력 빠른 추가의 "자세히"(#46) 가 넘긴 제목, 종일. 새 일정일 때만 쓴다
   const query = useSearchParams();
-  const draftTitle = sourceId ? "" : (query.get("title") ?? "").slice(0, 100);
+  const draftTitle = sourceId ? "" : clampChars(query.get("title") ?? "", TITLE_MAX);
   const draftAllDay = !sourceId && query.get("allDay") === "1";
 
   const [loaded, setLoaded] = useState(!sourceId);
@@ -118,10 +124,48 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
     }
   }
 
-  function changeStartDate(v: string) {
-    const diff = startDate && endDate ? Math.max(0, Math.round((Date.parse(endDate) - Date.parse(startDate)) / DAY_MS)) : 0;
-    setStartDate(v);
-    if (v) setEndDate(addDays(v, diff));
+  function setEndFromIso(iso: string) {
+    setEndDate(dateKeyOf(iso));
+    setEndTime(timeOf(iso));
+  }
+
+  /** 시작을 옮기면 길이를 유지하게 종료도 같이 민다 (#67). 종일은 일 수, 시각 일정은 분 단위 길이 */
+  function changeStart(nextDate: string, nextTime: string) {
+    if (allDay) {
+      const diff = startDate && endDate ? Math.max(0, Math.round((Date.parse(endDate) - Date.parse(startDate)) / DAY_MS)) : 0;
+      setStartDate(nextDate);
+      setStartTime(nextTime);
+      if (nextDate) setEndDate(addDays(nextDate, diff));
+      return;
+    }
+    const oldS = Date.parse(kstToIso(startDate, startTime || "00:00"));
+    const oldE = Date.parse(kstToIso(endDate, endTime || "00:00"));
+    const len = oldE > oldS ? oldE - oldS : HOUR_MS;
+    setStartDate(nextDate);
+    setStartTime(nextTime);
+    setEndFromIso(new Date(Date.parse(kstToIso(nextDate, nextTime)) + len).toISOString());
+  }
+
+  /** 종료가 시작보다 앞서면 자동으로 맞춘다 (#67).
+   *  시각만 바꿨으면 다음 날 그 시각(밤샘 일정), 날짜를 바꿨으면 시작 1시간 뒤 */
+  function changeEnd(nextDate: string, nextTime: string, by: "date" | "time") {
+    if (allDay) {
+      setEndDate(nextDate < startDate ? startDate : nextDate);
+      return;
+    }
+    const s = Date.parse(kstToIso(startDate, startTime || "00:00"));
+    const e = Date.parse(kstToIso(nextDate, nextTime || "00:00"));
+    if (e > s) {
+      setEndDate(nextDate);
+      setEndTime(nextTime);
+      return;
+    }
+    if (by === "time" && nextDate === startDate) {
+      setEndDate(addDays(nextDate, 1));
+      setEndTime(nextTime);
+      return;
+    }
+    setEndFromIso(new Date(s + HOUR_MS).toISOString());
   }
 
   async function save(e: React.FormEvent) {
@@ -191,9 +235,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
               className="w-full bg-transparent text-[26px] font-extrabold tracking-[-0.04em] placeholder:font-bold placeholder:text-faint focus:outline-none"
               placeholder="무슨 일정인가요?"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => setTitle(clampChars(e.target.value, TITLE_MAX))}
               onBlur={() => setTouched(true)}
-              maxLength={50}
               autoFocus={!editing}
               aria-invalid={Boolean(titleError)}
               aria-describedby={titleError ? "ev-title-err" : undefined}
@@ -217,25 +260,22 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
                 <div key={row.key}>
                   <span className="mb-2 block text-[12px] font-semibold text-ink-2">{row.label}</span>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      aria-label={`${row.label} 날짜`}
-                      className={`${inputClass} min-w-0 flex-1 px-3`}
-                      value={row.date}
-                      min={row.key === "end" ? startDate : undefined}
-                      onChange={(e) => (row.key === "start" ? changeStartDate(e.target.value) : setEndDate(e.target.value))}
-                      required
-                    />
-                    {!allDay && (
-                      <input
-                        type="time"
-                        aria-label={`${row.label} 시각`}
-                        className={`${inputClass} shrink-0 grow-0 basis-[136px] px-3`}
-                        value={row.time}
-                        step={300}
-                        onChange={(e) => (row.key === "start" ? setStartTime(e.target.value) : setEndTime(e.target.value))}
-                        required
+                    <div className="min-w-0 flex-1">
+                      <DatePicker
+                        label={`${row.label} 날짜`}
+                        value={row.date}
+                        min={row.key === "end" ? startDate : undefined}
+                        onChange={(v) => (row.key === "start" ? changeStart(v, startTime) : changeEnd(v, endTime, "date"))}
                       />
+                    </div>
+                    {!allDay && (
+                      <div className="shrink-0 grow-0 basis-[148px]">
+                        <TimePicker
+                          label={`${row.label} 시각`}
+                          value={row.time}
+                          onChange={(v) => (row.key === "start" ? changeStart(startDate, v) : changeEnd(endDate, v, "time"))}
+                        />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -250,7 +290,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
           </div>
 
           <div className="rounded-xl bg-paper px-5 py-4">
-            <Field label="메모" hint={`${memo.length}/500`}>
+            <Field label="메모" hint={`${charCount(memo)}/${MEMO_MAX}`}>
               {(id, describedBy) => (
                 <textarea
                   id={id}
@@ -258,8 +298,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
                   className={`${inputClass} min-h-[96px] resize-y`}
                   placeholder="장소, 준비물, 링크 등"
                   value={memo}
-                  maxLength={500}
-                  onChange={(e) => setMemo(e.target.value)}
+                  onChange={(e) => setMemo(clampChars(e.target.value, MEMO_MAX))}
                 />
               )}
             </Field>
