@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Chip, ErrorState, Skeleton, Toggle, inputClass } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useFreeSlots } from "@/hooks";
 import {
   addDays,
   dateKeyOf,
@@ -43,11 +43,6 @@ export function FreeScreen({ groupId }: { groupId: string }) {
   const [dayEnd, setDayEnd] = useState("23:00");
   const [minMinutes, setMinMinutes] = useState(120);
   const [includeAllDay, setIncludeAllDay] = useState(false);
-  const [result, setResult] = useState<FreeSlots | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  const abortRef = useRef<AbortController | null>(null);
 
   const range = useMemo(() => {
     if (period === "thisWeek") {
@@ -68,36 +63,15 @@ export function FreeScreen({ groupId }: { groupId: string }) {
   const timeError = dayStart >= dayEnd ? "끝나는 시각은 시작보다 뒤여야 해요" : null;
   const conditionError = range.error ?? timeError;
 
-  useEffect(() => {
-    if (conditionError) return;
-    const params = new URLSearchParams({
-      from: kstToIso(range.from),
-      to: kstToIso(range.to),
-      dayStart,
-      dayEnd,
-      minMinutes: String(minMinutes),
-      includeAllDay: String(includeAllDay),
-    });
-    const timer = setTimeout(() => {
-      abortRef.current?.abort();
-      const ctrl = new AbortController();
-      abortRef.current = ctrl;
-      setLoading(true);
-      setError(null);
-      api<FreeSlots>(`/groups/${groupId}/free-slots?${params.toString()}`, { signal: ctrl.signal })
-        .then((r) => {
-          if (ctrl.signal.aborted) return;
-          setResult(r);
-          setLoading(false);
-        })
-        .catch((e) => {
-          if (ctrl.signal.aborted || (e as Error).name === "AbortError") return;
-          setError(messageOf(e, "빈 시간을 계산하지 못했어요. 다시 시도해 주세요"));
-          setLoading(false);
-        });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [groupId, range.from, range.to, dayStart, dayEnd, minMinutes, includeAllDay, conditionError, tick]);
+  // 조건이 바뀌면 300ms 뒤에 다시 계산한다. 조건이 불완전하면 요청하지 않고 직전 결과를 둔다
+  const freeQ = useFreeSlots(
+    groupId,
+    { from: kstToIso(range.from), to: kstToIso(range.to), dayStart, dayEnd, minMinutes, includeAllDay },
+    { enabled: !conditionError, debounceMs: 300 },
+  );
+  const result = freeQ.data;
+  const loading = freeQ.isLoading;
+  const error = freeQ.error ? messageOf(freeQ.error, "빈 시간을 계산하지 못했어요. 다시 시도해 주세요") : null;
 
   // 날짜별 묶음
   const grouped = useMemo(() => {
@@ -208,7 +182,7 @@ export function FreeScreen({ groupId }: { groupId: string }) {
             {conditionError}
           </p>
         ) : error ? (
-          <ErrorState message={error} onRetry={() => setTick((t) => t + 1)} />
+          <ErrorState message={error} onRetry={freeQ.refetch} />
         ) : loading && !result ? (
           <div className="space-y-2" aria-busy="true" aria-label="계산 중">
             <Skeleton className="h-5 w-40" />

@@ -1,27 +1,20 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { Button } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useJoinGroup } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
-import type { GroupDetail } from "@/lib/types";
 
 export function JoinButton({ code }: { code: string }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
+  const { mutate, isPending: loading, error: failure } = useJoinGroup({ keepPendingAfterSuccess: true });
+  const error = failure ? messageOf(failure, "합류하지 못했어요. 다시 시도해 주세요") : null;
 
   async function join() {
-    setLoading(true);
-    setError(null);
-    try {
-      const group = await api<GroupDetail>("/groups/join", { method: "POST", body: { code } });
-      rememberGroup(group.id);
-      router.replace(`/g/${group.id}/calendar`);
-    } catch (e) {
-      setError(messageOf(e, "합류하지 못했어요. 다시 시도해 주세요"));
-      setLoading(false);
-    }
+    const r = await mutate(code);
+    if (!r.ok) return;
+    rememberGroup(r.data.id);
+    router.replace(`/g/${r.data.id}/calendar`);
   }
 
   return (

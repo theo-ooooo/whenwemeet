@@ -4,31 +4,25 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button, Field, inputClass } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useCreateGroup } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
-import type { GroupDetail } from "@/lib/types";
 
 export function NewGroupScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // 성공 뒤 팀 설정으로 이동하므로 이동 중 버튼을 로딩으로 둔다
+  const { mutate, isPending: loading, error: failure } = useCreateGroup({ keepPendingAfterSuccess: true });
+  const error = failure ? messageOf(failure, "팀을 만들지 못했어요. 다시 시도해 주세요") : null;
   const trimmed = name.trim();
   const valid = trimmed.length >= 1 && trimmed.length <= 30;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const group = await api<GroupDetail>("/groups", { method: "POST", body: { name: trimmed } });
-      rememberGroup(group.id);
-      router.replace(`/g/${group.id}/settings?invite=1`);
-    } catch (err) {
-      setError(messageOf(err, "팀을 만들지 못했어요. 다시 시도해 주세요"));
-      setLoading(false);
-    }
+    const r = await mutate({ name: trimmed });
+    if (!r.ok) return;
+    rememberGroup(r.data.id);
+    router.replace(`/g/${r.data.id}/settings?invite=1`);
   }
 
   return (

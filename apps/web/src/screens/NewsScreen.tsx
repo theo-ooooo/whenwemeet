@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-import { useGroup } from "@/components/AppShell";
+import { useEffect } from "react";
+import { useGroupContext } from "@/components/AppShell";
 import { ErrorState, MemberDot, SkeletonList } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
 import { dateKeyOf, formatDateKo, formatEventTime, formatRelative } from "@/lib/date";
-import type { News, NewsItem } from "@/lib/types";
+import type { NewsItem } from "@/lib/types";
 
 const ACTION_LABEL: Record<NewsItem["action"], string> = {
   CREATED: "추가했어요",
@@ -16,29 +16,20 @@ const ACTION_LABEL: Record<NewsItem["action"], string> = {
 
 export function NewsScreen({ groupId }: { groupId: string }) {
   const router = useRouter();
-  const { clearUnread } = useGroup();
-  const [news, setNews] = useState<News | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { clearUnread } = useGroupContext();
+  const newsQ = useNews(groupId);
+  const news = newsQ.data;
+  const error = newsQ.error ? messageOf(newsQ.error, "새 소식을 불러오지 못했어요") : null;
+  const load = newsQ.refetch;
 
-  const load = useCallback(async () => {
-    try {
-      const data = await api<News>(`/groups/${groupId}/news`);
-      setError(null);
-      setNews(data);
-      // 목록을 받은 뒤에만 seen (순서 고정: GET → POST)
-      try {
-        await api(`/groups/${groupId}/news/seen`, { method: "POST" });
-        clearUnread();
-      } catch {}
-    } catch (e) {
-      setError(messageOf(e, "새 소식을 불러오지 못했어요"));
-    }
-  }, [groupId, clearUnread]);
-
+  // 목록을 받은 뒤에만 seen (순서 고정: GET → POST). 실패해도 조용히 넘어간다
+  const { mutate: markSeen } = useMarkNewsSeen(groupId);
   useEffect(() => {
-    // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
-    queueMicrotask(() => void load());
-  }, [load]);
+    if (!news) return;
+    void markSeen().then((r) => {
+      if (r.ok) clearUnread();
+    });
+  }, [news, markSeen, clearUnread]);
 
   return (
     <div className="pt-1">

@@ -2,15 +2,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useGroup } from "@/components/AppShell";
+import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { Avatar, Button, ConfirmDialog, ErrorState, MemberDot, Skeleton, inputClass } from "@/components/ui";
-import { api, messageOf } from "@/lib/api";
+import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
 import { forgetGroup } from "@/lib/group-cookie";
-import { MEMBER_COLORS, type GroupDetail, type Member } from "@/lib/types";
+import { MEMBER_COLORS, type GroupDetail } from "@/lib/types";
 
 export function SettingsScreen({ groupId, openInvite }: { groupId: string; openInvite: boolean }) {
-  const { group, error, refresh, setGroup } = useGroup();
+  const { group, error, refresh, setGroup } = useGroupContext();
 
   if (error && !group) {
     return (
@@ -64,22 +64,19 @@ function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Grou
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(group.name);
-  const [saving, setSaving] = useState(false);
+  const { mutate, isPending: saving } = useUpdateGroup(group.id);
   const valid = name.trim().length >= 1 && name.trim().length <= 30;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
-    setSaving(true);
-    try {
-      const updated = await api<GroupDetail>(`/groups/${group.id}`, { method: "PATCH", body: { name: name.trim() } });
-      onSaved(updated);
-      setEditing(false);
-    } catch (err) {
-      toast.show(messageOf(err, "저장하지 못했어요. 다시 시도해 주세요"));
-    } finally {
-      setSaving(false);
+    const r = await mutate({ name: name.trim() });
+    if (!r.ok) {
+      toast.show(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    onSaved(r.data);
+    setEditing(false);
   }
 
   return (
@@ -126,7 +123,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
   const toast = useToast();
   const ref = useRef<HTMLElement>(null);
   const [confirm, setConfirm] = useState(false);
-  const [rotating, setRotating] = useState(false);
+  const { mutate: rotateCode, isPending: rotating } = useRotateInviteCode(group.id);
 
   useEffect(() => {
     if (open) {
@@ -158,17 +155,14 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
   }
 
   async function rotate() {
-    setRotating(true);
-    try {
-      const r = await api<{ inviteCode: string; inviteUrl: string }>(`/groups/${group.id}/invite-code`, { method: "POST" });
-      onSaved({ ...group, inviteCode: r.inviteCode, inviteUrl: r.inviteUrl });
-      toast.show("새 초대 코드를 만들었어요");
-      setConfirm(false);
-    } catch (err) {
-      toast.show(messageOf(err, "재발급하지 못했어요. 다시 시도해 주세요"));
-    } finally {
-      setRotating(false);
+    const r = await rotateCode();
+    if (!r.ok) {
+      toast.show(messageOf(r.error, "재발급하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    onSaved({ ...group, inviteCode: r.data.inviteCode, inviteUrl: r.data.inviteUrl });
+    toast.show("새 초대 코드를 만들었어요");
+    setConfirm(false);
   }
 
   return (
@@ -237,30 +231,25 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
   const toast = useToast();
   const [color, setColor] = useState(group.me.color);
   const [displayName, setDisplayName] = useState(group.me.displayName);
-  const [saving, setSaving] = useState(false);
+  const { mutate, isPending: saving } = useUpdateMembership(group.id);
   const palette = Array.from(new Set<string>([...MEMBER_COLORS, group.me.color.toUpperCase()]));
   const dirty = color !== group.me.color || displayName.trim() !== group.me.displayName;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    try {
-      const me = await api<Member>(`/groups/${group.id}/me`, {
-        method: "PATCH",
-        body: { color, displayName: displayName.trim() === "" ? null : displayName.trim() },
-      });
-      onSaved({
-        ...group,
-        me,
-        members: group.members.map((m) => (m.userId === me.userId ? { ...m, ...me } : m)),
-      });
-      setDisplayName(me.displayName);
-      toast.show("내 표시를 저장했어요");
-    } catch (err) {
-      toast.show(messageOf(err, "저장하지 못했어요. 다시 시도해 주세요"));
-    } finally {
-      setSaving(false);
+    const r = await mutate({ color, displayName: displayName.trim() === "" ? null : displayName.trim() });
+    if (!r.ok) {
+      toast.show(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
+      return;
     }
+    const me = r.data;
+    onSaved({
+      ...group,
+      me,
+      members: group.members.map((m) => (m.userId === me.userId ? { ...m, ...me } : m)),
+    });
+    setDisplayName(me.displayName);
+    toast.show("내 표시를 저장했어요");
   }
 
   return (
@@ -319,20 +308,19 @@ function LeaveSection({ group, groupId }: { group: GroupDetail; groupId: string 
   const router = useRouter();
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+  // 성공 뒤 홈으로 이동하므로 이동 중 버튼을 로딩으로 둔다
+  const { mutate, isPending: leaving } = useLeaveGroup(groupId, { keepPendingAfterSuccess: true });
   const last = group.members.length <= 1;
 
   async function leave() {
-    setLeaving(true);
-    try {
-      await api(`/groups/${groupId}/me`, { method: "DELETE" });
-      forgetGroup();
-      router.replace("/");
-    } catch (err) {
-      toast.show(messageOf(err, "나가지 못했어요. 다시 시도해 주세요"));
-      setLeaving(false);
+    const r = await mutate();
+    if (!r.ok) {
+      toast.show(messageOf(r.error, "나가지 못했어요. 다시 시도해 주세요"));
       setConfirm(false);
+      return;
     }
+    forgetGroup();
+    router.replace("/");
   }
 
   return (
