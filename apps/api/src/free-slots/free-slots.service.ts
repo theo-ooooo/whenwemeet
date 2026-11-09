@@ -29,7 +29,7 @@ export class FreeSlotsService {
     await this.memberships.assertMember(userId, groupId);
     const { from: requestedFrom, to } = parseRange(query.from, query.to, MAX_FREE_SLOT_DAYS);
     const dayStartMin = parseHHmm(query.dayStart);
-    const dayEndMin = parseHHmm(query.dayEnd);
+    const dayEndMin = parseHHmm(query.dayEnd, true);
     if (dayStartMin === null || dayEndMin === null || dayStartMin >= dayEndMin) {
       const message = 'dayStart 는 dayEnd 보다 앞이어야 해요';
       throw new ApiException('VALIDATION_FAILED', message, [{ field: 'dayStart', message }]);

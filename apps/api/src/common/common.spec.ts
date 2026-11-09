@@ -1,7 +1,16 @@
-import { BadRequestException, ConflictException, InternalServerErrorException, NotFoundException, UnauthorizedException, ValidationError } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  InternalServerErrorException,
+  NotFoundException,
+  PayloadTooLargeException,
+  UnauthorizedException,
+  ValidationError,
+} from '@nestjs/common';
 import { firstValueFrom, of } from 'rxjs';
 import { ApiException, DEFAULT_MESSAGE } from './errors.js';
-import { HttpExceptionFilter } from './http-exception.filter.js';
+import { HttpExceptionFilter, MALFORMED_REQUEST_MESSAGE } from './http-exception.filter.js';
 import { parseIdParam } from './id-param.js';
 import { DELETED_MEMBER, MEMBER_COLORS, MemberResolver, pickLeastUsedColor, toMember } from './member.js';
 import { ResponseInterceptor } from './response.interceptor.js';
@@ -35,6 +44,7 @@ describe('HttpExceptionFilter', () => {
     [new NotFoundException('Cannot GET /x'), 404, 'NOT_FOUND'],
     [new UnauthorizedException(), 401, 'UNAUTHORIZED'],
     [new BadRequestException(['첫 번째', '두 번째']), 400, 'VALIDATION_FAILED'],
+    [new PayloadTooLargeException(), 413, 'PAYLOAD_TOO_LARGE'],
     [new InternalServerErrorException(), 500, 'INTERNAL'],
     [new Error('boom'), 500, 'INTERNAL'],
     ['문자열', 500, 'INTERNAL'],
@@ -46,11 +56,26 @@ describe('HttpExceptionFilter', () => {
     expect(result.body.error.code).toBe(code);
   });
 
-  it('400 은 Nest 응답의 첫 메시지를 쓰고, 500 은 고정 문구', () => {
-    expect(filter.translate(new BadRequestException(['첫 번째', '두 번째'])).body.message).toBe('첫 번째');
-    expect(filter.translate(new BadRequestException('하나')).body.message).toBe('하나');
-    expect(filter.translate(new BadRequestException({ message: '' })).body.message).toBe(DEFAULT_MESSAGE.VALIDATION_FAILED);
+  it('프레임워크가 던진 400 은 영어 원문 대신 고정 한국어 문구, 500 은 고정 문구 (#60)', () => {
+    // body-parser 의 잘못된 JSON 은 Nest 가 BadRequestException(SyntaxError.message) 로 바꿔 넘긴다
+    expect(filter.translate(new BadRequestException('Unexpected token \'g\', "garbage" is not valid JSON')).body).toEqual({
+      status: 400,
+      data: null,
+      message: MALFORMED_REQUEST_MESSAGE,
+      error: { code: 'VALIDATION_FAILED' },
+    });
+    expect(filter.translate(new BadRequestException(['첫 번째', '두 번째'])).body.message).toBe(MALFORMED_REQUEST_MESSAGE);
     expect(filter.translate(new Error('x')).body.message).toBe('잠시 후 다시 시도해 주세요');
+  });
+
+  it('본문 크기 초과(413) 는 PAYLOAD_TOO_LARGE 와 한국어 문구 (#60)', () => {
+    // body-parser 의 PayloadTooLargeError 는 Nest 가 HttpException(message, 413) 으로 바꿔 넘긴다
+    expect(filter.translate(new HttpException('request entity too large', 413)).body).toEqual({
+      status: 413,
+      data: null,
+      message: DEFAULT_MESSAGE.PAYLOAD_TOO_LARGE,
+      error: { code: 'PAYLOAD_TOO_LARGE' },
+    });
   });
 
   it('5xx HttpException 은 내부 문구를 숨기고, 표에 없는 4xx 는 400 VALIDATION_FAILED', () => {
@@ -62,7 +87,7 @@ describe('HttpExceptionFilter', () => {
     });
     const conflict = filter.translate(new ConflictException('충돌'));
     expect(conflict.status).toBe(400);
-    expect(conflict.body).toMatchObject({ status: 400, message: '충돌', error: { code: 'VALIDATION_FAILED' } });
+    expect(conflict.body).toMatchObject({ status: 400, message: MALFORMED_REQUEST_MESSAGE, error: { code: 'VALIDATION_FAILED' } });
   });
 
   it('catch 는 상태와 본문을 응답에 쓴다', () => {
