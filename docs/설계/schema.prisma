@@ -33,8 +33,8 @@ model User {
   kakaoId         BigInt   @unique
   /// 카카오 닉네임. 로그인할 때마다 최신값으로 갱신
   nickname        String   @db.VarChar(50)
-  /// 카카오 프로필 이미지 URL. 동의 안 했으면 null
-  profileImageUrl String?  @db.VarChar(500)
+  /// 프로필 사진 (File). 없으면 이니셜 아바타
+  avatarFileId    Int?     @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -142,4 +142,46 @@ model EventLog {
   actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
+}
+
+/// 저장소 종류
+enum StorageProvider {
+  R2
+  LOCAL
+}
+
+/// 파일 용도
+enum FileKind {
+  AVATAR
+  EVENT_PHOTO
+  GROUP_COVER
+}
+
+/// 저장된 파일 한 건. 모든 이미지/첨부는 이 테이블을 거친다
+model File {
+  id        Int             @id @default(autoincrement())
+  provider  StorageProvider @default(R2)
+  /// 버킷명 (개발/운영이 다르므로 기록)
+  bucket    String          @db.VarChar(100)
+  /// 객체 키. 예: avatars/12/01JCK....webp
+  key       String          @db.VarChar(300)
+  /// 조회 시 조인 없이 바로 쓰는 공개 URL (provider+bucket+key 로 재계산 가능)
+  publicUrl String          @db.VarChar(500)
+  mimeType  String          @db.VarChar(100)
+  /// 바이트
+  size      Int
+  width     Int?
+  height    Int?
+  kind      FileKind
+  /// 올린 사람. 탈퇴 시 이 사용자의 파일을 한 번에 정리
+  ownerId   Int
+  /// 외부에서 복사해 온 경우 원본 주소 (카카오 프로필 등)
+  sourceUrl String?         @db.VarChar(500)
+  createdAt DateTime        @default(now())
+
+  owner        User  @relation("FileOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  avatarOfUser User? @relation("UserAvatar")
+
+  @@unique([bucket, key])
+  @@index([ownerId, kind])
 }

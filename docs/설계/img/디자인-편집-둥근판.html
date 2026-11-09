@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>언제볼까 디자인 3안</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&family=Noto+Serif+KR:wght@700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Pretendard Variable",Pretendard,sans-serif;background:#E9E9EC;padding:32px;color:#111}
+.row{display:flex;gap:28px;align-items:flex-start;margin-bottom:40px}
+.meta{width:230px;padding-top:8px}
+.meta h2{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.meta p{font-size:14px;line-height:1.5;color:#555}
+.meta .sw{display:flex;gap:6px;margin-top:14px}.meta .sw i{width:26px;height:26px;border-radius:8px;display:block}
+.phone{width:390px;height:844px;border-radius:36px;overflow:hidden;position:relative;flex:none;box-shadow:0 20px 50px rgba(0,0,0,.18)}
+.sym{display:inline-block;position:relative;width:40px;height:40px}
+.sym i{position:absolute;width:23px;height:23px;border-radius:7px}
+.sym i:nth-child(1){left:3px;top:3px;background:var(--m1)}
+.sym i:nth-child(2){left:14px;top:14px;background:var(--m2)}
+.sym i:nth-child(3){left:14px;top:14px;width:12px;height:12px;border-radius:0 0 7px 0;background:var(--ov)}
+.kakao{display:flex;align-items:center;justify-content:center;gap:8px;height:56px;border-radius:14px;background:#FEE500;color:#191919;font-weight:700;font-size:16px}
+.kakao svg{width:20px;height:20px}
+
+/* ---------- 1안 편집: 흰 바탕, 먹, 큰 숫자, 선 하나, 포인트 레드 ---------- */
+.a{--bg:#FFFFFF;--ink:#101010;--mute:#8A8A8A;--line:#E4E4E4;--acc:#FF3D1F;--m1:#FF3D1F;--m2:#1F5BFF;--ov:#9A1DFF;background:var(--bg);color:var(--ink);padding:52px 22px 0}
+.a .top{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:600}
+.a .top .team{display:flex;gap:6px;align-items:center;background:#F5F5F5;border-radius:999px;padding:7px 12px}
+.a .month{margin-top:26px;display:flex;align-items:baseline;gap:10px}
+.a .month b{font-size:88px;line-height:.9;letter-spacing:-.06em;font-weight:800}
+.a .month span{font-size:18px;font-weight:600;color:var(--mute)}
+.a .dday{margin-top:12px;font-size:13px;color:var(--mute);display:inline-flex;gap:6px;background:#FFF1EE;color:#9A2A14;border-radius:999px;padding:6px 12px}
+.a .dday b{color:var(--acc);font-weight:800}
+.a .wk{display:grid;grid-template-columns:repeat(7,1fr);margin-top:22px;background:#F5F5F5;border-radius:12px;padding:8px 6px;font-size:11px;color:var(--mute);font-weight:600}
+.a .grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:4px;margin-top:8px}
+.a .d{height:58px;padding:6px 4px;font-size:14px;font-weight:600;position:relative;border-radius:10px}
+.a .d:hover{background:#F5F5F5}
+.a .d.o{color:#C8C8C8;font-weight:500}
+.a .d.t em{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-style:normal;margin-left:-3px}
+.a .d s{display:block;text-decoration:none;height:5px;border-radius:3px;margin-top:4px;width:82%}
+.a .d .l{display:block;font-size:9.5px;font-weight:600;line-height:1.1;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a .list{margin-top:10px;background:#F7F7F7;border-radius:18px;padding:4px 14px 6px}
+.a .list h4{font-size:13px;font-weight:700;padding:12px 0 4px;display:flex;gap:8px}
+.a .list h4 span{color:var(--acc)}
+.a .ev{display:grid;grid-template-columns:62px 1fr auto;gap:10px;padding:12px 0;border-top:1px solid #E9E9E9;align-items:center}
+.a .ev time{font-size:13px;font-weight:700;letter-spacing:-.02em}
+.a .ev time small{display:block;font-size:11px;color:var(--mute);font-weight:500}
+.a .ev b{font-size:16px;font-weight:700;letter-spacing:-.02em}
+.a .ev .who{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:5px}
+.a .ev .who i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.a .cta{position:absolute;left:22px;right:22px;bottom:30px;height:56px;border-radius:16px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;letter-spacing:-.01em}
+.a.login{display:flex;flex-direction:column;padding:60px 26px 34px}
+.a.login .hero{margin-top:auto}
+.a.login h1{font-size:56px;line-height:1.02;letter-spacing:-.05em;font-weight:800}
+.a.login h1 i{font-style:normal;color:var(--acc)}
+.a.login p{margin-top:22px;font-size:16px;line-height:1.55;color:#444;max-width:28ch}
+.a.login .kakao{margin-top:46px;border-radius:16px}
+.a.login small{display:block;margin-top:14px;font-size:12px;color:var(--mute)}
+
+/* ---------- 2안 종이 다이어리: 따뜻한 바탕, 손글씨 포인트, 스티커 ---------- */
+.b{--bg:#FAF6EE;--ink:#2A2420;--mute:#9A8F85;--line:#E6DED2;--acc:#E8572A;--m1:#F2A65A;--m2:#6B9E6B;--ov:#C97A3A;background:var(--bg);color:var(--ink);padding:52px 20px 0;font-family:"Pretendard Variable",sans-serif}
+.b .hand{font-family:Gaegu,cursive}
+.b .top{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700}
+.b .top .team{background:#fff;border:1.5px solid var(--ink);border-radius:999px;padding:6px 12px;display:flex;gap:6px;align-items:center;font-size:14px;box-shadow:2px 2px 0 var(--ink)}
+.b .month{margin-top:22px;display:flex;align-items:flex-end;justify-content:space-between}
+.b .month b{font-size:44px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.b .month b small{font-size:18px;font-weight:700;margin-left:4px}
+.b .month .hand{font-size:22px;color:var(--acc);transform:rotate(-3deg)}
+.b .dday{margin-top:12px;display:inline-flex;gap:8px;align-items:center;background:#FFF;border:1.5px dashed var(--ink);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700}
+.b .dday .hand{font-size:19px;color:var(--acc)}
+.b .sheet{margin-top:16px;background:#fff;border-radius:18px;padding:14px 10px 10px;box-shadow:0 2px 0 var(--line), inset 0 0 0 1px var(--line)}
+.b .wk{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:var(--mute);font-weight:700;text-align:center}
+.b .grid{display:grid;grid-template-columns:repeat(7,1fr);margin-top:6px}
+.b .d{height:60px;border-top:1px dashed var(--line);padding:5px 3px;font-size:13px;font-weight:600;text-align:center;position:relative}
+.b .d.o{color:#CFC6BB}
+.b .d.t em{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--acc);color:#fff;font-style:normal}
+.b .tag{display:block;margin:4px auto 0;font-size:9px;font-weight:700;padding:2px 4px;border-radius:5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:rotate(-2deg)}
+.b .list{margin-top:14px}
+.b .list h4{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px}
+.b .list h4 .hand{font-size:18px;color:var(--acc);font-weight:700}
+.b .ev{display:flex;gap:12px;align-items:center;background:#fff;border-radius:16px;padding:14px;margin-top:10px;border:1.5px solid var(--ink);box-shadow:3px 3px 0 var(--ink)}
+.b .ev .dot{width:14px;height:14px;border-radius:4px;flex:none;transform:rotate(8deg)}
+.b .ev b{font-size:16px;font-weight:800;display:block;letter-spacing:-.02em}
+.b .ev span{font-size:12px;color:var(--mute);font-weight:600}
+.b .fab{position:absolute;right:20px;bottom:30px;width:60px;height:60px;border-radius:20px;background:var(--acc);color:#fff;display:grid;place-items:center;font-size:30px;font-weight:800;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);transform:rotate(-4deg)}
+.b.login{display:flex;flex-direction:column;padding:60px 26px 34px}
+.b.login .sticker{align-self:flex-start;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:14px;box-shadow:4px 4px 0 var(--ink);transform:rotate(-5deg)}
+.b.login h1{margin-top:auto;font-size:46px;line-height:1.1;letter-spacing:-.04em;font-weight:800}
+.b.login h1 .hand{font-size:58px;color:var(--acc);display:block;transform:rotate(-2deg);margin-top:6px}
+.b.login p{margin-top:18px;font-size:16px;line-height:1.55;color:#5A4F47}
+.b.login .kakao{margin-top:40px;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+.b.login small{display:block;margin-top:14px;font-size:12px;color:var(--mute)}
+
+/* ---------- 3안 다크 네온: 밤 바탕, 형광 멤버 색, 일정 블록 ---------- */
+.c{--bg:#0D0E12;--panel:#15171D;--ink:#F4F4F6;--mute:#7C808C;--line:#23262E;--m1:#C8FF3D;--m2:#FF5FA2;--ov:#4DE3FF;background:var(--bg);color:var(--ink);padding:52px 18px 0}
+.c .top{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:600}
+.c .top .team{display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 12px}
+.c .month{margin-top:22px;display:flex;align-items:baseline;gap:10px}
+.c .month b{font-size:72px;line-height:.9;letter-spacing:-.06em;font-weight:800;background:linear-gradient(90deg,var(--m1),var(--ov));-webkit-background-clip:text;background-clip:text;color:transparent}
+.c .month span{font-size:16px;color:var(--mute);font-weight:600}
+.c .dday{margin-top:10px;display:inline-flex;gap:8px;font-size:13px;color:var(--mute)}
+.c .dday b{color:var(--m2);font-weight:800}
+.c .wk{display:grid;grid-template-columns:repeat(7,1fr);margin-top:20px;font-size:11px;color:var(--mute);font-weight:600;text-align:center}
+.c .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px}
+.c .d{height:60px;border-radius:10px;background:var(--panel);padding:5px 4px;font-size:13px;font-weight:600;position:relative}
+.c .d.o{opacity:.3}
+.c .d.t{outline:1.5px solid var(--ink)}
+.c .d .bar{display:block;height:5px;border-radius:3px;margin-top:5px;box-shadow:0 0 8px currentColor}
+.c .d .l{display:block;font-size:9px;font-weight:600;color:#C9CBD3;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c .list{margin-top:14px}
+.c .list h4{font-size:13px;color:var(--mute);font-weight:600;display:flex;gap:8px}
+.c .list h4 span{color:var(--ink)}
+.c .ev{display:flex;gap:12px;align-items:center;margin-top:10px;padding:14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.c .ev .bar{width:4px;align-self:stretch;border-radius:2px;box-shadow:0 0 10px currentColor}
+.c .ev b{font-size:16px;font-weight:700;display:block;letter-spacing:-.02em}
+.c .ev span{font-size:12px;color:var(--mute)}
+.c .fab{position:absolute;right:18px;bottom:30px;height:50px;padding:0 20px;border-radius:999px;background:var(--m1);color:#0D0E12;display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;box-shadow:0 0 24px rgba(200,255,61,.45)}
+.c.login{display:flex;flex-direction:column;padding:60px 26px 34px;background:radial-gradient(70% 40% at 80% 10%,rgba(255,95,162,.25),transparent 60%),radial-gradient(60% 40% at 10% 40%,rgba(200,255,61,.18),transparent 60%),var(--bg)}
+.c.login h1{margin-top:auto;font-size:58px;line-height:1;letter-spacing:-.05em;font-weight:800}
+.c.login h1 i{font-style:normal;background:linear-gradient(90deg,var(--m1),var(--ov),var(--m2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.c.login p{margin-top:20px;font-size:16px;line-height:1.55;color:#B9BCC6}
+.c.login .kakao{margin-top:44px}
+.c.login small{display:block;margin-top:14px;font-size:12px;color:var(--mute)}
+</style>
+</head>
+<body>
+
+<!-- ===================== 1안 ===================== -->
+<div class="row">
+  <div class="meta"><h2>1안 편집 · 둥근 판</h2><p>선 대신 연회색 면으로 구획, 모서리 10~18px, 버튼과 칩은 둥글게. 숫자와 여백은 그대로.</p><div class="sw"><i style="background:#101010"></i><i style="background:#FF3D1F"></i><i style="background:#1F5BFF"></i><i style="background:#E4E4E4"></i></div></div>
+  <div class="phone a login">
+    <span class="sym"><i></i><i></i><i></i></span>
+    <div class="hero">
+      <h1>언제<br>볼까<i>?</i></h1>
+      <p>달력 하나를 같이 봐요. 서로의 일정이 겹쳐 보이고, 모두 비는 시간은 바로 찾아 줘요.</p>
+    </div>
+    <div class="kakao"><svg viewBox="0 0 24 24" fill="#191919"><path d="M12 3C6.5 3 2 6.4 2 10.6c0 2.7 1.8 5 4.5 6.4L5.6 21l4.2-2.8c.7.1 1.4.2 2.2.2 5.5 0 10-3.4 10-7.8S17.5 3 12 3z"/></svg>카카오로 시작하기</div>
+    <small>시작하면 이용약관과 개인정보처리방침에 동의한 것으로 봐요</small>
+  </div>
+  <div class="phone a">
+    <div class="top"><span class="team">우리 둘 ⌄</span><span>🔔 2 &nbsp;●</span></div>
+    <div class="month"><b>11</b><span>월 2026</span></div>
+    <div class="dday">처음 만난 날 <b>D+591</b> · 600일까지 9일</div>
+    <div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+    <div class="grid">
+      <div class="d">1</div><div class="d">2</div><div class="d">3<s style="background:var(--m2)"></s><span class="l">치과</span></div><div class="d">4</div><div class="d">5</div><div class="d">6</div><div class="d">7<s style="background:var(--m1)"></s><span class="l">본가</span></div>
+      <div class="d">8</div><div class="d t"><em>9</em><s style="background:var(--m1)"></s><span class="l">영화</span></div><div class="d">10<s style="background:var(--m2)"></s><span class="l">회의</span></div><div class="d">11</div><div class="d">12<s style="background:var(--m2)"></s><span class="l">회식</span></div><div class="d">13</div><div class="d">14</div>
+      <div class="d">15</div><div class="d">16</div><div class="d">17</div><div class="d">18</div><div class="d">19</div><div class="d">20</div><div class="d">21</div>
+      <div class="d">22</div><div class="d">23</div><div class="d">24<s style="background:var(--ov)"></s><span class="l">제주</span></div><div class="d">25<s style="background:var(--ov)"></s></div><div class="d">26<s style="background:var(--ov)"></s></div><div class="d">27</div><div class="d">28</div>
+      <div class="d">29</div><div class="d">30</div><div class="d o">1</div><div class="d o">2</div><div class="d o">3</div><div class="d o">4</div><div class="d o">5</div>
+    </div>
+    <div class="list">
+      <h4>9일 월요일 <span>오늘</span></h4>
+      <div class="ev"><time>19:30<small>22:00</small></time><b>영화</b><span class="who"><i style="background:var(--m1)"></i>경원</span></div>
+      <div class="ev"><time>종일<small></small></time><b>원고 마감</b><span class="who"><i style="background:var(--m2)"></i>하늘</span></div>
+    </div>
+    <div class="cta">+ 9일에 일정 추가</div>
+  </div>
+</div>
+
+</body>
+</html>

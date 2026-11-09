@@ -1,0 +1,99 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>언제볼까 PC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Pretendard Variable",Pretendard,sans-serif;background:#E9E9EC;padding:32px;color:#111}
+h2.cap{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0 0 12px}
+.pc{--bg:#F2F2F4;--tile:#FFFFFF;--ink:#0F0F10;--mute:#8E8E93;--line:#ECECEF;--acc:#FF3D1F;--m1:#FF3D1F;--m2:#1F5BFF;--ov:#9A1DFF;
+  width:1280px;height:800px;background:var(--bg);color:var(--ink);border-radius:20px;overflow:hidden;display:grid;grid-template-columns:232px 1fr 320px;box-shadow:0 20px 50px rgba(0,0,0,.15);margin-bottom:40px}
+.pc.dark{--bg:#0B0B0D;--tile:#19191C;--ink:#F5F5F7;--mute:#8E8E93;--line:#26262A;--acc:#FF4A2E;--m1:#FF4A2E;--m2:#3B74FF;--ov:#A855F7}
+.sym{display:inline-block;position:relative;width:30px;height:30px;vertical-align:middle}.sym i{position:absolute;width:17px;height:17px;border-radius:6px}
+.sym i:nth-child(1){left:2px;top:2px;background:var(--m1)}.sym i:nth-child(2){left:11px;top:11px;background:var(--m2)}.sym i:nth-child(3){left:11px;top:11px;width:8px;height:8px;border-radius:0 0 6px 0;background:var(--ov)}
+svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* sidebar */
+.side{padding:26px 16px;display:flex;flex-direction:column;gap:6px}
+.side .logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.03em;padding:0 8px 22px}
+.side .sec{font-size:11px;font-weight:700;color:var(--mute);padding:14px 10px 6px}
+.side a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;font-size:14px;font-weight:600;color:var(--ink)}
+.side a.on{background:var(--tile)}
+.side a .dot{width:10px;height:10px;border-radius:3px}
+.side a .n{margin-left:auto;font-size:11px;background:var(--acc);color:#fff;border-radius:999px;padding:2px 7px;font-weight:700}
+.side .me{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:13px;font-weight:600}
+.side .me i{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-style:normal;font-size:12px;font-weight:700}
+/* main */
+.main{padding:26px 22px 22px;display:flex;flex-direction:column;min-width:0}
+.main .head{display:flex;align-items:flex-end;justify-content:space-between}
+.main .head b{font-size:72px;line-height:.85;letter-spacing:-.07em;font-weight:800}
+.main .head span{font-size:15px;color:var(--mute);font-weight:600;margin-left:6px}
+.main .head .r{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.main .head .r i{width:36px;height:36px;border-radius:50%;background:var(--tile);display:grid;place-items:center;font-style:normal;font-weight:700}
+.main .head .r .today{height:36px;padding:0 14px;border-radius:999px;background:var(--tile);display:grid;place-items:center;font-size:13px;font-weight:700}
+.main .head .r .add{height:36px;padding:0 16px;border-radius:999px;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-size:13px;font-weight:700}
+.cal{margin-top:18px;background:var(--tile);border-radius:24px;padding:14px 12px 10px;flex:1;display:flex;flex-direction:column}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:var(--mute);font-weight:700;padding:0 8px 8px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:1fr;flex:1;gap:2px}
+.d{border-radius:14px;padding:8px 8px 4px;font-size:13px;font-weight:700;position:relative;min-height:0}
+.d.we{color:#E5322D}.d.we.o{color:#F2B8B5}.dark .d.we.o{color:#5A2A28}
+.wk span:first-child,.wk span:last-child{color:#E5322D}
+.d.o{color:#C7C7CC;font-weight:500}.dark .d.o{color:#3A3A3F}
+.d.t{background:var(--ink);color:var(--bg)}
+.d .e{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;margin-top:5px;padding:3px 6px;border-radius:7px;background:var(--bg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d .e i{width:7px;height:7px;border-radius:2px;flex:none}
+.d.t .e{background:rgba(255,255,255,.14);color:#fff}.dark .d.t .e{background:rgba(0,0,0,.12);color:#0B0B0D}
+.d .e.all{background:var(--ov);color:#fff}
+/* right */
+.right{padding:26px 22px 22px 0;display:flex;flex-direction:column;gap:10px}
+.tile{background:var(--tile);border-radius:22px;padding:16px 18px}
+.tile small{display:block;font-size:12px;color:var(--mute);font-weight:600}
+.tile b{display:block;font-size:22px;font-weight:800;letter-spacing:-.04em;margin-top:4px}
+.tile.acc{background:var(--acc);color:#fff}.tile.acc small{color:rgba(255,255,255,.75)}
+.tile h4{font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.tile h4 em{font-style:normal;font-size:11px;background:var(--ink);color:var(--bg);border-radius:999px;padding:3px 8px}
+.ev{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.ev:first-of-type{border-top:0;margin-top:6px}
+.ev i{width:12px;height:12px;border-radius:4px;flex:none}
+.ev b{font-size:15px;font-weight:700;letter-spacing:-.02em;display:block;margin:0}.ev span{font-size:12px;color:var(--mute);font-weight:600}
+.ev .who{margin-left:auto;font-size:12px;color:var(--mute);font-weight:600}
+.slot{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:12px;background:var(--bg);font-size:13px;font-weight:700;margin-top:8px}
+.slot span{color:var(--mute);font-weight:600;font-size:12px}
+.faces{display:flex;margin-top:8px}.faces i{width:22px;height:22px;border-radius:50%;border:2px solid var(--tile);margin-left:-6px;display:block}.faces i:first-child{margin-left:0}
+</style></head><body>
+<h2 class="cap">PC — 라이트</h2>
+<div class="pc" id="light"></div>
+<h2 class="cap">PC — 다크</h2>
+<div class="pc dark" id="dark"></div>
+<script>
+const ICON={cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',heart:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',team:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15 18c0-2.3 1.8-4 4-4"/></svg>',bell:'<svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>'};
+const ev=(c,t)=>`<span class="e"><i style="background:var(--${c})"></i>${t}</span>`;
+const days=[];
+for(let i=1;i<=30;i++){let x='';if(i===3)x=ev('m2','치과 14:00');if(i===7)x=ev('m1','본가');if(i===9)x=ev('m1','영화 19:30')+ev('m2','원고 마감');if(i===10)x=ev('m2','회의 10:00');if(i===12)x=ev('m2','회식 18:30');if(i>=24&&i<=26)x='<span class="e all">제주 여행</span>';const we=((i-1)%7===0||(i-1)%7===6)?' we':'';days.push(`<div class="d${i===9?' t':''}${we}">${i}${x}</div>`)}
+for(let i=1;i<=5;i++){const we=((i+29)%7===0||(i+29)%7===6)?' we':'';days.push(`<div class="d o${we}">${i}</div>`)}
+const html=`
+<aside class="side">
+  <div class="logo"><span class="sym"><i></i><i></i><i></i></span>언제볼까</div>
+  <a class="on">${ICON.cal}달력</a><a>${ICON.clock}빈 시간 찾기</a><a>${ICON.heart}기념일</a><a>${ICON.bell}새 소식<span class="n">2</span></a>
+  <div class="sec">내 팀</div>
+  <a><span class="dot" style="background:var(--ink)"></span>내 달력</a>
+  <a class="on"><span class="dot" style="background:var(--m1)"></span>우리 둘</a>
+  <a><span class="dot" style="background:var(--m2)"></span>김씨네</a>
+  <a style="color:var(--mute)">+ 팀 만들기</a>
+  <div class="me"><i>경</i>경원<span style="margin-left:auto;color:var(--mute)">설정</span></div>
+</aside>
+<main class="main">
+  <div class="head"><div><b>11</b><span>월 2026</span></div><div class="r"><span class="today">오늘</span><i>‹</i><i>›</i><span class="add">+ 일정 추가</span></div></div>
+  <div class="cal"><div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div class="grid">${days.join('')}</div></div>
+</main>
+<section class="right">
+  <div class="tile acc"><small>오늘 둘 다 비는 시간</small><b>15:00~19:00</b><small style="margin-top:6px">클릭하면 바로 약속으로</small></div>
+  <div class="tile"><small>처음 만난 날</small><b>D+591</b><div class="faces"><i style="background:var(--m1)"></i><i style="background:var(--m2)"></i></div></div>
+  <div class="tile" style="flex:1"><h4>9일 월요일 <em>오늘</em></h4>
+    <div class="ev"><i style="background:var(--m1)"></i><div><b>영화</b><span>19:30~22:00</span></div><span class="who">경원</span></div>
+    <div class="ev"><i style="background:var(--m2)"></i><div><b>원고 마감</b><span>종일</span></div><span class="who">하늘</span></div>
+    <h4 style="margin-top:18px">이번 주 빈 시간</h4>
+    <div class="slot">화 11/10 12:00~23:00<span>11시간</span></div>
+    <div class="slot">수 11/11 09:00~23:00<span>14시간</span></div>
+    <div class="slot">목 11/12 09:00~18:00<span>9시간</span></div>
+  </div>
+</section>`;
+document.getElementById('light').innerHTML=html;document.getElementById('dark').innerHTML=html;
+</script>
+</body></html>
