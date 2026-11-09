@@ -10,7 +10,7 @@ import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconBell, IconCalendar, IconChevronDown, IconClock, IconHeart, IconPlus, IconTeam } from "./icons";
+import { IconArrowRight, IconBell, IconCalendar, IconChevronDown, IconClock, IconHeart, IconPlus, IconTeam } from "./icons";
 import { Avatar, Sheet, Skeleton } from "./ui";
 
 type GroupCtx = {
@@ -206,6 +206,11 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
                 <IconPlus size={14} />팀 만들기
               </Link>
             </li>
+            <li>
+              <Link href="/join" className="flex items-center gap-2.5 rounded-sm px-3 py-2.5 text-[14px] font-semibold text-ink-2 hover:bg-paper/60 hover:text-ink">
+                <IconArrowRight size={14} />초대 코드로 합류
+              </Link>
+            </li>
           </ul>
           <Link href="/me" className="mt-auto flex items-center gap-2.5 rounded-sm px-3 py-2.5 text-[13px] font-semibold hover:bg-paper/60">
             {group ? <Avatar member={group.me} size={30} /> : <Skeleton className="size-[30px] rounded-full" />}
@@ -321,6 +326,14 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           className="mt-4 flex h-[52px] items-center justify-center gap-1.5 rounded-full bg-btn text-[15px] font-bold text-on-btn"
         >
           <IconPlus size={18} />새 팀 만들기
+        </Link>
+        {/* 링크 없이 6자리 코드만 받은 경우 (#56) */}
+        <Link
+          href="/join"
+          onClick={() => setSwitcher(false)}
+          className="mt-2 flex h-[52px] items-center justify-center rounded-full bg-surface text-[15px] font-bold text-ink hover:brightness-95"
+        >
+          초대 코드로 합류
         </Link>
       </Sheet>
     </Ctx.Provider>

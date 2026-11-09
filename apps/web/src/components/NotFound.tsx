@@ -1,0 +1,51 @@
+// '페이지를 찾을 수 없어요' (#64). 잘못된 주소, 숫자가 아닌 ID(idParam 의 notFound) 에서 Next 기본 영어 404 대신 보여준다.
+// 전체 화면(app/not-found.tsx)은 점검 화면과 같은 뼈대, 팀 안(app/g/[groupId]/not-found.tsx)은 AppShell 안의 타일
+import Link from "next/link";
+import { Symbol } from "./Logo";
+import { Button } from "./ui";
+
+const TITLE = "페이지를 찾을 수 없어요";
+
+export function NotFoundScreen() {
+  return (
+    <div className="min-h-dvh bg-[var(--login-bg)]">
+      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+        <Symbol size={40} />
+        <div className="mt-auto pt-16">
+          <span className="inline-flex rounded-full bg-brand-soft px-3 py-[7px] text-[13px] font-bold text-sel-ink">404</span>
+          <h1 className="mt-[22px] break-keep text-[44px] font-extrabold leading-[1.05] tracking-[-0.06em]">{TITLE}</h1>
+          <p className="mt-[18px] text-[16px] font-medium text-soft">
+            주소가 잘못됐거나 사라진 페이지예요
+            <br />
+            홈에서 내 달력을 다시 열어 보세요
+          </p>
+        </div>
+        <Link href="/" className="mt-10 block">
+          <Button size="lg" full tabIndex={-1}>
+            홈으로
+          </Button>
+        </Link>
+      </main>
+    </div>
+  );
+}
+
+/** 팀 화면 안(상단 바, 하단 탭은 그대로)에서 쓰는 모양 */
+export function GroupNotFound({ calendarHref }: { calendarHref: string }) {
+  return (
+    <div className="flex min-h-[60dvh] items-center lg:min-h-dvh lg:px-8">
+      <div className="mx-auto w-full max-w-[480px] rounded-xl bg-paper px-6 py-9 text-center">
+        <h1 className="text-[24px] font-extrabold leading-snug tracking-[-0.04em]">{TITLE}</h1>
+        <p className="mt-2 text-[14px] font-semibold leading-relaxed text-soft">
+          주소가 잘못됐거나 이미 삭제된 일정일 수 있어요.
+          <br />이 팀 달력에서 다시 찾아 보세요
+        </p>
+        <Link href={calendarHref} className="mt-6 block">
+          <Button size="lg" full tabIndex={-1}>
+            달력으로
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
