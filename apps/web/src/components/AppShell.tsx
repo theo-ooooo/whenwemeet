@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { ApiError, GROUP_GONE_EVENT, api } from "@/lib/api";
+import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, rememberGroup } from "@/lib/group-cookie";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
@@ -21,11 +21,15 @@ type GroupCtx = {
 
 const Ctx = createContext<GroupCtx | null>(null);
 
-export function useGroup() {
+/** AppShell 이 받은 팀 정보(목록 + 현재 팀). 데이터 훅 useGroup(id) 과 구분해 이름을 붙였다 */
+export function useGroupContext() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("AppShell 안에서만 쓸 수 있어요");
   return ctx;
 }
+
+/** 이 팀에 더 이상 접근할 수 없음(403 멤버 아님, 404 팀 없음) */
+const isGone = (f: ApiFailure | null) => f !== null && (f.status === 403 || f.status === 404);
 
 const TABS = [
   { key: "calendar", label: "달력" },
@@ -73,56 +77,52 @@ function TabIcon({ name, active }: { name: (typeof TABS)[number]["key"]; active:
 export function AppShell({ groupId, children }: { groupId: string; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [groups, setGroups] = useState<GroupSummary[] | null>(null);
-  const [group, setGroupState] = useState<GroupDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // 이 팀에 더 이상 접근할 수 없음(403 멤버 아님, 404 팀 없음). 남은 wwm_group 쿠키를 지우고 안내 화면으로 (#18)
-  const [gone, setGone] = useState(false);
+  // groupId 가 바뀌면 layout 이 key 로 다시 마운트하므로 여기서는 불러오기만 한다
+  const groupsQ = useGroups();
+  const groupQ = useGroup(groupId);
+  // 자식 화면(일정, 기념일, 새 소식 등)의 호출이 403 을 받아도 같은 안내로 바꾼다
+  const [goneByEvent, setGoneByEvent] = useState(false);
+  const markGone = useCallback(() => setGoneByEvent(true), []);
+  useGroupGone(markGone);
   const [switcher, setSwitcher] = useState(false);
 
-  const markGone = useCallback(() => {
-    forgetGroup();
-    setGone(true);
-  }, []);
+  // 이 팀에 더 이상 접근할 수 없음. 남은 wwm_group 쿠키를 지우고 안내 화면으로 (#18)
+  const groupsError = groupsQ.error;
+  const groupError = groupQ.error;
+  const gone = goneByEvent || isGone(groupError) || isGone(groupsError);
+  useEffect(() => {
+    if (gone) forgetGroup();
+  }, [gone]);
 
+  const group = groupQ.data;
+  useEffect(() => {
+    if (group) rememberGroup(groupId);
+  }, [group, groupId]);
+
+  const groups = groupsQ.data;
+  const failure = gone ? null : (groupError ?? groupsError);
+  const error = failure ? messageOf(failure, "팀 정보를 불러오지 못했어요") : null;
+
+  const refreshGroups = groupsQ.refetch;
+  const refreshGroup = groupQ.refetch;
   const refresh = useCallback(async () => {
-    try {
-      const [gs, g] = await Promise.all([
-        api<GroupSummary[]>("/groups"),
-        api<GroupDetail>(`/groups/${groupId}`),
-      ]);
-      setError(null);
-      setGroups(gs);
-      setGroupState(g);
-      rememberGroup(groupId);
-    } catch (e) {
-      if (e instanceof ApiError && (e.status === 403 || e.status === 404)) {
-        markGone();
-        return;
-      }
-      setError((e as Error).message || "팀 정보를 불러오지 못했어요");
-    }
-  }, [groupId, markGone]);
+    await Promise.all([refreshGroups(), refreshGroup()]);
+  }, [refreshGroups, refreshGroup]);
 
-  useEffect(() => {
-    // groupId 가 바뀌면 layout 이 key 로 다시 마운트하므로 여기서는 불러오기만 한다
-    queueMicrotask(() => void refresh());
-  }, [refresh]);
-
-  // 자식 화면(일정, 기념일, 새 소식 등)의 호출이 403 을 받아도 같은 안내로 바꾼다
-  useEffect(() => {
-    window.addEventListener(GROUP_GONE_EVENT, markGone);
-    return () => window.removeEventListener(GROUP_GONE_EVENT, markGone);
-  }, [markGone]);
+  const setGroups = groupsQ.setData;
+  const setGroupData = groupQ.setData;
 
   const clearUnread = useCallback(() => {
     setGroups((prev) => prev?.map((g) => (g.id === groupId ? { ...g, unreadNewsCount: 0 } : g)) ?? prev);
-  }, [groupId]);
+  }, [groupId, setGroups]);
 
-  const setGroup = useCallback((g: GroupDetail) => {
-    setGroupState(g);
-    setGroups((prev) => prev?.map((x) => (x.id === g.id ? { ...x, name: g.name, memberCount: g.members.length, me: { color: g.me.color, displayName: g.me.displayName } } : x)) ?? prev);
-  }, []);
+  const setGroup = useCallback(
+    (g: GroupDetail) => {
+      setGroupData(g);
+      setGroups((prev) => prev?.map((x) => (x.id === g.id ? { ...x, name: g.name, memberCount: g.members.length, me: { color: g.me.color, displayName: g.me.displayName } } : x)) ?? prev);
+    },
+    [setGroupData, setGroups],
+  );
 
   const value = useMemo<GroupCtx>(
     () => ({ groupId, groups, group, error, refresh, setGroup, clearUnread }),
