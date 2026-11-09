@@ -16,14 +16,14 @@ export const EVENT_SELECT = {
 } as const;
 
 export interface EventRow {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   title: string;
   startsAt: Date;
   endsAt: Date;
   allDay: boolean;
   memo: string | null;
-  creatorId: string | null;
+  creatorId: number | null;
   createdAt: Date;
   updatedAt: Date;
   creator: { nickname: string; profileImageUrl: string | null } | null;
@@ -36,13 +36,13 @@ export interface BusyRange {
 }
 
 export interface EventCreateInput {
-  groupId: string;
+  groupId: number;
   title: string;
   startsAt: Date;
   endsAt: Date;
   allDay: boolean;
   memo: string | null;
-  creatorId: string;
+  creatorId: number;
 }
 
 export interface EventUpdateInput {
@@ -60,7 +60,7 @@ export class EventsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** 겹침 조건 `startsAt < to AND endsAt > from`, startsAt 오름차순 */
-  listInRange(groupId: string, from: Date, to: Date): Promise<EventRow[]> {
+  listInRange(groupId: number, from: Date, to: Date): Promise<EventRow[]> {
     return this.prisma.event.findMany({
       where: { groupId, startsAt: { lt: to }, endsAt: { gt: from } },
       orderBy: { startsAt: 'asc' },
@@ -69,12 +69,12 @@ export class EventsRepository {
   }
 
   /** 다른 팀 자원을 가리키는 ID 는 null */
-  findInGroup(groupId: string, eventId: string): Promise<EventRow | null> {
+  findInGroup(groupId: number, eventId: number): Promise<EventRow | null> {
     return this.prisma.event.findFirst({ where: { id: eventId, groupId }, select: EVENT_SELECT });
   }
 
   /** 여러 팀의 바쁜 구간만, startsAt 오름차순. includeAllDay 가 아니면 종일 일정 제외 */
-  listBusyRanges(groupIds: string[], from: Date, to: Date, includeAllDay: boolean): Promise<BusyRange[]> {
+  listBusyRanges(groupIds: number[], from: Date, to: Date, includeAllDay: boolean): Promise<BusyRange[]> {
     return this.prisma.event.findMany({
       where: {
         groupId: { in: groupIds },
@@ -88,7 +88,7 @@ export class EventsRepository {
   }
 
   /** 일정 생성 + CREATED 로그를 한 트랜잭션으로 */
-  createWithLogTx(data: EventCreateInput, actorId: string): Promise<EventRow> {
+  createWithLogTx(data: EventCreateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
       const created = await tx.event.create({ data, select: EVENT_SELECT });
       await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED') });
@@ -97,7 +97,7 @@ export class EventsRepository {
   }
 
   /** 일정 수정 + UPDATED 로그를 한 트랜잭션으로 */
-  updateWithLogTx(eventId: string, data: EventUpdateInput, actorId: string): Promise<EventRow> {
+  updateWithLogTx(eventId: number, data: EventUpdateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.event.update({ where: { id: eventId }, data, select: EVENT_SELECT });
       await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED') });
@@ -106,7 +106,7 @@ export class EventsRepository {
   }
 
   /** 삭제 전 스냅샷으로 DELETED 로그를 남기고 삭제. 로그의 eventId 는 FK SetNull 로 null 이 된다 */
-  async deleteWithLogTx(event: EventSnapshot, actorId: string): Promise<void> {
+  async deleteWithLogTx(event: EventSnapshot, actorId: number): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       await tx.eventLog.create({ data: snapshotLog(event, actorId, 'DELETED') });
       await tx.event.delete({ where: { id: event.id } });
@@ -114,7 +114,7 @@ export class EventsRepository {
   }
 }
 
-function snapshotLog(event: EventSnapshot, actorId: string, action: 'CREATED' | 'UPDATED' | 'DELETED') {
+function snapshotLog(event: EventSnapshot, actorId: number, action: 'CREATED' | 'UPDATED' | 'DELETED') {
   return {
     groupId: event.groupId,
     eventId: event.id,

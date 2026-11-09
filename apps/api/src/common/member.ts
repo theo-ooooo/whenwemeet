@@ -12,14 +12,14 @@ export const MEMBER_COLORS = [
 
 /** 응답의 사람 정보 공통 모양 */
 export interface Member {
-  userId: string | null;
+  userId: number | null;
   displayName: string;
   color: string;
   profileImageUrl: string | null;
 }
 
 export interface MemberWithJoin extends Member {
-  userId: string;
+  userId: number;
   joinedAt: Date;
 }
 
@@ -35,7 +35,7 @@ export const DELETED_MEMBER: Member = Object.freeze({
 const LEFT_MEMBER_COLOR = '#9CA3AF';
 
 export interface MembershipRow {
-  userId: string;
+  userId: number;
   color: string;
   displayName: string | null;
   joinedAt: Date;
@@ -60,7 +60,7 @@ export function toMember(row: MembershipRow): MemberWithJoin {
 
 /** 팀 멤버십 목록으로 creatorId/actorId 를 Member 로 바꾸는 해석기 */
 export class MemberResolver {
-  private readonly byUserId = new Map<string, Member>();
+  private readonly byUserId = new Map<number, Member>();
 
   constructor(memberships: MembershipRow[]) {
     for (const row of memberships) {
@@ -74,7 +74,7 @@ export class MemberResolver {
    * - 현재 멤버 → 팀 안의 색/표시 이름
    * - 팀을 나간 사용자 → 닉네임은 유지, 색은 회색
    */
-  resolve(userId: string | null, user: UserRow | null): Member {
+  resolve(userId: number | null, user: UserRow | null): Member {
     if (userId === null || user === null) return DELETED_MEMBER;
     const member = this.byUserId.get(userId);
     if (member) return member;

@@ -6,7 +6,9 @@ import { UsersModule } from '../users/users.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
-import { KakaoClient } from './kakao.client.js';
+import { AuthProviders } from './providers/auth-providers.js';
+import { DevProvider } from './providers/dev.provider.js';
+import { KakaoProvider } from './providers/kakao.provider.js';
 
 @Module({
   imports: [
@@ -24,7 +26,7 @@ import { KakaoClient } from './kakao.client.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, KakaoClient, { provide: APP_GUARD, useClass: JwtAuthGuard }],
-  exports: [AuthService, KakaoClient, JwtModule],
+  providers: [AuthService, KakaoProvider, DevProvider, AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
+  exports: [AuthService, AuthProviders, JwtModule],
 })
 export class AuthModule {}

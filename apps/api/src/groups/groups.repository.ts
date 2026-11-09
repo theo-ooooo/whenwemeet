@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface GroupRow {
-  id: string;
+  id: number;
   type: 'PERSONAL' | 'TEAM';
   name: string;
   inviteCode: string | null;
@@ -11,7 +11,7 @@ export interface GroupRow {
 
 /** 초대 코드로 찾은 팀. 미리보기와 참여에 쓴다 */
 export interface InviteGroupRow {
-  id: string;
+  id: number;
   name: string;
   memberCount: number;
 }
@@ -19,21 +19,21 @@ export interface InviteGroupRow {
 export interface CreateTeamInput {
   name: string;
   inviteCode: string;
-  firstMember: { userId: string; color: string };
+  firstMember: { userId: number; color: string };
 }
 
 @Injectable()
 export class GroupsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findById(groupId: string): Promise<GroupRow | null> {
+  findById(groupId: number): Promise<GroupRow | null> {
     return this.prisma.group.findUnique({
       where: { id: groupId },
       select: { id: true, type: true, name: true, inviteCode: true, createdAt: true },
     });
   }
 
-  findType(groupId: string): Promise<{ type: 'PERSONAL' | 'TEAM' } | null> {
+  findType(groupId: number): Promise<{ type: 'PERSONAL' | 'TEAM' } | null> {
     return this.prisma.group.findUnique({ where: { id: groupId }, select: { type: true } });
   }
 
@@ -46,7 +46,7 @@ export class GroupsRepository {
   }
 
   /** TEAM 팀과 첫 멤버십을 함께 생성 (중첩 쓰기라 원자적). 초대 코드 충돌은 P2002 로 던져진다 */
-  createTeam(input: CreateTeamInput): Promise<{ id: string }> {
+  createTeam(input: CreateTeamInput): Promise<{ id: number }> {
     return this.prisma.group.create({
       data: {
         type: 'TEAM',
@@ -58,11 +58,11 @@ export class GroupsRepository {
     });
   }
 
-  async rename(groupId: string, name: string): Promise<void> {
+  async rename(groupId: number, name: string): Promise<void> {
     await this.prisma.group.update({ where: { id: groupId }, data: { name } });
   }
 
-  async setInviteCode(groupId: string, inviteCode: string): Promise<void> {
+  async setInviteCode(groupId: number, inviteCode: string): Promise<void> {
     await this.prisma.group.update({ where: { id: groupId }, data: { inviteCode } });
   }
 }

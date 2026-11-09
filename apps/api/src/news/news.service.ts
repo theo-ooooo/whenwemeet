@@ -9,9 +9,9 @@ export const NEWS_DAYS = 30;
 export const NEWS_LIMIT = 50;
 
 export interface NewsItem {
-  id: string;
+  id: number;
   action: 'CREATED' | 'UPDATED' | 'DELETED';
-  eventId: string | null;
+  eventId: number | null;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -30,7 +30,7 @@ export class NewsService {
   ) {}
 
   /** 내 변경 제외(탈퇴자 null 포함), 최근 30일, 최신순 50건. isNew = createdAt > me.lastSeenAt */
-  async list(userId: string, groupId: string, now: Date = new Date()): Promise<{ items: NewsItem[]; lastSeenAt: Date }> {
+  async list(userId: number, groupId: number, now: Date = new Date()): Promise<{ items: NewsItem[]; lastSeenAt: Date }> {
     const me = await this.memberships.assertMember(userId, groupId);
     const since = new Date(now.getTime() - NEWS_DAYS * 24 * 60 * 60 * 1000);
     const rows = await this.eventLogs.listRecentByOthers(groupId, userId, since, NEWS_LIMIT);
@@ -50,7 +50,7 @@ export class NewsService {
     return { items, lastSeenAt: me.lastSeenAt };
   }
 
-  async markSeen(userId: string, groupId: string, now: Date = new Date()): Promise<{ lastSeenAt: Date }> {
+  async markSeen(userId: number, groupId: number, now: Date = new Date()): Promise<{ lastSeenAt: Date }> {
     const me = await this.memberships.assertMember(userId, groupId);
     const updated = await this.membershipsRepo.markSeen(me.id, now);
     return { lastSeenAt: updated.lastSeenAt };

@@ -8,9 +8,9 @@ describe('핵심 흐름 (e2e)', () => {
   let app: TestApp;
   let alice: Session;
   let bob: Session;
-  let groupId: string;
+  let groupId: number;
   let inviteCode: string;
-  let eventId: string;
+  let eventId: number;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -34,10 +34,18 @@ describe('핵심 흐름 (e2e)', () => {
     expect(again.userId).toBe(alice.userId);
   });
 
-  it('GET /me 는 사용자 정보만 (kakaoId 비노출)', async () => {
+  it('GET /me 는 사용자 정보만 (연결 계정 비노출), id 는 숫자', async () => {
     const res = await api(app).get('/v1/me').set(auth(alice)).expect(200);
+    expect(Object.keys(res.body.data).sort()).toEqual(['createdAt', 'id', 'nickname', 'profileImageUrl']);
     expect(res.body.data).toMatchObject({ id: alice.userId, nickname: '앨리스', profileImageUrl: null });
-    expect(res.body.data).not.toHaveProperty('kakaoId');
+    expect(Number.isInteger(res.body.data.id)).toBe(true);
+  });
+
+  it('dev-login 은 AuthAccount(DEV, 닉네임) 하나로 연결된다', async () => {
+    const prisma = app.get(PrismaService);
+    const accounts = await prisma.authAccount.findMany({ where: { userId: alice.userId } });
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ provider: 'DEV', providerUserId: '앨리스', email: null, rawProfile: { nickname: '앨리스' } });
   });
 
   it('가입 시 PERSONAL 팀이 자동 생성돼 GET /groups 첫 번째로 온다', async () => {
@@ -61,6 +69,7 @@ describe('핵심 흐름 (e2e)', () => {
     expect(detail.inviteUrl).toBe(`http://localhost:3000/join/${detail.inviteCode}`);
     expect(detail.members).toHaveLength(1);
     expect(detail.me.userId).toBe(alice.userId);
+    expect(Number.isInteger(detail.id)).toBe(true);
     groupId = detail.id;
     inviteCode = detail.inviteCode;
   });
@@ -171,7 +180,7 @@ describe('핵심 흐름 (e2e)', () => {
       .set(auth(bob))
       .query({ from: '2026-12-01T11:00:00.000Z', to: '2026-12-02T00:00:00.000Z' })
       .expect(200);
-    expect(list.body.data.map((e: { id: string }) => e.id)).toEqual([eventId]);
+    expect(list.body.data.map((e: { id: number }) => e.id)).toEqual([eventId]);
 
     const outside = await api(app)
       .get(`/v1/groups/${groupId}/events`)
@@ -222,7 +231,7 @@ describe('핵심 흐름 (e2e)', () => {
     });
 
     const summary = await api(app).get('/v1/groups').set(auth(alice)).expect(200);
-    const team = summary.body.data.find((g: { id: string }) => g.id === groupId);
+    const team = summary.body.data.find((g: { id: number }) => g.id === groupId);
     expect(team.unreadNewsCount).toBe(1);
   });
 
@@ -235,7 +244,7 @@ describe('핵심 흐름 (e2e)', () => {
     expect(news.body.data.lastSeenAt).toBe(seen.body.data.lastSeenAt);
 
     const summary = await api(app).get('/v1/groups').set(auth(alice)).expect(200);
-    expect(summary.body.data.find((g: { id: string }) => g.id === groupId).unreadNewsCount).toBe(0);
+    expect(summary.body.data.find((g: { id: number }) => g.id === groupId).unreadNewsCount).toBe(0);
   });
 
   it('빈 시간: 다른 팀(개인 달력) 일정도 바쁨으로 치고, 종일은 토글로만', async () => {
@@ -371,6 +380,7 @@ describe('핵심 흐름 (e2e)', () => {
 
     const prisma = app.get(PrismaService);
     expect(await prisma.user.findUnique({ where: { id: carol.userId } })).toBeNull();
+    expect(await prisma.authAccount.count({ where: { providerUserId: '캐롤' } })).toBe(0);
     expect(await prisma.group.count({ where: { memberships: { none: {} } } })).toBe(0);
 
     const events = await api(app)
@@ -386,6 +396,24 @@ describe('핵심 흐름 (e2e)', () => {
     // 마지막 멤버가 탈퇴하면 팀도 삭제
     await api(app).delete('/v1/me').set(auth(dave)).expect(200);
     expect(await prisma.group.findUnique({ where: { id: team.body.data.id } })).toBeNull();
+  });
+
+  it('경로 ID 가 양의 정수가 아니면 400 VALIDATION_FAILED + details (권한 확인 전에)', async () => {
+    const res = await api(app).get('/v1/groups/abc').set(auth(alice)).expect(400);
+    expect(res.body).toEqual({
+      status: 400,
+      data: null,
+      message: 'groupId 은(는) 양의 정수여야 해요',
+      error: { code: 'VALIDATION_FAILED', details: [{ field: 'groupId', message: 'groupId 은(는) 양의 정수여야 해요' }] },
+    });
+    for (const path of ['/v1/groups/0', '/v1/groups/01', '/v1/groups/1e3', '/v1/groups/-1/events', '/v1/groups/1.5/news', '/v1/groups/clxyz/free-slots', '/v1/groups/2147483648']) {
+      const bad = await api(app).get(path).set(auth(alice)).expect(400);
+      expect(bad.body.error.details[0].field).toBe('groupId');
+    }
+    const badEvent = await api(app).patch('/v1/groups/1/events/x1').set(auth(alice)).send({}).expect(400);
+    expect(badEvent.body.error.details).toEqual([{ field: 'eventId', message: 'eventId 은(는) 양의 정수여야 해요' }]);
+    const badAnniversary = await api(app).delete('/v1/groups/1/anniversaries/01').set(auth(alice)).expect(400);
+    expect(badAnniversary.body.error.details[0].field).toBe('anniversaryId');
   });
 
   it('모르는 경로는 404 NOT_FOUND 봉투', async () => {

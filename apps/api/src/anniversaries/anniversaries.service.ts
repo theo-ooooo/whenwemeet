@@ -6,8 +6,8 @@ import { AnniversariesRepository, AnniversaryRow } from './anniversaries.reposit
 import type { CreateAnniversaryDto, UpdateAnniversaryDto } from './dto/anniversary.dto.js';
 
 export interface AnniversaryView {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   name: string;
   /** `YYYY-MM-DD` (KST 달력 날짜, 결정기록 D-17) */
   date: string;
@@ -42,21 +42,21 @@ export class AnniversariesService {
     private readonly memberships: MembershipService,
   ) {}
 
-  async list(userId: string, groupId: string): Promise<AnniversaryView[]> {
+  async list(userId: number, groupId: number): Promise<AnniversaryView[]> {
     await this.memberships.assertMember(userId, groupId);
     const rows = await this.anniversaries.listByGroup(groupId);
     const resolver = await this.memberships.resolverFor(groupId);
     return rows.map((row) => toAnniversaryView(row, resolver));
   }
 
-  async create(userId: string, groupId: string, dto: CreateAnniversaryDto): Promise<AnniversaryView> {
+  async create(userId: number, groupId: number, dto: CreateAnniversaryDto): Promise<AnniversaryView> {
     await this.memberships.assertMember(userId, groupId);
     const row = await this.anniversaries.create({ groupId, name: dto.name, date: dateStringToDb(dto.date), creatorId: userId });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);
   }
 
-  async update(userId: string, groupId: string, anniversaryId: string, dto: UpdateAnniversaryDto): Promise<AnniversaryView> {
+  async update(userId: number, groupId: number, anniversaryId: number, dto: UpdateAnniversaryDto): Promise<AnniversaryView> {
     await this.memberships.assertMember(userId, groupId);
     await this.assertInGroup(groupId, anniversaryId);
     const row = await this.anniversaries.update(anniversaryId, {
@@ -67,7 +67,7 @@ export class AnniversariesService {
     return toAnniversaryView(row, resolver);
   }
 
-  async remove(userId: string, groupId: string, anniversaryId: string): Promise<{ ok: true }> {
+  async remove(userId: number, groupId: number, anniversaryId: number): Promise<{ ok: true }> {
     await this.memberships.assertMember(userId, groupId);
     await this.assertInGroup(groupId, anniversaryId);
     await this.anniversaries.delete(anniversaryId);
@@ -75,7 +75,7 @@ export class AnniversariesService {
   }
 
   /** 다른 팀 자원을 가리키는 ID 도 NOT_FOUND */
-  private async assertInGroup(groupId: string, anniversaryId: string): Promise<void> {
+  private async assertInGroup(groupId: number, anniversaryId: number): Promise<void> {
     const row = await this.anniversaries.findIdInGroup(groupId, anniversaryId);
     if (!row) throw new ApiException('NOT_FOUND', '기념일을 찾을 수 없어요');
   }

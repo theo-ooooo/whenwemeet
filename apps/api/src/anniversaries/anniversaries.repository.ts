@@ -12,20 +12,20 @@ export const ANNIVERSARY_SELECT = {
 } as const;
 
 export interface AnniversaryRow {
-  id: string;
-  groupId: string;
+  id: number;
+  groupId: number;
   name: string;
   date: Date;
-  creatorId: string | null;
+  creatorId: number | null;
   createdAt: Date;
   creator: { nickname: string; profileImageUrl: string | null } | null;
 }
 
 export interface AnniversaryCreateInput {
-  groupId: string;
+  groupId: number;
   name: string;
   date: Date;
-  creatorId: string;
+  creatorId: number;
 }
 
 export interface AnniversaryUpdateInput {
@@ -38,7 +38,7 @@ export class AnniversariesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /** date 오름차순, 같은 날은 만든 순 */
-  listByGroup(groupId: string): Promise<AnniversaryRow[]> {
+  listByGroup(groupId: number): Promise<AnniversaryRow[]> {
     return this.prisma.anniversary.findMany({
       where: { groupId },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
@@ -47,7 +47,7 @@ export class AnniversariesRepository {
   }
 
   /** 다른 팀 자원을 가리키는 ID 는 null */
-  findIdInGroup(groupId: string, anniversaryId: string): Promise<{ id: string } | null> {
+  findIdInGroup(groupId: number, anniversaryId: number): Promise<{ id: number } | null> {
     return this.prisma.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true } });
   }
 
@@ -55,11 +55,11 @@ export class AnniversariesRepository {
     return this.prisma.anniversary.create({ data, select: ANNIVERSARY_SELECT });
   }
 
-  update(anniversaryId: string, data: AnniversaryUpdateInput): Promise<AnniversaryRow> {
+  update(anniversaryId: number, data: AnniversaryUpdateInput): Promise<AnniversaryRow> {
     return this.prisma.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT });
   }
 
-  async delete(anniversaryId: string): Promise<void> {
+  async delete(anniversaryId: number): Promise<void> {
     await this.prisma.anniversary.delete({ where: { id: anniversaryId } });
   }
 }
