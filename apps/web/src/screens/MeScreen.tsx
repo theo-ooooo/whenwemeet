@@ -1,58 +1,45 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Avatar, Button, ErrorState, Skeleton, inputClass } from "@/components/ui";
-import { ApiError, api, messageOf } from "@/lib/api";
+import { messageOf, useDeleteMe, useGroups, useMe } from "@/hooks";
 import { forgetGroup } from "@/lib/group-cookie";
-import type { GroupSummary, Me } from "@/lib/types";
 
 export function MeScreen() {
   const router = useRouter();
-  const [me, setMe] = useState<Me | null>(null);
-  const [groups, setGroups] = useState<GroupSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const meQ = useMe();
+  const groupsQ = useGroups();
+  const me = meQ.data;
+  const groups = groupsQ.data;
+  const failure = meQ.error ?? groupsQ.error;
+  const error = failure ? messageOf(failure, "내 정보를 불러오지 못했어요") : null;
   const [leaving, setLeaving] = useState(false);
   const [typed, setTyped] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // 성공 뒤 로그아웃 폼 제출로 이동하므로 이동 중 버튼을 로딩으로 둔다
+  const { mutate: deleteMe, isPending: deleting, error: deleteFailure } = useDeleteMe({ keepPendingAfterSuccess: true });
+  const deleteError = deleteFailure
+    ? deleteFailure.code === "KAKAO_ERROR"
+      ? "카카오 연결 해제에 실패했어요. 잠시 후 다시 시도해 주세요"
+      : messageOf(deleteFailure, "탈퇴하지 못했어요. 잠시 후 다시 시도해 주세요")
+    : null;
 
+  const refetchMe = meQ.refetch;
+  const refetchGroups = groupsQ.refetch;
   const load = useCallback(async () => {
-    try {
-      const [m, gs] = await Promise.all([api<Me>("/me"), api<GroupSummary[]>("/groups")]);
-      setError(null);
-      setMe(m);
-      setGroups(gs);
-    } catch (e) {
-      setError(messageOf(e, "내 정보를 불러오지 못했어요"));
-    }
-  }, []);
-
-  useEffect(() => {
-    // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
-    queueMicrotask(() => void load());
-  }, [load]);
+    await Promise.all([refetchMe(), refetchGroups()]);
+  }, [refetchMe, refetchGroups]);
 
   async function deleteAccount() {
-    setDeleting(true);
-    setDeleteError(null);
-    try {
-      await api("/me", { method: "DELETE" });
-      forgetGroup();
-      // 세션 쿠키는 httpOnly 라 로그아웃 라우트로 지운다
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = "/auth/logout";
-      document.body.appendChild(form);
-      form.submit();
-    } catch (e) {
-      const msg =
-        e instanceof ApiError && e.code === "KAKAO_ERROR"
-          ? "카카오 연결 해제에 실패했어요. 잠시 후 다시 시도해 주세요"
-          : messageOf(e, "탈퇴하지 못했어요. 잠시 후 다시 시도해 주세요");
-      setDeleteError(msg);
-      setDeleting(false);
-    }
+    const r = await deleteMe();
+    if (!r.ok) return;
+    forgetGroup();
+    // 세션 쿠키는 httpOnly 라 로그아웃 라우트로 지운다
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/auth/logout";
+    document.body.appendChild(form);
+    form.submit();
   }
 
   if (leaving) {

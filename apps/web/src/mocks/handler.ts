@@ -1,5 +1,6 @@
-// API_MOCK=1 메모리 API. api.md 의 봉투 { data } / { error: { code, message } } 와 상태 코드를 그대로 따른다.
+// API_MOCK=1 메모리 API. api.md 의 봉투와 상태 코드를 그대로 따른다. 응답은 전부 ok / err 를 거친다 (봉투 모양은 lib/envelope.ts).
 import { addDays, dateKeyOf, kstToIso } from "@/lib/date";
+import { errorBody, okBody } from "@/lib/envelope";
 import { MEMBER_COLORS } from "@/lib/types";
 import {
   buildStore,
@@ -27,10 +28,10 @@ function store(): Store {
   return g.__wwmMockStore;
 }
 
-const ok = (data: unknown, status = 200): MockResult => ({ status, body: { data } });
+const ok = (data: unknown, status = 200): MockResult => ({ status, body: okBody(data) });
 const err = (status: number, code: string, message: string): MockResult => ({
   status,
-  body: { error: { code, message } },
+  body: errorBody(code, message),
 });
 
 const nextId = (prefix: string) => `${prefix}_${(store().seq += 1)}`;
