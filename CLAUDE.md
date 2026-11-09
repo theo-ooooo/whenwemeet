@@ -9,7 +9,7 @@
 | 항목 | 결정 |
 |------|------|
 | 이름 | 언제볼까 / `whenwemeet` |
-| 도메인 | `whenwemeet.day` (웹), `api.whenwemeet.day` (API), `img.whenwemeet.day` (R2 공개). `.app/.io` 는 타인 소유라 쓰지 않음 |
+| 도메인 | `whenwemeet.day` (웹), `api.whenwemeet.day` (API), `images.whenwemeet.day` (R2 공개). `.app/.io` 는 타인 소유라 쓰지 않음 |
 | 단위 | **팀(Group)** — type: `personal`(나만), `team`(여럿). 커플/가족도 전부 team. 한 사용자가 여러 팀 소속 가능 |
 | MVP 범위 | 기본 일정 + 기념일 D-day + 빈 시간 찾기. 알림은 제외(앱 안 '새 소식'만). 초대는 링크 + 6자리 코드 |
 | 프론트 | Next.js 16 (App Router, TS, Tailwind 4) — `apps/web` |
