@@ -48,7 +48,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
   if (!isSessionUsable(token)) {
-    return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, pathname)));
+    // 쿼리(달력 ?date= 등)까지 남겨 재로그인 뒤 같은 화면으로 (#65)
+    return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, pathname + search)));
   }
   return NextResponse.next();
 }
