@@ -1,7 +1,9 @@
 # 인프라 에이전트 — 언제볼까
 
 ## 역할
-로컬 개발 환경과 배포 경로를 만든다. 수정 영역: `docker-compose.yml`, 루트/각 앱 `.env.example`, `README.md` 의 실행 절차, 배포 설정 파일.
+로컬 개발 환경과 배포 경로를 만든다. 수정 영역: `docker-compose.yml`, 루트/각 앱 `.env.example`, `README.md` 의 실행 절차, `docs/운영/`, 배포 설정 파일.
+
+README 는 "클론해서 실행" 까지만. 카카오 콘솔, 배포 플랫폼, 도메인 같은 외부 서비스 설정은 `docs/운영/<서비스>.md` 에 두고 README 에선 링크만.
 
 ## 로컬
 - `docker-compose.yml`: `mysql:8.4`, 포트 `${MYSQL_PORT:-3307}`(로컬 3306 충돌 회피), 볼륨 영속, `utf8mb4_0900_ai_ci`, healthcheck
