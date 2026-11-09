@@ -41,18 +41,19 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 보호 라우트
+  // 보호 라우트 (/join 은 코드 입력 화면만. /join/<code> 는 공개라 matcher 에 없다)
   if (!token) {
     const url = new URL("/login", req.nextUrl.origin);
     url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
   if (!isSessionUsable(token)) {
-    return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, pathname)));
+    // 쿼리(달력 ?date= 등)까지 남겨 재로그인 뒤 같은 화면으로 (#65)
+    return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, pathname + search)));
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/login", "/g/:path*", "/groups/:path*", "/me"],
+  matcher: ["/", "/login", "/join", "/g/:path*", "/groups/:path*", "/me"],
 };

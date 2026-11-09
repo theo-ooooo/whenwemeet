@@ -65,6 +65,10 @@ export function NewGroupScreen() {
           <Button type="submit" size="lg" full disabled={!valid} loading={loading}>
             만들기
           </Button>
+          {/* 이미 있는 팀에 들어갈 사람은 만들지 않고 코드로 합류 (#56) */}
+          <Link href="/join" className="mt-3 flex h-11 items-center justify-center rounded-full text-[14px] font-bold text-ink-2 hover:text-ink">
+            초대 코드를 받았나요? 코드로 합류하기
+          </Link>
         </div>
       </form>
     </main>

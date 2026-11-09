@@ -114,11 +114,13 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
   const weekFree = weekFreeQ.data ? upcoming(weekFreeQ.data.slots, 120).slice(0, 3) : null;
 
   // 선택 날짜를 URL 에 남긴다 (새로고침, 공유, + 버튼의 기준 날짜)
+  // state 는 null 로 넘긴다. Next 내부 state(__NA)를 그대로 넘기면 Next 가 내부 호출로 보고 useSearchParams 를 갱신하지 않아
+  // AppShell 의 + 버튼이 처음 연 날짜에 머문다 (#57). null 이면 Next 가 내부 state 를 복사해 붙이고 쿼리를 동기화한다
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("date") === selected) return;
     url.searchParams.set("date", selected);
-    window.history.replaceState(window.history.state, "", url);
+    window.history.replaceState(null, "", url);
   }, [selected]);
 
   // 날짜별 일정 (겹치는 모든 날에 넣는다). 여러 날 종일 → 종일 → 시각 순
