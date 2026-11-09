@@ -1,5 +1,36 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { AnniversariesModule } from './anniversaries/anniversaries.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { HttpExceptionFilter } from './common/http-exception.filter.js';
+import { ResponseInterceptor } from './common/response.interceptor.js';
+import { createValidationPipe } from './common/validation.js';
+import { EventsModule } from './events/events.module.js';
+import { FreeSlotsModule } from './free-slots/free-slots.module.js';
+import { GroupsModule } from './groups/groups.module.js';
+import { HealthController } from './health/health.controller.js';
+import { MeModule } from './me/me.module.js';
+import { NewsModule } from './news/news.module.js';
+import { PrismaModule } from './prisma/prisma.module.js';
 
-// 설계 승인 후 백엔드 에이전트가 모듈을 채운다 (agents/backend.md 참조)
-@Module({})
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuthModule,
+    GroupsModule,
+    EventsModule,
+    AnniversariesModule,
+    FreeSlotsModule,
+    NewsModule,
+    MeModule,
+  ],
+  controllers: [HealthController],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_PIPE, useFactory: createValidationPipe },
+  ],
+})
 export class AppModule {}
