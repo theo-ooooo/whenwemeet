@@ -6,15 +6,15 @@ import { Button } from "./ui";
 
 export function GroupGone() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col items-center justify-center px-5 pb-[env(safe-area-inset-bottom)] text-center">
-      <div role="alert" className="w-full rounded-lg bg-paper px-5 py-8">
-        <h1 className="text-[18px] font-bold leading-snug">이 팀에 더 이상 접근할 수 없어요</h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col items-center justify-center px-4 pb-[env(safe-area-inset-bottom)] text-center">
+      <div role="alert" className="w-full rounded-xl bg-paper px-6 py-9">
+        <h1 className="text-[24px] font-extrabold leading-snug tracking-[-0.04em]">이 팀에 더 이상 접근할 수 없어요</h1>
+        <p className="mt-2 text-[14px] font-semibold leading-relaxed text-soft">
           팀을 나갔거나 팀이 삭제됐을 수 있어요.
           <br />내 팀 목록에서 다른 달력을 열어 보세요
         </p>
         <Link href="/" className="mt-6 block">
-          <Button full tabIndex={-1}>
+          <Button size="lg" full tabIndex={-1}>
             내 팀 보기
           </Button>
         </Link>
