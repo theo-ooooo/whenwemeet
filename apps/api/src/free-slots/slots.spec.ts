@@ -22,6 +22,13 @@ describe('parseHHmm', () => {
     expect(parseHHmm('9:00')).toBeNull();
     expect(parseHHmm('09:60')).toBeNull();
   });
+
+  it('allowEndOfDay 면 24:00 만 1440 으로 받는다 (dayEnd 전용, #58)', () => {
+    expect(parseHHmm('24:00', true)).toBe(1440);
+    expect(parseHHmm('23:30', true)).toBe(1410);
+    expect(parseHHmm('24:30', true)).toBeNull();
+    expect(parseHHmm('25:00', true)).toBeNull();
+  });
 });
 
 describe('ceilToSlotStep', () => {
@@ -95,6 +102,12 @@ describe('buildDayWindows', () => {
     // 11/10 20:00Z = 11/11 KST 05:00. 창 00:00~08:00 KST → 11/11 KST 창은 11/10 15:00Z~23:00Z
     const windows = buildDayWindows(d('2026-11-10T20:00:00Z'), d('2026-11-10T23:30:00Z'), 0, 8 * 60);
     expect(plain(windows)).toEqual([['2026-11-10T20:00:00.000Z', '2026-11-10T23:00:00.000Z']]);
+  });
+
+  it('dayEnd 1440(24:00) 이면 창이 그날 KST 자정 끝까지 (#58)', () => {
+    // 11/10 KST 22:00 (13:00Z) ~ 11/11 KST 02:00 (17:00Z), 창 20:00~24:00 KST → 11/10 13:00Z~15:00Z
+    const windows = buildDayWindows(d('2026-11-10T13:00:00Z'), d('2026-11-10T17:00:00Z'), 20 * 60, 1440);
+    expect(plain(windows)).toEqual([['2026-11-10T13:00:00.000Z', '2026-11-10T15:00:00.000Z']]);
   });
 
   it('창이 범위 밖이면 비고, to <= from 이면 빈 배열', () => {

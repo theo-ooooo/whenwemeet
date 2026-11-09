@@ -4,7 +4,7 @@ import { Member, MemberResolver } from '../common/member.js';
 import { parseIsoDate } from '../common/validation.js';
 import { MembershipService } from '../groups/membership.service.js';
 import type { EventInputDto, EventPatchDto } from './dto/event.dto.js';
-import { EventRow, EventsRepository } from './events.repository.js';
+import { EventRow, EventsRepository, type EventUpdateInput } from './events.repository.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** 일정 길이 상한 (결정기록 D-15) */
@@ -46,6 +46,17 @@ export function parseRange(fromRaw: string, toRaw: string, maxDays: number): { f
     throw new ApiException('EVENT_RANGE_INVALID', `조회 범위는 최대 ${maxDays}일이에요`);
   }
   return { from, to };
+}
+
+/** 저장하려는 값이 현재 값과 모두 같은지. 시각은 같은 순간이면 같다 (`+09:00` 표기 차이 무시) */
+export function isUnchanged(current: EventUpdateInput, next: EventUpdateInput): boolean {
+  return (
+    current.title === next.title &&
+    current.startsAt.getTime() === next.startsAt.getTime() &&
+    current.endsAt.getTime() === next.endsAt.getTime() &&
+    current.allDay === next.allDay &&
+    current.memo === next.memo
+  );
 }
 
 export function toEventView(row: EventRow, resolver: MemberResolver): EventView {
@@ -100,24 +111,24 @@ export class EventsService {
     return toEventView(row, resolver);
   }
 
-  /** 부분 변경은 현재 값과 합쳐 검증한 뒤 UPDATED 로그와 함께 저장 */
+  /**
+   * 부분 변경은 현재 값과 합쳐 검증한 뒤 UPDATED 로그와 함께 저장.
+   * 합친 값이 현재 값과 같으면 저장도 로그도 하지 않고 현재 값을 돌려준다 (updatedAt 유지, 새 소식 없음, #62)
+   */
   async update(userId: number, groupId: number, eventId: number, dto: EventPatchDto): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     const startsAt = dto.startsAt !== undefined ? parseIsoDate(dto.startsAt, 'startsAt') : current.startsAt;
     const endsAt = dto.endsAt !== undefined ? parseIsoDate(dto.endsAt, 'endsAt') : current.endsAt;
     assertEventRange(startsAt, endsAt);
-    const row = await this.events.updateWithLogTx(
-      eventId,
-      {
-        title: dto.title ?? current.title,
-        startsAt,
-        endsAt,
-        allDay: dto.allDay ?? current.allDay,
-        memo: dto.memo !== undefined ? dto.memo : current.memo,
-      },
-      userId,
-    );
+    const next: EventUpdateInput = {
+      title: dto.title ?? current.title,
+      startsAt,
+      endsAt,
+      allDay: dto.allDay ?? current.allDay,
+      memo: dto.memo !== undefined ? dto.memo : current.memo,
+    };
+    const row = isUnchanged(current, next) ? current : await this.events.updateWithLogTx(eventId, next, userId);
     const resolver = await this.memberships.resolverFor(groupId);
     return toEventView(row, resolver);
   }

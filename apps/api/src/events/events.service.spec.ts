@@ -4,7 +4,7 @@ import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventsRepository } from './events.repository.js';
-import { assertEventRange, EventsService, parseRange } from './events.service.js';
+import { assertEventRange, EventsService, isUnchanged, parseRange } from './events.service.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
 const ROW = {
@@ -111,6 +111,26 @@ describe('EventsService', () => {
 
     events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.update(1, 10, 999, {})).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('update: 바뀐 필드가 없으면 저장도 UPDATED 로그도 없이 현재 값을 돌려준다 (#62)', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    for (const dto of [{}, { title: '회의', allDay: false, memo: null }, { startsAt: '2026-12-01T19:00:00+09:00', endsAt: '2026-12-01T12:00:00.000Z' }]) {
+      const result = await service.update(1, 10, 100, dto as never);
+      expect(result.updatedAt).toEqual(ROW.updatedAt);
+      expect(result.title).toBe('회의');
+    }
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+  });
+
+  it('isUnchanged: 필드 하나라도 다르면 false', () => {
+    const base = { title: 't', startsAt: new Date(0), endsAt: new Date(1000), allDay: false, memo: null };
+    expect(isUnchanged(base, { ...base, startsAt: new Date(0) })).toBe(true);
+    expect(isUnchanged(base, { ...base, title: 'u' })).toBe(false);
+    expect(isUnchanged(base, { ...base, startsAt: new Date(1) })).toBe(false);
+    expect(isUnchanged(base, { ...base, endsAt: new Date(999) })).toBe(false);
+    expect(isUnchanged(base, { ...base, allDay: true })).toBe(false);
+    expect(isUnchanged(base, { ...base, memo: '' })).toBe(false);
   });
 
   it('update: startsAt 만 바꾸면 나머지는 현재 값을 그대로 넘긴다', async () => {

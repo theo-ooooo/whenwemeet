@@ -1,5 +1,5 @@
 import { IsOptional, IsString, Length, Matches, Validate, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
-import { isCalendarDate } from '../../common/validation.js';
+import { isCalendarDate, Trim } from '../../common/validation.js';
 
 @ValidatorConstraint({ name: 'calendarDate', async: false })
 export class CalendarDateConstraint implements ValidatorConstraintInterface {
@@ -13,6 +13,7 @@ export class CalendarDateConstraint implements ValidatorConstraintInterface {
 }
 
 export class CreateAnniversaryDto {
+  @Trim()
   @IsString({ message: '기념일 이름은 문자열이어야 해요' })
   @Length(1, 30, { message: '기념일 이름은 1~30자여야 해요' })
   name!: string;
@@ -24,6 +25,7 @@ export class CreateAnniversaryDto {
 
 export class UpdateAnniversaryDto {
   @IsOptional()
+  @Trim()
   @IsString({ message: '기념일 이름은 문자열이어야 해요' })
   @Length(1, 30, { message: '기념일 이름은 1~30자여야 해요' })
   name?: string;

@@ -30,8 +30,15 @@ export function clampFromToNow(from: Date, now: Date): Date {
   return from.getTime() < now.getTime() ? ceilToSlotStep(now) : from;
 }
 
-/** `HH:mm` → 자정 기준 분. 형식이 틀리면 null */
-export function parseHHmm(value: string): number | null {
+/** 하루 끝 (`24:00`) 의 분 값 */
+export const END_OF_DAY_MINUTES = 24 * 60;
+
+/**
+ * `HH:mm` → 자정 기준 분. 형식이 틀리면 null.
+ * allowEndOfDay 면 `24:00` 을 1440(그날 자정 끝 = 다음 날 00:00) 으로 받는다. dayEnd 전용 (#58)
+ */
+export function parseHHmm(value: string, allowEndOfDay = false): number | null {
+  if (allowEndOfDay && value === '24:00') return END_OF_DAY_MINUTES;
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
   if (!match) return null;
   return Number(match[1]) * 60 + Number(match[2]);

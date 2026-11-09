@@ -12,16 +12,17 @@
 | 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록 |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
-| 날짜시각 | ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
+| 날짜시각 | 응답은 ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 입력(본문 `startsAt`/`endsAt`, 쿼리 `from`/`to`)은 날짜, 시각, 오프셋(`Z` 또는 `±HH:mm`)이 모두 있어야 하며 없으면 400 VALIDATION_FAILED (D-40). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
 | ID | 모든 모델 `Int` 자동증가. JSON 에서는 숫자. 경로 파라미터는 양의 정수만 허용(아니면 400 VALIDATION_FAILED) |
 | 검증 | class-validator. 실패 시 400 VALIDATION_FAILED, message 는 첫 번째 위반 항목 |
+| 문자열 공백 | 이름/제목 문자열(팀 `name`, 일정 `title`, 기념일 `name`, `displayName`, `nickname`) 은 앞뒤 공백을 잘라 검증하고 잘린 값을 저장한다. 공백만이면 길이 0 이라 400 VALIDATION_FAILED. 길이 제한도 잘린 값 기준 |
 | 표시 이름 | 응답의 사람 정보는 항상 `{ userId, displayName, color, profileImageUrl }` 형태의 `member` 객체. displayName = `Membership.displayName ?? User.nickname`. 탈퇴자는 `{ userId: null, displayName: "탈퇴한 멤버", color: "#9CA3AF", profileImageUrl: null }` |
 
 ### 오류 코드
 
 | code | HTTP | 언제 |
 |------|------|------|
-| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값 |
+| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값, 본문이 JSON 이 아님(message "요청 형식이 올바르지 않아요" 고정) |
 | EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과 |
 | GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청 |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
@@ -29,6 +30,7 @@
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
 | NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
+| PAYLOAD_TOO_LARGE | 413 | JSON 본문이 100KB 초과 (express 기본 한도). message "요청 내용이 너무 커요". 아바타 파일 크기 초과는 해당 없음(400 VALIDATION_FAILED) |
 | KAKAO_ERROR | 502 | 카카오 토큰 교환/사용자 조회/unlink 실패 |
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
@@ -99,7 +101,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` startsAt 오름차순 |
 | POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` + EventLog CREATED |
 | GET | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: Event }` |
-| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED |
+| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
 
 ```ts
@@ -137,7 +139,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 | 쿼리 | 기본 | 제약 |
 |------|------|------|
 | `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각을 **다음 30분 경계로 올려** 잘라서 계산 (14:37 → 15:00, 14:00 은 그대로. 결정기록 D-30) |
-| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart < dayEnd` |
+| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart` 는 `00:00`~`23:59`, `dayEnd` 는 `00:00`~`24:00` (`24:00` 은 그날 자정 끝 = 다음 날 00:00). `dayStart < dayEnd` |
 | `minMinutes` | `120` | 30~720 |
 | `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
 

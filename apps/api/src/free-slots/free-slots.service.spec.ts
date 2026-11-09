@@ -85,6 +85,18 @@ describe('FreeSlotsService', () => {
     expect(events.listBusyRanges).not.toHaveBeenCalled();
   });
 
+  it('dayEnd=24:00 이면 그날 KST 자정까지 빈 시간을 낸다 (#58)', async () => {
+    const result = await service.find(1, 10, query({ dayEnd: '24:00' }), now);
+    // 11/10 KST 09:00~24:00 = 00:00Z~15:00Z 에서 바쁨 01:00Z~03:00Z 를 빼고 120분 미만(00:00Z~01:00Z) 은 버림
+    expect(result.slots.map((s) => [s.startsAt.toISOString(), s.endsAt.toISOString()])).toEqual([
+      ['2026-11-10T03:00:00.000Z', '2026-11-10T15:00:00.000Z'],
+    ]);
+  });
+
+  it('dayStart 에는 24:00 을 받지 않는다 (dayStart < dayEnd 유지, #58)', async () => {
+    await expect(service.find(1, 10, query({ dayStart: '24:00', dayEnd: '24:00' }), now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
   it('31일 초과 / to <= from → EVENT_RANGE_INVALID, dayStart >= dayEnd → VALIDATION_FAILED', async () => {
     await expect(service.find(1, 10, query({ to: '2026-12-12T00:00:00.000Z' }), now)).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });
     await expect(service.find(1, 10, query({ to: '2026-11-10T00:00:00.000Z' }), now)).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });

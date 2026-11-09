@@ -18,7 +18,8 @@ export function applyTestEnv(): string {
   process.env.KAKAO_CLIENT_SECRET = 'e2e-kakao-client-secret';
   process.env.KAKAO_ADMIN_KEY = 'e2e-kakao-admin-key';
   process.env.KAKAO_REDIRECT_URI = 'http://localhost:4000/v1/auth/kakao/callback';
-  // 실제 R2 로 올라가지 않도록 저장소는 항상 미설정. 업로드 검증은 MemoryStorage 를 주입한다
-  for (const key of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL']) delete process.env[key];
+  // 실제 R2 로 올라가지 않도록 저장소는 항상 미설정. 업로드 검증은 MemoryStorage 를 주입한다.
+  // delete 하면 ConfigModule 이 로컬 .env 의 R2 키를 다시 채우므로 빈 문자열로 덮는다 (dotenv 는 이미 있는 변수를 덮지 않음)
+  for (const key of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL']) process.env[key] = '';
   return url;
 }
