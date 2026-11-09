@@ -15,7 +15,7 @@ async function handle(req: NextRequest, ctx: Ctx) {
   // 초대 미리보기만 비로그인 허용. 그 외는 API 를 부르지 않고 바로 401
   const isPublic = req.method === "GET" && path[0] === "invites";
   if (!token && !isPublic) {
-    return NextResponse.json(errorBody("UNAUTHORIZED", "로그인이 필요해요"), { status: 401 });
+    return NextResponse.json(errorBody(401, "UNAUTHORIZED", "로그인이 필요해요"), { status: 401 });
   }
 
   const body = req.method === "GET" || req.method === "HEAD" ? null : await req.text();

@@ -1,10 +1,16 @@
 // 훅이 화면에 돌려주는 오류 모양. 화면은 lib/api 의 ApiError 클래스를 모르고 이 평범한 객체만 본다
 import { ApiError } from "@/lib/api";
+import type { ApiErrorDetail } from "@/lib/envelope";
 
-export type ApiFailure = { status: number; code: string; message: string };
+// details: 검증 실패(400 VALIDATION_FAILED) 시 필드별 위반 목록. 없으면 키가 없다
+export type ApiFailure = { status: number; code: string; message: string; details?: ApiErrorDetail[] };
 
 export function toFailure(e: unknown): ApiFailure {
-  if (e instanceof ApiError) return { status: e.status, code: e.code, message: e.message };
+  if (e instanceof ApiError) {
+    const f: ApiFailure = { status: e.status, code: e.code, message: e.message };
+    if (e.details) f.details = e.details;
+    return f;
+  }
   return { status: 0, code: "INTERNAL", message: "" };
 }
 
