@@ -11,7 +11,7 @@ export interface ProviderProfile {
   providerUserId: string;
   /** 가입 시 User.nickname 초기값. 이후 로그인에서는 쓰지 않는다 (D-36) */
   nickname: string;
-  /** 가입 시 User.profileImageUrl 초기값 */
+  /** 소셜 프로필 사진 원본 주소. 가입 시 R2 로 복사한다 (D-37). 이후 로그인에서는 쓰지 않는다 */
   profileImageUrl: string | null;
   email?: string | null;
   raw: RawProfile;

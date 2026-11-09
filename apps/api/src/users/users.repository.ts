@@ -3,7 +3,8 @@ import type { AuthProvider, RawProfile } from '../auth/providers/auth-provider.j
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-export const USER_SELECT = { id: true, nickname: true, profileImageUrl: true, createdAt: true } as const;
+/** 사진은 File.publicUrl 에서 읽는다 (결정기록 D-38). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
+export const USER_SELECT = { id: true, nickname: true, avatar: { select: { publicUrl: true } }, createdAt: true } as const;
 
 /** 응답과 request.user 에 쓰는 사용자 요약 */
 export interface UserSummary {
@@ -13,14 +14,24 @@ export interface UserSummary {
   createdAt: Date;
 }
 
-/** 가입 시 만들 사용자와 연결 계정 */
+interface UserRecord {
+  id: number;
+  nickname: string;
+  avatar: { publicUrl: string } | null;
+  createdAt: Date;
+}
+
+function toUserSummary(record: UserRecord): UserSummary {
+  return { id: record.id, nickname: record.nickname, profileImageUrl: record.avatar?.publicUrl ?? null, createdAt: record.createdAt };
+}
+
+/** 가입 시 만들 사용자와 연결 계정. 소셜 프로필 사진은 가입 뒤 R2 로 따로 복사한다 (AvatarsService.importFromUrl) */
 export interface NewAccountInput {
   provider: AuthProvider;
   providerUserId: string;
   email: string | null;
   rawProfile: RawProfile;
   nickname: string;
-  profileImageUrl: string | null;
 }
 
 /** 탈퇴 시 제공자별 unlink 대상 */
@@ -44,8 +55,14 @@ export class UsersRepository {
     private readonly memberships: MembershipsRepository,
   ) {}
 
-  findById(id: number): Promise<UserSummary | null> {
-    return this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
+  async findById(id: number): Promise<UserSummary | null> {
+    const record = await this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
+    return record && toUserSummary(record);
+  }
+
+  /** 닉네임 변경 (D-36). 우리 서비스 값이라 소셜 프로필과 독립 */
+  async updateNickname(id: number, nickname: string): Promise<UserSummary> {
+    return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }));
   }
 
   /** (provider, providerUserId) 로 연결 계정 하나 */
@@ -63,7 +80,7 @@ export class UsersRepository {
       data: { rawProfile },
       select: { user: { select: USER_SELECT } },
     });
-    return account.user;
+    return toUserSummary(account.user);
   }
 
   listAuthAccounts(userId: number): Promise<AuthAccountRef[]> {
@@ -80,7 +97,6 @@ export class UsersRepository {
       const user = await tx.user.create({
         data: {
           nickname: input.nickname,
-          profileImageUrl: input.profileImageUrl,
           authAccounts: {
             create: {
               provider: input.provider,
@@ -100,11 +116,14 @@ export class UsersRepository {
           memberships: { create: { userId: user.id, color: personalGroup.color } },
         },
       });
-      return user;
+      return toUserSummary(user);
     });
   }
 
-  /** 팀 삭제 → 멤버십마다 나가기 → 연결 계정 삭제 → User 삭제 (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로 */
+  /**
+   * 팀 삭제 → 멤버십마다 나가기 → 파일 행 삭제 → 연결 계정 삭제 → User 삭제 (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로.
+   * 파일 객체는 Service 가 이 호출 전에 저장소에서 지운다
+   */
   async deleteAccountTx(userId: number, plan: AccountCleanupPlan): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const groupId of plan.deleteGroupIds) {
@@ -113,6 +132,7 @@ export class UsersRepository {
       for (const { membershipId, groupId } of plan.leave) {
         await this.memberships.removeWithGroupPrune(tx, membershipId, groupId);
       }
+      await tx.file.deleteMany({ where: { ownerId: userId } });
       await tx.authAccount.deleteMany({ where: { userId } });
       await tx.user.delete({ where: { id: userId } });
     });

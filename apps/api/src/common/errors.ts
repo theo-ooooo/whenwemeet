@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -13,6 +13,7 @@ export const ERROR_STATUS = {
   INTERNAL: 500,
   KAKAO_ERROR: 502,
   KAKAO_NOT_CONFIGURED: 503,
+  STORAGE_NOT_CONFIGURED: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;
@@ -30,6 +31,7 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   INTERNAL: '잠시 후 다시 시도해 주세요',
   KAKAO_ERROR: '카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
   KAKAO_NOT_CONFIGURED: '카카오 로그인이 설정되지 않았어요',
+  STORAGE_NOT_CONFIGURED: '사진 업로드를 지금 사용할 수 없어요',
 };
 
 /** 검증 실패 시 필드별 위반 항목 (api.md 1장 `error.details`) */

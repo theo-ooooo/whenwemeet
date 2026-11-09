@@ -6,10 +6,12 @@ describe('AuthService', () => {
   let users: RepositoryMock<UsersRepository>;
   let service: AuthService;
   const jwt = { signAsync: vi.fn(async (payload: { sub: string }) => `jwt-for-${payload.sub}`) };
+  const avatars = { importFromUrl: vi.fn() };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);
-    service = new AuthService(users as never, jwt as never);
+    avatars.importFromUrl.mockReset().mockResolvedValue(null);
+    service = new AuthService(users as never, jwt as never, avatars as never);
   });
 
   it('sanitizeNext 는 / 로 시작하는 경로만 허용', () => {
@@ -49,12 +51,15 @@ describe('AuthService', () => {
     expect(users.findAuthAccount).toHaveBeenCalledWith('KAKAO', '123456789012');
     expect(users.updateRawProfile).toHaveBeenCalledWith(7, kakaoProfile.raw);
     expect(users.createWithAccountTx).not.toHaveBeenCalled();
+    expect(avatars.importFromUrl).not.toHaveBeenCalled();
   });
 
   it('login: 신규면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로', async () => {
     users.findAuthAccount.mockResolvedValue(null);
-    users.createWithAccountTx.mockResolvedValue({ id: 2, nickname: '카카오닉', profileImageUrl: 'https://img', createdAt: new Date() });
-    expect((await service.login('KAKAO', kakaoProfile)).id).toBe(2);
+    users.createWithAccountTx.mockResolvedValue({ id: 2, nickname: '카카오닉', profileImageUrl: null, createdAt: new Date() });
+    avatars.importFromUrl.mockResolvedValue('https://pub.example/avatars/2/a.webp');
+    expect(await service.login('KAKAO', kakaoProfile)).toMatchObject({ id: 2, profileImageUrl: 'https://pub.example/avatars/2/a.webp' });
+    expect(avatars.importFromUrl).toHaveBeenCalledWith(2, 'https://img');
     expect(users.updateRawProfile).not.toHaveBeenCalled();
     expect(users.createWithAccountTx).toHaveBeenCalledWith(
       {
@@ -63,7 +68,6 @@ describe('AuthService', () => {
         email: null,
         rawProfile: kakaoProfile.raw,
         nickname: '카카오닉',
-        profileImageUrl: 'https://img',
       },
       { name: PERSONAL_GROUP_NAME, color: '#F26D6D' },
     );
@@ -72,7 +76,8 @@ describe('AuthService', () => {
   it('login: 제공자가 이메일을 주면 AuthAccount 에 같이 저장', async () => {
     users.findAuthAccount.mockResolvedValue(null);
     users.createWithAccountTx.mockResolvedValue({ id: 3, nickname: 'g', profileImageUrl: null, createdAt: new Date() });
-    await service.login('GOOGLE', { providerUserId: 'sub-1', nickname: 'g', profileImageUrl: null, email: 'g@example.com', raw: {} });
+    // 사진 복사가 실패(null) 하면 사진 없이 가입
+    expect((await service.login('GOOGLE', { providerUserId: 'sub-1', nickname: 'g', profileImageUrl: null, email: 'g@example.com', raw: {} })).profileImageUrl).toBeNull();
     expect(users.createWithAccountTx.mock.calls[0][0]).toMatchObject({ provider: 'GOOGLE', email: 'g@example.com' });
   });
 

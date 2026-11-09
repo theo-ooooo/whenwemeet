@@ -18,12 +18,17 @@ async function handle(req: NextRequest, ctx: Ctx) {
     return NextResponse.json(errorBody(401, "UNAUTHORIZED", "로그인이 필요해요"), { status: 401 });
   }
 
-  const body = req.method === "GET" || req.method === "HEAD" ? null : await req.text();
+  // 사진 업로드(multipart) 는 바이트와 Content-Type(boundary) 을 그대로 넘긴다. 그 외 본문은 JSON 문자열
+  const contentType = req.headers.get("content-type");
+  const multipart = contentType?.toLowerCase().startsWith("multipart/form-data") ?? false;
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const body = !hasBody ? null : multipart ? await req.arrayBuffer() : await req.text();
   const result = await upstream({
     method: req.method,
     path: pathname,
     search: req.nextUrl.search,
     body: body || null,
+    contentType: multipart ? contentType : null,
     token,
   });
 

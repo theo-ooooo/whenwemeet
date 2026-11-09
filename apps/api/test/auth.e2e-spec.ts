@@ -85,8 +85,9 @@ describe('카카오 OAuth (e2e)', () => {
     const cleared = (res.headers['set-cookie'] as unknown as string[]).find((c) => c.startsWith('wwm_oauth_state='));
     expect(cleared).toMatch(/Expires=Thu, 01 Jan 1970/);
 
+    // 저장소(R2) 미설정이면 소셜 사진은 복사하지 않고 사진 없이 가입 (복사 경로는 profile.e2e-spec)
     const me = await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200);
-    expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: 'https://img.example/p.png' });
+    expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: null });
     expect(Number.isInteger(me.body.data.id)).toBe(true);
 
     // 카카오 회원번호는 AuthAccount(KAKAO) 에 문자열로
@@ -117,7 +118,7 @@ describe('카카오 OAuth (e2e)', () => {
     const res = await api(app).get('/v1/auth/kakao/callback').set('Cookie', cookie).query({ code: 'c', state }).expect(302);
     const token = new URL(res.headers.location).searchParams.get('token')!;
     const me = await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200);
-    expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: 'https://img.example/p.png' });
+    expect(me.body.data).toMatchObject({ nickname: '카카오유저', profileImageUrl: null });
 
     const prisma = app.get(PrismaService);
     expect(await prisma.user.count()).toBe(1);

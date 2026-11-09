@@ -211,10 +211,35 @@ export function mockHandle(ctx: Ctx): MockResult {
     if (method === "GET") {
       return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt });
     }
+    if (method === "PATCH") {
+      const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
+      if (nickname.length < 1 || nickname.length > 20) {
+        return err(400, "VALIDATION_FAILED", "닉네임은 1~20자여야 해요");
+      }
+      u.nickname = nickname;
+      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt });
+    }
     if (method === "DELETE") {
       // 목에서는 탈퇴 처리 대신 성공만 돌려주고 상태는 초기화한다
       g.__wwmMockStore = buildStore();
       return ok({ ok: true });
+    }
+  }
+
+  // /me/avatar (api.md 2.1). 목은 업로드한 바이트를 data URL 로 들고 있는다
+  if (seg[0] === "me" && seg[1] === "avatar" && seg.length === 2) {
+    const u = s.users.find((x) => x.id === userId)!;
+    if (method === "POST") {
+      const file = body?.file as { type: string; size: number; dataUrl: string } | undefined;
+      if (!file || !/^image\/(jpeg|png|webp|heic)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+        return err(400, "VALIDATION_FAILED", "jpg, png, webp 10MB 까지 올릴 수 있어요");
+      }
+      u.profileImageUrl = file.dataUrl;
+      return ok({ profileImageUrl: u.profileImageUrl });
+    }
+    if (method === "DELETE") {
+      u.profileImageUrl = null;
+      return ok({ profileImageUrl: null });
     }
   }
 

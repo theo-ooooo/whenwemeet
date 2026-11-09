@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { MembershipRow } from '../common/member.js';
+import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecord } from '../common/member.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 
 export const MEMBERSHIP_WITH_USER = {
@@ -11,11 +11,16 @@ export const MEMBERSHIP_WITH_USER = {
     displayName: true,
     lastSeenAt: true,
     joinedAt: true,
-    user: { select: { nickname: true, profileImageUrl: true } },
+    user: USER_PUBLIC_SELECT,
   },
 } as const;
 
 export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date };
+
+/** user 를 USER_PUBLIC_SELECT 모양으로 읽은 멤버십 행 → 응답용 `{ nickname, profileImageUrl }` */
+function withUserRow<T extends { user: UserPublicRecord }>(row: T): Omit<T, 'user'> & { user: MembershipRow['user'] } {
+  return { ...row, user: toUserRow(row.user) };
+}
 
 /** 팀 목록 화면용 한 행. 내 멤버십 + 팀 요약 */
 export interface MembershipGroupRow {
@@ -42,13 +47,15 @@ export interface MembershipMeInput {
 export class MembershipsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
-    return this.prisma.membership.findUnique({ where: { userId_groupId: { userId, groupId } }, ...MEMBERSHIP_WITH_USER });
+  async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
+    const row = await this.prisma.membership.findUnique({ where: { userId_groupId: { userId, groupId } }, ...MEMBERSHIP_WITH_USER });
+    return row && withUserRow(row);
   }
 
   /** joinedAt 오름차순 */
-  listByGroup(groupId: number): Promise<MembershipWithUser[]> {
-    return this.prisma.membership.findMany({ where: { groupId }, orderBy: { joinedAt: 'asc' }, ...MEMBERSHIP_WITH_USER });
+  async listByGroup(groupId: number): Promise<MembershipWithUser[]> {
+    const rows = await this.prisma.membership.findMany({ where: { groupId }, orderBy: { joinedAt: 'asc' }, ...MEMBERSHIP_WITH_USER });
+    return rows.map(withUserRow);
   }
 
   /** 내가 속한 팀 전부, joinedAt 오름차순 */
@@ -89,8 +96,8 @@ export class MembershipsRepository {
     return rows.map((row) => row.groupId);
   }
 
-  updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow> {
-    return this.prisma.membership.update({
+  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow> {
+    const row = await this.prisma.membership.update({
       where: { id: membershipId },
       data,
       select: {
@@ -98,9 +105,10 @@ export class MembershipsRepository {
         color: true,
         displayName: true,
         joinedAt: true,
-        user: { select: { nickname: true, profileImageUrl: true } },
+        user: USER_PUBLIC_SELECT,
       },
     });
+    return withUserRow(row);
   }
 
   markSeen(membershipId: number, at: Date): Promise<{ lastSeenAt: Date }> {
