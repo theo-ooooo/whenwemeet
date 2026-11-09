@@ -5,7 +5,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { IconClose } from "./icons";
-import { TimePicker } from "./pickers";
+import { TimeList, TimePicker } from "./pickers";
 import { minutesOf, timeOfMinutes } from "./pickers/time";
 import { Button, Toggle, inputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
@@ -33,6 +33,8 @@ function useDialogKeys(ref: React.RefObject<HTMLElement | null>, onClose: () => 
   const [prev] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 안쪽(펼친 시각 목록 등)이 Esc 를 먼저 처리했으면 창은 닫지 않는다
+      if (e.defaultPrevented) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onClose();
@@ -70,6 +72,12 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
   const [allDay, setAllDay] = useState(false);
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("11:00");
+  const [timeOpen, setTimeOpen] = useState<"start" | "end" | null>(null);
+  // 펼친 시각 목록을 닫으면 포커스를 그 시각 버튼으로 돌린다
+  function closeTime() {
+    if (timeOpen) document.getElementById(`${ids}-${timeOpen}`)?.focus({ preventScroll: true });
+    setTimeOpen(null);
+  }
   const [touched, setTouched] = useState(false);
   const create = useCreateEvent(groupId);
 
@@ -160,7 +168,15 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">
                 시작
               </span>
-              <TimePicker id={`${ids}-start`} label="시작 시각" value={start} onChange={changeStart} to={23 * 60 + 30} />
+              <TimePicker
+                id={`${ids}-start`}
+                label="시작 시각"
+                value={start}
+                onChange={changeStart}
+                to={23 * 60 + 30}
+                inlineOpen={timeOpen === "start"}
+                onInlineToggle={() => setTimeOpen((o) => (o === "start" ? null : "start"))}
+              />
             </div>
             <div>
               <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">종료</span>
@@ -170,10 +186,29 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
                 value={end}
                 onChange={changeEnd}
                 allow24
+                inlineOpen={timeOpen === "end"}
+                onInlineToggle={() => setTimeOpen((o) => (o === "end" ? null : "end"))}
                 aria-invalid={Boolean(rangeError)}
                 aria-describedby={rangeError ? `${ids}-range-err` : undefined}
               />
             </div>
+          </div>
+        )}
+        {!allDay && timeOpen && (
+          <div className="mt-2 rounded-md border border-line p-2">
+            <TimeList
+              key={timeOpen}
+              value={timeOpen === "start" ? start : end}
+              to={timeOpen === "start" ? 23 * 60 + 30 : undefined}
+              allow24={timeOpen === "end"}
+              listClassName="max-h-[200px]"
+              onPick={(v) => {
+                if (timeOpen === "start") changeStart(v);
+                else changeEnd(v);
+                closeTime();
+              }}
+              onClose={closeTime}
+            />
           </div>
         )}
       </div>

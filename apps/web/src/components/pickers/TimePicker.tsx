@@ -3,6 +3,8 @@
 // 30분 단위 목록(열면 현재 값이 가운데) + 위 칸에서 직접 입력(HH:mm, 1430, 9:05 등).
 // 표기는 "오후 2:30" 과 24시간 "14:30" 을 같이. allow24 면 마지막에 24:00(자정) 을 둔다 (빈 시간 찾기 종료, #58).
 // 키보드: 목록에서 위/아래 이동, Home/End, Enter 선택, Esc 닫기. 입력 칸에서 Enter 로 적용, 아래 방향키로 목록 진입
+// 펼침 모드: onInlineToggle 을 주면 팝오버를 띄우지 않고 버튼만 그린다. 목록(TimeList)은 부모가 원하는 자리에 펼친다
+// (빠른 추가 팝오버 안에서 팝오버가 또 겹치지 않게)
 import { useEffect, useId, useRef, useState } from "react";
 import { PickerShell, triggerClass } from "./PickerShell";
 import { formatTimeKo, minutesOf, parseTimeInput, timeOfMinutes } from "./time";
@@ -22,10 +24,30 @@ type Props = {
   className?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
+  /** 펼침 모드에서 목록이 열려 있는지 */
+  inlineOpen?: boolean;
+  /** 주면 펼침 모드. 버튼을 누르면 이걸 부르고 팝오버는 띄우지 않는다 */
+  onInlineToggle?: () => void;
 };
 
-export function TimePicker({ value, onChange, label, id, from = 0, to, allow24 = false, step = 30, className = "", ...rest }: Props) {
-  const [open, setOpen] = useState(false);
+export function TimePicker({
+  value,
+  onChange,
+  label,
+  id,
+  from = 0,
+  to,
+  allow24 = false,
+  step = 30,
+  className = "",
+  inlineOpen = false,
+  onInlineToggle,
+  ...rest
+}: Props) {
+  const [popOpen, setPopOpen] = useState(false);
+  const inline = Boolean(onInlineToggle);
+  const open = inline ? inlineOpen : popOpen;
+  const setOpen = setPopOpen;
   const btn = useRef<HTMLButtonElement>(null);
   const last = to ?? (allow24 ? 24 * 60 : 24 * 60 - step);
   return (
@@ -34,16 +56,17 @@ export function TimePicker({ value, onChange, label, id, from = 0, to, allow24 =
         ref={btn}
         id={id}
         type="button"
-        aria-haspopup="dialog"
+        aria-haspopup={inline ? "listbox" : "dialog"}
         aria-expanded={open}
         aria-label={`${label}, ${value ? formatTimeKo(value) : "선택 안 함"}`}
         aria-describedby={rest["aria-describedby"]}
-        onClick={() => setOpen((v) => !v)}
-        className={`${triggerClass} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${className}`}
+        onClick={() => (onInlineToggle ? onInlineToggle() : setOpen((v) => !v))}
+        className={`${triggerClass} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${open && inline ? "outline-2 outline-ink" : ""} ${className}`}
       >
         <span className="truncate">{value ? formatTimeKo(value) : "시각 선택"}</span>
         {value && <span className="shrink-0 text-[12px] font-semibold text-ink-2">{value}</span>}
       </button>
+      {!inline && (
       <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={248}>
         <TimeList
           value={value}
@@ -57,25 +80,32 @@ export function TimePicker({ value, onChange, label, id, from = 0, to, allow24 =
           }}
         />
       </PickerShell>
+      )}
     </>
   );
 }
 
-function TimeList({
+export function TimeList({
   value,
-  from,
-  to,
-  step,
-  allow24,
+  from = 0,
+  to: toProp,
+  step = 30,
+  allow24 = false,
   onPick,
+  onClose,
+  listClassName = "max-h-[264px]",
 }: {
   value: string;
-  from: number;
-  to: number;
-  step: number;
-  allow24: boolean;
+  from?: number;
+  to?: number;
+  step?: number;
+  allow24?: boolean;
   onPick: (v: string) => void;
+  /** 펼침 모드에서 Esc 로 닫기. 주면 Esc 가 바깥(팝오버)까지 닫지 않게 막는다 */
+  onClose?: () => void;
+  listClassName?: string;
 }) {
+  const to = toProp ?? (allow24 ? 24 * 60 : 24 * 60 - step);
   const options: string[] = [];
   for (let m = from; m <= to; m += step) options.push(timeOfMinutes(m));
   const cur = minutesOf(value);
@@ -92,15 +122,20 @@ function TimeList({
 
   // 열 때 현재 값을 목록 가운데로, 포커스는 목록에
   useEffect(() => {
-    const el = list.current?.querySelector<HTMLElement>(`[data-i="${initial}"]`);
-    el?.scrollIntoView({ block: "center" });
+    const ul = list.current;
+    const el = ul?.querySelector<HTMLElement>(`[data-i="${initial}"]`);
+    if (ul && el) ul.scrollTop = el.offsetTop - ul.clientHeight / 2 + el.offsetHeight / 2;
     list.current?.focus({ preventScroll: true });
     // 처음 한 번만
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    list.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    const ul = list.current;
+    const el = ul?.querySelector<HTMLElement>(`[data-i="${active}"]`);
+    if (!ul || !el) return;
+    if (el.offsetTop < ul.scrollTop) ul.scrollTop = el.offsetTop;
+    else if (el.offsetTop + el.offsetHeight > ul.scrollTop + ul.clientHeight) ul.scrollTop = el.offsetTop + el.offsetHeight - ul.clientHeight;
   }, [active]);
 
   function applyDraft() {
@@ -126,7 +161,10 @@ function TimeList({
     else if (e.key === "PageDown") setActive((a) => Math.min(n - 1, a + 4));
     else if (e.key === "PageUp") setActive((a) => Math.max(0, a - 4));
     else if (e.key === "Enter" || e.key === " ") onPick(options[active]);
-    else return;
+    else if (e.key === "Escape" && onClose) {
+      e.stopPropagation();
+      onClose();
+    } else return;
     e.preventDefault();
   }
 
@@ -151,6 +189,10 @@ function TimeList({
             if (e.key === "Enter") {
               e.preventDefault();
               applyDraft();
+            } else if (e.key === "Escape" && onClose) {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
             } else if (e.key === "ArrowDown") {
               e.preventDefault();
               list.current?.focus();
@@ -176,7 +218,7 @@ function TimeList({
         aria-label="30분 단위 시각"
         aria-activedescendant={`${ids}-o${active}`}
         onKeyDown={onListKey}
-        className="mt-2 max-h-[264px] overflow-y-auto rounded-sm py-1 outline-none focus-visible:outline-2 focus-visible:outline-ink"
+        className={`relative mt-2 ${listClassName} overflow-y-auto rounded-sm py-1 outline-none focus-visible:outline-2 focus-visible:outline-ink`}
       >
         {options.map((o, i) => {
           const selected = o === value;
