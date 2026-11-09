@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, InternalServerErrorException, N
 import { firstValueFrom, of } from 'rxjs';
 import { ApiException, DEFAULT_MESSAGE } from './errors.js';
 import { HttpExceptionFilter } from './http-exception.filter.js';
+import { parseIdParam } from './id-param.js';
 import { DELETED_MEMBER, MEMBER_COLORS, MemberResolver, pickLeastUsedColor, toMember } from './member.js';
 import { ResponseInterceptor } from './response.interceptor.js';
 import { collectViolations, createValidationPipe, firstValidationMessage, isCalendarDate, parseIsoDate } from './validation.js';
@@ -158,18 +159,39 @@ describe('member', () => {
   });
 
   it('toMember 는 displayName ?? nickname', () => {
-    const base = { userId: 'u1', color: '#000000', joinedAt: new Date(0), user: { nickname: '닉', profileImageUrl: 'p' } };
+    const base = { userId: 1, color: '#000000', joinedAt: new Date(0), user: { nickname: '닉', profileImageUrl: 'p' } };
     expect(toMember({ ...base, displayName: null }).displayName).toBe('닉');
     expect(toMember({ ...base, displayName: '별명' }).displayName).toBe('별명');
   });
 
   it('MemberResolver: 멤버 / 나간 사용자 / 탈퇴자', () => {
     const resolver = new MemberResolver([
-      { userId: 'u1', color: '#111111', displayName: '별명', joinedAt: new Date(0), user: { nickname: '닉', profileImageUrl: null } },
+      { userId: 1, color: '#111111', displayName: '별명', joinedAt: new Date(0), user: { nickname: '닉', profileImageUrl: null } },
     ]);
-    expect(resolver.resolve('u1', { nickname: '닉', profileImageUrl: null })).toEqual({ userId: 'u1', displayName: '별명', color: '#111111', profileImageUrl: null });
-    expect(resolver.resolve('u2', { nickname: '나감', profileImageUrl: 'img' })).toEqual({ userId: 'u2', displayName: '나감', color: '#9CA3AF', profileImageUrl: 'img' });
+    expect(resolver.resolve(1, { nickname: '닉', profileImageUrl: null })).toEqual({ userId: 1, displayName: '별명', color: '#111111', profileImageUrl: null });
+    expect(resolver.resolve(2, { nickname: '나감', profileImageUrl: 'img' })).toEqual({ userId: 2, displayName: '나감', color: '#9CA3AF', profileImageUrl: 'img' });
     expect(resolver.resolve(null, null)).toBe(DELETED_MEMBER);
-    expect(resolver.resolve('u3', null)).toBe(DELETED_MEMBER);
+    expect(resolver.resolve(3, null)).toBe(DELETED_MEMBER);
+  });
+});
+
+describe('parseIdParam (경로 파라미터 ID)', () => {
+  it.each([['1', 1], ['42', 42], ['2147483647', 2147483647]])('%s → %d', (raw, id) => {
+    expect(parseIdParam('groupId', raw)).toBe(id);
+  });
+
+  it.each(['0', '-1', '01', '1.5', '1e3', 'abc', 'ckabc123', '', ' 1', '2147483648', '99999999999', undefined, 7])('%j → 400 VALIDATION_FAILED + details', (raw) => {
+    try {
+      parseIdParam('groupId', raw);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiException);
+      expect((error as ApiException).toBody()).toEqual({
+        status: 400,
+        data: null,
+        message: 'groupId 은(는) 양의 정수여야 해요',
+        error: { code: 'VALIDATION_FAILED', details: [{ field: 'groupId', message: 'groupId 은(는) 양의 정수여야 해요' }] },
+      });
+    }
   });
 });
