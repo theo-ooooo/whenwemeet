@@ -89,7 +89,7 @@ describe('FreeSlotsService', () => {
     await expect(service.find('u1', 'g1', query({ to: '2026-12-12T00:00:00.000Z' }), now)).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });
     await expect(service.find('u1', 'g1', query({ to: '2026-11-10T00:00:00.000Z' }), now)).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID' });
     await expect(service.find('u1', 'g1', query({ dayStart: '12:00', dayEnd: '12:00' }), now)).rejects.toBeInstanceOf(ApiException);
-    await expect(service.find('u1', 'g1', query({ dayStart: '12:00', dayEnd: '12:00' }), now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(service.find('u1', 'g1', query({ dayStart: '12:00', dayEnd: '12:00' }), now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'dayStart', message: 'dayStart 는 dayEnd 보다 앞이어야 해요' }] });
     expect(membershipsRepo.listUserIds).not.toHaveBeenCalled();
   });
 });

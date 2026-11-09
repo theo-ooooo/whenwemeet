@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiException, DEFAULT_MESSAGE, ERROR_STATUS, ErrorBody, ErrorCode } from './errors.js';
+import { ApiException, DEFAULT_MESSAGE, ErrorBody, ErrorCode } from './errors.js';
 
 /** Nest 기본 예외(라우터 404, 파이프 400 등) 를 api.md 오류 코드로 옮기는 표 */
 const STATUS_TO_CODE: Record<number, ErrorCode> = {
@@ -10,7 +10,7 @@ const STATUS_TO_CODE: Record<number, ErrorCode> = {
   [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
 };
 
-/** 모든 실패 응답을 `{ error: { code, message } }` 한 가지 모양으로 만든다 */
+/** 모든 실패 응답을 `{ status, data: null, message, error: { code, details? } }` 한 가지 모양으로 만든다 (결정기록 D-33) */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
@@ -25,20 +25,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
   }
 
   translate(exception: unknown): { status: number; body: ErrorBody } {
-    if (exception instanceof ApiException) {
-      return { status: exception.getStatus(), body: exception.getResponse() as ErrorBody };
-    }
-    if (exception instanceof HttpException) {
-      const status = exception.getStatus();
-      if (status >= 500) {
-        return { status: 500, body: { error: { code: 'INTERNAL', message: DEFAULT_MESSAGE.INTERNAL } } };
-      }
-      const code = STATUS_TO_CODE[status] ?? 'VALIDATION_FAILED';
-      const message = code === 'VALIDATION_FAILED' ? extractMessage(exception.getResponse()) : DEFAULT_MESSAGE[code];
-      return { status: ERROR_STATUS[code], body: { error: { code, message } } };
-    }
-    return { status: 500, body: { error: { code: 'INTERNAL', message: DEFAULT_MESSAGE.INTERNAL } } };
+    const api = toApiException(exception);
+    return { status: api.getStatus(), body: api.toBody() };
   }
+}
+
+/** 어떤 예외든 ApiException 하나로 모은다. 5xx 와 알 수 없는 예외는 내부 사정을 숨기고 INTERNAL */
+function toApiException(exception: unknown): ApiException {
+  if (exception instanceof ApiException) return exception;
+  if (exception instanceof HttpException && exception.getStatus() < 500) {
+    const code = STATUS_TO_CODE[exception.getStatus()] ?? 'VALIDATION_FAILED';
+    const message = code === 'VALIDATION_FAILED' ? extractMessage(exception.getResponse()) : DEFAULT_MESSAGE[code];
+    return new ApiException(code, message);
+  }
+  return new ApiException('INTERNAL');
 }
 
 /** Nest 예외 응답(`{ message: string | string[] }`) 에서 첫 문장만 꺼낸다 */

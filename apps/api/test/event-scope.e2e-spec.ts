@@ -56,7 +56,7 @@ describe('일정 단건 접근 범위 (e2e)', () => {
   it('멤버이지만 eventId 가 다른 팀 소속이면 GET/PATCH/DELETE 모두 404 NOT_FOUND', async () => {
     // 밥은 팀 A 멤버이자 자기 개인 팀 멤버. 개인 팀 경로로 팀 A 의 일정 ID 를 가리킨다
     const get = await api(app).get(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);
-    expect(get.body.error).toEqual({ code: 'NOT_FOUND', message: expect.any(String) });
+    expect(get.body).toEqual({ status: 404, data: null, message: '일정을 찾을 수 없어요', error: { code: 'NOT_FOUND' } });
     const upd = await api(app).patch(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).send(patch).expect(404);
     expect(upd.body.error.code).toBe('NOT_FOUND');
     const del = await api(app).delete(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);

@@ -31,7 +31,8 @@ export class FreeSlotsService {
     const dayStartMin = parseHHmm(query.dayStart);
     const dayEndMin = parseHHmm(query.dayEnd);
     if (dayStartMin === null || dayEndMin === null || dayStartMin >= dayEndMin) {
-      throw new ApiException('VALIDATION_FAILED', 'dayStart 는 dayEnd 보다 앞이어야 해요');
+      const message = 'dayStart 는 dayEnd 보다 앞이어야 해요';
+      throw new ApiException('VALIDATION_FAILED', message, [{ field: 'dayStart', message }]);
     }
 
     const memberIds = await this.membershipsRepo.listUserIds(groupId);
