@@ -1,5 +1,6 @@
-import { ValidationError, ValidationPipe } from '@nestjs/common';
+import { applyDecorators, ValidationError, ValidationPipe } from '@nestjs/common';
 import { Transform } from 'class-transformer';
+import { IsDateString, Matches } from 'class-validator';
 import { ApiException, FieldViolation } from './errors.js';
 
 /**
@@ -52,6 +53,21 @@ function rank(constraint: string): number {
  */
 export function Trim(): PropertyDecorator {
   return Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value));
+}
+
+/** 날짜와 시각, 시간대 오프셋(`Z` 또는 `±HH:mm`) 이 모두 있는 ISO 8601 (결정기록 D-40) */
+export const ISO_DATETIME_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * 날짜시각 입력 검증 (#61). 형식이 틀리면 ISO 문구, 형식은 맞는데 오프셋이 없으면 시간대 문구.
+ * 오프셋이 없으면 서버 시간대로 해석되어 운영 환경마다 저장값이 달라지므로 받지 않는다.
+ * label 은 조사까지 붙인 필드 이름 (`startsAt 은`, `to 는`)
+ */
+export function IsIsoDateTime(label: string): PropertyDecorator {
+  return applyDecorators(
+    IsDateString({}, { message: `${label} ISO 8601 날짜시각이어야 해요` }),
+    Matches(ISO_DATETIME_WITH_OFFSET, { message: `${label} 시간대(Z 또는 +09:00)가 붙은 날짜시각이어야 해요` }),
+  );
 }
 
 /** 전역 ValidationPipe. whitelist + transform + forbidNonWhitelisted (agents/backend.md) */

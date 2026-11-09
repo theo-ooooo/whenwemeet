@@ -5,6 +5,7 @@ import { api, assertEnvelope, auth, createTestApp, devLogin, resetDb, Session, T
  * 입력 규칙 (QA #6 결함, api.md 1장)
  * - #58 빈 시간 dayEnd 는 24:00 (그날 자정 끝) 까지 받는다. dayStart 는 23:59 까지
  * - #59 이름/제목은 앞뒤 공백을 잘라 검증하고 저장. 공백만이면 400 VALIDATION_FAILED
+ * - #61 날짜시각은 오프셋(Z 또는 ±HH:mm) 필수. 없으면 400 (서버 시간대에 따라 저장값이 달라지지 않게)
  * - #60 잘못된 JSON 은 400 VALIDATION_FAILED, 본문 크기 초과는 413 PAYLOAD_TOO_LARGE. 둘 다 한국어 문구
  */
 describe('입력 규칙 (e2e)', () => {
@@ -91,6 +92,37 @@ describe('입력 규칙 (e2e)', () => {
 
       const member = await api(app).patch(`/v1/groups/${groupId}/me`).set(auth(alice)).send({ displayName: ' 앨 ' }).expect(200);
       expect(member.body.data.displayName).toBe('앨');
+    });
+  });
+
+  describe('날짜시각 오프셋 필수 (#61)', () => {
+    it('오프셋 없는 startsAt 은 400, 저장되지 않는다', async () => {
+      const res = await api(app)
+        .post(`/v1/groups/${groupId}/events`)
+        .set(auth(alice))
+        .send({ title: 'noTZ', startsAt: '2026-11-22T10:00', endsAt: '2026-11-22T11:00', allDay: false })
+        .expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_FAILED');
+      expect(res.body.error.details[0].field).toBe('startsAt');
+
+      const list = await api(app).get(`/v1/groups/${groupId}/events`).set(auth(alice)).query({ from: '2026-11-22T00:00:00Z', to: '2026-11-23T00:00:00Z' }).expect(200);
+      expect(list.body.data).toEqual([]);
+    });
+
+    it('+09:00 오프셋은 UTC 로 바꿔 저장', async () => {
+      const res = await api(app)
+        .post(`/v1/groups/${groupId}/events`)
+        .set(auth(alice))
+        .send({ title: 'KST', startsAt: '2026-11-22T10:00:00+09:00', endsAt: '2026-11-22T11:00:00+09:00', allDay: false })
+        .expect(201);
+      expect(res.body.data.startsAt).toBe('2026-11-22T01:00:00.000Z');
+    });
+
+    it('조회 쿼리 from/to 와 빈 시간도 오프셋 없으면 400', async () => {
+      const events = await api(app).get(`/v1/groups/${groupId}/events`).set(auth(alice)).query({ from: '2026-11-22T00:00', to: '2026-11-23T00:00:00Z' }).expect(400);
+      expect(events.body.error.details[0].field).toBe('from');
+      const free = await api(app).get(`/v1/groups/${groupId}/free-slots`).set(auth(alice)).query({ from: '2026-12-01T00:00:00Z', to: '2026-12-02T00:00' }).expect(400);
+      expect(free.body.error.details[0].field).toBe('to');
     });
   });
 });

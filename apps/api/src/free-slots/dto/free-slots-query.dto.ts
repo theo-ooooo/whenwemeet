@@ -1,15 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import { IsIsoDateTime } from '../../common/validation.js';
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** dayEnd 는 그날 자정 끝을 뜻하는 `24:00` 도 받는다 (#58) */
 const HHMM_END = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 export class FreeSlotsQueryDto {
-  @IsDateString({}, { message: 'from 은 ISO 8601 날짜시각이어야 해요' })
+  @IsIsoDateTime('from 은')
   from!: string;
 
-  @IsDateString({}, { message: 'to 는 ISO 8601 날짜시각이어야 해요' })
+  @IsIsoDateTime('to 는')
   to!: string;
 
   @IsOptional()
