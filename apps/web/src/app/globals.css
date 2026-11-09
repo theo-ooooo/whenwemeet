@@ -225,6 +225,13 @@ body {
     color 120ms ease-out;
 }
 
+/* 테마 전환 순간에는 transition 을 끈다 (lib/theme.ts withoutTransition, THEME_SCRIPT) */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

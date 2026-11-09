@@ -5,8 +5,21 @@ export type ThemeChoice = "system" | "light" | "dark";
 
 export const THEME_KEY = "wwm_theme";
 
-/** <head> 인라인 스크립트. 저장값이 light/dark 일 때만 data-theme 를 단다 (system 은 미디어 쿼리에 맡김) */
-export const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+/** <head> 인라인 스크립트. 저장값이 light/dark 일 때만 data-theme 를 단다 (system 은 미디어 쿼리에 맡김).
+ *  시스템 라이트/다크가 바뀔 때는 전환 순간에만 transition 을 끈다(withoutTransition 과 같은 방식).
+ *  그렇지 않으면 날짜 칸처럼 color/background 에 transition 이 걸린 요소가 이전 테마 색에서 출발해,
+ *  렌더가 멈춘 탭(백그라운드)에서는 흐린 중간색으로 남는다 (#24 리뷰) */
+export const THEME_SCRIPT = `(function(){var d=document.documentElement;try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")d.setAttribute("data-theme",t)}catch(e){}try{window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(){d.setAttribute("data-theme-switching","");getComputedStyle(d.querySelector("body")||d).color;requestAnimationFrame(function(){d.removeAttribute("data-theme-switching")})})}catch(e){}})()`;
+
+/** 테마 변수만 바꾸고 그 순간의 transition 은 건너뛴다 */
+function withoutTransition(change: () => void) {
+  const root = document.documentElement;
+  root.setAttribute("data-theme-switching", "");
+  change();
+  // 스타일을 한 번 확정시킨 뒤 다음 프레임에 되돌린다 (새 값은 이미 확정돼 다시 애니메이션되지 않음)
+  void getComputedStyle(document.body).color;
+  requestAnimationFrame(() => root.removeAttribute("data-theme-switching"));
+}
 
 export function readTheme(): ThemeChoice {
   try {
@@ -19,8 +32,10 @@ export function readTheme(): ThemeChoice {
 
 export function applyTheme(choice: ThemeChoice) {
   const root = document.documentElement;
-  if (choice === "system") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", choice);
+  withoutTransition(() => {
+    if (choice === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", choice);
+  });
   try {
     if (choice === "system") localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, choice);
