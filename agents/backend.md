@@ -40,7 +40,7 @@ Controller → Service → Repository → PrismaService
 - 비밀값은 `ConfigService.getOrThrow` 로만 읽음. 하드코딩 금지
 
 ## 테스트
-- vitest. 서비스 단위 테스트는 PrismaService 를 목으로, 컨트롤러 e2e 는 `test/` 에 supertest
+- vitest. 서비스 단위 테스트는 Repository 를 목으로, Repository 와 컨트롤러는 `test/` 의 e2e(supertest, 실 DB) 로
 - 커밋 전 `pnpm --filter @whenwemeet/api test` 와 `build` 통과
 
 ## 금지
