@@ -21,7 +21,9 @@
       "distribution": "internal",
       "environment": "preview",
       "channel": "preview",
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
       "extends": "base",
@@ -31,7 +33,13 @@
   },
   "submit": {
     "production": {
-      "android": { "track": "internal", "releaseStatus": "draft" }
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
+      "ios": {
+        "ascAppId": "6832865813"
+      }
     }
   }
 }
