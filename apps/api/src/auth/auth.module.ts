@@ -6,9 +6,11 @@ import { AuthHandoffsModule } from '../auth-handoffs/auth-handoffs.module.js';
 import { AvatarsModule } from '../avatars/avatars.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { AppAuthService } from './app-auth.service.js';
+import { AppleAuthService } from './apple-auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { APPLE_JWKS, AppleProvider, createAppleJwks } from './providers/apple.provider.js';
 import { AuthProviders } from './providers/auth-providers.js';
 import { DevProvider } from './providers/dev.provider.js';
 import { KakaoProvider } from './providers/kakao.provider.js';
@@ -31,7 +33,15 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AppAuthService, KakaoProvider, DevProvider, AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    AuthService,
+    AppAuthService,
+    AppleAuthService,
+    KakaoProvider,
+    DevProvider,
+    AppleProvider,
+    { provide: APPLE_JWKS, useFactory: createAppleJwks },
+    AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
   exports: [AuthService, AuthProviders, JwtModule],
 })
 export class AuthModule {}

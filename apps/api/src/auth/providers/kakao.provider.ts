@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../../common/errors.js';
-import type { AuthProviderClient, ProviderProfile } from './auth-provider.js';
+import type { AuthProviderClient, LinkedAccount, ProviderProfile } from './auth-provider.js';
 
 export const KAKAO_AUTHORIZE_URL = 'https://kauth.kakao.com/oauth/authorize';
 export const KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token';
@@ -113,8 +113,8 @@ export class KakaoProvider implements AuthProviderClient {
     }
   }
 
-  /** 회원 탈퇴 시 연결 끊기 (Admin Key). 이미 끊긴 사용자는 성공으로 본다 (api.md 2.7) */
-  async unlink(providerUserId: string): Promise<void> {
+  /** 회원 탈퇴 시 연결 끊기 (Admin Key). 이미 끊긴 사용자는 성공으로 본다 (api.md 2.7). providerUserId 만 쓴다 */
+  async unlink({ providerUserId }: Pick<LinkedAccount, 'providerUserId'>): Promise<void> {
     if (!this.isUnlinkConfigured()) throw new ApiException('KAKAO_NOT_CONFIGURED');
     const body = new URLSearchParams({ target_id_type: 'user_id', target_id: providerUserId });
     const res = await fetch(KAKAO_UNLINK_URL, {

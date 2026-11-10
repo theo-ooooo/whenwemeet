@@ -61,7 +61,7 @@ export class AuthService {
    */
   async login(provider: AuthProvider, profile: ProviderProfile): Promise<AuthUser> {
     const account = await this.users.findAuthAccount(provider, profile.providerUserId);
-    if (account) return this.users.updateRawProfile(account.id, profile.raw);
+    if (account) return this.users.updateRawProfile(account.id, profile.raw, profile.credentials);
     const user = await this.users.createWithAccountTx(
       {
         provider,
@@ -69,6 +69,7 @@ export class AuthService {
         email: profile.email ?? null,
         rawProfile: profile.raw,
         nickname: profile.nickname,
+        credentials: profile.credentials,
       },
       { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] },
     );

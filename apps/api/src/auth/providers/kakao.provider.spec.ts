@@ -163,20 +163,20 @@ describe('KakaoProvider', () => {
   it('unlink: 성공 / -101 은 성공 / 그 외 실패 / 본문 없는 실패 / 미설정', async () => {
     const ok = vi.fn<typeof fetch>(async () => json({ id: 1 }));
     globalThis.fetch = ok;
-    await new KakaoProvider(configOf(FULL)).unlink('99');
+    await new KakaoProvider(configOf(FULL)).unlink({ providerUserId: '99' });
     expect(urlOf(ok.mock.calls[0][0])).toBe(KAKAO_UNLINK_URL);
     expect((ok.mock.calls[0][1]!.headers as Record<string, string>).Authorization).toBe('KakaoAK admin');
     expect((ok.mock.calls[0][1]!.body as URLSearchParams).get('target_id')).toBe('99');
 
     globalThis.fetch = vi.fn<typeof fetch>(async () => json({ code: -101 }, 400));
-    await expect(new KakaoProvider(configOf(FULL)).unlink('99')).resolves.toBeUndefined();
+    await expect(new KakaoProvider(configOf(FULL)).unlink({ providerUserId: '99' })).resolves.toBeUndefined();
 
     globalThis.fetch = vi.fn<typeof fetch>(async () => json({ code: -401 }, 401));
-    await expect(new KakaoProvider(configOf(FULL)).unlink('99')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+    await expect(new KakaoProvider(configOf(FULL)).unlink({ providerUserId: '99' })).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
 
     globalThis.fetch = vi.fn<typeof fetch>(async () => new Response('not json', { status: 500 }));
-    await expect(new KakaoProvider(configOf(FULL)).unlink('99')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+    await expect(new KakaoProvider(configOf(FULL)).unlink({ providerUserId: '99' })).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
 
-    await expect(new KakaoProvider(configOf({ ...FULL, KAKAO_ADMIN_KEY: '' })).unlink('99')).rejects.toMatchObject({ code: 'KAKAO_NOT_CONFIGURED' });
+    await expect(new KakaoProvider(configOf({ ...FULL, KAKAO_ADMIN_KEY: '' })).unlink({ providerUserId: '99' })).rejects.toMatchObject({ code: 'KAKAO_NOT_CONFIGURED' });
   });
 });
