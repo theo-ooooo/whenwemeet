@@ -26,7 +26,8 @@
   --color-today-ink: var(--today-ink);
   --color-on-member: var(--on-member);
   --color-kakao: #fee500;
-  --color-kakao-ink: #191919;
+  /* 카카오 가이드: 레이블 #000000 85% (심볼은 #000000) */
+  --color-kakao-ink: rgb(0 0 0 / 0.85);
   --color-white: #ffffff;
   --color-black: #000000;
   --color-transparent: transparent;

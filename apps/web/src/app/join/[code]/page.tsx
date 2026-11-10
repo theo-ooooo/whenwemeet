@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Symbol } from "@/components/Logo";
 import { JoinLoginActions } from "@/components/JoinLoginActions";
 import { Button } from "@/components/ui";
-import { isAppUserAgent } from "@/lib/app-bridge";
-import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE } from "@/lib/auth";
+import { parseAppUserAgent } from "@/lib/app-bridge";
+import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
 import { isFreshSession } from "@/lib/session";
@@ -32,8 +32,10 @@ export default async function JoinPage({
   // 세션이 오래돼 확인 버튼을 그대로 둔다 (실수 합류 방지, D-41)
   const autoJoin = loggedIn && sp[JOIN_AUTO_PARAM] === "1" && isFreshSession(session, JOIN_AUTO_FRESH_SEC);
   // 로그인 버튼은 /login 과 같은 판정: 앱 셸(UA)과 웹 애플 버튼 노출(APPLE_LOGIN_ENABLED=1, #129)
-  const appGuess = isAppUserAgent((await headers()).get("user-agent"));
-  const appleEnabled = process.env.APPLE_LOGIN_ENABLED === "1";
+  // Android 앱 셸 안에서는 애플 버튼을 숨긴다 (#145)
+  const appUa = parseAppUserAgent((await headers()).get("user-agent"));
+  const appGuess = appUa !== null;
+  const appleEnabled = webAppleEnabled(process.env.APPLE_LOGIN_ENABLED, appUa?.os);
   const { data, error } = await serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, {
     auth: false,
     from: `/join/${code}`,

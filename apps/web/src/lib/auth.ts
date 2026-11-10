@@ -64,6 +64,12 @@ export function joinAutoNext(code: string): string {
 /** 로그인 버튼 구성. 앱 셸 안이면 네이티브 로그인(카카오, 애플 둘 다 네이티브가 고른다) 하나,
  *  웹이면 카카오 + (APPLE_LOGIN_ENABLED=1 일 때) 애플. /login 과 초대 화면(/join/<코드>, #129)이 같이 쓴다 */
 export type LoginChoice = "native" | "kakao" | "apple";
+
+/** 웹 애플 버튼을 보일지. APPLE_LOGIN_ENABLED=1 이어도 Android 앱 셸(UA `WhenwemeetApp/<버전> (android)`)
+ *  안에서는 숨긴다 (#145, Android 앱은 애플 로그인을 쓰지 않는다). iOS 앱과 일반 웹은 그대로 */
+export function webAppleEnabled(flag: string | undefined, appOs: "ios" | "android" | null | undefined): boolean {
+  return flag === "1" && appOs !== "android";
+}
 export function loginChoices(inApp: boolean, appleEnabled: boolean): LoginChoice[] {
   if (inApp) return ["native"];
   return appleEnabled ? ["kakao", "apple"] : ["kakao"];

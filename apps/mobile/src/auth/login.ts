@@ -2,11 +2,10 @@
 // 셸은 세션 JWT 를 받지 않는다. 손에 쥐는 것은 60초 handoff 와 메모리의 verifier 뿐 (D-44, D-49)
 import { Platform } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
-import * as WebBrowser from "expo-web-browser";
 import { initializeKakaoSDK } from "@react-native-kakao/core";
 import * as KakaoUser from "@react-native-kakao/user";
 import { env } from "../config/env";
-import { buildAuthAppUrl, parseAuthReturn, safeNext } from "../links/urls";
+import { buildAuthAppUrl } from "../links/urls";
 import { AuthApiError, requestHandoff } from "./api";
 import { randomBytes, sha256 } from "./crypto";
 import { appleNickname, codeChallenge, createAppleNonce, createVerifier } from "./pkce";
@@ -69,48 +68,32 @@ export async function loginWithKakao(next: string): Promise<string> {
   return buildAuthAppUrl(env.webOrigin, handoff, verifier, next);
 }
 
-/** iOS: 네이티브 애플 로그인 / Android: 시스템 브라우저(Custom Tabs) 웹 방식 (3.3, 3.4) */
+/** 애플 로그인은 iOS 네이티브만 (3.3). Android 앱은 애플 로그인을 쓰지 않는다 (#145, 버튼도 없음) */
 export async function loginWithApple(next: string): Promise<string> {
+  if (Platform.OS !== "ios") throw new AuthApiError("APPLE_UNSUPPORTED", "Apple 로그인은 iPhone 에서만 쓸 수 있어요", 0);
   const { verifier, challenge } = await newVerifier();
-
-  if (Platform.OS === "ios") {
-    const nonce = await createAppleNonce(randomBytes, sha256);
-    let cred: AppleAuthentication.AppleAuthenticationCredential;
-    try {
-      cred = await AppleAuthentication.signInAsync({
-        requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME],
-        nonce: nonce.hashed,
-      });
-    } catch (e) {
-      if (isCancel(e)) throw new LoginCancelled();
-      throw new AuthApiError("APPLE_SDK", "Apple 로그인에 실패했어요", 0);
-    }
-    if (!cred.identityToken || !cred.authorizationCode) {
-      throw new AuthApiError("APPLE_SDK", "Apple 로그인에 실패했어요", 0);
-    }
-    const handoff = await requestHandoff(env.apiOrigin, "/v1/auth/apple/native", {
-      identityToken: cred.identityToken,
-      authorizationCode: cred.authorizationCode,
-      nonce: nonce.raw,
-      nickname: appleNickname(cred.fullName),
-      codeChallenge: challenge,
+  const nonce = await createAppleNonce(randomBytes, sha256);
+  let cred: AppleAuthentication.AppleAuthenticationCredential;
+  try {
+    cred = await AppleAuthentication.signInAsync({
+      requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME],
+      nonce: nonce.hashed,
     });
-    return buildAuthAppUrl(env.webOrigin, handoff, verifier, next);
+  } catch (e) {
+    if (isCancel(e)) throw new LoginCancelled();
+    throw new AuthApiError("APPLE_SDK", "Apple 로그인에 실패했어요", 0);
   }
-
-  const q = new URLSearchParams({ client: "app", cc: challenge, next: safeNext(next) });
-  const result = await WebBrowser.openAuthSessionAsync(
-    `${env.apiOrigin.replace(/\/+$/, "")}/v1/auth/apple?${q.toString()}`,
-    "whenwemeet://auth",
-  );
-  if (result.type !== "success") throw new LoginCancelled();
-  const ret = parseAuthReturn(result.url);
-  if (!ret) throw new AuthApiError("BAD_RESPONSE", "Apple 로그인에 실패했어요", 0);
-  if (!ret.ok) {
-    if (ret.error === "APPLE_CANCELLED") throw new LoginCancelled();
-    throw new AuthApiError(ret.error, "Apple 로그인에 실패했어요", 0);
+  if (!cred.identityToken || !cred.authorizationCode) {
+    throw new AuthApiError("APPLE_SDK", "Apple 로그인에 실패했어요", 0);
   }
-  return buildAuthAppUrl(env.webOrigin, ret.handoff, verifier, next);
+  const handoff = await requestHandoff(env.apiOrigin, "/v1/auth/apple/native", {
+    identityToken: cred.identityToken,
+    authorizationCode: cred.authorizationCode,
+    nonce: nonce.raw,
+    nickname: appleNickname(cred.fullName),
+    codeChallenge: challenge,
+  });
+  return buildAuthAppUrl(env.webOrigin, handoff, verifier, next);
 }
 
 /** 로그아웃, 탈퇴 시 카카오 SDK 토큰 정리. 실패해도 웹 흐름은 계속 (토큰이 없을 수도 있다) */

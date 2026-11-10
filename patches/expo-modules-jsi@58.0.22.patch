@@ -1,0 +1,16 @@
+diff --git a/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift b/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+index de76b9762d8f3cdd05a68fca7a01e8f1b0af973f..98b5770d90a7f9d26c8bc6225fe54ab4c59fdf57 100644
+--- a/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
++++ b/apple/Sources/ExpoModulesJSI/Runtime/Values/JavaScriptObject.swift
+@@ -941,8 +941,11 @@ private func withEncodedValue(
+     }
+     // The runtime can't be deallocated during a call on its JavaScript thread, so it's borrowed without
+     // a retain.
++    // Xcode 26.2 (Swift 6.2) 가 포인터 캡처를 data race 로 거부해서 Sendable 인 주소 값으로 넘긴다 (whenwemeet 로컬 패치)
++    let slotAddress = UInt(bitPattern: slot)
+     try runtime._withUnsafeGuaranteedRef { runtime in
+       try JavaScriptActor.assumeIsolated {
++        let slot = UnsafeMutablePointer<facebook.jsi.Value>(bitPattern: slotAddress)!
+         try encode(JavaScriptValue.Slot(slot), runtime)
+       }
+     }
