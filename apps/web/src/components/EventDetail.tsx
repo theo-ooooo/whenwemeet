@@ -44,6 +44,7 @@ export function EventDetail({
 
   return (
     <div>
+      {/* 뒤로 화살표 선을 시트 여백 16 에 맞춘다(광학 정렬, 빠른 추가와 같음). 버튼 칸은 왼쪽으로 내밀고 누르는 영역 44 는 hit 가 유지 (#174 L9) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
         <button
           type="button"
