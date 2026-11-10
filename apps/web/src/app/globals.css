@@ -97,6 +97,8 @@
   --m7: #64748b;
   --on-member: #ffffff;
   --fab-shadow: 0 6px 20px rgba(224, 83, 61, 0.3);
+  --glass: rgba(255, 255, 255, 0.78);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   --pop-shadow: 0 10px 32px rgba(38, 37, 42, 0.14);
   --scrim: rgba(0, 0, 0, 0.32);
   --grab: #d9d9de;
@@ -135,6 +137,8 @@
     --m7: #9aa8ba;
     --on-member: #121214;
     --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --glass: rgba(36, 36, 41, 0.82);
+    --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
     --pop-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
     --scrim: rgba(0, 0, 0, 0.5);
     --grab: #3a3a3f;
@@ -170,6 +174,8 @@
   --m7: #9aa8ba;
   --on-member: #121214;
   --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --glass: rgba(36, 36, 41, 0.82);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   --pop-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
   --scrim: rgba(0, 0, 0, 0.5);
   --grab: #3a3a3f;
@@ -324,4 +330,12 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* 모바일 떠 있는 탭 (#126) */
+.glass-dock {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--dock-shadow);
 }
