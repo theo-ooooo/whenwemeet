@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-10T15:30:00+09:00",
+  "session_topic": "앱 P6 스토어 제출 자료 (#96)",
+  "command": "스토어 제출 자료 준비 요청",
+  "agent": "agents/planning.md",
+  "status": "문서 2개, 스크린샷 18장, 그래픽 이미지, Play 아이콘 완료. PR 대기",
+  "tasks": [
+    {"id": 1, "subject": "스토어-제출.md (App Store Connect, Play Console 답, 심사 메모, 비공개 테스트, Play 앱 서명)", "status": "completed"},
+    {"id": 2, "subject": "스토어-문구.md (이름, 부제, 키워드, 설명, 새 기능)", "status": "completed"},
+    {"id": 3, "subject": "목 모드(3196) 캡처 + sharp 합성: iOS 6.9/6.5, Android 1080x1920, 1024x500", "status": "completed"},
+    {"id": 4, "subject": "누락 발견 이슈 등록 #148(지원 페이지, 방침 애플 항목), #149(NSCameraUsageDescription)", "status": "completed"},
+    {"id": 5, "subject": "PR (→ develop), CI 확인", "status": "in_progress"}
+  ],
+  "artifacts": ["docs/운영/스토어-제출.md", "docs/운영/스토어-문구.md", "docs/store/ios/6.9/*.png", "docs/store/ios/6.5/*.png", "docs/store/android/phone/*.png", "docs/store/android/feature-graphic.png", "docs/store/android/icon-512.png"],
+  "key_findings": "Android 앱은 애플 로그인을 숨기므로 Play 심사에는 카카오 테스트 계정 필수. 개인정보처리방침에 애플 로그인 항목 없음, 문의처가 저장소 이슈. iOS 카메라 사용 설명 없어 프로필 사진 '사진 찍기' 시 강제 종료 위험. ITSAppUsesNonExemptEncryption false, supportsTablet false 는 이미 설정",
+  "recommended_actions": "#148, #149 먼저 머지 후 production 빌드. Play 비공개 테스트 즉시 시작",
+  "pending_user_input": "문의 이메일 주소, 카카오 심사 계정, 테스터 15명"
+}
