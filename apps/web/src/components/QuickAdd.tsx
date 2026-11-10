@@ -65,7 +65,7 @@ function useDialogKeys(ref: React.RefObject<HTMLElement | null>, onClose: () => 
 
 /* ---------- 폼 (시트, 팝오버 공통) ---------- */
 
-function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = false }: CommonProps & { titleId: string; compact?: boolean }) {
+function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps & { titleId: string }) {
   const router = useRouter();
   const ids = useId();
   const [title, setTitle] = useState("");
@@ -130,12 +130,12 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
     <form onSubmit={save} noValidate>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <small className="block text-[12px] font-semibold text-ink-2">새 일정</small>
-          <h2 id={titleId} className={`font-extrabold tracking-[-0.04em] ${compact ? "text-[20px]" : "text-[22px]"}`}>
+          <small className="block text-[12px] leading-4 text-ink-2">새 일정</small>
+          <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
             {formatDateKo(date)}
           </h2>
         </div>
-        <button type="button" onClick={onClose} aria-label="빠른 추가 닫기" className="grid size-9 shrink-0 place-items-center rounded-full bg-surface hover:brightness-95">
+        <button type="button" onClick={onClose} aria-label="빠른 추가 닫기" className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>
@@ -146,7 +146,7 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
       <input
         id={`${ids}-title`}
         autoFocus
-        className={`${inputClass} mt-4 h-[52px] text-[16px]`}
+        className={`${inputClass} mt-3`}
         placeholder="무슨 일정인가요?"
         value={title}
         onChange={(e) => setTitle(clampChars(e.target.value, 50))}
@@ -155,17 +155,17 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
         enterKeyHint="done"
       />
       {titleError && (
-        <p id={`${ids}-title-err`} role="alert" className="mt-1.5 text-[13px] text-danger">
+        <p id={`${ids}-title-err`} role="alert" className="mt-1.5 text-[12px] text-danger">
           {titleError}
         </p>
       )}
 
-      <div className="mt-3">
+      <div className="mt-2">
         <Toggle checked={allDay} onChange={setAllDay} label="종일" />
         {!allDay && (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-line pt-3">
+          <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-2.5">
             <div>
-              <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">
+              <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
                 시작
               </span>
               <TimePicker
@@ -179,7 +179,7 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
               />
             </div>
             <div>
-              <span className="mb-1.5 block text-[12px] font-semibold text-ink-2">종료</span>
+              <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">종료</span>
               <TimePicker
                 id={`${ids}-end`}
                 label="종료 시각"
@@ -195,7 +195,7 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
           </div>
         )}
         {!allDay && timeOpen && (
-          <div className="mt-2 rounded-md border border-line p-2">
+          <div className="mt-2 rounded-sm border border-line p-1.5">
             <TimeList
               key={timeOpen}
               value={timeOpen === "start" ? start : end}
@@ -213,18 +213,18 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId, compact = fals
         )}
       </div>
       {rangeError && (
-        <p id={`${ids}-range-err`} role="alert" className="mt-1.5 text-[13px] text-danger">
+        <p id={`${ids}-range-err`} role="alert" className="mt-1.5 text-[12px] text-danger">
           {rangeError}
         </p>
       )}
       {saveError && (
-        <p role="alert" className="mt-2 text-[13px] text-danger">
+        <p role="alert" className="mt-2 text-[12px] text-danger">
           {saveError}
         </p>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <Button type="button" variant="secondary" size="lg" onClick={more} className="shrink-0 px-5">
+      <div className="mt-3 flex gap-2">
+        <Button type="button" variant="secondary" size="lg" onClick={more} className="shrink-0 px-4">
           자세히
         </Button>
         <Button type="submit" size="lg" full loading={create.isPending}>
@@ -250,15 +250,15 @@ export function QuickAddSheet(props: CommonProps) {
   }, []);
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center">
-      <button type="button" aria-label="닫기" tabIndex={-1} onClick={props.onClose} className="anim-fade absolute inset-0 bg-black/35" />
+      <button type="button" aria-label="닫기" tabIndex={-1} onClick={props.onClose} className="anim-fade absolute inset-0 bg-[var(--scrim)]" />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="anim-sheet relative max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-[22px] pb-[calc(26px+env(safe-area-inset-bottom))] pt-3"
+        className="anim-sheet relative max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2"
       >
-        <div aria-hidden="true" className="mx-auto mb-[14px] h-[5px] w-10 rounded-full bg-[var(--grab)]" />
+        <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)]" />
         <QuickAddForm {...props} titleId={titleId} />
       </div>
     </div>
@@ -267,7 +267,7 @@ export function QuickAddSheet(props: CommonProps) {
 
 /* ---------- PC 팝오버 ---------- */
 
-const POP_W = 340;
+const POP_W = 300;
 const GAP = 10;
 const MARGIN = 16;
 
@@ -323,9 +323,9 @@ export function QuickAddPopover({ anchor, ...props }: CommonProps & { anchor: HT
       aria-labelledby={titleId}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? 0, width: POP_W, boxShadow: "var(--pop-shadow)" }}
       // 자리 잡기 전에는 투명하게만 둔다. visibility:hidden 이면 제목 입력의 autoFocus 가 먹지 않는다
-      className={`fixed z-40 rounded-xl border border-line bg-paper p-5 ${pos ? "anim-fade" : "opacity-0"}`}
+      className={`fixed z-40 rounded-xl border border-line bg-paper px-3.5 pb-3.5 pt-2.5 ${pos ? "anim-fade" : "opacity-0"}`}
     >
-      <QuickAddForm {...props} titleId={titleId} compact />
+      <QuickAddForm {...props} titleId={titleId} />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
-/* docs/설계/디자인토큰.md (2026, #46 소프트 코랄) 의 값을 그대로 옮긴다. 원본: docs/설계/img/디자인-2026*.html, 톤-소프트코랄.png(A안)
+/* docs/설계/디자인토큰.md "2026-11 확정: 밀도 조정 + 색 A (D-57)" 의 값을 옮긴다. 시안: docs/설계/img/최종-A-시안.html
  * 색은 :root 변수로 두고 테마(라이트/다크)에서 값만 바꾼다. 유틸리티 이름은 기존 화면과 맞춘다
- *   surface = 바탕(bg), paper = 타일(tile), ink = 먹, ink-2 = 보조 글자(mute), brand = 포인트(acc) */
+ *   surface = 바탕(bg), paper = 타일(tile), ink = 먹, ink-2 = 보조 글자(mute)
+ * 코랄로 면을 채우는 것은 FAB(pri), 주 버튼(btn), 선택 날짜 원(sel-fill) 셋뿐. 다른 강조는 글자색(acc-ink), 점, 막대로 */
 @theme inline {
   --color-*: initial;
   --color-surface: var(--bg);
@@ -12,24 +13,18 @@
   --color-soft: var(--soft);
   --color-faint: var(--faint);
   --color-line: var(--line);
-  --color-brand: var(--acc);
-  --color-brand-soft: var(--acc-soft);
+  --color-hover: var(--hover);
   --color-holiday: var(--holiday);
-  --color-danger: var(--holiday);
-  --color-member-1: var(--m1);
-  --color-member-2: var(--m2);
-  --color-member-3: var(--m3);
-  --color-member-4: var(--m4);
-  --color-member-5: var(--m5);
-  --color-glass: var(--glass);
-  /* #46 소프트 코랄: 주 버튼, 오늘/선택 칸, 강조 타일 */
+  --color-holiday-faint: var(--holiday-faint);
+  --color-danger: var(--danger);
   --color-pri: var(--pri);
   --color-on-pri: var(--on-pri);
   --color-btn: var(--btn);
   --color-on-btn: var(--on-btn);
-  --color-today: var(--today-bg);
+  --color-sel-fill: var(--sel-fill);
+  --color-acc-ink: var(--acc-ink);
   --color-today-ink: var(--today-ink);
-  --color-sel-ink: var(--sel-ink);
+  --color-on-member: var(--on-member);
   --color-kakao: #fee500;
   --color-kakao-ink: #191919;
   --color-white: #ffffff;
@@ -40,12 +35,13 @@
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 
-  /* 모서리: 작은 칩 7, 입력/칸 14, 타일 22, 큰 타일 26, 시트 30 */
-  --radius-xs: 7px;
-  --radius-sm: 14px;
-  --radius-lg: 22px;
-  --radius-xl: 26px;
-  --radius-2xl: 30px;
+  /* 모서리: PC 칩 4, 입력/칸/메뉴/작은 버튼 10, 주 버튼 12, 카드/팝오버 16, 바텀 시트 20 */
+  --radius-xs: 4px;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
 
   --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -53,47 +49,48 @@
 /* 라이트 (기본) */
 :root {
   color-scheme: light;
-  /* #46 소프트 코랄(A안): 먹은 #0F0F10 → #26252A, 바탕은 따뜻한 회색 */
   --bg: #f4f3f1;
   --tile: #ffffff;
   --ink: #26252a;
-  /* 목업의 #8E8E93 은 흰 바탕 대비 3.3:1 이라 글자용 보조색만 4.5:1 이상인 값으로 낮춘다 */
+  /* 흰 바탕 대비 4.5:1 이상인 보조 글자 */
   --mute: #6c6c70;
   --soft: #555555;
   --faint: #c7c7cc;
   --line: #ecebe8;
-  --acc: #ff3d1f;
-  --acc-soft: #ffece8;
-  /* 오늘 모두 비는 시간 타일: 연한 코랄 면 + 갈색 글자 + 코랄 시간 */
-  --hl-tile: #ffede8;
-  --hl-ink: #7a3a2e;
-  --hl-time: #e0533d;
-  /* 오늘 칸, 선택 칸, 선택 칩: 옅은 코랄 면 + 코랄 숫자 */
-  --today-bg: #ffe1d9;
-  --today-ink: #c2412c;
-  /* 선택 칩 글자 (13px 이라 4.5:1 을 넘도록 today-ink 보다 한 단계 진하게) */
-  --sel-ink: #a93520;
-  /* + 버튼(FAB), PC 일정 추가 */
+  /* 메뉴 선택, 보조 버튼 면 */
+  --hover: #f4f3f1;
+  /* FAB, 토글 켬, 새 소식 점 (글자 없는 면) */
   --pri: #e0533d;
   --on-pri: #ffffff;
-  /* 글자가 있는 주 버튼. 흰 글자 4.5:1 을 넘게 pri 보다 한 단계 진하게 */
+  /* 선택 날짜 원(흰 숫자 4.9:1) */
+  --sel-fill: #c8432d;
+  /* 글자가 있는 주 버튼 (sel-fill 과 같은 값) */
   --btn: #c8432d;
   --on-btn: #ffffff;
-  --fab-shadow: 0 8px 30px rgba(224, 83, 61, 0.32);
-  --holiday: #e5322d;
-  --holiday-faint: #f2b8b5;
-  --m1: #ff3d1f;
-  --m2: #1f5bff;
-  --m3: #9a1dff;
-  --m4: #2ed3a5;
-  --m5: #ff9f1c;
-  --glass: rgba(255, 255, 255, 0.78);
-  --pill: rgba(255, 255, 255, 0.7);
-  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  --pop-shadow: 0 12px 40px rgba(38, 37, 42, 0.16);
+  /* 강조 글자: 비는 시간 값, 기념일 "오늘", 빈 시간 결과 */
+  --acc-ink: #c2402a;
+  /* 오늘 날짜 숫자, "오늘" 글자 */
+  --today-ink: #c2412c;
+  /* 토, 일, 공휴일. 강조로 쓰지 않는다 */
+  --holiday: #b4475c;
+  --holiday-faint: #ddb3bb;
+  /* 삭제, 오류 */
+  --danger: #d1242f;
+  /* 멤버 색 7개 (빨강, 주황 없음). 위 글자는 라이트 흰색, 다크 #121214 */
+  --m1: #2563eb;
+  --m2: #a16207;
+  --m3: #0b7a8a;
+  --m4: #7c3aed;
+  --m5: #15803d;
+  --m6: #8b6b4a;
+  --m7: #64748b;
+  --on-member: #ffffff;
+  --fab-shadow: 0 6px 20px rgba(224, 83, 61, 0.3);
+  --pop-shadow: 0 10px 32px rgba(38, 37, 42, 0.14);
+  --scrim: rgba(0, 0, 0, 0.32);
   --grab: #d9d9de;
+  /* 로그인, 404, 점검 화면 바탕 */
   --login-bg: #ffffff;
-  --chip-line: #e3e2df;
 }
 
 /* 다크: 시스템 설정을 따르고(수동 라이트가 아닐 때), 수동 다크는 data-theme 로 */
@@ -107,30 +104,30 @@
     --soft: #a1a1a6;
     --faint: #3a3a3f;
     --line: #2a2a2f;
-    --acc: #ff4a2e;
-    --acc-soft: #2c1512;
-    --hl-tile: #3a2622;
-    --hl-ink: #e8c9c2;
-    --hl-time: #ff8670;
-    --today-bg: #4a2c26;
-    --today-ink: #ffb4a5;
-    --sel-ink: #ffb4a5;
+    --hover: #26262b;
     --pri: #ff8670;
     --on-pri: #1a0e0b;
+    --sel-fill: #ff8670;
     --btn: #ff8670;
     --on-btn: #1a0e0b;
-    --fab-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-    --holiday-faint: #5a2a28;
-    --m1: #ff4a2e;
-    --m2: #3b74ff;
-    --m3: #a855f7;
-    --glass: rgba(36, 36, 41, 0.82);
-    --pill: rgba(44, 44, 49, 0.8);
-    --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-    --pop-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    --acc-ink: #ff8670;
+    --today-ink: #ffb4a5;
+    --holiday: #d3949e;
+    --holiday-faint: #5e3a41;
+    --danger: #ff6b6b;
+    --m1: #6b9bff;
+    --m2: #f2c14e;
+    --m3: #3cc6d6;
+    --m4: #a78bfa;
+    --m5: #4ade80;
+    --m6: #c9a27a;
+    --m7: #9aa8ba;
+    --on-member: #121214;
+    --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --pop-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+    --scrim: rgba(0, 0, 0, 0.5);
     --grab: #3a3a3f;
     --login-bg: #121214;
-    --chip-line: #2e2e33;
   }
 }
 :root[data-theme="dark"] {
@@ -142,30 +139,30 @@
   --soft: #a1a1a6;
   --faint: #3a3a3f;
   --line: #2a2a2f;
-  --acc: #ff4a2e;
-  --acc-soft: #2c1512;
-  --hl-tile: #3a2622;
-  --hl-ink: #e8c9c2;
-  --hl-time: #ff8670;
-  --today-bg: #4a2c26;
-  --today-ink: #ffb4a5;
-  --sel-ink: #ffb4a5;
+  --hover: #26262b;
   --pri: #ff8670;
   --on-pri: #1a0e0b;
+  --sel-fill: #ff8670;
   --btn: #ff8670;
   --on-btn: #1a0e0b;
-  --fab-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  --holiday-faint: #5a2a28;
-  --m1: #ff4a2e;
-  --m2: #3b74ff;
-  --m3: #a855f7;
-  --glass: rgba(36, 36, 41, 0.82);
-  --pill: rgba(44, 44, 49, 0.8);
-  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  --pop-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --acc-ink: #ff8670;
+  --today-ink: #ffb4a5;
+  --holiday: #d3949e;
+  --holiday-faint: #5e3a41;
+  --danger: #ff6b6b;
+  --m1: #6b9bff;
+  --m2: #f2c14e;
+  --m3: #3cc6d6;
+  --m4: #a78bfa;
+  --m5: #4ade80;
+  --m6: #c9a27a;
+  --m7: #9aa8ba;
+  --on-member: #121214;
+  --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --pop-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.5);
   --grab: #3a3a3f;
   --login-bg: #121214;
-  --chip-line: #2e2e33;
 }
 
 html,
@@ -177,27 +174,38 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   letter-spacing: -0.01em;
-  line-height: 1.5;
+  line-height: 20px;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
 /* 서체 역할 */
+/* 화면 제목 20/28 700, 메타 12/16 400~500 */
 .t-title {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1.15;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 28px;
 }
 .t-sub {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
   letter-spacing: 0;
-  line-height: 1.4;
+  line-height: 16px;
   color: var(--mute);
+}
+/* 섹션 제목 13/20 700, 높이 32 줄 */
+.t-sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
 }
 
 /* 포커스는 항상 보이게 */
@@ -219,24 +227,10 @@ body {
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"] {
-    min-height: 48px;
+    min-height: 44px;
     -webkit-appearance: none;
     appearance: none;
   }
-}
-
-/* 반투명 알약(상단 팀 이름, 새 소식) 과 떠 있는 탭 */
-.glass-pill {
-  background: var(--pill);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-}
-.glass-dock {
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  box-shadow: var(--dock-shadow);
 }
 
 /* 시트 열림 200ms, 날짜 선택 120ms. 모션 축소 환경에서는 즉시 */

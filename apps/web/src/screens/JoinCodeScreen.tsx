@@ -40,24 +40,24 @@ export function JoinCodeScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] lg:pt-[26px]">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
       <div className="flex items-center justify-between">
         <Symbol size={36} />
-        <Link href="/" className="flex h-9 items-center rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95">
+        <Link href="/" className="flex h-8 items-center rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           닫기
         </Link>
       </div>
 
-      <form onSubmit={submit} className="mt-10 flex flex-1 flex-col px-1.5">
-        <h1 className="text-[40px] font-extrabold leading-[1.05] tracking-[-0.06em]">
+      <form onSubmit={submit} className="mt-8 flex flex-1 flex-col px-1">
+        <h1 className="text-[28px] font-bold leading-9 tracking-[-0.03em]">
           초대 코드를
           <br />
           입력해 주세요
         </h1>
-        <p className="mt-3 text-[16px] font-medium text-soft">팀원에게 받은 6자리 코드로 같은 달력에 합류해요</p>
+        <p className="mt-2 text-[14px] leading-5 text-soft">팀원에게 받은 6자리 코드로 같은 달력에 합류해요</p>
 
-        <div className="mt-8 rounded-xl bg-paper px-5 py-5">
-          <label htmlFor={id} className="mb-2 block text-[12px] font-semibold text-ink-2">
+        <div className="mt-6 rounded-xl bg-paper px-3.5 py-3.5">
+          <label htmlFor={id} className="mb-1.5 block text-[12px] font-medium text-ink-2">
             초대 코드 6자리
           </label>
           <CodeInput
@@ -70,11 +70,11 @@ export function JoinCodeScreen() {
             autoFocus
           />
           {error ? (
-            <p id={`${id}-msg`} role="alert" className="mt-2.5 text-[13px] font-semibold text-danger">
+            <p id={`${id}-msg`} role="alert" className="mt-2 text-[12px] text-danger">
               {error}
             </p>
           ) : (
-            <p id={`${id}-msg`} className="t-sub mt-2.5">
+            <p id={`${id}-msg`} className="t-sub mt-2">
               영문은 대문자로 바뀌어요. 초대 링크를 붙여넣어도 돼요
             </p>
           )}
@@ -84,7 +84,7 @@ export function JoinCodeScreen() {
           <Button type="submit" size="lg" full disabled={!complete} loading={loading}>
             합류하기
           </Button>
-          <Link href="/groups/new" className="mt-3 flex h-11 items-center justify-center rounded-full text-[14px] font-bold text-ink-2 hover:text-ink">
+          <Link href="/groups/new" className="mt-2 flex h-11 items-center justify-center rounded-md text-[13.5px] font-bold text-ink-2 hover:text-ink">
             새 팀 만들기
           </Link>
         </div>

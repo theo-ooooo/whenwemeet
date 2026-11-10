@@ -33,56 +33,54 @@ export function NewsScreen({ groupId }: { groupId: number }) {
 
   return (
     <div className="pt-1">
-      <div className="mt-4 flex items-center justify-between lg:mt-0">
+      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">새 소식</h1>
         <button
           type="button"
           onClick={() => router.back()}
-          className="h-9 rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95 lg:hidden"
+          className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95 lg:hidden"
         >
           뒤로
         </button>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3">
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : news === null ? (
           <SkeletonList rows={3} />
         ) : news.items.length === 0 ? (
-          <p className="rounded-xl bg-paper px-5 py-8 text-center text-[14px] font-semibold leading-relaxed text-ink-2">
+          <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
             아직 새 소식이 없어요.
             <br />
             팀원이 일정을 바꾸면 여기에 모여요
           </p>
         ) : (
-          <ul className="space-y-1 rounded-xl bg-paper p-2">
+          <ul className="rounded-xl bg-paper px-1.5 py-1.5">
             {news.items.map((item) => {
               const clickable = item.eventId && item.action !== "DELETED";
               const body = (
                 <>
-                  <MemberDot color={item.actor.color} size={12} className="mt-[5px]" />
+                  <MemberDot color={item.actor.color} size={8} className="mt-1.5" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] leading-snug">
-                      <span className="font-bold">{item.actor.displayName}</span>님이{" "}
-                      <span className={`font-bold ${item.action === "DELETED" ? "line-through text-ink-2" : ""}`}>
+                    <span className="block text-[14px] leading-5">
+                      <span className="font-semibold">{item.actor.displayName}</span>님이{" "}
+                      <span className={`font-semibold ${item.action === "DELETED" ? "line-through text-ink-2" : ""}`}>
                         &lsquo;{item.title}&rsquo;
                       </span>{" "}
                       일정을 {ACTION_LABEL[item.action]}
                     </span>
-                    <span className="mt-1 block text-[12px] font-semibold text-ink-2 tabular-nums">
+                    <span className="mt-0.5 block text-[12px] leading-4 text-ink-2 tabular-nums">
                       {formatDateKo(dateKeyOf(item.startsAt))} {formatEventTime(item.startsAt, item.endsAt, item.allDay)}
                     </span>
                   </span>
-                  <span className="shrink-0 pt-0.5 text-right text-[12px] font-semibold text-ink-2">
-                    {item.isNew && <span className="mb-0.5 block font-bold text-ink">새 소식</span>}
+                  <span className="shrink-0 text-right text-[12px] leading-4 text-ink-2">
+                    {item.isNew && <span className="mb-0.5 flex items-center justify-end gap-1 font-bold text-ink"><i aria-hidden="true" className="block size-1.5 rounded-full bg-pri" />새 소식</span>}
                     {formatRelative(item.createdAt)}
                   </span>
                 </>
               );
-              const cls = `flex w-full items-start gap-3 rounded-[18px] px-3.5 py-3.5 text-left ${
-                item.isNew ? "bg-surface" : ""
-              } ${clickable ? "hover:bg-surface" : ""}`;
+              const cls = `flex min-h-11 w-full items-start gap-2.5 rounded-sm px-2 py-2.5 text-left ${clickable ? "hover:bg-hover" : ""}`;
               return (
                 <li key={item.id}>
                   {clickable ? (

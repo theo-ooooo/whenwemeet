@@ -32,30 +32,30 @@ export default async function LoginPage({
     <div className="min-h-dvh bg-[var(--login-bg)]">
       <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
-        <ul aria-label="이런 모임이 함께 써요" className="mb-[22px] mt-auto flex flex-wrap gap-2 pt-16">
+        <ul aria-label="이런 모임이 함께 써요" className="mb-4 mt-auto flex flex-wrap gap-1.5 pt-16">
           {["커플", "가족", "친구 모임", "스터디"].map((t) => (
-            <li key={t} className="rounded-full border-[1.5px] border-[var(--chip-line)] px-3 py-[7px] text-[13px] font-semibold text-soft">
+            <li key={t} className="rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
               {t}
             </li>
           ))}
         </ul>
-        <h1 className="text-[58px] font-extrabold leading-none tracking-[-0.06em]">
+        <h1 className="text-[44px] font-bold leading-none tracking-[-0.04em]">
           언제
           <br />
-          볼까<span className="text-brand">?</span>
+          볼까<span className="text-acc-ink">?</span>
         </h1>
-        <p className="mt-[18px] text-[16px] font-medium leading-normal text-soft">
+        <p className="mt-3 text-[15px] leading-[22px] text-soft">
           카톡으로 캡처 주고받기 그만. 달력 하나 같이 보고, 다 되는 시간 바로 찾기.
         </p>
 
-        <div className="mt-10">
+        <div className="mt-8">
           {error && (
-            <p role="alert" className="mb-3 rounded-[18px] bg-surface px-4 py-3 text-[14px] font-semibold text-danger">
+            <p role="alert" className="mb-3 rounded-sm bg-surface px-3.5 py-2.5 text-[13px] text-danger">
               {error}
             </p>
           )}
           <KakaoButton next={next} />
-          <p className="mt-3.5 text-center text-[12px] font-semibold text-ink-2">
+          <p className="mt-3 text-center text-[12px] text-ink-2">
             시작하면{" "}
             <Link href="/terms" className="underline underline-offset-2">
               이용약관

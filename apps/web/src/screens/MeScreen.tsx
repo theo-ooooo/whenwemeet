@@ -96,8 +96,8 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
   }
 
   return (
-    <section className="mt-5 rounded-xl bg-paper px-5 py-5">
-      <div className="flex items-center gap-4">
+    <section className="mt-3 rounded-xl bg-paper px-3.5 py-3.5">
+      <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => setPhotoOpen(true)}
@@ -105,7 +105,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
           aria-label="프로필 사진 바꾸기"
           className="relative shrink-0 rounded-full outline-offset-2 transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait"
         >
-          <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={64} />
+          <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={56} />
           {photoBusy && (
             <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white">
               <Spinner />
@@ -136,7 +136,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
                 aria-describedby={nickError ? "nickname-error" : "nickname-count"}
               />
               <div className="mt-2 flex items-center gap-1.5">
-                <span id="nickname-count" className={`mr-auto text-[12px] font-semibold ${draft.trim().length > NICKNAME_MAX ? "text-danger" : "text-ink-2"}`}>
+                <span id="nickname-count" className={`mr-auto text-[12px] ${draft.trim().length > NICKNAME_MAX ? "text-danger" : "text-ink-2"}`}>
                   {draft.trim().length}/{NICKNAME_MAX}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
@@ -151,16 +151,16 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
             <button
               type="button"
               onClick={startEdit}
-              className="-mx-2 -my-1 block w-[calc(100%+16px)] rounded-lg px-2 py-1 text-left hover:bg-surface focus-visible:outline-2 focus-visible:outline-ink"
+              className="-mx-2 -my-1 block w-[calc(100%+16px)] rounded-sm px-2 py-1 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-ink"
             >
-              <span className="block truncate text-[22px] font-extrabold tracking-[-0.04em]">{me.nickname}</span>
+              <span className="block truncate text-[18px] font-bold tracking-[-0.02em]">{me.nickname}</span>
               <span className="t-sub mt-0.5 block">눌러서 닉네임 바꾸기</span>
             </button>
           )}
         </div>
       </div>
       {nickError && (
-        <p id="nickname-error" role="alert" className="mt-3 text-[13px] text-danger">
+        <p id="nickname-error" role="alert" className="mt-3 text-[12px] text-danger">
           {nickError}
         </p>
       )}
@@ -170,7 +170,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
         </p>
       )}
       {photoError && (
-        <p role="alert" className="mt-3 text-[13px] text-danger">
+        <p role="alert" className="mt-3 text-[12px] text-danger">
           {photoError}
         </p>
       )}
@@ -203,11 +203,11 @@ const THEMES: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
 function ThemePicker() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "system" as ThemeChoice);
   return (
-    <section className="mt-2 rounded-xl bg-paper px-5 py-5">
-      <h2 id="theme-label" className="text-[12px] font-semibold text-ink-2">
+    <section className="mt-2 rounded-xl bg-paper px-3.5 py-3.5">
+      <h2 id="theme-label" className="text-[13px] font-bold leading-5">
         화면 테마
       </h2>
-      <div role="radiogroup" aria-labelledby="theme-label" className="mt-3 grid grid-cols-3 gap-1 rounded-full bg-surface p-1">
+      <div role="radiogroup" aria-labelledby="theme-label" className="mt-2 grid grid-cols-3 gap-1 rounded-sm bg-surface p-1">
         {THEMES.map((t) => {
           const on = theme === t.value;
           return (
@@ -217,7 +217,7 @@ function ThemePicker() {
               role="radio"
               aria-checked={on}
               onClick={() => setTheme(t.value)}
-              className={`anim-pick flex h-11 items-center justify-center gap-1.5 rounded-full text-[14px] font-bold ${on ? "bg-today text-sel-ink" : "text-soft hover:text-ink"}`}
+              className={`anim-pick flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] ${on ? "bg-paper font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "font-medium text-soft hover:text-ink"}`}
             >
               {t.icon}
               {t.label}
@@ -225,7 +225,7 @@ function ThemePicker() {
           );
         })}
       </div>
-      <p className="mt-2.5 text-[12px] font-semibold text-ink-2">시스템을 고르면 기기의 라이트/다크 설정을 따라가요</p>
+      <p className="mt-2 text-[12px] text-ink-2">시스템을 고르면 기기의 라이트/다크 설정을 따라가요</p>
     </section>
   );
 }
@@ -269,20 +269,20 @@ export function MeScreen() {
 
   if (leaving) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(20px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={() => setLeaving(false)}
-          className="h-9 self-start rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95"
+          className="h-8 self-start rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
         >
           돌아가기
         </button>
-        <h1 className="mt-8 text-[34px] font-extrabold leading-[1.1] tracking-[-0.05em]">정말 탈퇴할까요?</h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-soft">
+        <h1 className="t-title mt-6">정말 탈퇴할까요?</h1>
+        <p className="mt-2 text-[14px] leading-5 text-soft">
           개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오 연결도
           끊어져요.
         </p>
-        <label htmlFor="confirm-leave" className="mt-8 block text-[13px] font-semibold">
+        <label htmlFor="confirm-leave" className="mt-6 block text-[13px] font-semibold">
           계속하려면 <span className="text-danger">탈퇴</span> 라고 입력해 주세요
         </label>
         <input
@@ -294,7 +294,7 @@ export function MeScreen() {
           autoFocus
         />
         {deleteError && (
-          <p role="alert" className="mt-3 text-[14px] text-danger">
+          <p role="alert" className="mt-2 text-[12px] text-danger">
             {deleteError}
           </p>
         )}
@@ -303,7 +303,7 @@ export function MeScreen() {
             size="lg"
             full
             variant="danger"
-            className="bg-danger! text-white!"
+            className="bg-danger! text-on-btn!"
             disabled={typed.trim() !== "탈퇴"}
             loading={deleting}
             onClick={deleteAccount}
@@ -316,16 +316,16 @@ export function MeScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] lg:pt-[26px]">
-      <div className="mt-[22px] flex items-center justify-between px-1.5 lg:mt-0">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">내 정보</h1>
-        <button type="button" onClick={() => router.back()} className="h-9 rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95">
+        <button type="button" onClick={() => router.back()} className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           뒤로
         </button>
       </div>
 
       {error ? (
-        <div className="mt-5">
+        <div className="mt-3">
           <ErrorState message={error} onRetry={load} />
         </div>
       ) : (
@@ -333,8 +333,8 @@ export function MeScreen() {
           {me ? (
             <ProfileCard me={me} onChange={(next) => setMe(next)} />
           ) : (
-            <section className="mt-5 flex items-center gap-4 rounded-xl bg-paper px-5 py-5">
-              <Skeleton className="size-16 rounded-full" />
+            <section className="mt-3 flex items-center gap-3 rounded-xl bg-paper px-3.5 py-3.5">
+              <Skeleton className="size-14 rounded-full" />
               <div className="min-w-0 flex-1">
                 <Skeleton className="h-6 w-24" />
                 <Skeleton className="mt-2 h-3 w-40" />
@@ -344,15 +344,15 @@ export function MeScreen() {
 
           <ThemePicker />
 
-          <section className="mt-2 rounded-xl bg-paper px-5 py-4">
-            <h2 className="text-[12px] font-semibold text-ink-2">내 팀 {groups ? `${groups.length}개` : ""}</h2>
+          <section className="mt-2 rounded-xl bg-paper px-3.5 py-3">
+            <h2 className="text-[13px] font-bold leading-5">내 팀 {groups ? `${groups.length}개` : ""}</h2>
             <ul className="mt-1">
               {groups
                 ? groups.map((g, i) => (
                     <li key={g.id} className={i === 0 ? "" : "border-t border-line"}>
-                      <Link href={`/g/${g.id}/calendar`} className="flex items-center justify-between py-3">
-                        <span className="truncate text-[16px] font-bold tracking-[-0.02em]">{g.name}</span>
-                        <span className="text-[12px] font-semibold text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
+                      <Link href={`/g/${g.id}/calendar`} className="flex min-h-11 items-center justify-between py-2">
+                        <span className="truncate text-[15px] font-semibold">{g.name}</span>
+                        <span className="text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
                       </Link>
                     </li>
                   ))
@@ -366,7 +366,7 @@ export function MeScreen() {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-[12px] font-semibold text-ink-2">
+          <p className="mt-6 text-center text-[12px] text-ink-2">
             <Link href="/terms" className="underline underline-offset-2">
               이용약관
             </Link>
@@ -382,7 +382,7 @@ export function MeScreen() {
             <button
               type="button"
               onClick={() => setLeaving(true)}
-              className="rounded-full px-3 py-2 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-danger"
+              className="rounded-sm px-3 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-danger"
             >
               회원 탈퇴
             </button>

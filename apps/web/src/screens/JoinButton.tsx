@@ -47,7 +47,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
   return (
     <div>
       {error && (
-        <p role="alert" className="mb-3 text-[14px] font-semibold text-danger">
+        <p role="alert" className="mb-3 text-[13px] text-danger">
           {error}
         </p>
       )}

@@ -105,13 +105,19 @@ export class MemberResolver {
   }
 }
 
-/** 팀에서 가장 적게 쓰인 팔레트 색. 동률이면 팔레트 순서 (결정기록 D-21) */
+/**
+ * 새로 배정하는 색 후보: 팔레트 앞 7개. 화면은 멤버 색을 7개로 그리므로(디자인토큰.md "2026-11 확정", D-57)
+ * 8번째 키(#F279B5)를 새로 주지 않는다. 이미 그 값을 가진 멤버는 그대로 둔다 (화면이 따로 매핑)
+ */
+export const ASSIGNABLE_COLORS = MEMBER_COLORS.slice(0, 7);
+
+/** 팀에서 가장 적게 쓰인 색(앞 7개 중). 동률이면 팔레트 순서 (결정기록 D-21) */
 export function pickLeastUsedColor(usedColors: readonly string[]): string {
   const counts = new Map<string, number>();
   for (const color of usedColors) counts.set(color.toUpperCase(), (counts.get(color.toUpperCase()) ?? 0) + 1);
-  let best: string = MEMBER_COLORS[0];
+  let best: string = ASSIGNABLE_COLORS[0];
   let bestCount = Number.POSITIVE_INFINITY;
-  for (const color of MEMBER_COLORS) {
+  for (const color of ASSIGNABLE_COLORS) {
     const count = counts.get(color) ?? 0;
     if (count < bestCount) {
       best = color;
