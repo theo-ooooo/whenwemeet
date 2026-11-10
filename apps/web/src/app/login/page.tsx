@@ -76,6 +76,11 @@ export default async function LoginPage({
             </Link>
             에 동의한 것으로 봐요
           </p>
+          <p className="mt-1 text-center text-[12px] text-ink-2">
+            <Link href="/support" className="hit inline-block underline underline-offset-2">
+              고객 지원
+            </Link>
+          </p>
         </div>
       </main>
     </div>
