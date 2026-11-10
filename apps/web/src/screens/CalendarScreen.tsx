@@ -59,6 +59,8 @@ import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import type { Event } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
+import { useMonthSwipe } from "@/lib/useMonthSwipe";
+import { haptic } from "@/lib/app-bridge";
 
 type Props = { groupId: number };
 
@@ -266,6 +268,14 @@ export function CalendarScreen({ groupId }: Props) {
   function go(n: number) {
     setMonth(shiftMonth(y, m, n));
   }
+  // 달력 좌우 스와이프 (#162): 왼쪽으로 밀면 다음 달. 날짜 상세가 떠 있는 동안은 보지 않는다
+  const swipeRef = useMonthSwipe<HTMLUListElement>({
+    enabled: !visible,
+    onCommit: (dir) => {
+      go(dir);
+      haptic("light");
+    },
+  });
   function goToday() {
     const p = parseKey(today);
     setMonth({ y: p.y, m: p.m });
@@ -620,7 +630,7 @@ export function CalendarScreen({ groupId }: Props) {
         <div className="mb-2 fold:hidden">{infoCard}</div>
 
         {/* 달력 타일 */}
-        <div className="rounded-xl bg-paper px-1.5 pb-1 fold:mt-2 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
+        <div className="overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-2 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
           <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
               <span key={w} className={i === 0 || i === 6 ? "text-holiday" : ""}>
@@ -628,7 +638,12 @@ export function CalendarScreen({ groupId }: Props) {
               </span>
             ))}
           </div>
-          <ul aria-label={`${y}년 ${m}월 날짜`} className="grid grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr">
+          {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
+          <ul
+            ref={swipeRef}
+            aria-label={`${y}년 ${m}월 날짜`}
+            className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
+          >
             {grid.map((key) => (
               <DayCell
                 key={key}
