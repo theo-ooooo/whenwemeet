@@ -77,3 +77,13 @@ export function sessionCookieOptions() {
     secure: process.env.NODE_ENV === "production",
   };
 }
+
+/** 앱 handoff: 32바이트 base64url 43자 (앱.md 2.1, API HandoffExchangeDto 와 같은 규칙) */
+const HANDOFF = /^[A-Za-z0-9_-]{43}$/;
+/** PKCE verifier: unreserved 43 ~ 128자 */
+const VERIFIER = /^[A-Za-z0-9._~-]{43,128}$/;
+
+/** /auth/app 쿼리 h, v 형식 확인. API 를 부르기 전에 모양이 틀린 요청을 거른다 */
+export function isHandoffPair(h: string | null | undefined, v: string | null | undefined): boolean {
+  return !!h && !!v && HANDOFF.test(h) && VERIFIER.test(v);
+}

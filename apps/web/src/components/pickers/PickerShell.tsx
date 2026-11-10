@@ -87,21 +87,21 @@ function BottomSheet({ onClose, trigger, title, children }: InnerProps) {
   useReturnFocus(trigger);
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label="닫기" tabIndex={-1} onClick={onClose} className="anim-fade absolute inset-0 bg-black/35" />
+      <button type="button" aria-label="닫기" tabIndex={-1} onClick={onClose} className="anim-fade absolute inset-0 bg-[var(--scrim)]" />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         onKeyDown={onKeyDown}
-        className="anim-sheet relative max-h-[86dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-[18px] pb-[calc(22px+env(safe-area-inset-bottom))] pt-3"
+        className="anim-sheet relative max-h-[86dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2"
       >
-        <div aria-hidden="true" className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-[var(--grab)]" />
-        <div className="mb-2 flex items-center justify-between px-1">
-          <h2 id={titleId} className="text-[18px] font-extrabold tracking-[-0.03em]">
+        <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)]" />
+        <div className="mb-1 flex h-10 items-center justify-between px-1">
+          <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
             {title}
           </h2>
-          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-9 place-items-center rounded-full bg-surface hover:brightness-95">
+          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
             <IconClose size={18} />
           </button>
         </div>
@@ -162,7 +162,7 @@ function Popover({ onClose, trigger, title, width, children }: InnerProps & { wi
       aria-labelledby={titleId}
       onKeyDown={onKeyDown}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? 0, width, boxShadow: "var(--pop-shadow)" }}
-      className={`fixed z-50 rounded-lg border border-line bg-paper p-3 ${pos ? "anim-fade" : "opacity-0"}`}
+      className={`fixed z-50 rounded-xl border border-line bg-paper p-2.5 ${pos ? "anim-fade" : "opacity-0"}`}
     >
       <h2 id={titleId} className="sr-only">
         {title}
@@ -174,4 +174,4 @@ function Popover({ onClose, trigger, title, width, children }: InnerProps & { wi
 
 /** 피커 트리거 버튼 모양 (기존 inputClass 와 같은 면, 높이) */
 export const triggerClass =
-  "flex min-h-12 w-full items-center justify-between gap-2 rounded-sm bg-surface px-3 text-left text-[15px] font-semibold text-ink tabular-nums focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
+  "flex min-h-11 w-full items-center justify-between gap-2 rounded-sm bg-surface px-3 text-left text-[14px] font-medium text-ink tabular-nums focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";

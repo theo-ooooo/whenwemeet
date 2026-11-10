@@ -183,6 +183,19 @@ describe('member', () => {
     expect(pickLeastUsedColor(['#123456'])).toBe(MEMBER_COLORS[0]);
   });
 
+  it('pickLeastUsedColor 는 앞 7개만 배정하고 8번째 키(#F279B5)는 주지 않는다 (D-57)', () => {
+    const firstSeven = MEMBER_COLORS.slice(0, 7);
+    // 앞 7개가 한 번씩 쓰였으면 8번째가 아니라 첫 색으로 돌아간다
+    expect(pickLeastUsedColor([...firstSeven])).toBe(MEMBER_COLORS[0]);
+    // 8번째 키를 가진 기존 멤버가 있어도 후보에서 빠진다
+    expect(pickLeastUsedColor([...firstSeven, MEMBER_COLORS[7]])).toBe(MEMBER_COLORS[0]);
+    // 7명이 지나도록 배정해도 8번째 키는 한 번도 나오지 않는다
+    const used: string[] = [];
+    for (let i = 0; i < 20; i++) used.push(pickLeastUsedColor(used));
+    expect(used).not.toContain(MEMBER_COLORS[7]);
+    expect(new Set(used.slice(0, 7))).toEqual(new Set(firstSeven));
+  });
+
   it('toMember 는 displayName ?? nickname', () => {
     const base = { userId: 1, color: '#000000', joinedAt: new Date(0), user: { nickname: '닉', profileImageUrl: 'p' } };
     expect(toMember({ ...base, displayName: null }).displayName).toBe('닉');

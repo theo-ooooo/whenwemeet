@@ -1,10 +1,10 @@
-// 선 아이콘 한 세트 (stroke 2, round). 목업(docs/설계/img/디자인-2026*.html) 의 경로를 그대로 쓴다.
+// 선 아이콘 한 세트 (stroke 1.8, round). 경로는 목업(docs/설계/img/최종-A-시안.html) 과 같다.
 // 장식용이라 기본 aria-hidden. 의미는 옆 글자나 aria-label 로 전한다.
 import type { SVGProps } from "react";
 
 type IconProps = Omit<SVGProps<SVGSVGElement>, "children"> & { size?: number };
 
-function Svg({ size = 22, strokeWidth = 2, children, ...rest }: IconProps & { children: React.ReactNode }) {
+function Svg({ size = 22, strokeWidth = 1.8, children, ...rest }: IconProps & { children: React.ReactNode }) {
   return (
     <svg
       width={size}
