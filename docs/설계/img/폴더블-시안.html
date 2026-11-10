@@ -1,0 +1,186 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>폴더블 시안</title>
+<!-- #99 폴더블(펼친 화면 600~1023px) 시안. 주소 해시로 프레임 선택: #duo-cal, #duo-detail, #duo-free, #duo-form, #fold-cal (+ ?dark) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--bg:#F4F3F1;--tile:#FFFFFF;--ink:#26252A;--mute:#6C6C70;--soft:#555;--faint:#C7C7CC;--line:#ECEBE8;--acc:#FF3D1F;
+--hl-tile:#FFEDE8;--hl-ink:#7A3A2E;--hl-time:#E0533D;--today-bg:#FFE1D9;--today-ink:#C2412C;--sel-ink:#A93520;--pri:#E0533D;--on-pri:#fff;--btn:#C8432D;--on-btn:#fff;
+--holiday:#E5322D;--holiday-faint:#F2B8B5;--m1:#FF3D1F;--m2:#1F5BFF;--m3:#9A1DFF;--fab-shadow:0 8px 30px rgba(224,83,61,.32);--chip-line:#E3E2DF}
+html.dark{--bg:#121214;--tile:#1D1D21;--ink:#ECECEF;--mute:#8E8E93;--soft:#A1A1A6;--faint:#3A3A3F;--line:#2A2A2F;--acc:#FF4A2E;
+--hl-tile:#3A2622;--hl-ink:#E8C9C2;--hl-time:#FF8670;--today-bg:#4A2C26;--today-ink:#FFB4A5;--sel-ink:#FFB4A5;--pri:#FF8670;--on-pri:#1A0E0B;--btn:#FF8670;--on-btn:#1A0E0B;
+--holiday-faint:#5A2A28;--m1:#FF4A2E;--m2:#3B74FF;--m3:#A855F7;--fab-shadow:0 8px 30px rgba(0,0,0,.4);--chip-line:#2F2F35}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Pretendard Variable",Pretendard,sans-serif;background:var(--bg);color:var(--ink);overflow:hidden}
+svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.app{display:grid;grid-template-columns:76px minmax(0,1fr);height:100vh;width:100vw}
+/* 레일 */
+.rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 16px}
+.sym{position:relative;width:30px;height:30px;margin-bottom:10px}.sym i{position:absolute;width:17px;height:17px;border-radius:6px}
+.sym i:nth-child(1){left:2px;top:2px;background:var(--m1)}.sym i:nth-child(2){left:11px;top:11px;background:var(--m2)}.sym i:nth-child(3){left:11px;top:11px;width:8px;height:8px;border-radius:0 0 6px 0;background:var(--m3)}
+.fab{width:48px;height:48px;border-radius:999px;background:var(--pri);color:var(--on-pri);display:grid;place-items:center;box-shadow:var(--fab-shadow);margin-bottom:10px}
+.fab svg{width:24px;height:24px;stroke-width:2.2}
+.ri{width:60px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 0;border-radius:16px;font-size:10.5px;font-weight:700;color:var(--mute);position:relative}
+.ri.on{color:var(--ink)}.ri.on .ic{background:var(--tile)}
+.ri .ic{width:52px;height:32px;border-radius:999px;display:grid;place-items:center}
+.ri .ic svg{width:20px;height:20px}
+.ri .bd{position:absolute;top:4px;right:6px;background:var(--acc);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 5px}
+.av{margin-top:auto;width:36px;height:36px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-size:13px;font-weight:700}
+/* 본문 */
+.body{display:grid;grid-template-rows:auto minmax(0,1fr);padding:14px 16px 16px 0;gap:10px;min-width:0}
+.top{display:flex;align-items:center;gap:8px}
+.pill{background:rgba(255,255,255,.7);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:700;display:flex;gap:6px;align-items:center}
+html.dark .pill{background:rgba(40,40,46,.8)}
+.pill svg{width:14px;height:14px;opacity:.5;stroke-width:2.4}
+.mon{display:flex;align-items:flex-end;gap:6px;margin-left:10px}
+.mon b{font-size:44px;font-weight:800;letter-spacing:-.07em;line-height:.82}.mon span{font-size:13px;color:var(--mute);font-weight:600}
+.sp{flex:1}
+.cb{width:34px;height:34px;border-radius:50%;background:var(--tile);display:grid;place-items:center}.cb svg{width:16px;height:16px}
+.tb{height:34px;padding:0 14px;border-radius:999px;background:var(--tile);display:grid;place-items:center;font-size:13px;font-weight:700}
+.panes{display:grid;grid-template-columns:minmax(0,1fr) var(--pane,336px);gap:8px;min-height:0}
+.tile{background:var(--tile);border-radius:26px}
+/* 달력 */
+.cal{padding:12px 10px 8px;display:flex;flex-direction:column;min-height:0}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;color:var(--mute);font-weight:700;text-align:center;padding-bottom:4px}
+.wk span:first-child,.wk span:last-child{color:var(--holiday)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:1fr;flex:1;gap:2px;min-height:0}
+.d{border-radius:14px;display:flex;flex-direction:column;align-items:center;padding-top:6px;font-size:14px;font-weight:700;min-height:0;overflow:hidden}
+.d.we{color:var(--holiday)}.d.o{color:var(--faint);font-weight:500}.d.o.we{color:var(--holiday-faint)}
+.d.sel{background:var(--today-bg);color:var(--today-ink)}
+.bars{display:flex;gap:2px;margin-top:4px;width:62%}.bars i{height:3px;border-radius:2px;flex:1}
+.d .t{font-size:9px;font-weight:700;color:var(--ink);margin-top:3px;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.02em}
+.d.sel .t{color:var(--sel-ink)}
+/* 칸이 높을 때(세로 펼침): PC 처럼 제목 칩 */
+.chipm .d{align-items:stretch;padding:8px 6px 4px;text-align:left}.chipm .d>span.n{padding-left:4px}
+.e{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;margin-top:4px;padding:3px 5px;border-radius:7px;background:var(--bg);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.e i{width:6px;height:6px;border-radius:2px;flex:none}.e.all{background:var(--m1);color:#fff}.d.sel .e{background:var(--tile)}
+/* 우측 칸 */
+.pane{display:flex;flex-direction:column;gap:8px;min-height:0}
+.hl{background:var(--hl-tile);border-radius:22px;padding:14px 16px;color:var(--hl-ink)}
+.hl small{font-size:12px;font-weight:600;display:block}.hl b{display:block;color:var(--hl-time);font-size:22px;font-weight:800;letter-spacing:-.04em;margin:3px 0}
+.hl em{font-style:normal;font-size:12px;opacity:.8;font-weight:600}
+.row2{display:grid;grid-template-columns:1fr auto;gap:8px}
+.dd{background:var(--tile);border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center}
+.dd small{font-size:12px;color:var(--mute);font-weight:600}.dd b{font-size:22px;font-weight:800;letter-spacing:-.04em}
+.day{padding:16px 18px;flex:1;min-height:0;display:flex;flex-direction:column}
+.day h4{font-size:15px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;font-weight:700;background:var(--today-bg);color:var(--sel-ink);border-radius:999px;padding:3px 8px}
+.ev{display:flex;gap:12px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}.ev.first{border-top:0;margin-top:4px}
+.ev i{width:12px;height:12px;border-radius:4px;flex:none}.ev b{display:block;font-size:16px;font-weight:700;letter-spacing:-.02em}
+.ev span{font-size:12px;color:var(--mute);font-weight:600}.ev .who{margin-left:auto}
+.ev.act{background:var(--bg);border-radius:14px;padding:13px 12px;margin:0 -12px;border-color:transparent}
+.an{display:flex;gap:10px;align-items:center;background:var(--hl-tile);color:var(--hl-ink);border-radius:14px;padding:10px 12px;margin-top:10px;font-size:13px;font-weight:700}.an svg{width:16px;height:16px;color:var(--hl-time)}.an em{margin-left:auto;font-style:normal;color:var(--hl-time);font-weight:800}
+.add{margin-top:auto;height:44px;border-radius:999px;background:var(--today-bg);color:var(--sel-ink);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.add svg{width:16px;height:16px}
+/* 상세 */
+.det{padding:16px 18px;flex:1;display:flex;flex-direction:column;gap:12px}
+.det .hd{display:flex;align-items:center;gap:8px}
+.back{width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center}.back svg{width:16px;height:16px}
+.who2{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border-radius:999px;padding:5px 10px 5px 5px;font-size:12px;font-weight:700}
+.who2 i{width:20px;height:20px;border-radius:50%;background:var(--m2)}
+.det h3{font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1.1}
+.tm{background:var(--bg);border-radius:18px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+.tm small{font-size:11px;color:var(--mute);font-weight:600;display:block}.tm b{font-size:18px;font-weight:800;letter-spacing:-.03em}
+.btns{display:flex;gap:6px;margin-top:auto}.btns span{height:46px;border-radius:999px;display:grid;place-items:center;font-size:14px;font-weight:700;flex:1;background:var(--bg)}
+.btns .p{background:var(--btn);color:var(--on-btn)}.btns .x{flex:0 0 52px;color:var(--holiday)}
+/* 빈 시간 */
+.h1{font-size:24px;font-weight:800;letter-spacing:-.04em}
+.cond{align-self:start;padding:16px 18px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.lb{font-size:12px;color:var(--mute);font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{border:1px solid var(--chip-line);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:700}
+.chips span.on{background:var(--today-bg);color:var(--sel-ink);border-color:transparent}
+.tr{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;font-size:12px;color:var(--mute);font-weight:600}
+.box{background:var(--bg);border-radius:14px;padding:11px 12px;font-size:14px;font-weight:700;color:var(--ink);display:flex;justify-content:space-between}
+.box small{font-size:11px;color:var(--mute);font-weight:600}
+.tg{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:10px;font-size:13px;font-weight:700}
+.tg i{width:44px;height:26px;border-radius:999px;background:var(--faint);position:relative}.tg i:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.res{display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.res .note{font-size:12px;color:var(--mute);font-weight:600;padding:2px 6px}.res .note b{color:var(--ink)}
+.grp{padding:12px 14px}.grp h5{font-size:14px;font-weight:800;margin-bottom:8px;display:flex;gap:6px;align-items:center}
+.sl{background:var(--bg);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:8px;margin-top:6px}
+.sl b{font-size:16px;font-weight:800;letter-spacing:-.03em}.sl small{font-size:11px;color:var(--mute);font-weight:600}.sl em{margin-left:auto;font-style:normal;font-size:12px;font-weight:700}
+/* 폼 */
+.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;min-height:0;align-content:start}
+.fc{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.ttl{font-size:22px;font-weight:800;color:var(--faint);letter-spacing:-.03em;padding:6px 0}
+.memo{background:var(--bg);border-radius:14px;flex:1;min-height:120px;padding:12px;font-size:13px;color:var(--mute)}
+.save{height:52px;border-radius:999px;background:var(--btn);color:var(--on-btn);display:grid;place-items:center;font-size:15px;font-weight:700}
+.trow{display:grid;grid-template-columns:1.4fr 1fr;gap:6px}
+/* 폰 바텀 시트 */
+.ph{display:block;padding:0 16px;height:100vh;overflow:hidden;position:relative}
+.ph .ptop{display:flex;justify-content:space-between;align-items:center;padding-top:16px}
+.ph .bell{background:rgba(255,255,255,.7);border-radius:999px;padding:8px 12px;display:flex;gap:5px;align-items:center;font-size:13px;font-weight:700}
+html.dark .ph .bell{background:rgba(40,40,46,.8)}.ph .bell svg{width:18px;height:18px}
+.ph .bigm{display:flex;align-items:flex-end;gap:4px;margin:22px 0 14px}.ph .bigm b{font-size:96px;font-weight:800;letter-spacing:-.07em;line-height:.82}.ph .bigm span{font-size:15px;color:var(--mute);font-weight:700}
+.ph .tiles{display:grid;grid-template-columns:1.25fr 1fr;gap:8px;margin-bottom:8px}
+.ph .cal{height:330px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:56%;background:var(--tile);border-radius:30px 30px 0 0;padding:10px 20px 24px;display:flex;flex-direction:column}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--faint);margin:0 auto 14px}
+.sheet .sh{display:flex;align-items:center;gap:8px}.sheet .sh h4{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.sheet .x{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:16px;color:var(--mute)}
+.sheet .hint{font-size:11px;color:var(--mute);font-weight:600;text-align:center;margin-top:8px}
+/* 표시 */
+.dim{position:fixed;inset:0;pointer-events:none}
+</style></head><body>
+<div class="app" id="app"></div>
+<script>
+const P=new URLSearchParams(location.search);if(P.has('dark'))document.documentElement.classList.add('dark');
+const F=P.get('f')||(location.hash||'#duo-cal').slice(1);
+const I={cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',heart:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',team:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15 18c0-2.3 1.8-4 4-4"/></svg>',bell:'<svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',down:'<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',l:'<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',r:'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',arr:'<svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'};
+const tab=F.startsWith('duo-free')?'free':'cal';
+const rail=`<nav class="rail"><div class="sym"><i></i><i></i><i></i></div><span class="fab">${I.plus}</span>
+${[['cal','달력'],['clock','빈 시간'],['heart','기념일'],['bell','새 소식'],['team','팀']].map(([k,t])=>`<span class="ri${(k==='cal'&&tab==='cal')||(k==='clock'&&tab==='free')?' on':''}"><span class="ic">${I[k]}</span>${t}${k==='bell'?'<span class="bd">2</span>':''}</span>`).join('')}
+<span class="av">지</span></nav>`;
+const EV={3:[['m2','저녁 약속']],7:[['m1','치과']],10:[['m2','원고 마감'],['m1','영화']],11:[['m1','부모님 댁']],13:[['m2','요가']],24:[['m1','제주 여행']],25:[['m1','']],26:[['m1','']]};
+const T={10:['원고 마감','영화'],3:['저녁 약속'],7:['치과'],11:['부모님 댁'],13:['요가']};
+function gridChips(){let h='';for(let i=1;i<=30;i++){const we=(i-1)%7===0||(i-1)%7===6;const e=EV[i]||[];let c='';
+if(i>=24&&i<=26)c='<span class="e all">제주 여행</span>';else c=e.map((x,k)=>`<span class="e"><i style="background:var(--${x[0]})"></i>${T[i][k]}</span>`).join('');
+h+=`<div class="d${we?' we':''}${i===10?' sel':''}"><span class="n">${i}</span>${c}</div>`}
+for(let i=1;i<=5;i++)h+=`<div class="d o${i===5?' we':''}"><span class="n">${i}</span></div>`;return `<div class="tile cal chipm"><div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div class="grid">${h}</div></div>`}
+function grid(){let h='';for(let i=1;i<=30;i++){const we=(i-1)%7===0||(i-1)%7===6;const e=EV[i]||[];h+=`<div class="d${we?' we':''}${i===10?' sel':''}">${i}${e.length?`<span class="bars">${e.map(x=>`<i style="background:var(--${x[0]})"></i>`).join('')}</span>${e[0][1]?`<span class="t">${e[0][1]}</span>`:''}`:''}</div>`}
+for(let i=1;i<=5;i++)h+=`<div class="d o${i===5?' we':''}">${i}</div>`;return `<div class="tile cal"><div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div class="grid">${h}</div></div>`}
+const topBar=(extra)=>`<div class="top"><span class="pill">우리 둘 ${I.down}</span>${extra}</div>`;
+const monthNav=`<div class="mon"><b>11</b><span>월 2026</span></div><span class="sp"></span><span class="tb">오늘</span><span class="cb">${I.l}</span><span class="cb">${I.r}</span>`;
+const anniv=`<div class="an">${I.heart.replace('<svg','<svg style="width:16px;height:16px"')}하늘 생일<em>오늘</em></div>`;
+const dayList=(act)=>`<div class="tile day"><h4>10일 화요일 <span class="badge">오늘</span></h4>${anniv}
+<div class="ev first${act?' act':''}"><i style="background:var(--m2)"></i><div><b>원고 마감</b><span>종일</span></div><span class="who">하늘</span></div>
+<div class="ev"><i style="background:var(--m1)"></i><div><b>영화</b><span>19:30~22:00</span></div><span class="who">지우</span></div>
+<span class="add">${I.plus}이 날 일정 추가</span></div>`;
+const hl=`<div class="hl"><small>오늘 둘 다 비는 시간</small><b>11:00~19:30</b><em>탭하면 바로 약속으로</em></div>`;
+const dd=`<div class="dd"><small>처음 만난 날</small><b>D+591</b></div>`;
+const detail=`<div class="tile det"><div class="hd"><span class="back">${I.l}</span><span class="who2"><i></i>하늘이 등록</span></div>
+<h3>원고 마감</h3><div class="tm"><div><small>11월 10일 (화)</small><b>종일</b></div><span style="color:var(--mute)">${I.arr}</span><div style="text-align:right"><small>11월 10일 (화)</small><b>종일</b></div></div>
+<span class="lb">11월 9일 04:44 등록</span><div class="btns"><span class="p">수정</span><span>복제</span><span class="x">삭제</span></div></div>`;
+let main='';
+if(F==='duo-cal'||F==='duo-detail'){
+  main=`<div class="body">${topBar(monthNav)}<div class="panes" style="--pane:332px">${grid()}<div class="pane">${F==='duo-cal'?hl+dayList(false):detail}</div></div></div>`;
+}else if(F==='fold-cal'){
+  main=`<div class="body">${topBar(monthNav)}<div class="panes" style="--pane:360px">${gridChips()}<div class="pane">${hl}${dd}${dayList(false)}</div></div></div>`;
+}else if(F==='duo-free'){
+  main=`<div class="body">${topBar('<span class="h1" style="margin-left:10px">빈 시간 찾기</span>')}<div class="panes" style="--pane:minmax(0,1fr);grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+<div class="tile cond"><span class="lb">기간</span><div class="chips"><span class="on">이번 주</span><span>다음 주</span><span>직접</span></div>
+<span class="lb">시간대</span><div class="tr"><span class="box">오전 9:00 <small>09:00</small></span>부터<span class="box">오후 11:00 <small>23:00</small></span></div>
+<span class="lb">최소 길이</span><div class="chips"><span>1시간</span><span class="on">2시간</span><span>3시간</span><span>반나절</span></div>
+<div class="tg">종일 일정도 바쁜 시간으로<i></i></div></div>
+<div class="res"><span class="note"><b>2명</b> 모두 비는 시간이에요</span>
+<div class="tile grp"><h5>화 11/10 <span class="badge">오늘</span></h5><div class="sl"><b>11:00~19:30</b><small>8시간 30분</small><em>일정 만들기</em></div></div>
+<div class="tile grp"><h5>수 11/11</h5><div class="sl"><b>09:00~23:00</b><small>14시간</small><em>일정 만들기</em></div></div>
+<div class="tile grp"><h5>목 11/12</h5><div class="sl"><b>09:00~14:00</b><small>5시간</small><em>일정 만들기</em></div><div class="sl"><b>16:00~23:00</b><small>7시간</small><em>일정 만들기</em></div></div></div></div></div>`;
+}else if(F==='duo-form'){
+  main=`<div class="body">${topBar('<span class="h1" style="margin-left:10px">새 일정</span><span class="sp"></span><span class="tb">취소</span>')}<div class="form">
+<div class="tile fc"><div class="ttl">무슨 일정인가요?</div><span class="lb">메모</span><div class="memo">메모를 남겨 보세요</div></div>
+<div class="tile fc"><div class="tg" style="border:0;padding:0">종일<i></i></div><span class="lb">시작</span><div class="trow"><span class="box">11월 10일 (화)</span><span class="box">오전 10:00</span></div>
+<span class="lb">종료</span><div class="trow"><span class="box">11월 10일 (화)</span><span class="box">오전 11:00</span></div><span class="save" style="margin-top:8px">저장</span></div></div></div>`;
+}
+if(F==='phone-sheet'){
+  const app=document.getElementById('app');app.className='ph';
+  app.innerHTML=`<div class="ptop"><span class="pill">우리 둘 ${I.down}</span><span style="display:flex;gap:8px;align-items:center"><span class="bell">${I.bell}2</span><span class="av" style="margin:0">지</span></span></div>
+  <div class="bigm"><b>11</b><span>월</span></div><div class="tiles">${hl}${dd}</div>${grid()}
+  <div class="scrim"></div>
+  <div class="sheet" role="dialog"><div class="grab"></div><div class="sh"><h4>10일 화요일</h4><span class="badge">오늘</span><span class="x">${I.plus.replace('<svg','<svg style="width:16px;height:16px;transform:rotate(45deg)"')}</span></div>
+  ${anniv}
+  <div class="ev first" style="margin-top:6px"><i style="background:var(--m2)"></i><div><b>원고 마감</b><span>종일</span></div><span class="who">하늘</span></div>
+  <div class="ev"><i style="background:var(--m1)"></i><div><b>영화</b><span>19:30~22:00</span></div><span class="who">지우</span></div>
+  <span class="add" style="height:52px;font-size:15px">${I.plus}이 날 일정 추가</span><div class="hint">위로 끌어 올리면 전체 화면, 아래로 내리면 닫혀요</div></div>`;
+}else document.getElementById('app').innerHTML=rail+main;
+</script></body></html>
