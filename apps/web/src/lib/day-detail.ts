@@ -1,6 +1,7 @@
 // 날짜 상세(DayPanel) 와 달력 개요에 쓰는 순수 계산. React 를 import 하지 않는다 (단위 테스트 대상)
 import { addDays, dateKeyOf, daysBetween, dday, type DateKey } from "./date";
 import { occurrencesByDay, type Occurrence } from "./anniversary";
+import { eventKey } from "./recurrence";
 import type { Anniversary, Event } from "./types";
 
 export const isMultiDayAllDay = (ev: Event) => ev.allDay && daysBetween(dateKeyOf(ev.startsAt), dateKeyOf(ev.endsAt)) > 1;
@@ -42,12 +43,12 @@ export function dayBadge(key: DateKey, today: DateKey): string {
   return label === "D-day" ? "오늘" : label;
 }
 
-/** 다가오는 일정: 아직 끝나지 않은 것, 시작 순, 최대 limit 개 (같은 일정은 한 번) */
+/** 다가오는 일정: 아직 끝나지 않은 것, 시작 순, 최대 limit 개 (같은 일정은 한 번, 반복 일정은 회차마다 따로 #187) */
 export function upcomingEvents(events: Event[] | null | undefined, nowMs: number, limit: number): Event[] {
-  const seen = new Set<number>();
+  const seen = new Set<string>();
   return (events ?? [])
-    .filter((e) => Date.parse(e.endsAt) > nowMs && !seen.has(e.id) && seen.add(e.id))
-    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id - b.id)
+    .filter((e) => Date.parse(e.endsAt) > nowMs && !seen.has(eventKey(e)) && seen.add(eventKey(e)))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id - b.id || (a.occurrence ?? "").localeCompare(b.occurrence ?? ""))
     .slice(0, limit);
 }
 
