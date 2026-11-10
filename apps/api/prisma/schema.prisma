@@ -231,9 +231,6 @@ model File {
   bucket    String          @db.VarChar(100)
   /// 객체 키. 예: avatars/12/01JCK....webp
   key       String          @db.VarChar(300)
-  /// 사용 중단 (D-56). 도메인을 DB 에 두지 않는다. 공개 URL 은 응답 시 provider+key 와 환경 변수(R2_PUBLIC_BASE_URL) 로 만든다.
-  /// 코드는 읽지도 쓰지도 않는다. 다음 릴리스에서 컬럼 DROP (#100)
-  publicUrl String?         @db.VarChar(500)
   mimeType  String          @db.VarChar(100)
   /// 바이트
   size      Int
