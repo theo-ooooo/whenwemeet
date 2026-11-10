@@ -71,7 +71,7 @@ jobs:
       - name: 모바일 lint, 타입, 테스트
         run: |
           pnpm --filter @whenwemeet/mobile lint
-          pnpm --filter @whenwemeet/mobile test --ci
+          pnpm --filter @whenwemeet/mobile test -- --ci
 
       - run: pnpm -r --filter ./apps/* --if-present lint
       - run: pnpm -r --filter ./apps/* --if-present test
