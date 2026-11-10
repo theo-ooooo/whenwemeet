@@ -5,7 +5,7 @@ import { ApiException } from '../common/errors.js';
 
 /**
  * R2 설정 변수 (docs/운영/cloudflare-r2.md). 하나라도 비면 저장소 미설정.
- * `R2_PUBLIC_BASE_URL` 은 여기서 쓰지 않고 FileUrlBuilder 가 읽지만, 올린 사진의 URL 을 돌려줄 수 있어야 하므로 업로드 조건에 넣는다 (D-49)
+ * `R2_PUBLIC_BASE_URL` 은 여기서 쓰지 않고 FileUrlBuilder 가 읽지만, 올린 사진의 URL 을 돌려줄 수 있어야 하므로 업로드 조건에 넣는다 (D-56)
  */
 export const R2_ENV_KEYS = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'] as const;
 

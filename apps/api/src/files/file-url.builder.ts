@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import type { StorageProvider } from '../generated/prisma/enums.js';
 
-/** 공개 URL 을 만드는 데 필요한 File 의 부분. 도메인은 DB 에 두지 않는다 (결정기록 D-49) */
+/** 공개 URL 을 만드는 데 필요한 File 의 부분. 도메인은 DB 에 두지 않는다 (결정기록 D-56) */
 export interface FileLocation {
   provider: StorageProvider;
   key: string;
@@ -30,7 +30,7 @@ export function joinPublicUrl(baseUrl: string, key: string): string {
 }
 
 /**
- * File(provider, key) → 공개 URL. 응답의 `profileImageUrl` 등은 모두 여기서 만든다 (결정기록 D-49).
+ * File(provider, key) → 공개 URL. 응답의 `profileImageUrl` 등은 모두 여기서 만든다 (결정기록 D-56).
  * 도메인이 바뀌면 환경 변수(`R2_PUBLIC_BASE_URL`) 만 바꾸면 기존 파일 URL 도 함께 바뀐다
  */
 @Injectable()

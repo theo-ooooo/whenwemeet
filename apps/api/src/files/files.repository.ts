@@ -10,7 +10,7 @@ export interface StoredObjectRef {
   key: string;
 }
 
-/** 새 File 행 (결정기록 D-38). 공개 URL(도메인) 은 저장하지 않는다 — 읽을 때 FileUrlBuilder 가 만든다 (D-49) */
+/** 새 File 행 (결정기록 D-38). 공개 URL(도메인) 은 저장하지 않는다 — 읽을 때 FileUrlBuilder 가 만든다 (D-56) */
 export interface NewFileInput {
   provider: StorageProvider;
   bucket: string;

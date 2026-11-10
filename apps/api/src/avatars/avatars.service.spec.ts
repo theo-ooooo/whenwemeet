@@ -20,7 +20,7 @@ function fakeStorage(configured = true) {
   };
 }
 
-/** 도메인은 환경 변수에만 있다 (D-49). 끝 슬래시는 빌더가 정리 */
+/** 도메인은 환경 변수에만 있다 (D-56). 끝 슬래시는 빌더가 정리 */
 const urls = new FileUrlBuilder(new ConfigService({ R2_PUBLIC_BASE_URL: 'https://pub.example/' }));
 
 const PREVIOUS = { id: 9, provider: 'R2' as const, bucket: 'whenwemeet-dev', key: 'avatars/1/old.webp' };

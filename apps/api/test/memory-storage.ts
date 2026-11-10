@@ -1,6 +1,6 @@
 import { ApiException } from '../src/common/errors.js';
 
-/** e2e 의 공개 주소. 실제 서비스처럼 R2_PUBLIC_BASE_URL 에만 있고 DB 에는 저장되지 않는다 (D-49) */
+/** e2e 의 공개 주소. 실제 서비스처럼 R2_PUBLIC_BASE_URL 에만 있고 DB 에는 저장되지 않는다 (D-56) */
 export const E2E_PUBLIC_BASE_URL = 'https://img.e2e.example';
 
 /** e2e 용 저장소. StorageService 와 같은 모양으로 객체를 메모리에 둔다. 공개 URL 은 FileUrlBuilder 몫 */

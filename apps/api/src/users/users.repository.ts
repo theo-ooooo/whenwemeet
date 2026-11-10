@@ -4,7 +4,7 @@ import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../file
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-/** 사진은 File 의 provider/key 로 읽는다 (결정기록 D-38, D-49). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
+/** 사진은 File 의 provider/key 로 읽는다 (결정기록 D-38, D-56). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
 export const USER_SELECT = { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT }, createdAt: true } as const;
 
 /** 응답과 request.user 에 쓰는 사용자 요약 */

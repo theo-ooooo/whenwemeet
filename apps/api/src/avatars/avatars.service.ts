@@ -16,7 +16,7 @@ export interface UploadedImage {
 
 /**
  * 프로필 사진 (결정기록 D-37, D-38). 검증/변환 → R2 put → File 행 + User.avatarFileId 교체 → 이전 객체 삭제.
- * 응답 URL 은 FileUrlBuilder 가 provider/key 로 만든다 (D-49).
+ * 응답 URL 은 FileUrlBuilder 가 provider/key 로 만든다 (D-56).
  * 객체 삭제 실패는 로그만 남긴다 (고아 객체는 bucket/key 로 나중에 청소 가능)
  */
 @Injectable()

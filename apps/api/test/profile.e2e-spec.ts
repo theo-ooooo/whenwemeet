@@ -128,7 +128,7 @@ describe('내 정보 (e2e)', () => {
         provider: 'R2',
         bucket: 'e2e-bucket',
         key: storage.keyOf(url),
-        // 도메인은 DB 에 저장하지 않는다 (D-49). 응답 URL = 공개 주소 + key
+        // 도메인은 DB 에 저장하지 않는다 (D-56). 응답 URL = 공개 주소 + key
         publicUrl: null,
         mimeType: 'image/webp',
         size: object.body.length,

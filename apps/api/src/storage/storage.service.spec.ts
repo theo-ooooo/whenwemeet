@@ -34,7 +34,7 @@ describe('StorageService', () => {
     expect(storageWith({ ...R2, R2_PUBLIC_BASE_URL: '' }).isConfigured()).toBe(false);
   });
 
-  it('설정되면 R2 엔드포인트(region auto) 로 put/delete. 공개 URL 은 만들지 않는다 (FileUrlBuilder, D-49)', async () => {
+  it('설정되면 R2 엔드포인트(region auto) 로 put/delete. 공개 URL 은 만들지 않는다 (FileUrlBuilder, D-56)', async () => {
     const storage = storageWith(R2);
     expect(storage.isConfigured()).toBe(true);
     expect(storage.provider).toBe('R2');

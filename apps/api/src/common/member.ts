@@ -50,7 +50,7 @@ export interface UserRow {
 }
 
 /**
- * 사람 정보가 필요한 조회의 User select. 사진은 File 의 provider/key 로 읽고 URL 은 FileUrlBuilder 가 만든다 (결정기록 D-38, D-49).
+ * 사람 정보가 필요한 조회의 User select. 사진은 File 의 provider/key 로 읽고 URL 은 FileUrlBuilder 가 만든다 (결정기록 D-38, D-56).
  * Repository 는 이 모양으로 읽고 `toUserRow` 로 `{ nickname, profileImageUrl }` 로 바꿔 돌려준다 (응답 계약 유지)
  */
 export const USER_PUBLIC_SELECT = { select: { nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } as const;
