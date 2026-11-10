@@ -1,5 +1,6 @@
 import {
   addDays,
+  anchorMatchesStart,
   applyException,
   expand,
   ExceptionRule,
@@ -272,5 +273,56 @@ describe('검증 도우미', () => {
     const window = seriesCandidateWindow(kst('2026-12-01T00:00:00'), kst('2026-12-02T00:00:00'));
     expect(window.startsBefore).toEqual(kst('2027-01-02T00:00:00'));
     expect(window.untilOnOrAfter).toBe('2026-10-31');
+  });
+});
+
+describe('반복 기준 날짜 repeatAnchor (#228, D-71)', () => {
+  const window = (from: string, to: string) => [kst(`${from}T00:00:00`), kst(`${to}T00:00:00`)] as const;
+
+  it('null 이면 지금과 같다 (첫 회차 날짜 기준)', () => {
+    const rule = series({ startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeat: 'MONTHLY' });
+    expect(dates(expand({ ...rule, repeatAnchor: null }, [], ...window('2027-02-01', '2027-06-01')))).toEqual(dates(expand(rule, [], ...window('2027-02-01', '2027-06-01'))));
+    expect(dates(expand(rule, [], ...window('2027-02-01', '2027-06-01')))).toEqual(['2027-02-28', '2027-03-28', '2027-04-28', '2027-05-28']);
+  });
+
+  it('MONTHLY: 2/28 에서 시작해도 기준 31일이면 3-31, 4-30, 5-31 (말일 보정 그대로)', () => {
+    const rule = series({ startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeat: 'MONTHLY', repeatAnchor: '2026-10-31' });
+    const list = expand(rule, [], ...window('2027-01-01', '2027-06-01'));
+    expect(dates(list)).toEqual(['2027-02-28', '2027-03-31', '2027-04-30', '2027-05-31']);
+    expect(times(list)[1]).toEqual(['2027-03-31T00:00:00.000Z', '2027-03-31T01:00:00.000Z']);
+    expect(isOccurrenceDate(rule, '2027-03-31')).toBe(true);
+    expect(isOccurrenceDate(rule, '2027-03-28')).toBe(false);
+    expect(isOccurrenceDate(rule, '2027-01-31')).toBe(false);
+  });
+
+  it('MONTHLY: 해를 넘겨도 기준 일, 기준이 30일이면 2월은 말일', () => {
+    const rule = series({ startsAt: kst('2026-11-30T09:00:00'), endsAt: kst('2026-11-30T10:00:00'), repeat: 'MONTHLY', repeatAnchor: '2026-08-30' });
+    expect(dates(expand(rule, [], ...window('2026-12-01', '2027-04-01')))).toEqual(['2026-12-30', '2027-01-30', '2027-02-28', '2027-03-30']);
+  });
+
+  it('YEARLY: 2027-02-28 에서 시작해도 기준 2/29 면 2028-02-29, 2029-02-28', () => {
+    const rule = series({ startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeat: 'YEARLY', repeatAnchor: '2024-02-29' });
+    expect(dates(expand(rule, [], ...window('2028-02-01', '2028-03-15')))).toEqual(['2028-02-29']);
+    expect(dates(expand(rule, [], ...window('2029-02-01', '2029-03-15')))).toEqual(['2029-02-28']);
+    expect(isOccurrenceDate(rule, '2028-02-28')).toBe(false);
+    expect(isOccurrenceDate(rule, '2028-02-29')).toBe(true);
+  });
+
+  it('WEEKLY/BIWEEKLY 는 기준을 무시한다', () => {
+    const rule = series({ repeatAnchor: '2026-11-13' });
+    expect(dates(expand(rule, [], ...window('2026-11-11', '2026-11-26')))).toEqual(['2026-11-11', '2026-11-18', '2026-11-25']);
+    expect(dates(expand({ ...rule, repeat: 'BIWEEKLY' }, [], ...window('2026-11-11', '2026-11-26')))).toEqual(['2026-11-11', '2026-11-25']);
+  });
+
+  it('anchorMatchesStart: 시작 날짜가 그 달(해)의 기준 날짜(보정 후) 여야 한다', () => {
+    expect(anchorMatchesStart('MONTHLY', kst('2027-02-28T09:00:00'), '2026-10-31')).toBe(true);
+    expect(anchorMatchesStart('MONTHLY', kst('2027-02-27T09:00:00'), '2026-10-31')).toBe(false);
+    expect(anchorMatchesStart('MONTHLY', kst('2027-03-31T09:00:00'), '2026-10-31')).toBe(true);
+    expect(anchorMatchesStart('MONTHLY', kst('2027-04-30T00:30:00'), '2026-10-31')).toBe(true);
+    expect(anchorMatchesStart('YEARLY', kst('2027-02-28T09:00:00'), '2024-02-29')).toBe(true);
+    expect(anchorMatchesStart('YEARLY', kst('2028-02-28T09:00:00'), '2024-02-29')).toBe(false);
+    expect(anchorMatchesStart('YEARLY', kst('2027-03-28T09:00:00'), '2024-02-29')).toBe(false);
+    expect(anchorMatchesStart('MONTHLY', kst('2027-02-27T09:00:00'), null)).toBe(true);
+    expect(anchorMatchesStart('WEEKLY', kst('2027-02-27T09:00:00'), '2026-10-31')).toBe(true);
   });
 });
