@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { Symbol } from "@/components/Logo";
-import { KakaoButton } from "@/components/KakaoButton";
+import { JoinLoginActions } from "@/components/JoinLoginActions";
 import { Button } from "@/components/ui";
+import { isAppUserAgent } from "@/lib/app-bridge";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
@@ -30,6 +31,9 @@ export default async function JoinPage({
   // 쿠키에 기대지 않아 카카오 인앱 브라우저에서도 동작한다. 로그인한 채 `?auto=1` 링크를 그냥 연 경우는
   // 세션이 오래돼 확인 버튼을 그대로 둔다 (실수 합류 방지, D-41)
   const autoJoin = loggedIn && sp[JOIN_AUTO_PARAM] === "1" && isFreshSession(session, JOIN_AUTO_FRESH_SEC);
+  // 로그인 버튼은 /login 과 같은 판정: 앱 셸(UA)과 웹 애플 버튼 노출(APPLE_LOGIN_ENABLED=1, #129)
+  const appGuess = isAppUserAgent((await headers()).get("user-agent"));
+  const appleEnabled = process.env.APPLE_LOGIN_ENABLED === "1";
   const { data, error } = await serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, {
     auth: false,
     from: `/join/${code}`,
@@ -56,7 +60,7 @@ export default async function JoinPage({
             {loggedIn ? (
               <JoinButton code={code} auto={autoJoin} />
             ) : (
-              <KakaoButton next={joinAutoNext(code)} label="카카오로 로그인하고 합류하기" />
+              <JoinLoginActions next={joinAutoNext(code)} appleEnabled={appleEnabled} appGuess={appGuess} />
             )}
           </div>
         </>

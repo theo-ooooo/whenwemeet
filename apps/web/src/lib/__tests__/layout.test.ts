@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasRail, layoutFromMatches, layoutOf } from "../layout";
+import { hasRail, hasSplit, layoutFromMatches, layoutOf, calendarWidthOf, overviewWidthOf, SPLIT_MIN } from "../layout";
 
 describe("layoutOf (폴더블.md 3장 경계)", () => {
   it.each([
@@ -36,5 +36,37 @@ describe("layoutFromMatches", () => {
     expect(layoutFromMatches(true, true)).toBe("pc");
     expect(layoutFromMatches(true, false)).toBe("fold");
     expect(layoutFromMatches(false, false)).toBe("phone");
+  });
+});
+
+describe("hasSplit (#128: 개요 칸은 860 부터 달력 옆)", () => {
+  it.each([
+    [599, false],
+    [600, false],
+    [673, false],
+    [759, false],
+    [859, false],
+    [860, true],
+    [890, true],
+    [984, true],
+  ] as const)("%i → %s", (w, want) => {
+    expect(hasSplit(w)).toBe(want);
+  });
+});
+
+describe("calendarWidthOf (#128: 레일 폭에서 달력이 개요 칸보다 좁아지지 않는다)", () => {
+  it("600~859 는 1단이라 레일과 여백만 뺀다", () => {
+    expect(calendarWidthOf(600)).toBe(504);
+    expect(calendarWidthOf(673)).toBe(577);
+  });
+  it("2단인 폭에서는 달력이 개요 칸보다 넓다", () => {
+    for (let w = SPLIT_MIN; w < 1200; w++) {
+      expect(calendarWidthOf(w)).toBeGreaterThan(overviewWidthOf(w));
+    }
+  });
+  it("레일 폭 전 구간에서 달력 타일은 480px 이상 (칸 하나 약 68px, 제목 서너 글자)", () => {
+    for (let w = 600; w < 1200; w++) {
+      expect(calendarWidthOf(w)).toBeGreaterThanOrEqual(480);
+    }
   });
 });
