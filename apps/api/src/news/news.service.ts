@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Member } from '../common/member.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import type { Repeat } from '../events/recurrence.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 
@@ -16,6 +17,12 @@ export interface NewsItem {
   startsAt: Date;
   endsAt: Date;
   allDay: boolean;
+  /** (#187) 변경 시점의 반복 주기. 문구는 웹이 조합 (설계 4-3) */
+  repeat: Repeat | null;
+  /** (#187) 반복 일정에서 고른 범위. 한 번짜리, 새 반복 추가는 null */
+  scope: 'THIS' | 'FOLLOWING' | null;
+  /** (#187) 범위를 고른 회차 날짜 'YYYY-MM-DD' (KST) */
+  occurrence: string | null;
   actor: Member;
   createdAt: Date;
   isNew: boolean;
@@ -43,6 +50,9 @@ export class NewsService {
       startsAt: row.startsAt,
       endsAt: row.endsAt,
       allDay: row.allDay,
+      repeat: row.repeat ?? null,
+      scope: row.scope ?? null,
+      occurrence: row.occurrence ?? null,
       actor: resolver.resolve(row.actorId, row.actor),
       createdAt: row.createdAt,
       isNew: row.createdAt.getTime() > me.lastSeenAt.getTime(),
