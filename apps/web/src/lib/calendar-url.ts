@@ -3,6 +3,7 @@
 //   ?month=YYYY-MM    보던 달. 선택 날짜의 달과 같으면 생략
 //   &day=1            날짜 상세(시트/팝오버) 열림. pushState 로 한 칸
 //   &event=<id>       그 안에서 일정 상세. 한 칸 더
+//   &occurrence=YYYY-MM-DD  반복 일정이면 그 회차 날짜 (#187). event 와 같이만 쓴다
 //   &add=1            그 안에서 빠른 추가. 한 칸 더 (새로고침 시 무시)
 import { parseKey, type DateKey } from "./date";
 
@@ -24,7 +25,7 @@ export function monthParam(raw: string | null): { y: number; m: number } | null 
 export type DayStep =
   | { open: false }
   | { open: true; date: DateKey; step: "day" }
-  | { open: true; date: DateKey; step: "event"; eventId: number }
+  | { open: true; date: DateKey; step: "event"; eventId: number; occurrence: DateKey | null }
   | { open: true; date: DateKey; step: "add" };
 
 type Params = { get(name: string): string | null };
@@ -34,7 +35,9 @@ export function parseDayStep(params: Params, today: DateKey): DayStep {
   if (params.get("day") !== "1") return { open: false };
   const date = dateParam(params.get("date")) ?? today;
   const ev = params.get("event");
-  if (ev && /^[1-9]\d{0,15}$/.test(ev)) return { open: true, date, step: "event", eventId: Number(ev) };
+  if (ev && /^[1-9]\d{0,15}$/.test(ev)) {
+    return { open: true, date, step: "event", eventId: Number(ev), occurrence: dateParam(params.get("occurrence")) };
+  }
   if (params.get("add") === "1") return { open: true, date, step: "add" };
   return { open: true, date, step: "day" };
 }
@@ -48,7 +51,7 @@ export function stepDepth(s: DayStep): 0 | 1 | 2 {
 export type StepTarget =
   | { step: "closed" }
   | { step: "day"; date: DateKey }
-  | { step: "event"; date: DateKey; eventId: number }
+  | { step: "event"; date: DateKey; eventId: number; occurrence: DateKey | null }
   | { step: "add"; date: DateKey };
 
 /**
@@ -59,12 +62,16 @@ export function withDayStep(search: string, target: StepTarget, today: DateKey):
   const q = new URLSearchParams(search);
   q.delete("day");
   q.delete("event");
+  q.delete("occurrence");
   q.delete("add");
   if (target.step !== "closed") {
     if (target.date === today) q.delete("date");
     else q.set("date", target.date);
     q.set("day", "1");
-    if (target.step === "event") q.set("event", String(target.eventId));
+    if (target.step === "event") {
+      q.set("event", String(target.eventId));
+      if (target.occurrence) q.set("occurrence", target.occurrence);
+    }
     if (target.step === "add") q.set("add", "1");
   }
   const s = q.toString();

@@ -40,3 +40,73 @@ describe("목 free-slots 는 지금을 30분 올림 (#136)", () => {
     expect(slots.some((s) => s.startsAt === "2026-11-10T04:07:00.000Z")).toBe(false);
   });
 });
+
+describe("목 반복 일정 (#187)", () => {
+  type Ev = { id: number; occurrence: string | null; startsAt: string; title: string; repeat: string | null; repeatUntil: string | null };
+  const list = (from: string, to: string) =>
+    (call("GET", "/groups/2/events", null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body.data as unknown as Ev[]);
+  const mine = (from: string, to: string, title: string) => list(from, to).filter((e) => e.title.startsWith(title));
+  const F = "2027-03-01T00:00:00+09:00";
+  const T = "2027-04-01T00:00:00+09:00";
+
+  it("매주 일정은 회차로 펼치고, 이 일정만/이후 모두가 회차와 규칙을 바꾼다", () => {
+    const created = call("POST", "/groups/2/events", {
+      title: "반복테스트",
+      startsAt: "2027-03-03T19:00:00+09:00",
+      endsAt: "2027-03-03T21:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+    });
+    expect(created.status).toBe(201);
+    const id = created.body.data.id as number;
+    expect(created.body.data.occurrence).toBe("2027-03-03");
+    expect(mine(F, T, "반복테스트").map((e) => e.occurrence)).toEqual(["2027-03-03", "2027-03-10", "2027-03-17", "2027-03-24", "2027-03-31"]);
+
+    // scope 없으면 400
+    expect(call("PATCH", `/groups/2/events/${id}`, { title: "x" }, "occurrence=2027-03-10").status).toBe(400);
+    // 이 일정만: 그 회차만 20:00
+    const one = call("PATCH", `/groups/2/events/${id}`, { startsAt: "2027-03-10T20:00:00+09:00", endsAt: "2027-03-10T22:00:00+09:00" }, "occurrence=2027-03-10&scope=this");
+    expect(one.status).toBe(200);
+    const got = call("GET", `/groups/2/events/${id}`, null, "occurrence=2027-03-03").body.data;
+    expect(got.hasLaterExceptions).toBe(true);
+    // 이 일정만 삭제
+    expect(call("DELETE", `/groups/2/events/${id}`, null, "occurrence=2027-03-17&scope=this").status).toBe(200);
+    expect(mine(F, T, "반복테스트").map((e) => e.occurrence)).toEqual(["2027-03-03", "2027-03-10", "2027-03-24", "2027-03-31"]);
+    expect(call("GET", `/groups/2/events/${id}`, null, "occurrence=2027-03-17").status).toBe(404);
+
+    // 이후 모두: 3-24 부터 제목 변경 → 원본은 3-23 까지, 새 원본
+    const split = call("PATCH", `/groups/2/events/${id}`, { title: "반복테스트2" }, "occurrence=2027-03-24&scope=following");
+    expect(split.status).toBe(200);
+    expect(split.body.data.id).not.toBe(id);
+    const after = mine(F, T, "반복테스트");
+    expect(after.map((e) => [e.title, e.occurrence])).toEqual([
+      ["반복테스트", "2027-03-03"],
+      ["반복테스트", "2027-03-10"],
+      ["반복테스트2", "2027-03-24"],
+      ["반복테스트2", "2027-03-31"],
+    ]);
+    expect(after[0].repeatUntil).toBe("2027-03-23");
+
+    // 이후 모두 삭제 (첫 회차면 전체)
+    expect(call("DELETE", `/groups/2/events/${id}`, null, "occurrence=2027-03-03&scope=following").status).toBe(200);
+    expect(mine(F, T, "반복테스트").map((e) => e.title)).toEqual(["반복테스트2", "반복테스트2"]);
+  });
+
+  it("길이 >= 주기, 종료 < 시작이면 거부", () => {
+    const base = { title: "x", startsAt: "2027-03-03T00:00:00+09:00", allDay: true };
+    expect(call("POST", "/groups/2/events", { ...base, endsAt: "2027-03-11T00:00:00+09:00", repeat: "WEEKLY" }).status).toBe(400);
+    expect(call("POST", "/groups/2/events", { ...base, endsAt: "2027-03-04T00:00:00+09:00", repeat: "WEEKLY", repeatUntil: "2027-03-02" }).status).toBe(400);
+  });
+
+  it("매월 31일은 짧은 달에 말일", () => {
+    const r = call("POST", "/groups/2/events", {
+      title: "월말테스트",
+      startsAt: "2027-01-31T10:00:00+09:00",
+      endsAt: "2027-01-31T11:00:00+09:00",
+      allDay: false,
+      repeat: "MONTHLY",
+    });
+    expect(r.status).toBe(201);
+    expect(mine("2027-02-01T00:00:00+09:00", "2027-04-01T00:00:00+09:00", "월말테스트").map((e) => e.occurrence)).toEqual(["2027-02-28", "2027-03-31"]);
+  });
+});

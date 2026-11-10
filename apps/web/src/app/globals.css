@@ -21,6 +21,7 @@
   --color-on-pri: var(--on-pri);
   --color-btn: var(--btn);
   --color-on-btn: var(--on-btn);
+  --color-on-ink: var(--on-ink);
   --color-sel-fill: var(--sel-fill);
   --color-acc-ink: var(--acc-ink);
   --color-today-ink: var(--today-ink);
@@ -81,6 +82,8 @@
   /* 글자가 있는 주 버튼 (sel-fill 과 같은 값) */
   --btn: #c8432d;
   --on-btn: #ffffff;
+  /* 먹색 면(폰 독 선택 칩) 위 글자. 다크는 칩이 밝은 면이 되어 바탕색 글자로 뒤집는다 (디자인규칙.md 4-3) */
+  --on-ink: #ffffff;
   /* 강조 글자: 비는 시간 값, 기념일 "오늘", 빈 시간 결과 */
   --acc-ink: #c2402a;
   /* 오늘 날짜 숫자, "오늘" 글자 */
@@ -129,6 +132,7 @@
     --sel-fill: #ff8670;
     --btn: #ff8670;
     --on-btn: #1a0e0b;
+    --on-ink: #121214;
     --acc-ink: #ff8670;
     --today-ink: #ffb4a5;
     --holiday: #d3949e;
@@ -168,6 +172,7 @@
   --sel-fill: #ff8670;
   --btn: #ff8670;
   --on-btn: #1a0e0b;
+  --on-ink: #121214;
   --acc-ink: #ff8670;
   --today-ink: #ffb4a5;
   --holiday: #d3949e;

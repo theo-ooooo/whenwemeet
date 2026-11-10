@@ -23,7 +23,7 @@
 | code | HTTP | 언제 |
 |------|------|------|
 | VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값, 본문이 JSON 이 아님(message "요청 형식이 올바르지 않아요" 고정) |
-| EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과 |
+| EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과, 반복 규칙 위반 (길이 >= 주기, 종료일 < 첫 회차 날짜, 회차를 앞뒤 30일 밖으로 옮김. #187) |
 | GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청 |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
@@ -111,22 +111,64 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` startsAt 오름차순 |
-| POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` + EventLog CREATED |
-| GET | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: Event }` |
-| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
-| DELETE | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
+| GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` 반복 원본은 기간 안 회차로 펼친다. `startsAt` 오름차순, 같으면 `id`, 그다음 `occurrence` |
+| POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` (반복이면 첫 회차) + EventLog CREATED |
+| GET | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence?` | `{ data: Event & { hasLaterExceptions } }` |
+| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
+| DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
 
 ```ts
-EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500) }
-Event      = EventInput & { id, groupId, creator: Member|탈퇴자, createdAt, updatedAt }
+EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
+               repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
+               repeatUntil?: 'YYYY-MM-DD'|null }                       // KST, 그날 시작하는 회차 포함. 생략/null = 계속
+Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
+               repeat, repeatUntil,
+               occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
+               seriesStartsAt: ISO|null }       // 반복이면 원본 첫 회차 시작
+// 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
-- 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`)
+- 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
 - 팀원 누구나 수정/삭제. 등록자 제한 없음
 - 단건(GET/PATCH/DELETE)의 `eventId` 는 `groupId` 안에서만 찾는다. 멤버가 아니면 403 FORBIDDEN, 멤버이지만 다른 팀 소속 일정이면 없는 ID 와 똑같이 404 NOT_FOUND (존재 여부 비노출. 결정기록 D-31)
+
+#### 반복 일정 (#187, D-63 ~ D-67)
+
+설계 근거는 `반복-일정.md`. 회차는 저장하지 않고 서버가 조회 기간만 펼친다 (`apps/api/src/events/recurrence.ts`).
+
+- 회차의 주소는 `(id, occurrence)`. 화면 키는 `${id}:${occurrence ?? ''}`. 회차 날짜는 원래 날짜라 "이 일정만" 으로 옮겨도 바뀌지 않는다
+- 회차 날짜: 첫 회차 KST 날짜 기준 매주 +7일, 격주 +14일, 매월 같은 날(없는 달은 말일), 매년 같은 월일(2/29 는 평년 2/28). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이
+- `occurrence`, `scope` 쿼리는 **한 번짜리 일정이면 무시**한다 (값이 틀려도 지금과 같다)
+- 반복 일정의 단건 GET: `occurrence` 가 없거나 빈 값이면 첫 회차. PATCH/DELETE 는 `scope` 가 없거나 `this`/`following` 이 아니면 400 VALIDATION_FAILED (`details[0].field = 'scope'`), `occurrence` 가 없거나 `YYYY-MM-DD` 실제 날짜가 아니면 400 (`field: 'occurrence'`)
+- `occurrence` 가 규칙상 회차 날짜가 아니거나, `repeatUntil` 뒤, 또는 취소된 회차면 404 NOT_FOUND
+
+| 동작 | 처리 (트랜잭션 1개) | 응답 | 로그 |
+|------|------|------|------|
+| PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED | 그 회차 | UPDATED, scope THIS |
+| PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
+| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
+| DELETE this | 예외 upsert `cancelled = true` | `{ ok: true }` | DELETED, scope THIS |
+| DELETE following, 첫 회차 | 원본 삭제 (예외 cascade) | `{ ok: true }` | DELETED, scope FOLLOWING (`eventId` 는 SetNull 로 null) |
+| DELETE following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, 이후 예외 삭제 | `{ ok: true }` | DELETED, scope FOLLOWING |
+
+- PATCH 의 기준 값은 **그 회차의 현재 값**(예외 반영) + 본문. "이후 모두" 에서 `repeat` 생략은 그대로, `null` 은 반복 끄기(`repeatUntil` 도 null). `repeatUntil` 생략은 그대로
+- "이후 모두" 로 시작 시각/날짜를 바꾸면 새 원본의 첫 회차가 되어 요일, 날짜 기준도 따라 바뀐다
+- 메모를 지운 "이 일정만" 예외는 `memo = ''` 로 저장한다 (null 은 원본 값. D-65). 응답 `memo` 도 `''`
+- 같은 값이면 저장하지 않는 규칙(#62): this 는 회차의 현재 값과 같으면 no-op. following 첫 회차는 원본 값, 규칙이 같고 예외가 없으면 no-op. following 그 뒤 회차는 원래 회차 값, 규칙이 같고 그 회차부터 예외가 없으면 no-op (나눠도 결과가 같다)
+- 한 번짜리 일정을 PATCH 해 `repeat` 을 켜면 그 일정이 첫 회차가 된다 (scope 불필요)
+
+검증 (설계 4-1):
+
+| 조건 | 오류 | message |
+|------|------|---------|
+| 길이 >= 주기 (WEEKLY 7일, BIWEEKLY 14일, MONTHLY 28일, YEARLY 365일) | EVENT_RANGE_INVALID | 반복 간격보다 긴 일정은 반복할 수 없어요 |
+| `repeatUntil` < 첫 회차 KST 날짜 | EVENT_RANGE_INVALID | 종료 날짜는 시작 날짜 뒤여야 해요 |
+| `repeatUntil` 만 있고 `repeat` 없음 | VALIDATION_FAILED (`field: 'repeatUntil'`) | 반복 주기 없이 종료 날짜만 정할 수 없어요 |
+| this 예외: 시작 < 원래 날짜 00:00 - 30일, 또는 끝 > 다음 날 00:00 + 30일 (KST) | EVENT_RANGE_INVALID | 이 회차는 앞뒤 30일 안으로만 옮길 수 있어요 |
+| `repeat` 이 넷 중 하나가 아님, `repeatUntil` 이 실제 날짜가 아님 | VALIDATION_FAILED | DTO 문구 |
+| 기존 규칙 (종료 > 시작, 30일 이하) | 그대로 (먼저 검사) | 그대로 |
 
 ### 2.4 기념일
 
@@ -159,16 +201,23 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 | `minMinutes` | `120` | 30~720 |
 | `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
 
-쿼리 전략 (요청 1건에 DB 조회 3번, 일정 내용은 조회하지 않음):
+쿼리 전략 (요청 1건에 DB 조회 4번, 일정 내용은 조회하지 않음):
 
 ```
 1. 멤버십 확인 → 요청 팀의 memberIds = Membership.findMany({ groupId }).userId
 2. allGroupIds = Membership.findMany({ userId in memberIds }).groupId (distinct)
    → 멤버들이 속한 모든 팀 (개인 팀 포함). 같은 팀이 여러 멤버에 걸려도 한 번만
-3. busy = Event.findMany({
-     where: { groupId in allGroupIds, startsAt < to, endsAt > from, ...(includeAllDay ? {} : { allDay: false }) },
+3. once = Event.findMany({
+     where: { groupId in allGroupIds, repeat: null, startsAt < to, endsAt > from, ...(includeAllDay ? {} : { allDay: false }) },
      select: { startsAt, endsAt },          // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
      orderBy: { startsAt: 'asc' } })
+   series = Event.findMany({               // 반복 원본 (#187, 반복-일정.md 4-2)
+     where: { groupId in allGroupIds, repeat != null, startsAt < to + 31일,
+              OR: [{ repeatUntil: null }, { repeatUntil >= (from - 31일) 의 KST 날짜 }] },
+     select: { startsAt, endsAt, allDay, repeat, repeatUntil,
+               exceptions: { occurrence, cancelled, startsAt, endsAt, allDay } } })   // 여기도 title/memo 없음
+   → series 를 [from, to) 회차로 펼치고(취소 제외, 예외 시각 반영) includeAllDay 가 아니면 최종 allDay 회차를 뺀다
+   → busy = once + 회차, startsAt 오름차순
 4. busy 를 정렬 상태에서 한 번 훑어 겹치거나 맞닿은 구간을 병합
 5. [from, to) 를 KST 날짜별로 나눠 각 날의 [dayStart, dayEnd) 창을 만들고, 병합된 busy 를 빼서 남은 조각 중
    길이 >= minMinutes 인 것만 slots 에 담는다. 창은 고정 +09:00 으로 계산 (DST 없음)
@@ -187,8 +236,15 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 ```ts
 NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
-             title, startsAt, endsAt, allDay, actor: Member|탈퇴자, createdAt, isNew: boolean }
+             title, startsAt, endsAt, allDay,
+             repeat: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 변경 시점의 반복 주기 (#187)
+             scope: 'THIS'|'FOLLOWING'|null,                         // 반복 일정에서 고른 범위. 한 번짜리, 새 반복 추가는 null
+             occurrence: 'YYYY-MM-DD'|null,                          // 범위를 고른 회차 날짜 (KST)
+             actor: Member|탈퇴자, createdAt, isNew: boolean }
 ```
+
+- 반복 일정 동작 하나는 로그 1건. `title`, `startsAt`, `endsAt`, `allDay` 스냅샷은 그 회차 값 ("이후 모두" 수정은 새 원본의 첫 회차). 문구는 웹이 `action` + `scope` + `repeat` + `occurrence` 로 조합 (반복-일정.md 4-3)
+- 반복 일정 항목을 누르면 `/events/:eventId?occurrence=` 로 이동
 
 - items = 그 팀 EventLog 중 `actorId != 요청자` (탈퇴자 null 포함), 최근 30일, createdAt 내림차순, 최대 50건
 - `isNew` = `createdAt > me.lastSeenAt`. 화면은 목록을 받은 뒤 `seen` 을 호출한다 (순서 고정: GET → POST)

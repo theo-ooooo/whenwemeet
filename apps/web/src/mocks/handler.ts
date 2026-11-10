@@ -3,15 +3,18 @@ import { addDays, dateKeyOf, kstToIso } from "@/lib/date";
 import { errorBody, okBody } from "@/lib/envelope";
 import { ceilToStep } from "@/lib/free-time";
 import { parseId } from "@/lib/id";
-import { MEMBER_COLORS } from "@/lib/types";
+import { REPEAT_PERIOD_DAYS, REPEATS } from "@/lib/recurrence";
+import { MEMBER_COLORS, type Repeat } from "@/lib/types";
 import {
   buildStore,
   inviteUrlOf,
   ME_ID,
   memberOf,
+  type EventLogRow,
   type EventRow,
   type Store,
 } from "./fixtures";
+import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence } from "./recurrence";
 
 export type MockResult = { status: number; body: unknown };
 
@@ -59,19 +62,50 @@ function groupDetail(s: Store, groupId: number, userId: number) {
   };
 }
 
-function eventOut(s: Store, e: EventRow) {
+/** 한 번짜리면 그대로, 반복이면 첫 회차 (o 를 주면 그 회차) */
+function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
+  const occ = e.repeat ? (o ?? originalOccurrence(e as RepeatRow, dateKeyOf(e.startsAt))) : null;
+  const memo = occ?.memo ?? e.memo;
   return {
     id: e.id,
     groupId: e.groupId,
-    title: e.title,
-    startsAt: e.startsAt,
-    endsAt: e.endsAt,
-    allDay: e.allDay,
-    memo: e.memo ?? undefined,
+    title: occ?.title ?? e.title,
+    startsAt: occ?.startsAt ?? e.startsAt,
+    endsAt: occ?.endsAt ?? e.endsAt,
+    allDay: occ?.allDay ?? e.allDay,
+    memo: memo || undefined,
     creator: memberOf(s, e.groupId, e.creatorId),
     createdAt: e.createdAt,
     updatedAt: e.updatedAt,
+    repeat: e.repeat,
+    repeatUntil: e.repeatUntil,
+    occurrence: occ?.occurrence ?? null,
+    seriesStartsAt: e.repeat ? e.startsAt : null,
   };
+}
+
+type RepeatRow = EventRow & { repeat: Repeat };
+
+/** 반복 원본의 회차 하나 (취소, 규칙 밖이면 null) */
+function occurrenceOf(e: RepeatRow, date: string): MockOccurrence | null {
+  if (!isOccurrenceDate(e, date)) return null;
+  return applyException(originalOccurrence(e, date), e.exceptions.find((x) => x.occurrence === date));
+}
+
+/** 반복 규칙 검사 (설계 4-1). repeat 가 null 이면 통과 */
+function repeatCheck(repeat: Repeat | null, until: string | null, startsAt: string, endsAt: string): MockResult | null {
+  if (until && !repeat) return err(400, "VALIDATION_FAILED", "반복 주기 없이 종료 날짜만 정할 수 없어요");
+  if (!repeat) return null;
+  if (Date.parse(endsAt) - Date.parse(startsAt) >= REPEAT_PERIOD_DAYS[repeat] * DAY_MS) {
+    return err(400, "EVENT_RANGE_INVALID", "반복 간격보다 긴 일정은 반복할 수 없어요");
+  }
+  if (until && until < dateKeyOf(startsAt)) return err(400, "EVENT_RANGE_INVALID", "종료 날짜는 시작 날짜 뒤여야 해요");
+  return null;
+}
+
+function repeatOf(v: unknown): Repeat | null | "bad" {
+  if (v === undefined || v === null) return null;
+  return REPEATS.includes(v as Repeat) ? (v as Repeat) : "bad";
 }
 
 function unread(s: Store, groupId: number, userId: number) {
@@ -104,6 +138,15 @@ function rangeCheck(startsAt: string, endsAt: string): MockResult | null {
   if (e <= s) return err(400, "EVENT_RANGE_INVALID", "종료 시각은 시작보다 뒤여야 해요");
   if (e - s > 30 * DAY_MS) return err(400, "EVENT_RANGE_INVALID", "일정은 30일을 넘길 수 없어요");
   return null;
+}
+
+/** 한 번짜리 PATCH 본문 반영 */
+function applyInput(e: EventRow, input: Partial<EventRow>) {
+  if (input.title !== undefined) e.title = String(input.title).trim();
+  if (input.startsAt !== undefined) e.startsAt = new Date(String(input.startsAt)).toISOString();
+  if (input.endsAt !== undefined) e.endsAt = new Date(String(input.endsAt)).toISOString();
+  if (input.allDay !== undefined) e.allDay = Boolean(input.allDay);
+  if (input.memo !== undefined) e.memo = input.memo ? String(input.memo) : null;
 }
 
 function leastUsedColor(s: Store, groupId: number): string {
@@ -144,13 +187,9 @@ function freeSlots(s: Store, groupId: number, q: URLSearchParams): MockResult {
     s.memberships.filter((m) => memberIds.includes(m.userId)).map((m) => m.groupId),
   );
   const busy = s.events
-    .filter(
-      (e) =>
-        allGroupIds.has(e.groupId) &&
-        Date.parse(e.startsAt) < to &&
-        Date.parse(e.endsAt) > from &&
-        (includeAllDay || !e.allDay),
-    )
+    .filter((e) => allGroupIds.has(e.groupId))
+    .flatMap((e): { startsAt: string; endsAt: string; allDay: boolean }[] => (e.repeat ? expand(e as RepeatRow, e.exceptions, from, to) : [e]))
+    .filter((e) => Date.parse(e.startsAt) < to && Date.parse(e.endsAt) > from && (includeAllDay || !e.allDay))
     .map((e) => [Date.parse(e.startsAt), Date.parse(e.endsAt)] as [number, number])
     .sort((a, b) => a[0] - b[0]);
   const merged: [number, number][] = [];
@@ -371,6 +410,9 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
 
     if (rest[0] === "events") {
+      const log = (e: { title: string; startsAt: string; endsAt: string; allDay: boolean }, extra: Pick<EventLogRow, "action" | "eventId" | "repeat" | "scope" | "occurrence">) =>
+        s.logs.push({ id: nextId(), groupId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, actorId: userId, createdAt: nowIso(), ...extra });
+
       if (rest.length === 1 && method === "GET") {
         const from = Date.parse(query.get("from") ?? "");
         const to = Date.parse(query.get("to") ?? "");
@@ -378,15 +420,28 @@ export function mockHandle(ctx: Ctx): MockResult {
           return err(400, "VALIDATION_FAILED", "조회 기간을 확인해 주세요");
         }
         if (to - from > 62 * DAY_MS) return err(400, "EVENT_RANGE_INVALID", "조회 기간은 62일 이내예요");
+        // 반복 원본은 기간 안 회차로 펼친다 (#187)
         const list = s.events
-          .filter((e) => e.groupId === groupId && Date.parse(e.startsAt) < to && Date.parse(e.endsAt) > from)
-          .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-          .map((e) => eventOut(s, e));
+          .filter((e) => e.groupId === groupId)
+          .flatMap((e) =>
+            e.repeat
+              ? expand(e as RepeatRow, e.exceptions, from, to).map((o) => eventOut(s, e, o))
+              : Date.parse(e.startsAt) < to && Date.parse(e.endsAt) > from
+                ? [eventOut(s, e)]
+                : [],
+          )
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id - b.id || (a.occurrence ?? "").localeCompare(b.occurrence ?? ""));
         return ok(list);
       }
       if (rest.length === 1 && method === "POST") {
         const input = (body ?? {}) as Partial<EventRow>;
-        const v = validateEvent(input, false) ?? rangeCheck(String(input.startsAt), String(input.endsAt));
+        const repeat = repeatOf(input.repeat);
+        if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
+        const until = input.repeatUntil ? String(input.repeatUntil) : null;
+        const v =
+          validateEvent(input, false) ??
+          rangeCheck(String(input.startsAt), String(input.endsAt)) ??
+          repeatCheck(repeat, until, String(input.startsAt), String(input.endsAt));
         if (v) return v;
         const row: EventRow = {
           id: nextId(),
@@ -399,67 +454,123 @@ export function mockHandle(ctx: Ctx): MockResult {
           creatorId: userId,
           createdAt: nowIso(),
           updatedAt: nowIso(),
+          repeat,
+          repeatUntil: repeat ? until : null,
+          exceptions: [],
         };
         s.events.push(row);
-        s.logs.push({
-          id: nextId(),
-          groupId,
-          action: "CREATED",
-          eventId: row.id,
-          title: row.title,
-          startsAt: row.startsAt,
-          endsAt: row.endsAt,
-          allDay: row.allDay,
-          actorId: userId,
-          createdAt: nowIso(),
-        });
+        log(row, { action: "CREATED", eventId: row.id, repeat, scope: null, occurrence: null });
         return ok(eventOut(s, row), 201);
       }
       const eventId = parseId(rest[1]);
       if (eventId === null) return err(400, "VALIDATION_FAILED", "eventId 은(는) 양의 정수여야 해요");
       const e = s.events.find((x) => x.id === eventId && x.groupId === groupId);
       if (!e) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
-      if (method === "GET") return ok(eventOut(s, e));
+
+      // 한 번짜리 (예전 그대로. occurrence, scope 는 무시)
+      if (!e.repeat) {
+        if (method === "GET") return ok({ ...eventOut(s, e), hasLaterExceptions: false });
+        if (method === "PATCH") {
+          const input = (body ?? {}) as Partial<EventRow>;
+          const repeat = repeatOf(input.repeat);
+          if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
+          const until = input.repeatUntil ? String(input.repeatUntil) : null;
+          const startsAt = String(input.startsAt ?? e.startsAt);
+          const endsAt = String(input.endsAt ?? e.endsAt);
+          const v = validateEvent(input, true) ?? rangeCheck(startsAt, endsAt) ?? repeatCheck(repeat, until, startsAt, endsAt);
+          if (v) return v;
+          applyInput(e, input);
+          // 반복을 켜면 이 일정이 첫 회차 (기획 3-4)
+          if (repeat) {
+            e.repeat = repeat;
+            e.repeatUntil = until;
+          }
+          e.updatedAt = nowIso();
+          log(e, { action: "UPDATED", eventId: e.id, repeat: e.repeat, scope: null, occurrence: null });
+          return ok(eventOut(s, e));
+        }
+        if (method === "DELETE") {
+          s.events = s.events.filter((x) => x.id !== e.id);
+          log(e, { action: "DELETED", eventId: null, repeat: null, scope: null, occurrence: null });
+          return ok({ ok: true });
+        }
+      }
+
+      // 반복 일정 (#187, api.md 2.3 반복 일정 표)
+      const series = e as RepeatRow;
+      const first = dateKeyOf(series.startsAt);
+      if (method === "GET") {
+        const date = query.get("occurrence") || first;
+        const o = occurrenceOf(series, date);
+        if (!o) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
+        return ok({ ...eventOut(s, series, o), hasLaterExceptions: series.exceptions.some((x) => x.occurrence > date) });
+      }
+      const scope = query.get("scope");
+      if (scope !== "this" && scope !== "following") return err(400, "VALIDATION_FAILED", "scope 는 this 또는 following 이어야 해요");
+      const date = query.get("occurrence") ?? "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err(400, "VALIDATION_FAILED", "occurrence 는 YYYY-MM-DD 형식의 실제 날짜여야 해요");
+      const current = occurrenceOf(series, date);
+      if (!current) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
+      const logScope = scope === "this" ? "THIS" : "FOLLOWING";
+      const values = { ...current, title: current.title ?? series.title, memo: current.memo ?? series.memo ?? "" };
+
       if (method === "PATCH") {
         const input = (body ?? {}) as Partial<EventRow>;
-        const v =
-          validateEvent(input, true) ??
-          rangeCheck(String(input.startsAt ?? e.startsAt), String(input.endsAt ?? e.endsAt));
+        const startsAt = String(input.startsAt ?? values.startsAt);
+        const endsAt = String(input.endsAt ?? values.endsAt);
+        const v = validateEvent(input, true) ?? rangeCheck(startsAt, endsAt);
         if (v) return v;
-        if (input.title !== undefined) e.title = String(input.title).trim();
-        if (input.startsAt !== undefined) e.startsAt = new Date(String(input.startsAt)).toISOString();
-        if (input.endsAt !== undefined) e.endsAt = new Date(String(input.endsAt)).toISOString();
-        if (input.allDay !== undefined) e.allDay = Boolean(input.allDay);
-        if (input.memo !== undefined) e.memo = input.memo ? String(input.memo) : null;
-        e.updatedAt = nowIso();
-        s.logs.push({
-          id: nextId(),
-          groupId,
-          action: "UPDATED",
-          eventId: e.id,
-          title: e.title,
-          startsAt: e.startsAt,
-          endsAt: e.endsAt,
-          allDay: e.allDay,
-          actorId: userId,
-          createdAt: nowIso(),
-        });
-        return ok(eventOut(s, e));
+        const next = {
+          title: input.title !== undefined ? String(input.title).trim() : values.title,
+          startsAt: new Date(startsAt).toISOString(),
+          endsAt: new Date(endsAt).toISOString(),
+          allDay: input.allDay !== undefined ? Boolean(input.allDay) : values.allDay,
+          memo: input.memo !== undefined ? String(input.memo ?? "") : values.memo,
+        };
+        if (scope === "this") {
+          if ("repeat" in input || "repeatUntil" in input) return err(400, "VALIDATION_FAILED", "이 일정만 수정할 때는 반복을 바꿀 수 없어요");
+          // 예외는 바꾼 최종 값을 통째로 저장 (목은 "원래 값과 다른 필드만" 을 생략한다)
+          series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
+          series.exceptions.push({ occurrence: date, cancelled: false, ...next });
+          series.updatedAt = nowIso();
+          log(next, { action: "UPDATED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+          return ok(eventOut(s, series, { occurrence: date, ...next }));
+        }
+        const repeat = input.repeat === undefined ? series.repeat : repeatOf(input.repeat);
+        if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
+        const until = input.repeatUntil !== undefined ? (input.repeatUntil ? String(input.repeatUntil) : null) : repeat ? series.repeatUntil : null;
+        const rv = repeatCheck(repeat, until, next.startsAt, next.endsAt);
+        if (rv) return rv;
+        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, updatedAt: nowIso() };
+        let target: EventRow;
+        if (date === first) {
+          // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)
+          Object.assign(series, fields, { exceptions: [] });
+          target = series;
+        } else {
+          // 원본을 전날에서 끊고 새 원본 (등록자는 원본 등록자, D-66)
+          series.repeatUntil = addDays(date, -1);
+          series.exceptions = series.exceptions.filter((x) => x.occurrence < date);
+          target = { ...series, ...fields, id: nextId(), createdAt: nowIso(), exceptions: [] };
+          s.events.push(target);
+        }
+        log(eventOut(s, target), { action: "UPDATED", eventId: target.id, repeat: series.repeat, scope: logScope, occurrence: date });
+        return ok(eventOut(s, target));
       }
       if (method === "DELETE") {
-        s.events = s.events.filter((x) => x.id !== e.id);
-        s.logs.push({
-          id: nextId(),
-          groupId,
-          action: "DELETED",
-          eventId: null,
-          title: e.title,
-          startsAt: e.startsAt,
-          endsAt: e.endsAt,
-          allDay: e.allDay,
-          actorId: userId,
-          createdAt: nowIso(),
-        });
+        const snap = { title: values.title, startsAt: values.startsAt, endsAt: values.endsAt, allDay: values.allDay };
+        if (scope === "this") {
+          series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
+          series.exceptions.push({ occurrence: date, cancelled: true });
+          log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+        } else if (date === first) {
+          s.events = s.events.filter((x) => x.id !== series.id);
+          log(snap, { action: "DELETED", eventId: null, repeat: series.repeat, scope: logScope, occurrence: date });
+        } else {
+          series.repeatUntil = addDays(date, -1);
+          series.exceptions = series.exceptions.filter((x) => x.occurrence < date);
+          log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+        }
         return ok({ ok: true });
       }
     }
@@ -549,6 +660,9 @@ export function mockHandle(ctx: Ctx): MockResult {
             startsAt: l.startsAt,
             endsAt: l.endsAt,
             allDay: l.allDay,
+            repeat: l.repeat,
+            scope: l.scope,
+            occurrence: l.occurrence,
             actor: memberOf(s, groupId, l.actorId),
             createdAt: l.createdAt,
             isNew: l.createdAt > seen,

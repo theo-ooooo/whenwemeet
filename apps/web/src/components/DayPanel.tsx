@@ -15,6 +15,7 @@ import { dowOf, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from
 import { holidayOf } from "@/lib/holidays";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import type { Event } from "@/lib/types";
+import { eventKey } from "@/lib/recurrence";
 
 /** 비는 시간 한 줄. null 이면 줄을 숨긴다 (멤버 1명, 지난 날, 계산 실패) */
 export type FreeHint = { label: string; slot: { startsAt: string; endsAt: string } | null | "loading" } | null;
@@ -51,11 +52,12 @@ export function dayTitle(date: DateKey): string {
 export function DayPanel(props: Props) {
   const { step } = props;
   const box = useRef<HTMLDivElement>(null);
+  const evKey = props.event ? eventKey(props.event) : null;
   // 단계가 바뀌면 그 단계 제목으로 포커스 (빠른 추가는 제목 입력이 autoFocus)
   useEffect(() => {
     if (step === "add") return;
     box.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: true });
-  }, [step, props.event?.id]);
+  }, [step, evKey]);
 
   return (
     <div ref={box} key={step} className="anim-swap">
@@ -170,7 +172,7 @@ function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, 
       ) : events.length > 0 ? (
         <ul className="mt-0.5">
           {events.map((ev) => (
-            <li key={ev.id}>
+            <li key={eventKey(ev)}>
               <button
                 type="button"
                 onClick={() => onOpenEvent(ev)}

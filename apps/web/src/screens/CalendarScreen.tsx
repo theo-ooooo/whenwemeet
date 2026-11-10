@@ -1,8 +1,10 @@
 "use client";
 // 4 달력. 크기와 색은 최종-A-시안.html (D-57), 배치는 docs/설계/폴더블.md (D-58).
-// phone(<600): "11월" + 화살표 → 비는 시간/D-day 정보 줄 카드 → 달력 카드 → 다가오는 일정 카드
+// phone(<600): 구역으로 쌓는다 (디자인규칙.md 2-1, 2-3, 5, #212). "11월" 제목줄(오늘 알약, ‹ ›) → 달력 카드 →
+//   "다가오는 일정" 가로 카드 → "기념일" 가로 카드. 날짜를 누르면 일 상세(DayView: 주간 줄 + 그날 요약 + 그날 일정)가 달력 자리를 대신한다
 // fold(600~1023), pc(≥1024): 왼쪽 달력 타일(높이를 채움) | 오른쪽 칸 개요(정보 줄 카드, 다가오는 일정, 이번 주 빈 시간)
-// 날짜 칸을 누르면 어느 폭이든 그날 상세가 먼저 뜬다: phone 바텀 시트, fold/pc 날짜 칸 옆 팝오버 (5장).
+// 날짜 칸을 누르면 어느 폭이든 그날 상세가 먼저 뜬다: phone 일 상세 화면, fold/pc 날짜 칸 옆 팝오버 (5장).
+// phone 의 일정 상세, 빠른 추가는 일 상세 위 바텀 시트(DaySheet)로 뜨고, 닫으면 일 상세로 돌아간다.
 // 그 안에서 "이 날 일정 추가" → 빠른 추가, 일정 → 일정 상세로 같은 자리에서 바뀐다. 바로 추가는 + 버튼만 맡는다.
 // 주소: ?date / ?month 는 replaceState(#81), 날짜 상세 단계는 pushState 로 ?day=1, &event=, &add=1 (5-5)
 import Link from "next/link";
@@ -12,6 +14,8 @@ import { useGroupContext } from "@/components/AppShell";
 import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
 import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
+import { ScopeSheet } from "@/components/RecurrenceSheets";
+import { DayView } from "@/components/DayView";
 import { IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "@/components/icons";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
@@ -36,6 +40,7 @@ import {
   type Occurrence,
 } from "@/lib/anniversary";
 import { anniversariesOn, dayBadge, groupByDay, isMultiDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
+import { nextOccurrences, shiftWeek } from "@/lib/day-view";
 import {
   addDays,
   dateKeyOf,
@@ -58,7 +63,8 @@ import {
 import { cellDensity } from "@/lib/calendar-cell";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
-import type { Event } from "@/lib/types";
+import { eventKey } from "@/lib/recurrence";
+import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { haptic } from "@/lib/app-bridge";
@@ -69,6 +75,10 @@ const newEventHref = (groupId: number, start: string, end: string) =>
   `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
 const nowMs = () => Date.now();
+
+/** 일정 상세를 여는 데 필요한 것. 반복 회차는 회차 날짜까지 (#187) */
+type EventRef = { id: number; occurrence: DateKey | null };
+const eventStep = (date: DateKey, ev: EventRef): StepTarget => ({ step: "event", date, eventId: ev.id, occurrence: ev.occurrence ?? null });
 
 /** 지금 주소의 search 를 바꿔 기록에 쓴다. state 는 null (#57: Next 가 내부 state 를 붙이고 useSearchParams 를 맞춘다) */
 function writeSearch(search: string, mode: "push" | "replace") {
@@ -114,12 +124,17 @@ export function CalendarScreen({ groupId }: Props) {
   const visible = urlStep.open && !closing;
   const ownDepth = Math.max(0, stepDepth(urlStep) - foreign);
   // 닫히는 중에 다른 날짜를 누른 경우: 닫힘이 주소에 반영된 뒤 연다
-  const pending = useRef<{ date: DateKey; eventId?: number } | null>(null);
+  const pending = useRef<{ date: DateKey; ev?: EventRef } | null>(null);
+
+  // phone 일 상세에서 고른 다른 날. replaceState 가 useSearchParams 에 닿기 전에도 화면이 그날을 그리게 (스와이프 중 옛 주가 비치지 않게)
+  const [dayTarget, setDayTarget] = useState<DateKey | null>(null);
+  if (dayTarget !== null && (!urlStep.open || urlStep.date === dayTarget)) setDayTarget(null);
+  const openDate = urlStep.open ? (dayTarget ?? urlStep.date) : null;
 
   // 열린 상세의 날짜를 선택 날짜로 (앞으로가기, 새로고침으로 들어온 경우)
-  if (visible && urlStep.date !== selected) {
-    setSelected(urlStep.date);
-    const p = parseKey(urlStep.date);
+  if (visible && openDate && openDate !== selected) {
+    setSelected(openDate);
+    const p = parseKey(openDate);
     if (p.y !== y || p.m !== m) setMonth({ y: p.y, m: p.m });
   }
 
@@ -191,8 +206,9 @@ export function CalendarScreen({ groupId }: Props) {
   const todayFree = todayFreeQ.data ? (upcomingSlots(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
   const weekFree = weekFreeQ.data ? upcomingSlots(weekFreeQ.data.slots, 120).slice(0, 3) : null;
 
-  // 날짜 상세의 비는 시간 한 줄: 멤버 2명 이상, 오늘 이후만. 하루 1회, 오늘은 위 값을 다시 쓴다 (5-2)
-  const surfaceDate = visible ? urlStep.date : null;
+  // 날짜 상세의 비는 시간 한 줄: 멤버 2명 이상(phone 일 상세는 혼자여도 "비는 시간"), 오늘 이후만. 하루 1회, 오늘은 위 값을 다시 쓴다 (5-2)
+  const surfaceDate = visible ? openDate : null;
+  const minFreeMembers = wide ? 2 : 1;
   const dayFreeQ = useFreeSlots(
     groupId,
     {
@@ -203,11 +219,11 @@ export function CalendarScreen({ groupId }: Props) {
       minMinutes: 60,
       includeAllDay: false,
     },
-    { enabled: surfaceDate !== null && memberCount >= 2 && surfaceDate > today },
+    { enabled: surfaceDate !== null && memberCount >= minFreeMembers && surfaceDate > today },
   );
-  const dayFreeLabel = memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
+  const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
   let freeHint: FreeHint = null;
-  if (surfaceDate && memberCount >= 2 && surfaceDate >= today) {
+  if (surfaceDate && memberCount >= minFreeMembers && surfaceDate >= today) {
     if (surfaceDate === today) {
       if (!todayFreeQ.error) freeHint = { label: dayFreeLabel, slot: todayFree === undefined ? "loading" : todayFree };
     } else if (!dayFreeQ.error) {
@@ -217,7 +233,7 @@ export function CalendarScreen({ groupId }: Props) {
 
   const byDay = useMemo(() => groupByDay(events ?? []), [events]);
   const upcomingList = useMemo(
-    () => (upcomingQ.data ? upcomingEvents(upcomingQ.data, nowMs(), wide ? 5 : 3) : null),
+    () => (upcomingQ.data ? upcomingEvents(upcomingQ.data, nowMs(), wide ? 5 : 10) : null),
     [upcomingQ.data, wide],
   );
 
@@ -226,6 +242,8 @@ export function CalendarScreen({ groupId }: Props) {
   const gridTo = grid[grid.length - 1];
   const annByDay = useMemo(() => occurrencesByDay(anniversaries, gridFrom, gridTo), [anniversaries, gridFrom, gridTo]);
   const upcomingAnn = useMemo(() => upcomingOccurrences(anniversaries, today, 30, 2), [anniversaries, today]);
+  // phone "기념일" 구역 카드: 기념일마다 다음 항목 하나 (#212)
+  const annCards = useMemo(() => (anniversaries ? nextOccurrences(anniversaries, today, 10) : null), [anniversaries, today]);
 
   // D-day 줄: 오늘 포함 가장 가까운 다음 항목 "처음 만난 날 300일 D-35".
   // 다음 항목이 없으면(지난 '그날만' 뿐) 가장 가까운 기념일의 D+n
@@ -258,11 +276,11 @@ export function CalendarScreen({ groupId }: Props) {
   /* ---------- 상세에 넣을 것 ---------- */
 
   const surfaceEvents = surfaceDate && events ? (byDay.get(surfaceDate) ?? []) : null;
-  const surfaceEventId = visible && urlStep.step === "event" ? urlStep.eventId : null;
-  const surfaceEvent =
-    surfaceEventId === null
-      ? undefined
-      : (events?.find((e) => e.id === surfaceEventId) ?? upcomingQ.data?.find((e) => e.id === surfaceEventId));
+  // 반복 회차는 (id, occurrence) 로 찾는다 (#187). 한 번짜리는 occurrence 가 둘 다 null
+  const surfaceRef = visible && urlStep.step === "event" ? { id: urlStep.eventId, occurrence: urlStep.occurrence } : null;
+  const surfaceEventId = surfaceRef?.id ?? null;
+  const isSurface = (e: Event) => surfaceRef !== null && e.id === surfaceRef.id && (e.occurrence ?? null) === surfaceRef.occurrence;
+  const surfaceEvent = surfaceRef === null ? undefined : (events?.find(isSurface) ?? upcomingQ.data?.find(isSurface));
   const eventMissing = surfaceEventId !== null && surfaceEvent === undefined && events !== null && !eventsError && upcomingQ.data !== null;
 
   /* ---------- 동작 ---------- */
@@ -297,10 +315,10 @@ export function CalendarScreen({ groupId }: Props) {
     else writeSearch(withDayStep(window.location.search, { step: "closed" }, today), "replace");
   }
 
-  /** 날짜 상세를 연다 (eventId 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
-  function openDay(date: DateKey, eventId?: number) {
+  /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
+  function openDay(date: DateKey, ev?: EventRef) {
     if (urlStep.open) {
-      pending.current = { date, eventId };
+      pending.current = { date, ev };
       if (!closing) close();
       return;
     }
@@ -310,14 +328,14 @@ export function CalendarScreen({ groupId }: Props) {
     const base = withSelection(window.location.search, date, today, { y: p.y, m: p.m });
     if (base !== null) writeSearch(base, "replace");
     writeSearch(withDayStep(window.location.search, { step: "day", date }, today), "push");
-    if (eventId !== undefined) writeSearch(withDayStep(window.location.search, { step: "event", date, eventId }, today), "push");
+    if (ev !== undefined) writeSearch(withDayStep(window.location.search, eventStep(date, ev), today), "push");
   }
 
   // 닫힘이 주소에 반영된 뒤 기다리던 열기를 지금 렌더의 openDay 로 (옛 렌더의 urlStep 을 보지 않게)
   const runPending = useEffectEvent(() => {
     const p = pending.current;
     pending.current = null;
-    if (p) openDay(p.date, p.eventId);
+    if (p) openDay(p.date, p.ev);
   });
 
   useEffect(() => {
@@ -350,6 +368,24 @@ export function CalendarScreen({ groupId }: Props) {
     if (eventMissing && urlStep.open) writeSearch(withDayStep(window.location.search, { step: "day", date: urlStep.date }, today), "replace");
   }, [eventMissing, urlStep, today]);
 
+  // phone 일 상세 (#212). 날짜 단계만 달력 자리를 대신하고, 일정 상세/빠른 추가는 그 위 시트
+  const dayView = !wide && visible;
+  /** 일 상세 안에서 다른 날로: 기록 칸을 더 쌓지 않고 주소만 바꾼다 (뒤로가기는 여전히 월 보기로, D-58) */
+  function changeDay(date: DateKey) {
+    if (!urlStep.open || urlStep.step !== "day" || date === openDate) return;
+    setDayTarget(date);
+    pick(date);
+    writeSearch(withDayStep(window.location.search, { step: "day", date }, today), "replace");
+  }
+  // 주간 줄 좌우 스와이프: 왼쪽으로 밀면 다음 주 같은 요일 (달력 스와이프와 같은 판단, #162)
+  const stripRef = useMonthSwipe<HTMLUListElement>({
+    enabled: dayView && urlStep.open && urlStep.step === "day",
+    onCommit: (dir) => {
+      if (openDate) changeDay(shiftWeek(openDate, dir));
+      haptic("light");
+    },
+  });
+
   function onCell(key: DateKey) {
     // 열린 팝오버의 그 날짜를 다시 누르면 닫는다. 다른 날짜면 닫고 그 날짜로 다시 연다 (5-4)
     if (visible && urlStep.date === key) {
@@ -360,16 +396,32 @@ export function CalendarScreen({ groupId }: Props) {
   }
 
   function onQuickSaved(ev: Event) {
-    close();
     toast.show("일정을 추가했어요");
-    pick(dateKeyOf(ev.startsAt));
     reload();
+    // phone 은 일 상세로 돌아간다 (그날 목록에 바로 보이게)
+    if (dayView) {
+      back();
+      return;
+    }
+    close();
+    pick(dateKeyOf(ev.startsAt));
   }
 
   const remove = useDeleteEvent(groupId);
-  async function removeEvent() {
+  // 반복 일정 삭제는 범위 시트 (#187). 고른 범위의 요청 중 표시
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [scopePending, setScopePending] = useState<EventScope | null>(null);
+  function askDelete() {
+    if (surfaceEvent?.repeat) setScopeOpen(true);
+    else setConfirmDelete(true);
+  }
+  async function removeEvent(scope: EventScope | null = null) {
     if (!surfaceEvent) return;
-    const r = await remove.mutate(surfaceEvent.id);
+    setScopePending(scope);
+    const target = surfaceEvent.repeat && scope ? { occurrence: surfaceEvent.occurrence ?? undefined, scope } : {};
+    const r = await remove.mutate({ eventId: surfaceEvent.id, ...target });
+    setScopePending(null);
+    setScopeOpen(false);
     setConfirmDelete(false);
     if (!r.ok) {
       if (r.error.status === 404) {
@@ -488,10 +540,10 @@ export function CalendarScreen({ groupId }: Props) {
             const k = row.date;
             const p = parseKey(k);
             return (
-              <li key={ev.id}>
+              <li key={eventKey(ev)}>
                 <button
                   type="button"
-                  onClick={() => openDay(k, ev.id)}
+                  onClick={() => openDay(k, ev)}
                   aria-haspopup="dialog"
                   aria-label={`${formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
                   className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
@@ -568,6 +620,147 @@ export function CalendarScreen({ groupId }: Props) {
     </section>
   );
 
+
+  /* ---------- phone 구역 (디자인규칙.md 2-1, 5, #212) ---------- */
+
+  // 구역 제목줄 32: 제목 18/700 -0.02em + 오른쪽 "전체보기 ›" 13/400 --mute. 내용과 8px
+  const sectionHead = (id: string, title: string, more: React.ReactNode) => (
+    <div className="mb-2 flex h-8 items-center">
+      <h2 id={id} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
+        {title}
+      </h2>
+      <span className="flex-1" />
+      {more}
+    </div>
+  );
+  const moreCls = "hit flex h-8 items-center gap-0.5 text-[13px] text-ink-2 hover:text-ink";
+  // 가로 카드 줄: 카드 폭 148, 간격 10. 좌우 여백 20 선에서 시작하고 화면 밖으로 다음 카드가 잘려 보인다
+  const rail = "-mx-5 flex snap-x gap-2.5 overflow-x-auto scroll-px-5 px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+  const cardSkeletons = (h: string) => (
+    <div className={rail} aria-busy="true" aria-label="불러오는 중">
+      {[0, 1, 2].map((i) => (
+        <Skeleton key={i} className={`${h} w-[148px] shrink-0 rounded-xl`} />
+      ))}
+    </div>
+  );
+  // 빈 구역: 카드 대신 한 줄 안내 + 글자 버튼. 구역은 지우지 않는다
+  const emptyLine = (text: string, action: React.ReactNode) => (
+    <p className="flex h-11 items-center gap-1.5 text-[14px] text-ink-2">
+      {text}
+      {action}
+    </p>
+  );
+
+  // "다가오는 일정" 카드 148×108: 날짜(12/600, 오늘이면 --today-ink "오늘") + 멤버 점 8 / 제목 16/700 두 줄 / 시각 12 --mute.
+  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 오늘 일 상세 (주간 줄로 넘겨 본다)
+  const phoneUpcoming = (
+    <section aria-labelledby={`${titleId}-pup`} className="mt-[22px]">
+      {sectionHead(
+        `${titleId}-pup`,
+        "다가오는 일정",
+        <button type="button" onClick={() => openDay(today)} className={moreCls}>
+          전체보기
+          <IconChevronRight size={14} />
+        </button>,
+      )}
+      {upcomingQ.error ? (
+        emptyLine(
+          "일정을 불러오지 못했어요.",
+          <button type="button" onClick={() => void loadUpcoming()} className="font-bold text-btn">
+            다시 시도
+          </button>,
+        )
+      ) : upcomingList === null ? (
+        cardSkeletons("h-[108px]")
+      ) : upcomingList.length === 0 ? (
+        emptyLine(
+          "한 달 동안 잡힌 일정이 없어요.",
+          <Link href={newHref} className="font-bold text-btn">
+            일정 추가
+          </Link>,
+        )
+      ) : (
+        <ul className={rail}>
+          {upcomingList.map((ev) => {
+            const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
+            const isToday = k === today;
+            return (
+              <li key={eventKey(ev)} className="shrink-0 snap-start">
+                <button
+                  type="button"
+                  onClick={() => openDay(k, ev)}
+                  aria-label={`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
+                  className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
+                >
+                  <span aria-hidden="true" className="flex h-4 w-full items-center">
+                    <small className={`text-[12px] font-semibold leading-4 ${isToday ? "text-today-ink" : "text-ink-2"}`}>
+                      {isToday ? "오늘" : formatDateKo(k)}
+                    </small>
+                    <i className="ml-auto block size-2 shrink-0 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
+                  </span>
+                  <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
+                    {ev.title}
+                  </b>
+                  <span aria-hidden="true" className="mt-auto truncate text-[12px] leading-4 text-ink-2">
+                    {formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+
+  // "기념일" 카드 148×84: D-n 22/700 (오늘이면 --acc-ink "오늘") / 이름 13/500 한 줄. 누르면 그날 일 상세
+  const phoneAnniversaries = (
+    <section aria-labelledby={`${titleId}-pann`} className="mt-[22px]">
+      {sectionHead(
+        `${titleId}-pann`,
+        "기념일",
+        <Link href={`/g/${groupId}/anniversaries`} className={moreCls}>
+          전체보기
+          <IconChevronRight size={14} />
+        </Link>,
+      )}
+      {annCards === null ? (
+        cardSkeletons("h-[84px]")
+      ) : annCards.length === 0 ? (
+        emptyLine(
+          "기념일을 등록하면 D-day 가 보여요.",
+          <Link href={`/g/${groupId}/anniversaries`} className="font-bold text-btn">
+            기념일 추가
+          </Link>,
+        )
+      ) : (
+        <ul className={rail}>
+          {annCards.map((o) => {
+            const badge = dayBadge(o.date, today);
+            const title = occurrenceTitle(o);
+            return (
+              <li key={`${o.anniversary.id}-${o.date}`} className="shrink-0 snap-start">
+                <button
+                  type="button"
+                  onClick={() => openDay(o.date)}
+                  aria-label={`${title}, ${formatDateKo(o.date)}, ${badge}`}
+                  className="flex h-[84px] w-[148px] flex-col justify-between rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
+                >
+                  <b aria-hidden="true" className={`text-[22px] font-bold leading-7 tracking-[-0.02em] ${badge === "오늘" ? "text-acc-ink" : ""}`}>
+                    {badge}
+                  </b>
+                  <span aria-hidden="true" className="truncate text-[13px] font-medium leading-[18px]">
+                    {title}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+
   const panel = surfaceDate ? (
     <DayPanel
       groupId={groupId}
@@ -581,11 +774,11 @@ export function CalendarScreen({ groupId }: Props) {
       anniversaries={anniversariesOn(anniversaries, surfaceDate)}
       free={freeHint}
       event={surfaceEvent}
-      onClose={close}
+      onClose={dayView ? back : close}
       onBack={back}
-      onOpenEvent={(ev) => forward({ step: "event", date: surfaceDate, eventId: ev.id })}
+      onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
       onSaved={onQuickSaved}
-      onDelete={() => setConfirmDelete(true)}
+      onDelete={askDelete}
     />
   ) : null;
   // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175). 빠른 추가, 상세는 자기 버튼이 있다
@@ -595,11 +788,52 @@ export function CalendarScreen({ groupId }: Props) {
   return (
         // 레일 폭에서 개요 칸을 옆에 두는 것은 split(≥860)부터. 600~859 는 달력이 칸보다 좁아지므로(#128) 달력이 화면 높이를 채우고 개요는 아래로 내린다
     <div className="fold:px-4 fold:pb-4 fold:pt-3 split:grid split:h-dvh split:grid-cols-[minmax(0,1fr)_272px] split:gap-2 lg:grid-cols-[minmax(0,1fr)_300px]">
+      {/* phone 일 상세: 달력 자리를 대신한다 (#212) */}
+      {dayView && surfaceDate && (
+        <DayView
+          groupId={groupId}
+          date={surfaceDate}
+          today={today}
+          titleId={`${titleId}-dv`}
+          byDay={events ? byDay : null}
+          eventsError={eventsError}
+          onRetry={reload}
+          anniversaries={anniversariesOn(anniversaries, surfaceDate)}
+          free={freeHint}
+          stripRef={stripRef}
+          onPickDay={changeDay}
+          onMonth={close}
+          onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
+          onAdd={() => forward({ step: "add", date: surfaceDate })}
+          newEventHref={(start, end) => newEventHref(groupId, start, end)}
+        />
+      )}
       {/* 왼쪽: 월 헤더 + 달력 */}
-      <section className="flex flex-col fold:h-[calc(100dvh-28px)] fold:min-h-[480px] split:h-auto split:min-h-0">
+      <section className={`${dayView ? "hidden" : "flex"} flex-col fold:h-[calc(100dvh-28px)] fold:min-h-[480px] split:h-auto split:min-h-0`}>
         {/* 월 헤더: (레일 폭이면 팀 이름) "11월" 20/28 700 + 좌우 화살표 한 줄, 연도는 다른 해일 때만 (시안 .mh) */}
         {/* 제목 줄 높이 40 고정, 다른 탭 화면과 제목 y 가 같다 (#174 L1) */}
-        <div className="mt-1 flex h-10 items-center gap-1 fold:mt-0">
+        {/* phone: 같이 쓰기 입구(있을 때만) → "11월" 제목줄 32 (제목 18/700 / 오늘 알약 + ‹ ›) */}
+        {together && (
+          <div className="mb-[22px] rounded-xl bg-paper px-3.5 empty:hidden fold:hidden [&>div:last-child]:hidden">
+            <TogetherHint hint={together} />
+          </div>
+        )}
+        <div className="mt-1 flex h-8 items-center fold:hidden">
+          <h1 aria-label={`${y}년 ${m}월`} className="shrink-0 whitespace-nowrap text-[18px] font-bold leading-6 tracking-[-0.02em]">
+            {y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
+          </h1>
+          <span className="flex-1" />
+          <button type="button" onClick={goToday} className="hit h-8 shrink-0 rounded-full bg-paper px-3.5 text-[13px] font-bold">
+            오늘
+          </button>
+          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-hover">
+            <IconChevronLeft size={18} />
+          </button>
+          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-hover">
+            <IconChevronRight size={18} />
+          </button>
+        </div>
+        <div className="mt-1 hidden h-10 items-center gap-1 fold:mt-0 fold:flex">
           <button
             type="button"
             onClick={openSwitcher}
@@ -645,11 +879,8 @@ export function CalendarScreen({ groupId }: Props) {
           </Link>
         </div>
 
-        {/* phone: 비는 시간 + D-day 정보 줄 카드 */}
-        <div className="mb-2 fold:hidden">{infoCard}</div>
-
         {/* 달력 타일 */}
-        <div className="overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-2 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
+        <div className="mt-2 overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
           <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
               <span key={w} className={i === 0 || i === 6 ? "text-holiday" : ""}>
@@ -675,14 +906,17 @@ export function CalendarScreen({ groupId }: Props) {
                 anniversaries={annByDay.get(key) ?? []}
                 loading={events === null}
                 onPick={() => onCell(key)}
-                onOpen={(ev) => openDay(key, ev.id)}
+                onOpen={(ev) => openDay(key, ev)}
               />
             ))}
           </ul>
         </div>
 
-        {/* phone: 다가오는 일정 (선택일 목록 대신. 그날 내용은 날짜 상세 시트가 보여 준다) */}
-        <div className="mt-2 fold:hidden">{upcomingCard}</div>
+        {/* phone: 다가오는 일정, 기념일 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
+        <div className="fold:hidden">
+          {phoneUpcoming}
+          {phoneAnniversaries}
+        </div>
       </section>
 
       {/* 넓은 화면 오른쪽 칸: 개요 (선택 날짜와 묶이지 않는다, 5-1 권장안 A) */}
@@ -696,14 +930,14 @@ export function CalendarScreen({ groupId }: Props) {
       {visible &&
         panel &&
         (wide ? (
-          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
+          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete || scopeOpen} footer={dayFooter}>
             {panel}
           </DayPopover>
-        ) : (
-          <DaySheet titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
+        ) : urlStep.open && urlStep.step !== "day" ? (
+          <DaySheet titleId={titleId} onClose={back} paused={confirmDelete || scopeOpen}>
             {panel}
           </DaySheet>
-        ))}
+        ) : null)}
 
       <ConfirmDialog
         open={confirmDelete}
@@ -712,9 +946,19 @@ export function CalendarScreen({ groupId }: Props) {
         confirmLabel="삭제"
         danger
         loading={remove.isPending}
-        onConfirm={removeEvent}
+        onConfirm={() => void removeEvent()}
         onCancel={() => setConfirmDelete(false)}
       />
+      {surfaceEvent?.repeat && (
+        <ScopeSheet
+          open={scopeOpen}
+          mode="delete"
+          occurrence={surfaceEvent.occurrence ?? dateKeyOf(surfaceEvent.startsAt)}
+          pending={scopePending}
+          onPick={(scope) => void removeEvent(scope)}
+          onClose={() => setScopeOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -911,7 +1155,7 @@ function DayCell({
               )}
               {/* 기념일, 공휴일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지).
                   공휴일 줄은 shrink-0 이라야 truncate(overflow hidden) 때문에 높이 0 으로 눌려 사라지지 않는다 (#140 L2) */}
-              {labelEvent && !annText && !holidayText && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
+              {labelEvent && !annText && !holidayText && <span className="mx-auto mt-px hidden max-w-[94%] truncate fold:block text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
             </>
           )}
         </span>
@@ -933,7 +1177,7 @@ function DayCell({
             const style = isBand ? { background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 16%, transparent)` } : undefined;
             return (
               <button
-                key={ev.id}
+                key={eventKey(ev)}
                 type="button"
                 onClick={() => onOpen(ev)}
                 aria-haspopup="dialog"
