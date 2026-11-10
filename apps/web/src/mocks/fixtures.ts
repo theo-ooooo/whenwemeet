@@ -1,13 +1,15 @@
 // API_MOCK=1 일 때 쓰는 메모리 픽스처. 백엔드가 없을 때 화면 확인용.
 // 날짜는 실행 시점의 KST 이번 달 기준으로 만든다.
+import { sameDayInYear } from "@/lib/anniversary";
 import {
   addDays,
   keyOf,
   kstToIso,
+  parseKey,
   todayKey,
   toKst,
 } from "@/lib/date";
-import type { GroupType, Member } from "@/lib/types";
+import type { AnniversaryKind, GroupType, Member } from "@/lib/types";
 
 export type UserRow = {
   id: number;
@@ -47,6 +49,7 @@ export type AnniversaryRow = {
   groupId: number;
   name: string;
   date: string;
+  kind: AnniversaryKind;
   creatorId: number | null;
   createdAt: string;
 };
@@ -145,15 +148,48 @@ export function buildStore(): Store {
     ev(9, OTHER_PERSONAL_ID, "운동", addDays(today, 4), "18:00", addDays(today, 4), "20:00", OTHER_ID),
   ];
 
-  // 기념일 1개: 처음 만난 날 (D+591 근처가 되도록 591일 전)
+  // 기념일 (#107 자동 표시 확인용). n 년 전 같은 월일
+  const yearsAgo = (key: string, n: number) => sameDayInYear(key, parseKey(key).y - n);
   const anniversaries: AnniversaryRow[] = [
+    // 오늘이 100일 (칸, 상세, 다가오는 일정, D-day 줄 모두 "100일 오늘")
     {
       id: 1,
       groupId: TEAM_ID,
       name: "처음 만난 날",
-      date: addDays(today, -591),
+      date: addDays(today, -99),
+      kind: "COUNT_UP",
       creatorId: OTHER_ID,
       createdAt: hoursAgo(24 * 30),
+    },
+    // 매년 반복: 사흘 뒤가 생일
+    {
+      id: 2,
+      groupId: TEAM_ID,
+      name: "하늘 생일",
+      date: yearsAgo(addDays(today, 3), 29),
+      kind: "YEARLY",
+      creatorId: ME_ID,
+      createdAt: hoursAgo(24 * 20),
+    },
+    // 닷새 뒤 3주년
+    {
+      id: 3,
+      groupId: TEAM_ID,
+      name: "결혼기념일",
+      date: yearsAgo(addDays(today, 5), 3),
+      kind: "COUNT_UP",
+      creatorId: ME_ID,
+      createdAt: hoursAgo(24 * 15),
+    },
+    // 그날만
+    {
+      id: 4,
+      groupId: TEAM_ID,
+      name: "자격증 시험",
+      date: addDays(today, 12),
+      kind: "ONCE",
+      creatorId: ME_ID,
+      createdAt: hoursAgo(24 * 10),
     },
   ];
 

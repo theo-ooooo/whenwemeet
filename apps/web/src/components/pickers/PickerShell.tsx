@@ -1,5 +1,5 @@
 "use client";
-// 피커 공통 틀 (#67). 모바일은 바텀 시트(body 포털), PC(≥1024px) 는 입력 칸 아래 팝오버.
+// 피커 공통 틀 (#67). 폰(<600px)은 바텀 시트(body 포털), 넓은 화면(≥600px) 은 입력 칸 아래 팝오버.
 // - Esc 로 피커만 닫는다. 바깥 다이얼로그(빠른 추가, 기념일 시트) 는 document keydown 으로 Esc 를 받으므로
 //   네이티브 이벤트의 stopImmediatePropagation 으로 그쪽까지 가지 않게 막는다
 // - Tab 은 피커 안에 가둔다. 닫히면 입력 칸(트리거) 으로 포커스를 돌린다
@@ -7,7 +7,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconClose } from "../icons";
-import { useIsDesktop } from "@/lib/useIsDesktop";
+import { useLayout } from "@/lib/useLayout";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -27,7 +27,8 @@ type Props = {
 };
 
 export function PickerShell({ open, onClose, trigger, title, width, children }: Props) {
-  const desktop = useIsDesktop();
+  // 넓은 화면(fold, pc) 은 팝오버 (폴더블.md 4-4)
+  const desktop = useLayout() !== "phone";
   if (!open) return null;
   return desktop ? (
     <Popover onClose={onClose} trigger={trigger} title={title} width={width}>

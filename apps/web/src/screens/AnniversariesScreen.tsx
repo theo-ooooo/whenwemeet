@@ -1,12 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
 import { Button, ErrorState, Field, MemberDot, Sheet, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
-import { dday, formatDateKo, hundredHint, todayKey } from "@/lib/date";
-import type { Anniversary } from "@/lib/types";
+import { KIND_OPTIONS, kindOf, mainLabel, nextOccurrence, sortByNext } from "@/lib/anniversary";
+import { dayBadge } from "@/lib/day-detail";
+import { formatDateKo, parseKey, todayKey } from "@/lib/date";
+import type { Anniversary, AnniversaryKind } from "@/lib/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 
@@ -24,6 +26,10 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
   const [editing, setEditing] = useState<Editing>(null);
   const [name, setName] = useState("");
   const [date, setDate] = useState(today);
+  const [kind, setKind] = useState<AnniversaryKind>("COUNT_UP");
+  const kindLabelId = useId();
+  // 다음 항목 날짜순, 다음이 없는 것(지난 '그날만')은 맨 아래 (기획 4장)
+  const sorted = useMemo(() => (items ? sortByNext(items, today) : null), [items, today]);
   const saving = create.isPending || update.isPending;
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -33,9 +39,11 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     if (next?.mode === "edit") {
       setName(next.item.name);
       setDate(next.item.date);
+      setKind(kindOf(next.item));
     } else {
       setName("");
       setDate(today);
+      setKind("COUNT_UP");
     }
   }
 
@@ -45,7 +53,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     e.preventDefault();
     if (!valid || !editing) return;
     setFormError(null);
-    const input = { name: name.trim(), date };
+    const input = { name: name.trim(), date, kind };
     const r = editing.mode === "new" ? await create.mutate(input) : await update.mutate({ id: editing.item.id, input });
     if (!r.ok) {
       setFormError(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
@@ -53,10 +61,10 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     }
     const saved = r.data;
     if (editing.mode === "new") {
-      setItems((prev) => [...(prev ?? []), saved].sort((a, b) => a.date.localeCompare(b.date)));
+      setItems((prev) => [...(prev ?? []), saved]);
     } else {
       setItems((prev) =>
-        (prev ?? []).map((a) => (a.id === saved.id ? saved : a)).sort((a, b) => a.date.localeCompare(b.date)),
+        (prev ?? []).map((a) => (a.id === saved.id ? saved : a)),
       );
     }
     setEditing(null);
@@ -68,19 +76,19 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     setItems((prev) => (prev ?? []).filter((a) => a.id !== item.id));
     const r = await del.mutate(item.id);
     if (!r.ok) {
-      setItems((prev) => [...(prev ?? []), item].sort((a, b) => a.date.localeCompare(b.date)));
+      setItems((prev) => [...(prev ?? []), item]);
       toast.show(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
       return;
     }
     toast.show(`'${item.name}' 을 삭제했어요`, {
       actionLabel: "되돌리기",
       onAction: async () => {
-        const restored = await create.mutate({ name: item.name, date: item.date });
+        const restored = await create.mutate({ name: item.name, date: item.date, kind: kindOf(item) });
         if (!restored.ok) {
           toast.show(messageOf(restored.error, "되돌리지 못했어요. 다시 추가해 주세요"));
           return;
         }
-        setItems((prev) => [...(prev ?? []), restored.data].sort((a, b) => a.date.localeCompare(b.date)));
+        setItems((prev) => [...(prev ?? []), restored.data]);
       },
     });
   }
@@ -90,7 +98,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       <div className="mt-2 flex items-center justify-between gap-3 lg:mt-0">
         <div>
           <h1 className="t-title">기념일</h1>
-          <p className="t-sub mt-0.5">가장 가까운 날이 달력에 보여요</p>
+          <p className="t-sub mt-0.5">100일, 1주년, 생일이 달력에 자동으로 보여요</p>
         </div>
         <Button size="sm" onClick={() => open({ mode: "new" })}>
           <IconPlus size={14} strokeWidth={2.2} />
@@ -101,18 +109,23 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       <div className="mt-3">
         {error ? (
           <ErrorState message={error} onRetry={load} />
-        ) : items === null ? (
+        ) : sorted === null ? (
           <SkeletonList rows={2} />
-        ) : items.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
-            기념일을 등록하면 달력 위에 D-day 가 보여요.
+            기념일을 등록하면 100일, 1주년이 달력에 자동으로 보여요.
             <br />첫 기념일을 추가해 보세요
           </p>
         ) : (
           <ul className="rounded-xl bg-paper px-3.5 py-1">
-            {items.map((a, i) => {
-              const d = dday(a.date, today);
-              const hint = hundredHint(d.diff);
+            {sorted.map((a, i) => {
+              // 대표 라벨 (기획 3-4) + 아래 "다음 {라벨} {M월 D일} D-n". '그날만' 이 지나면 다음 줄 없음
+              const main = mainLabel(a, today);
+              const next = nextOccurrence(a, today);
+              const isToday = main === "D-day" || next?.date === today;
+              // 매년, 그날만은 대표 라벨이 곧 다음 날이라 N일, N주년일 때만 (시작일 전 COUNT_UP 도 대표 라벨 D-n 이 같은 날)
+              const np = next ? parseKey(next.date) : null;
+              const hint = next?.label && np ? `다음 ${next.label} ${np.m}월 ${np.d}일 ${dayBadge(next.date, today)}` : null;
               return (
                 <li key={a.id} className={i === 0 ? "" : "border-t border-line"}>
                   <button
@@ -128,12 +141,14 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
                         <MemberDot className="ml-1" color={a.creator.color} size={6} />
                         {a.creator.displayName}
                       </span>
-                      {hint && <span className="block text-[12px] font-medium leading-4 text-soft">{hint}</span>}
+                      {hint && (
+                        <span className={`block text-[12px] font-medium leading-4 ${next?.date === today ? "text-acc-ink" : "text-soft"}`}>{hint}</span>
+                      )}
                     </span>
                     <span
-                      className={`shrink-0 text-[14px] font-bold tabular-nums ${d.diff === 0 ? "text-acc-ink" : ""}`}
+                      className={`shrink-0 text-[14px] font-bold tabular-nums ${isToday ? "text-acc-ink" : ""}`}
                     >
-                      {d.label}
+                      {main}
                     </span>
                   </button>
                 </li>
@@ -164,6 +179,30 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
               <DatePicker id={id} label="기념일 날짜" value={date} onChange={setDate} withYear />
             )}
           </Field>
+          {/* 종류 (기획 3-1): 세그먼트 3개, 기본 함께한 날 세기 */}
+          <div>
+            <span id={kindLabelId} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+              종류
+            </span>
+            <div role="radiogroup" aria-labelledby={kindLabelId} className="grid grid-cols-3 gap-1 rounded-sm bg-surface p-1">
+              {KIND_OPTIONS.map((o) => {
+                const on = kind === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setKind(o.value)}
+                    className={`anim-pick flex h-9 items-center justify-center rounded-[8px] px-1 text-[13px] whitespace-nowrap ${on ? "bg-paper font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "font-medium text-soft hover:text-ink"}`}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="t-sub mt-1.5">{KIND_OPTIONS.find((o) => o.value === kind)?.hint}</p>
+          </div>
           <Button type="submit" size="lg" full disabled={!valid} loading={saving}>
             {editing?.mode === "edit" ? "저장" : "추가"}
           </Button>
