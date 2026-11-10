@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-11-10T10:45:22+09:00",
+  "session_topic": "언제볼까 앱 P1 설계 (#91, 상위 #85)",
+  "command": "/설계 (앱 P1)",
+  "agent": "agents/design.md",
+  "status": "docs/설계/앱.md 작성, api.md/인증흐름.md/schema.prisma/결정기록(D-49~D-55) 갱신. 설계 승인 대기",
+  "tasks": [
+    {"id": 1, "subject": "앱 기획 승인 반영 PR #86", "status": "completed"},
+    {"id": 2, "subject": "P1 설계 문서", "status": "completed"},
+    {"id": 3, "subject": "설계 승인", "status": "pending"},
+    {"id": 4, "subject": "P2 #92, P3 #93, P4 #94, P5 #95, P6 #96", "status": "pending"}
+  ],
+  "artifacts": ["docs/설계/앱.md", "docs/설계/api.md", "docs/설계/인증흐름.md", "docs/설계/schema.prisma", "docs/설계/결정기록.md"],
+  "key_findings": {
+    "handoff": "DB 테이블 AuthHandoff(해시, 60초, usedAt 조건부 updateMany) + verifier S256 바인딩",
+    "apple": "jose JWKS 검증, aud 경로별, nonce, 인가 코드 교환 필수, refresh token 저장 후 탈퇴 시 revoke",
+    "bridge": "웹→셸 5종 메시지(v:1), UA 접미사 감지, 셸→웹은 URL 이동만"
+  },
+  "recommended_actions": "설계 승인 후 P2/P3/P4 병렬, P5 는 Apple/카카오 준비물 확보 후",
+  "pending_user_input": "설계 승인, 12장 사용자 준비물"
+}
