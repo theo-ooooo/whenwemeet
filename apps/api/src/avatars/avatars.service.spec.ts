@@ -1,5 +1,7 @@
+import { ConfigService } from '@nestjs/config';
 import sharp from 'sharp';
 import { ApiException } from '../common/errors.js';
+import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { FilesRepository } from '../files/files.repository.js';
 import { sampleImage } from '../testing/images.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
@@ -15,9 +17,11 @@ function fakeStorage(configured = true) {
     }),
     put: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
-    publicUrl: vi.fn((key: string) => `https://pub.example/${key}`),
   };
 }
+
+/** 도메인은 환경 변수에만 있다 (D-49). 끝 슬래시는 빌더가 정리 */
+const urls = new FileUrlBuilder(new ConfigService({ R2_PUBLIC_BASE_URL: 'https://pub.example/' }));
 
 const PREVIOUS = { id: 9, provider: 'R2' as const, bucket: 'whenwemeet-dev', key: 'avatars/1/old.webp' };
 
@@ -30,8 +34,8 @@ describe('AvatarsService', () => {
   beforeEach(() => {
     files = mockRepository(FilesRepository);
     storage = fakeStorage();
-    service = new AvatarsService(files as never, storage as never);
-    files.replaceAvatarTx.mockImplementation(async (_userId, input) => ({ publicUrl: input.publicUrl, previous: null }));
+    service = new AvatarsService(files as never, storage as never, urls);
+    files.replaceAvatarTx.mockImplementation(async () => ({ previous: null }));
   });
 
   afterEach(() => {
@@ -40,7 +44,7 @@ describe('AvatarsService', () => {
 
   describe('upload', () => {
     it('webp 512 로 바꿔 avatars/<userId>/<ulid>.webp 에 올리고 File 을 교체, 이전 객체는 삭제', async () => {
-      files.replaceAvatarTx.mockImplementation(async (_userId, input) => ({ publicUrl: input.publicUrl, previous: PREVIOUS }));
+      files.replaceAvatarTx.mockImplementation(async () => ({ previous: PREVIOUS }));
       const jpeg = await sampleImage('jpeg');
       const result = await service.upload(1, { buffer: jpeg, size: jpeg.length });
 
@@ -52,7 +56,6 @@ describe('AvatarsService', () => {
         provider: 'R2',
         bucket: 'whenwemeet-dev',
         key,
-        publicUrl: `https://pub.example/${key}`,
         mimeType: 'image/webp',
         size: body.length,
         width: 512,
@@ -61,12 +64,14 @@ describe('AvatarsService', () => {
         sourceUrl: null,
       });
       expect(storage.delete).toHaveBeenCalledWith('avatars/1/old.webp', 'whenwemeet-dev');
+      // DB 에는 URL(도메인) 을 넘기지 않고, 응답 URL 은 빌더가 base + key 로 만든다
+      expect(files.replaceAvatarTx.mock.calls[0][1]).not.toHaveProperty('publicUrl');
       expect(result).toEqual({ profileImageUrl: `https://pub.example/${key}` });
     });
 
     it('저장소 미설정이면 503, 파일을 보지도 않는다', async () => {
       storage = fakeStorage(false);
-      service = new AvatarsService(files as never, storage as never);
+      service = new AvatarsService(files as never, storage as never, urls);
       await expect(service.upload(1, undefined)).rejects.toMatchObject({ code: 'STORAGE_NOT_CONFIGURED' });
       expect(storage.put).not.toHaveBeenCalled();
     });
@@ -87,7 +92,7 @@ describe('AvatarsService', () => {
     });
 
     it('이전 객체 삭제가 실패해도 업로드는 성공 (로그만)', async () => {
-      files.replaceAvatarTx.mockImplementation(async (_userId, input) => ({ publicUrl: input.publicUrl, previous: PREVIOUS }));
+      files.replaceAvatarTx.mockImplementation(async () => ({ previous: PREVIOUS }));
       storage.delete.mockRejectedValue(new Error('r2 down'));
       const webp = await sampleImage('webp');
       expect((await service.upload(1, { buffer: webp, size: webp.length })).profileImageUrl).toMatch(/^https:\/\/pub\.example\/avatars\/1\//);
@@ -109,13 +114,13 @@ describe('AvatarsService', () => {
 
     it('저장소 미설정이거나 R2 가 아닌 파일이면 행만 지우고 객체는 건너뛴다', async () => {
       storage = fakeStorage(false);
-      service = new AvatarsService(files as never, storage as never);
+      service = new AvatarsService(files as never, storage as never, urls);
       files.clearAvatarTx.mockResolvedValue(PREVIOUS);
       expect(await service.remove(1)).toEqual({ profileImageUrl: null });
       expect(storage.delete).not.toHaveBeenCalled();
 
       storage = fakeStorage(true);
-      service = new AvatarsService(files as never, storage as never);
+      service = new AvatarsService(files as never, storage as never, urls);
       files.clearAvatarTx.mockResolvedValue({ ...PREVIOUS, provider: 'LOCAL' });
       await service.remove(1);
       expect(storage.delete).not.toHaveBeenCalled();
@@ -140,7 +145,7 @@ describe('AvatarsService', () => {
       globalThis.fetch = fetchMock;
       expect(await service.importFromUrl(2, null)).toBeNull();
       storage = fakeStorage(false);
-      service = new AvatarsService(files as never, storage as never);
+      service = new AvatarsService(files as never, storage as never, urls);
       expect(await service.importFromUrl(2, 'https://k/p.jpg')).toBeNull();
       expect(fetchMock).not.toHaveBeenCalled();
     });

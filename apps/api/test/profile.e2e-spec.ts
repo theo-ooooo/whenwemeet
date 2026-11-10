@@ -4,7 +4,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { urlOf } from '../src/testing/fetch-url.js';
 import { sampleImage } from '../src/testing/images.js';
 import { api, auth, createTestApp, devLogin, resetDb, Session, TestApp } from './helpers.js';
-import { MemoryStorage } from './memory-storage.js';
+import { E2E_PUBLIC_BASE_URL, MemoryStorage } from './memory-storage.js';
 
 /** 내 정보: 닉네임 변경, 프로필 사진 (#32, 결정기록 D-36~D-38) */
 describe('내 정보 (e2e)', () => {
@@ -53,7 +53,7 @@ describe('내 정보 (e2e)', () => {
     const originalFetch = globalThis.fetch;
 
     beforeAll(async () => {
-      app = await createTestApp({ storage });
+      app = await createTestApp({ storage, publicBaseUrl: `${E2E_PUBLIC_BASE_URL}/` });
       prisma = app.get(PrismaService);
       await resetDb(app);
       alice = await devLogin(app, '앨리스');
@@ -128,7 +128,8 @@ describe('내 정보 (e2e)', () => {
         provider: 'R2',
         bucket: 'e2e-bucket',
         key: storage.keyOf(url),
-        publicUrl: url,
+        // 도메인은 DB 에 저장하지 않는다 (D-49). 응답 URL = 공개 주소 + key
+        publicUrl: null,
         mimeType: 'image/webp',
         size: object.body.length,
         width: 512,
@@ -136,6 +137,7 @@ describe('내 정보 (e2e)', () => {
         kind: 'AVATAR',
         sourceUrl: null,
       });
+      expect(url).toBe(`${E2E_PUBLIC_BASE_URL}/${files[0].key}`);
       expect((await prisma.user.findUniqueOrThrow({ where: { id: alice.userId } })).avatarFileId).toBe(files[0].id);
 
       expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.profileImageUrl).toBe(url);
@@ -159,7 +161,7 @@ describe('내 정보 (e2e)', () => {
       const files = await prisma.file.findMany({ where: { ownerId: alice.userId } });
       expect(files).toHaveLength(1);
       expect(files[0].id).not.toBe(before.id);
-      expect(files[0].publicUrl).toBe(res.body.data.profileImageUrl);
+      expect(res.body.data.profileImageUrl).toBe(`${E2E_PUBLIC_BASE_URL}/${files[0].key}`);
       expect(storage.objects.has(before.key)).toBe(false);
       expect(storage.objects.has(files[0].key)).toBe(true);
     });
@@ -202,13 +204,24 @@ describe('내 정보 (e2e)', () => {
       expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.profileImageUrl).toBeNull();
     });
 
+    it('옛 행에 남은 publicUrl(도메인 포함) 은 무시하고 지금 공개 주소 + key 로 응답한다 (#98)', async () => {
+      const legacy = await prisma.file.create({
+        data: { bucket: 'e2e-bucket', key: 'avatars/legacy/old.webp', publicUrl: 'https://old-domain.example/avatars/legacy/old.webp', mimeType: 'image/webp', size: 1, kind: 'AVATAR', ownerId: bob.userId },
+      });
+      await prisma.user.update({ where: { id: bob.userId }, data: { avatarFileId: legacy.id } });
+      const expected = `${E2E_PUBLIC_BASE_URL}/avatars/legacy/old.webp`;
+      expect((await api(app).get('/v1/me').set(auth(bob)).expect(200)).body.data.profileImageUrl).toBe(expected);
+      const group = await api(app).get(`/v1/groups/${groupId}`).set(auth(alice)).expect(200);
+      expect(group.body.data.members.find((m: { userId: number }) => m.userId === bob.userId).profileImageUrl).toBe(expected);
+    });
+
     it('회원 탈퇴 시 내 File 객체와 행을 전부 정리', async () => {
       await api(app).post('/v1/me/avatar').set(auth(bob)).attach('file', await sampleImage('png'), 'b.png').expect(200);
       const bobFile = await prisma.file.findFirstOrThrow({ where: { ownerId: bob.userId } });
       // 다른 용도의 파일도 같이 지워지는지 (EVENT_PHOTO 는 아직 엔드포인트가 없어 직접 넣는다)
       await storage.put('events/x.webp', Buffer.from('x'), 'image/webp');
       await prisma.file.create({
-        data: { bucket: 'e2e-bucket', key: 'events/x.webp', publicUrl: storage.publicUrl('events/x.webp'), mimeType: 'image/webp', size: 1, kind: 'EVENT_PHOTO', ownerId: bob.userId },
+        data: { bucket: 'e2e-bucket', key: 'events/x.webp', mimeType: 'image/webp', size: 1, kind: 'EVENT_PHOTO', ownerId: bob.userId },
       });
 
       await api(app).delete('/v1/me').set(auth(bob)).expect(200);

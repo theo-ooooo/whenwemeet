@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthProvider, RawProfile } from '../auth/providers/auth-provider.js';
+import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../files/file-url.builder.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-/** 사진은 File.publicUrl 에서 읽는다 (결정기록 D-38). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
-export const USER_SELECT = { id: true, nickname: true, avatar: { select: { publicUrl: true } }, createdAt: true } as const;
+/** 사진은 File 의 provider/key 로 읽는다 (결정기록 D-38, D-49). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
+export const USER_SELECT = { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT }, createdAt: true } as const;
 
 /** 응답과 request.user 에 쓰는 사용자 요약 */
 export interface UserSummary {
@@ -17,12 +18,12 @@ export interface UserSummary {
 interface UserRecord {
   id: number;
   nickname: string;
-  avatar: { publicUrl: string } | null;
+  avatar: FileLocation | null;
   createdAt: Date;
 }
 
-function toUserSummary(record: UserRecord): UserSummary {
-  return { id: record.id, nickname: record.nickname, profileImageUrl: record.avatar?.publicUrl ?? null, createdAt: record.createdAt };
+function toUserSummary(record: UserRecord, urls: FileUrlBuilder): UserSummary {
+  return { id: record.id, nickname: record.nickname, profileImageUrl: urls.publicUrlOrNull(record.avatar), createdAt: record.createdAt };
 }
 
 /** 가입 시 만들 사용자와 연결 계정. 소셜 프로필 사진은 가입 뒤 R2 로 따로 복사한다 (AvatarsService.importFromUrl) */
@@ -53,16 +54,17 @@ export class UsersRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly memberships: MembershipsRepository,
+    private readonly urls: FileUrlBuilder,
   ) {}
 
   async findById(id: number): Promise<UserSummary | null> {
     const record = await this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
-    return record && toUserSummary(record);
+    return record && toUserSummary(record, this.urls);
   }
 
   /** 닉네임 변경 (D-36). 우리 서비스 값이라 소셜 프로필과 독립 */
   async updateNickname(id: number, nickname: string): Promise<UserSummary> {
-    return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }));
+    return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }), this.urls);
   }
 
   /** (provider, providerUserId) 로 연결 계정 하나 */
@@ -80,7 +82,7 @@ export class UsersRepository {
       data: { rawProfile },
       select: { user: { select: USER_SELECT } },
     });
-    return toUserSummary(account.user);
+    return toUserSummary(account.user, this.urls);
   }
 
   listAuthAccounts(userId: number): Promise<AuthAccountRef[]> {
@@ -116,7 +118,7 @@ export class UsersRepository {
           memberships: { create: { userId: user.id, color: personalGroup.color } },
         },
       });
-      return toUserSummary(user);
+      return toUserSummary(user, this.urls);
     });
   }
 

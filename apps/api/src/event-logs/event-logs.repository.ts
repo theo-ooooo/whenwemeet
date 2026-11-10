@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserRow } from '../common/member.js';
+import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export const EVENT_LOG_SELECT = {
@@ -31,7 +32,10 @@ export interface EventLogRow {
 /** 새 소식 조회. 쓰기는 일정 변경과 한 트랜잭션이라 EventsRepository 의 `...WithLogTx` 가 맡는다 */
 @Injectable()
 export class EventLogsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly urls: FileUrlBuilder,
+  ) {}
 
   /** `after` 이후, 내 변경 제외 (actorId null 인 탈퇴자 변경은 포함) */
   countUnseenByOthers(groupId: number, after: Date, userId: number): Promise<number> {
@@ -56,6 +60,6 @@ export class EventLogsRepository {
       take: limit,
       select: EVENT_LOG_SELECT,
     });
-    return rows.map((row) => ({ ...row, actor: toUserRowOrNull(row.actor) }));
+    return rows.map((row) => ({ ...row, actor: toUserRowOrNull(row.actor, this.urls) }));
   }
 }

@@ -10,12 +10,11 @@ export interface StoredObjectRef {
   key: string;
 }
 
-/** 새 File 행 (결정기록 D-38) */
+/** 새 File 행 (결정기록 D-38). 공개 URL(도메인) 은 저장하지 않는다 — 읽을 때 FileUrlBuilder 가 만든다 (D-49) */
 export interface NewFileInput {
   provider: StorageProvider;
   bucket: string;
   key: string;
-  publicUrl: string;
   mimeType: string;
   size: number;
   width: number | null;
@@ -39,13 +38,13 @@ export class FilesRepository {
    * 프로필 사진 교체를 한 트랜잭션으로: 새 File 생성 → User.avatarFileId 교체 → 이전 File 행 삭제.
    * 이전 파일의 객체는 Service 가 커밋 뒤에 지우도록 돌려준다
    */
-  replaceAvatarTx(userId: number, input: NewFileInput): Promise<{ publicUrl: string; previous: StoredObjectRef | null }> {
+  replaceAvatarTx(userId: number, input: NewFileInput): Promise<{ previous: StoredObjectRef | null }> {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { avatar: { select: OBJECT_REF_SELECT } } });
-      const file = await tx.file.create({ data: { ...input, ownerId: userId }, select: { id: true, publicUrl: true } });
+      const file = await tx.file.create({ data: { ...input, ownerId: userId }, select: { id: true } });
       await tx.user.update({ where: { id: userId }, data: { avatarFileId: file.id } });
       if (user.avatar) await tx.file.delete({ where: { id: user.avatar.id } });
-      return { publicUrl: file.publicUrl, previous: user.avatar };
+      return { previous: user.avatar };
     });
   }
 
