@@ -76,6 +76,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         // 표준 HTTPS 외 암호화 없음 → TestFlight 수출 규정 질문 생략
         ITSAppUsesNonExemptEncryption: false,
+        // 웹의 사진 선택(input type=file accept=image/*)이 iOS 에서 "사진 찍기", "사진 보관함" 을 띄운다.
+        // 설명이 없으면 카메라를 고르는 순간 강제 종료된다 (#149)
+        NSCameraUsageDescription: "프로필 사진을 찍을 때 카메라를 사용해요",
+        NSPhotoLibraryUsageDescription: "프로필 사진을 고를 때 사진 보관함을 사용해요",
       },
     },
     android: {
