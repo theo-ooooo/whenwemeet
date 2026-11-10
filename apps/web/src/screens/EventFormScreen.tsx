@@ -360,7 +360,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
           )}
 
           {/* 폰은 독을 숨긴 자리에 저장 줄을 바닥에 붙인다 (#137) */}
-          <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 bg-surface px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0">
+          <div className="sticky bottom-0 z-10 -mx-5 flex gap-2 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0">
             <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">
               {editing ? "저장" : "일정 추가"}
             </Button>

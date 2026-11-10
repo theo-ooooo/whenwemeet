@@ -1,7 +1,7 @@
 "use client";
 // /g/[groupId]/* 공통 뼈대. 팀 정보를 컨텍스트로 내려준다
 // 모양은 디자인토큰.md "2026-11 확정"(D-57), 폭 구간은 폴더블.md 3, 4-1 (D-58):
-//   phone <600 : 상단 바 52(팀 전환, 새 소식, 내 프로필) + 바닥에 붙은 평평한 탭 56 + safe-area, + 는 탭 위 오른쪽 52 원
+//   phone <600 : 머리줄 52(심볼 30 + 팀 이름 20/700 ⌄, 새 소식 종 + 아바타 32) + 유리 알약 독 64 + 코랄 원 64 (디자인규칙.md 2-1, 4-1, #212)
 //   600~1199   : 왼쪽 레일 64(심볼, + , 달력/빈 시간/기념일/새 소식/팀, 내 프로필). 탭과 떠 있는 + 는 숨긴다
 //   ≥1200      : PC 사이드바 220
 import Link from "next/link";
@@ -15,7 +15,7 @@ import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconArrowRight, IconBell, IconCalendar, IconChevronDown, IconClock, IconHeart, IconPlus, IconTeam } from "./icons";
+import { IconArrowRight, IconBell, IconCalendar, IconChevronDown, IconFree, IconHeart, IconPlus, IconTeam } from "./icons";
 import { Avatar, Sheet, Skeleton } from "./ui";
 
 type GroupCtx = {
@@ -53,16 +53,18 @@ const TABS = [
   { key: "settings", label: "팀" },
 ] as const;
 
+/** 독 아이콘: 선택 칩 안은 24, 아이콘만 있는 항목은 26 (디자인규칙.md 3-1, 4-1). 선택이면 겹침 조각만 코랄 */
 function TabIcon({ name, active }: { name: (typeof TABS)[number]["key"]; active: boolean }) {
+  const size = active ? 24 : 26;
   switch (name) {
     case "calendar":
-      return <IconCalendar active={active} />;
+      return <IconCalendar size={size} active={active} />;
     case "free":
-      return <IconClock />;
+      return <IconFree size={size} active={active} />;
     case "anniversaries":
-      return <IconHeart />;
+      return <IconHeart size={size} active={active} />;
     case "settings":
-      return <IconTeam />;
+      return <IconTeam size={size} active={active} />;
   }
 }
 
@@ -166,7 +168,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
       railIcon: <IconCalendar size={20} active={section === "calendar" || section === "events"} />,
       on: section === "calendar" || section === "events",
     },
-    { href: `/g/${groupId}/free`, label: "빈 시간 찾기", short: "빈 시간", icon: <IconClock size={18} />, railIcon: <IconClock size={20} />, on: section === "free" },
+    { href: `/g/${groupId}/free`, label: "빈 시간 찾기", short: "빈 시간", icon: <IconFree size={18} />, railIcon: <IconFree size={20} />, on: section === "free" },
     { href: `/g/${groupId}/anniversaries`, label: "기념일", short: "기념일", icon: <IconHeart size={18} />, railIcon: <IconHeart size={20} />, on: section === "anniversaries" },
     { href: `/g/${groupId}/news`, label: "새 소식", short: "새 소식", icon: <IconBell size={18} />, railIcon: <IconBell size={20} />, on: section === "news", badge: unread },
     { href: `/g/${groupId}/settings`, label: "팀 설정", short: "팀", icon: <IconTeam size={18} />, railIcon: <IconTeam size={20} />, on: section === "settings" },
@@ -311,23 +313,26 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               </button>
             </header>
           )}
-          {/* 폰 상단 바 52: 팀 이름 글자 / 새 소식(점 배지) + 내 프로필 (시안 .top) */}
-          {/* 종, 프로필은 보이는 크기(32, 36) 그대로 누르는 칸만 44 (#133). 프로필 28 은 작다는 리뷰로 36 (#159) */}
-          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-4 pr-1.5 pt-[env(safe-area-inset-top)] fold:hidden">
+          {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
+              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133) */}
+          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
+            <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
+              <Symbol size={30} />
+            </Link>
             <button
               type="button"
               onClick={() => setSwitcher(true)}
               aria-haspopup="dialog"
-              className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[16px] font-bold leading-6"
+              className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[20px] font-bold leading-7 tracking-[-0.02em]"
             >
               {group ? (
                 <>
                   <span className="truncate">{group.name}</span>
-                  <IconChevronDown size={16} className="shrink-0 text-ink-2" />
+                  <IconChevronDown size={18} className="shrink-0 text-ink-2" />
                   <span className="sr-only">팀 바꾸기</span>
                 </>
               ) : (
-                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-5 w-20" />
               )}
             </button>
             <Link
@@ -335,18 +340,17 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               aria-label={unread > 0 ? `새 소식 ${unread}개` : "새 소식"}
               className="group grid size-11 place-items-center text-ink"
             >
-              <span className="relative grid size-8 place-items-center rounded-sm group-hover:bg-hover">
-                <IconBell size={18} />
-                {unread > 0 && <i aria-hidden="true" className="absolute right-1.5 top-1.5 block size-1.5 rounded-full bg-pri" />}
+              <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
+                <IconBell size={24} unread={unread > 0} />
               </span>
             </Link>
             <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-              {group ? <Avatar member={group.me} color={group.me.color} size={36} /> : <Skeleton className="size-9 rounded-full" />}
+              {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
             </Link>
           </header>
 
           <main
-            className={`flex-1 px-4 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-0 fold:pb-0 ${
+            className={`flex-1 px-5 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-0 fold:pb-0 ${
               isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 fold:pt-2 lg:max-w-[720px] lg:px-8 wide:pb-6"
             }`}
           >
@@ -356,19 +360,35 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
 
         {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원) */}
         <div className={`fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 items-center gap-2 fold:hidden ${isForm ? "hidden" : "flex"}`}>
-          <nav aria-label="주요 화면" className="glass-dock h-16 flex-1 rounded-full">
-            <ul className="flex h-full items-center justify-around">
+          {/* 선택된 메뉴만 먹색 칩(높이 44, 모서리 22) + 아이콘 + 이름 14/700, 나머지는 아이콘만 (디자인규칙.md 4-1).
+              칩은 폭과 면이 200ms 로 옮겨 간다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
+          <nav aria-label="주요 화면" className="glass-dock h-16 min-w-0 flex-1 rounded-full px-2">
+            <ul className="flex h-full items-center justify-between">
               {TABS.map((t) => {
                 const active = section === t.key || (t.key === "calendar" && section === "events");
                 return (
-                  <li key={t.key}>
+                  <li key={t.key} className="flex h-full items-center">
                     <Link
                       href={`/g/${groupId}/${t.key}`}
                       aria-current={active ? "page" : undefined}
-                      className={`flex min-w-[52px] flex-col items-center gap-[3px] rounded-sm py-1 text-[10.5px] font-bold ${active ? "text-ink" : "text-ink-2"}`}
+                      aria-label={active ? undefined : t.label}
+                      className="grid h-full min-w-12 place-items-center"
                     >
-                      <TabIcon name={t.key} active={active} />
-                      {t.label}
+                      <span
+                        className={`flex h-11 items-center justify-center rounded-[22px] transition-[background-color,color,padding] duration-200 ease-out ${
+                          active ? "bg-ink pl-3 pr-4 text-on-ink" : "px-0 text-ink-2"
+                        }`}
+                      >
+                        <TabIcon name={t.key} active={active} />
+                        <span
+                          className={`overflow-hidden whitespace-nowrap text-[14px] font-bold leading-5 transition-[max-width,opacity,margin] duration-200 ease-out ${
+                            active ? "ml-1.5 max-w-16 opacity-100" : "ml-0 max-w-0 opacity-0"
+                          }`}
+                          aria-hidden={active ? undefined : true}
+                        >
+                          {t.label}
+                        </span>
+                      </span>
                     </Link>
                   </li>
                 );
