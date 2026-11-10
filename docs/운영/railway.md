@@ -83,6 +83,25 @@ MySQL 서비스 > **Backups** 탭
 - 복원: Backups 에서 날짜 고르고 Restore → 캔버스 상단 변경 사항(Details) 확인 → Deploy. 새 볼륨이 원래 경로에 붙고 이전 볼륨은 분리된 채 남는다
 - 볼륨을 Wipe 하면 백업도 같이 지워지니 하지 않는다
 
+### 수동 백업 (railway ssh + mysqldump)
+Backups 탭이 없을 때(Trial) 나 큰 작업 직전에 쓴다. SSH 키는 Railway Account Settings > SSH Keys 에 등록돼 있어야 한다. 덤프 파일은 저장소 밖 `~/Workspace/whenwemeet-secrets/backups/` 에만 둔다.
+
+```sh
+railway ssh config --service MySQL --alias wwm-mysql -i ~/.ssh/id_rsa --path ./ssh_config
+F=~/Workspace/whenwemeet-secrets/backups/prod-$(date +%Y%m%d-%H%M).sql
+ssh -F ./ssh_config wwm-mysql 'mysqldump -uroot -p"$MYSQLPASSWORD" --single-transaction --routines --no-tablespaces "$MYSQLDATABASE" 2>/dev/null' > "$F"
+chmod 600 "$F"; tail -1 "$F"   # "-- Dump completed" 가 보여야 성공
+```
+
+### DB 비밀번호 교체
+1. 위 수동 백업
+2. 새 비밀번호를 파일에만 만든다 (화면, 채팅, 이슈에 쓰지 않는다): `LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 32 > ~/Workspace/whenwemeet-secrets/mysql-root-password.txt`
+3. MySQL 안에서 `ALTER USER 'root'@'%'` 와 `'root'@'localhost'` 를 새 값으로 바꾼다 (ssh 표준입력으로 SQL 전달)
+4. MySQL 서비스 Variables 의 `MYSQL_ROOT_PASSWORD` 를 새 값으로. `MYSQLPASSWORD`, `MYSQL_URL`, API 의 `DATABASE_URL` 은 참조라 따라 바뀐다
+5. API 재배포 → `/v1/health` 200 확인 → MySQL 재배포(컨테이너 환경변수 동기화) → 다시 `/v1/health` 확인
+
+MySQL 을 재시작하면 caching_sha2 인증 캐시가 비워진다. API 는 `allowPublicKeyRetrieval` 을 켜 둬서 몇 초 안에 다시 붙는다 (#206). 이 옵션이 없던 v0.4.4 까지는 API 재시작이 필요했다.
+
 ## 5. 운영 중
 - 로그: API 서비스 > Deployments > 해당 배포 > Deploy Logs (Hobby 는 보관 기간이 짧다)
 - 롤백: Deployments 목록에서 직전 성공 배포의 `⋮` > Rollback ([배포.md](./배포.md) "롤백")
