@@ -7,6 +7,7 @@ import { useToast } from "@/components/Toast";
 import { IconCheck } from "@/components/icons";
 import { Avatar, Button, ConfirmDialog, ErrorState, MemberDot, Skeleton, inputClass } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
+import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
 import { memberColor, onMemberColor, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
@@ -137,7 +138,8 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
   }, [open]);
 
   const url = group.inviteUrl ?? "";
-  const text = `'${group.name}' 달력에 초대할게요. 링크를 열고 카카오로 로그인하면 바로 합류돼요\n${url}`;
+  const message = `'${group.name}' 달력에 초대할게요. 링크를 열고 카카오로 로그인하면 바로 합류돼요`;
+  const text = `${message}\n${url}`;
 
   async function copy() {
     try {
@@ -149,6 +151,8 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
   }
 
   async function share() {
+    // 앱 안이면 OS 공유 시트 (Android WebView 에는 Web Share 가 없다, 앱.md 4.3). 링크는 셸이 붙이므로 본문에서 뺀다
+    if (postToApp({ type: "share", url, text: message, title: "언제볼까 초대" })) return;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title: "언제볼까 초대", text, url });

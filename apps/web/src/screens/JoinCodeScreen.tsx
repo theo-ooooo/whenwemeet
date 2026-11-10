@@ -7,6 +7,7 @@ import { CODE_LENGTH, CodeInput } from "@/components/CodeInput";
 import { Symbol } from "@/components/Logo";
 import { Button } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
+import { haptic } from "@/lib/app-bridge";
 import { rememberGroup } from "@/lib/group-cookie";
 
 const NOT_FOUND = "코드가 맞지 않거나 만료됐어요. 초대한 사람에게 코드를 다시 확인해 주세요";
@@ -35,6 +36,7 @@ export function JoinCodeScreen() {
       setFailedCode(code);
       return;
     }
+    haptic("success");
     rememberGroup(r.data.id);
     router.replace(`/g/${r.data.id}/calendar`);
   }

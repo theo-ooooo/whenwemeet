@@ -2,6 +2,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
+import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
 import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass } from "@/components/ui";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
@@ -177,6 +178,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
     setSaveError(null);
     const r = eventId ? await update.mutate({ eventId, input: payload }) : await create.mutate(payload);
     if (r.ok) {
+      haptic("success");
       router.push(`/g/${groupId}/calendar?date=${dateKeyOf(payload.startsAt)}`);
       return;
     }

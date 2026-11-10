@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { KakaoButton } from "@/components/KakaoButton";
+import { LoginActions } from "@/components/LoginActions";
 import { Symbol } from "@/components/Logo";
-import { safeNext, SESSION_COOKIE } from "@/lib/auth";
+import { isAppUserAgent } from "@/lib/app-bridge";
+import { EXPIRED_REASON, safeNext, SESSION_COOKIE } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "로그인" };
 export const dynamic = "force-dynamic";
@@ -12,12 +13,16 @@ export const dynamic = "force-dynamic";
 const ERROR_MESSAGES: Record<string, string> = {
   OAUTH_STATE: "로그인 시간이 지났어요. 다시 시도해 주세요",
   KAKAO_ERROR: "카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요",
+  HANDOFF_INVALID: "로그인이 만료됐어요. 다시 시도해 주세요",
 };
+/** 문구 없이 화면만 그리는 오류 (사용자가 직접 취소, 앱.md 8장) */
+const SILENT_ERRORS = new Set(["APPLE_CANCELLED"]);
+const DEFAULT_ERROR = "로그인하지 못했어요. 잠시 후 다시 시도해 주세요";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; reason?: string }>;
 }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
@@ -26,7 +31,10 @@ export default async function LoginPage({
   const jar = await cookies();
   if (jar.get(SESSION_COOKIE)?.value) redirect(next);
 
-  const error = sp.error ? ERROR_MESSAGES[sp.error] : null;
+  const error = sp.error && !SILENT_ERRORS.has(sp.error) ? (ERROR_MESSAGES[sp.error] ?? DEFAULT_ERROR) : null;
+  // 앱 셸 판정(UA)과 웹 애플 버튼 노출(P3 배포 전 숨김, 앱.md 7장)은 요청마다 서버에서 읽는다
+  const appGuess = isAppUserAgent((await headers()).get("user-agent"));
+  const appleEnabled = process.env.APPLE_LOGIN_ENABLED === "1";
 
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
@@ -54,7 +62,7 @@ export default async function LoginPage({
               {error}
             </p>
           )}
-          <KakaoButton next={next} />
+          <LoginActions next={next} appleEnabled={appleEnabled} appGuess={appGuess} expired={sp.reason === EXPIRED_REASON} />
           <p className="mt-3.5 text-center text-[12px] font-semibold text-ink-2">
             시작하면{" "}
             <Link href="/terms" className="underline underline-offset-2">
