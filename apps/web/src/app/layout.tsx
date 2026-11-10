@@ -7,6 +7,7 @@ const PRETENDARD_CSS =
   "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css";
 
 export const metadata: Metadata = {
+  applicationName: "언제볼까",
   title: { default: "언제볼까", template: "%s | 언제볼까" },
   description: "언제 볼까? 를 달력 하나로. 함께 쓰는 공유 일정",
   icons: {
@@ -14,8 +15,11 @@ export const metadata: Metadata = {
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
+    apple: { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
   },
+  // iOS 홈 화면 추가 (#85 P0). 상태 바는 default: 화면이 상태 바 아래에서 시작하고 글자색은 시스템이 정한다.
+  // black-translucent 는 상태 바 글자가 늘 흰색이라 라이트 바탕(#F4F3F1)에서 안 보인다
+  appleWebApp: { capable: true, title: "언제볼까", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
