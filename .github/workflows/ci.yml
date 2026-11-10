@@ -73,6 +73,7 @@ jobs:
           pnpm --filter @whenwemeet/mobile lint
           pnpm --filter @whenwemeet/mobile test -- --ci
 
-      - run: pnpm -r --filter ./apps/* --if-present lint
-      - run: pnpm -r --filter ./apps/* --if-present test
-      - run: pnpm -r --filter ./apps/* --if-present build
+      # 글롭은 반드시 인용 (#113). 모바일은 위 단계에서만 돈다
+      - run: pnpm -r --filter './apps/*' --filter '!@whenwemeet/mobile' --if-present lint
+      - run: pnpm -r --filter './apps/*' --filter '!@whenwemeet/mobile' --if-present test
+      - run: pnpm -r --filter './apps/*' --filter '!@whenwemeet/mobile' --if-present build

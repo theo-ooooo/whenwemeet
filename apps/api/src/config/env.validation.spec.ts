@@ -55,6 +55,12 @@ describe('validateEnv', () => {
     );
   });
 
+  it('애플 변수는 필수가 아니지만(D-55) APPLE_REDIRECT_URI 가 있으면 https 여야 한다', () => {
+    expect(() => validateEnv(productionEnv())).not.toThrow();
+    const env = { ...productionEnv(), APPLE_REDIRECT_URI: 'http://api.whenwemeet.day/v1/auth/apple/callback' };
+    expect(() => validateEnv(env)).toThrow('https:// 로 시작해야 함: APPLE_REDIRECT_URI');
+  });
+
   it('WEB_ORIGIN 끝의 / 는 리다이렉트 주소를 깨므로 실패', () => {
     const env = { ...productionEnv(), WEB_ORIGIN: 'https://whenwemeet.day/' };
     expect(() => validateEnv(env)).toThrow('WEB_ORIGIN 끝에 / 를 붙이지 않음');
