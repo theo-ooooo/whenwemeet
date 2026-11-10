@@ -9,6 +9,7 @@ import { TimeList, TimePicker } from "./pickers";
 import { minutesOf, timeOfMinutes } from "./pickers/time";
 import { Button, Toggle, inputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
+import { haptic } from "@/lib/app-bridge";
 import { clampChars } from "@/lib/chars";
 import { addDays, formatDateKo, kstToIso, type DateKey } from "@/lib/date";
 import type { Event } from "@/lib/types";
@@ -115,7 +116,10 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps 
     setTouched(true);
     if (title.trim().length === 0 || rangeError || create.isPending) return;
     const r = await create.mutate({ title: title.trim(), startsAt, endsAt, allDay });
-    if (r.ok) onSaved(r.data);
+    if (r.ok) {
+      haptic("success");
+      onSaved(r.data);
+    }
   }
 
   function more() {

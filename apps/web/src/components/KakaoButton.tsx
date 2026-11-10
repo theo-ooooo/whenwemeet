@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { postToApp } from "@/lib/app-bridge";
 
 /** 카카오 로그인 버튼. 카카오 디자인 가이드: 배경 #FEE500, 글자 #191919, 심볼 왼쪽. 색 변경 금지 */
 export function KakaoButton({ next, label = "카카오로 시작하기" }: { next: string; label?: string }) {
@@ -11,6 +12,11 @@ export function KakaoButton({ next, label = "카카오로 시작하기" }: { nex
       aria-disabled={going || undefined}
       onClick={(e) => {
         if (going) {
+          e.preventDefault();
+          return;
+        }
+        // 앱 안이면 웹 로그인 대신 네이티브 로그인 화면 (앱.md 4.3). 셸이 없으면 기존처럼 이동
+        if (postToApp({ type: "login", next })) {
           e.preventDefault();
           return;
         }

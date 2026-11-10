@@ -36,6 +36,14 @@
    R2_SECRET_ACCESS_KEY=<운영 버킷 토큰 Secret>
    R2_BUCKET=whenwemeet
    R2_PUBLIC_BASE_URL=https://images.whenwemeet.day
+   # 앱 로그인 (선택, D-55. 없으면 해당 엔드포인트만 503)
+   KAKAO_APP_ID=<카카오 앱 ID>
+   APPLE_TEAM_ID=<Team ID>
+   APPLE_KEY_ID=<Key ID>
+   APPLE_PRIVATE_KEY=<.p8 본문>
+   APPLE_BUNDLE_ID=day.whenwemeet.app
+   APPLE_SERVICE_ID=<Services ID>
+   APPLE_REDIRECT_URI=https://api.whenwemeet.day/v1/auth/apple/callback
    ```
    - `${{MySQL.MYSQL_URL}}` 의 `MySQL` 은 DB 서비스 이름이다. 이름을 바꿨다면 그 이름으로. 자동완성으로 고르면 틀리지 않는다
    - `PORT`, `NODE_ENV` 는 넣지 않는다 (Railway 가 `PORT` 주입, 이미지가 `NODE_ENV=production`)

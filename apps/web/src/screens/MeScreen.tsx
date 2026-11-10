@@ -5,6 +5,7 @@ import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconDevice, IconMoon, IconSun } from "@/components/icons";
 import { Avatar, Button, ErrorState, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
+import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
 import { shrinkImage } from "@/lib/image";
 import { readTheme, setTheme, subscribeTheme, type ThemeChoice } from "@/lib/theme";
@@ -259,6 +260,8 @@ export function MeScreen() {
     const r = await deleteMe();
     if (!r.ok) return;
     forgetGroup();
+    // 앱 셸에 알려 카카오 SDK 토큰을 정리하게 한다 (앱 밖에서는 아무것도 안 함)
+    postToApp({ type: "accountDeleted" });
     // 세션 쿠키는 httpOnly 라 로그아웃 라우트로 지운다
     const form = document.createElement("form");
     form.method = "POST";
@@ -360,7 +363,7 @@ export function MeScreen() {
             </ul>
           </section>
 
-          <form method="POST" action="/auth/logout" className="mt-2">
+          <form method="POST" action="/auth/logout" className="mt-2" onSubmit={() => postToApp({ type: "logout" })}>
             <Button type="submit" variant="tile" size="lg" full>
               로그아웃
             </Button>
