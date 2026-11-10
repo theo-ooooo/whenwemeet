@@ -13,4 +13,12 @@
 | `비교.png` | 선정 당시 3안 비교 (기록용) |
 
 워드마크는 Pretendard ExtraBold 를 패스로 변환한 것이라 폰트 없이도 동일하게 보인다.
-`apps/web/public/` 의 PNG 아이콘은 `app-icon.svg`, `logo-symbol.svg` 에서 생성 (sharp, 스크립트는 저장소 밖).
+`apps/web/public/` 의 PNG 아이콘은 `app-icon.svg`, `logo-symbol.svg` 에서 생성 (sharp).
+앱 아이콘(`icon-192/512`, `apple-touch-icon`, `icon-maskable-192/512`)은 `pnpm --filter @whenwemeet/web icons` (`apps/web/scripts/gen-icons.mjs`) 로 다시 만든다.
+심볼 도형을 바꾸면 이 스크립트의 `SYMBOL` 도 같이 고친다. `favicon-32.png`, `icon.png` 은 심볼만 쓴 기존 파일.
+
+| 파일 | 용도 | 규칙 |
+|------|------|------|
+| `icon-192.png`, `icon-512.png` | manifest `any` | 둥근 모서리, 바깥 투명 |
+| `icon-maskable-192.png`, `icon-maskable-512.png` | manifest `maskable` (Android) | 꽉 찬 불투명, 심볼이 지름 80% 안전 원 안 |
+| `apple-touch-icon.png` | iOS 홈 화면 180 | 꽉 찬 불투명 (iOS 가 모서리를 깎는다) |
