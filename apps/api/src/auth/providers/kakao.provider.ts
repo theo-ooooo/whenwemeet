@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../../common/errors.js';
-import type { AuthProviderClient, ProviderProfile } from './auth-provider.js';
+import type { AuthProviderClient, LinkedAccount, ProviderProfile } from './auth-provider.js';
 
 export const KAKAO_AUTHORIZE_URL = 'https://kauth.kakao.com/oauth/authorize';
 export const KAKAO_TOKEN_URL = 'https://kauth.kakao.com/oauth/token';
 export const KAKAO_ME_URL = 'https://kapi.kakao.com/v2/user/me';
 export const KAKAO_UNLINK_URL = 'https://kapi.kakao.com/v1/user/unlink';
+export const KAKAO_TOKEN_INFO_URL = 'https://kapi.kakao.com/v1/user/access_token_info';
 
 /** 카카오가 "연결되지 않은 사용자" 를 알리는 코드. unlink 가 이미 끊긴 경우는 성공으로 본다 */
 const KAKAO_NOT_REGISTERED = -101;
@@ -21,6 +22,11 @@ export class KakaoProvider implements AuthProviderClient {
   /** 로그인에 필요한 설정이 있는지. 없으면 로그인/탈퇴 엔드포인트만 503 (결정기록 D-29) */
   isLoginConfigured(): boolean {
     return Boolean(this.config.get<string>('KAKAO_CLIENT_ID') && this.config.get<string>('KAKAO_REDIRECT_URI'));
+  }
+
+  /** 앱 네이티브 로그인 설정. 없으면 /auth/kakao/native 만 503 (결정기록 D-55) */
+  isAppConfigured(): boolean {
+    return Boolean(this.config.get<string>('KAKAO_APP_ID'));
   }
 
   isUnlinkConfigured(): boolean {
@@ -88,8 +94,27 @@ export class KakaoProvider implements AuthProviderClient {
     };
   }
 
-  /** 회원 탈퇴 시 연결 끊기 (Admin Key). 이미 끊긴 사용자는 성공으로 본다 (api.md 2.7) */
-  async unlink(providerUserId: string): Promise<void> {
+  /**
+   * 앱(카카오 SDK) 이 받은 액세스 토큰이 우리 카카오 앱에서 발급됐는지 확인 (앱.md 3.1 1~2단계).
+   * 토큰 무효(401) 또는 app_id 불일치 → 401 SOCIAL_TOKEN_INVALID, 그 밖의 카카오 실패 → 502 KAKAO_ERROR
+   */
+  async verifyAppToken(accessToken: string): Promise<void> {
+    if (!this.isAppConfigured()) throw new ApiException('KAKAO_NOT_CONFIGURED');
+    const res = await fetch(KAKAO_TOKEN_INFO_URL, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.status === 401) throw new ApiException('SOCIAL_TOKEN_INVALID');
+    if (!res.ok) throw new ApiException('KAKAO_ERROR');
+    const json = (await res.json().catch(() => ({}))) as { app_id?: number | string };
+    if (json.app_id === undefined || json.app_id === null) throw new ApiException('KAKAO_ERROR');
+    if (String(json.app_id) !== this.config.getOrThrow<string>('KAKAO_APP_ID').trim()) {
+      throw new ApiException('SOCIAL_TOKEN_INVALID');
+    }
+  }
+
+  /** 회원 탈퇴 시 연결 끊기 (Admin Key). 이미 끊긴 사용자는 성공으로 본다 (api.md 2.7). providerUserId 만 쓴다 */
+  async unlink({ providerUserId }: Pick<LinkedAccount, 'providerUserId'>): Promise<void> {
     if (!this.isUnlinkConfigured()) throw new ApiException('KAKAO_NOT_CONFIGURED');
     const body = new URLSearchParams({ target_id_type: 'user_id', target_id: providerUserId });
     const res = await fetch(KAKAO_UNLINK_URL, {

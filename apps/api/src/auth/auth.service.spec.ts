@@ -50,7 +50,7 @@ describe('AuthService', () => {
     users.updateRawProfile.mockResolvedValue(existing);
     expect(await service.login('KAKAO', kakaoProfile)).toBe(existing);
     expect(users.findAuthAccount).toHaveBeenCalledWith('KAKAO', '123456789012');
-    expect(users.updateRawProfile).toHaveBeenCalledWith(7, kakaoProfile.raw);
+    expect(users.updateRawProfile).toHaveBeenCalledWith(7, kakaoProfile.raw, undefined);
     expect(users.createWithAccountTx).not.toHaveBeenCalled();
     expect(avatars.importFromUrl).not.toHaveBeenCalled();
   });
@@ -85,5 +85,19 @@ describe('AuthService', () => {
   it('signToken 은 숫자 ID 를 문자열 sub 로 서명', async () => {
     expect(await service.signToken(1)).toBe('jwt-for-1');
     expect(jwt.signAsync).toHaveBeenCalledWith({ sub: '1' });
+  });
+
+  it('login: 애플처럼 credentials 가 있으면 가입과 재로그인 모두 Repository 에 넘긴다 (D-51)', async () => {
+    const credentials = { providerClientId: 'day.whenwemeet.app', refreshToken: 'rt' };
+    const appleProfile = { providerUserId: 'sub', nickname: '새 사용자', profileImageUrl: null, email: null, raw: { sub: 'sub' }, credentials };
+    users.findAuthAccount.mockResolvedValue(null);
+    users.createWithAccountTx.mockResolvedValue({ id: 5, nickname: '새 사용자', profileImageUrl: null, createdAt: new Date() });
+    await service.login('APPLE', appleProfile);
+    expect(users.createWithAccountTx).toHaveBeenCalledWith(expect.objectContaining({ provider: 'APPLE', credentials }), expect.anything());
+
+    users.findAuthAccount.mockResolvedValue({ id: 9 });
+    users.updateRawProfile.mockResolvedValue({ id: 5, nickname: '새 사용자', profileImageUrl: null, createdAt: new Date() });
+    await service.login('APPLE', appleProfile);
+    expect(users.updateRawProfile).toHaveBeenCalledWith(9, { sub: 'sub' }, credentials);
   });
 });

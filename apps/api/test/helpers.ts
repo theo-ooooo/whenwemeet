@@ -5,6 +5,7 @@ import type { App } from 'supertest/types.js';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
+import { APPLE_JWKS } from '../src/auth/providers/apple.provider.js';
 import { FileUrlBuilder } from '../src/files/file-url.builder.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { StorageService } from '../src/storage/storage.service.js';
@@ -16,6 +17,8 @@ export interface TestAppOptions {
   storage?: unknown;
   /** 파일 공개 주소 (R2_PUBLIC_BASE_URL). test-env 가 R2 변수를 비우므로 없으면 파일 URL 은 null */
   publicBaseUrl?: string;
+  /** Apple JWKS 대신 쓸 로컬 키 집합 (apple.e2e-spec) */
+  appleJwks?: unknown;
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -24,6 +27,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   if (options.publicBaseUrl) {
     builder.overrideProvider(FileUrlBuilder).useValue(new FileUrlBuilder(new ConfigService({ R2_PUBLIC_BASE_URL: options.publicBaseUrl })));
   }
+  if (options.appleJwks) builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);
@@ -40,6 +44,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.membership.deleteMany();
   await prisma.group.deleteMany();
   await prisma.file.deleteMany();
+  await prisma.authHandoff.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();
 }

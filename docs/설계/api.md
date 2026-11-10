@@ -143,6 +143,8 @@ Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', creator: Member|탈퇴자
 
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
+**확정 (#105, D-62)**: 기념일 종류 `kind: 'COUNT_UP' | 'YEARLY' | 'ONCE'` 추가. POST `kind?` (생략 시 `COUNT_UP`), PATCH `kind?`, 응답 `Anniversary` 에 `kind`. 잘못된 값은 400 VALIDATION_FAILED. 100일 단위, N주년, 매년 항목 계산은 여전히 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
+
 ### 2.5 빈 시간 찾기
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |

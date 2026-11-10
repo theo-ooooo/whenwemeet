@@ -23,6 +23,8 @@ const HTTPS_ENV = [
   'WEB_ORIGIN',
   'KAKAO_REDIRECT_URI',
   'R2_PUBLIC_BASE_URL',
+  // 필수는 아니지만(D-55) 값이 있으면 https 여야 한다. Apple 은 http 반환 주소를 받지 않는다
+  'APPLE_REDIRECT_URI',
 ] as const;
 
 function text(value: unknown): string {
