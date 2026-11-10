@@ -12,14 +12,15 @@ ARG PNPM_VERSION
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /repo
 
-# lockfile 만으로 패키지를 먼저 받아 둔다 (소스만 바뀐 빌드는 이 층을 재사용)
+# lockfile 만으로 패키지를 먼저 받아 둔다 (소스만 바뀐 빌드는 이 층을 재사용).
+# install/deploy 에 --offline 을 붙이지 않는다: deploy 가 peer 를 다시 풀며 fetch 에 없는 메타데이터를 찾는다 (#76)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 RUN pnpm fetch
 
 COPY apps/api ./apps/api
-RUN pnpm install --offline --frozen-lockfile --filter @whenwemeet/api \
+RUN pnpm install --frozen-lockfile --filter @whenwemeet/api \
  && pnpm --filter @whenwemeet/api build \
- && pnpm --filter @whenwemeet/api deploy --prod --offline /out \
+ && pnpm --filter @whenwemeet/api deploy --prod /out \
  && rm -rf /out/src /out/test /out/.env*
 
 # ---------- 2. 실행 ----------
