@@ -321,7 +321,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </header>
 
           <main
-            className={`flex-1 px-4 pb-[calc(56px+72px+env(safe-area-inset-bottom))] fold:px-0 fold:pb-0 ${
+            className={`flex-1 px-4 pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))] fold:px-0 fold:pb-0 ${
               isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 lg:max-w-[720px] lg:px-8 wide:py-6"
             }`}
           >
@@ -329,16 +329,9 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </main>
         </div>
 
-        {/* 모바일 하단 탭: 바닥에 붙은 평평한 바 56 + safe-area, 위 1px 선. + 는 탭 위 오른쪽 52 원 (시안 .tab, .fab) */}
-        <Link
-          href={newHref}
-          aria-label="일정 추가"
-          className="fixed bottom-[calc(56px+14px+env(safe-area-inset-bottom))] right-[max(16px,calc(50%-224px))] z-30 grid size-[52px] place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)] fold:hidden"
-        >
-          <IconPlus size={24} strokeWidth={2.2} />
-        </Link>
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] fold:hidden">
-          <nav aria-label="주요 화면" className="mx-auto h-14 max-w-[480px]">
+        {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원) */}
+        <div className="fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[448px] items-center gap-2 fold:hidden">
+          <nav aria-label="주요 화면" className="glass-dock h-16 flex-1 rounded-full">
             <ul className="flex h-full items-center justify-around">
               {TABS.map((t) => {
                 const active = section === t.key || (t.key === "calendar" && section === "events");
@@ -347,7 +340,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
                     <Link
                       href={`/g/${groupId}/${t.key}`}
                       aria-current={active ? "page" : undefined}
-                      className={`flex w-[60px] flex-col items-center gap-0.5 rounded-sm py-1 text-[10px] font-semibold leading-3 ${active ? "text-ink" : "text-ink-2"}`}
+                      className={`flex min-w-[52px] flex-col items-center gap-[3px] rounded-sm py-1 text-[10.5px] font-bold ${active ? "text-ink" : "text-ink-2"}`}
                     >
                       <TabIcon name={t.key} active={active} />
                       {t.label}
@@ -357,6 +350,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               })}
             </ul>
           </nav>
+          <Link
+            href={newHref}
+            aria-label="일정 추가"
+            className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+          >
+            <IconPlus size={26} strokeWidth={2.2} />
+          </Link>
         </div>
       </div>
 
