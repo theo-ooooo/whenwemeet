@@ -204,8 +204,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               ))}
             </ul>
           </nav>
-          <Link href="/me" aria-label="내 정보" className="mt-auto grid size-10 place-items-center rounded-full">
-            {group ? <Avatar member={group.me} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+          <Link href="/me" aria-label="내 정보" className="mt-auto grid size-11 place-items-center rounded-full">
+            {group ? <Avatar member={group.me} size={40} /> : <Skeleton className="size-10 rounded-full" />}
           </Link>
         </aside>
 
@@ -272,13 +272,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </li>
           </ul>
           <Link href="/me" className="mt-auto flex h-11 items-center gap-2 rounded-sm px-2 text-[13px] font-semibold hover:bg-hover">
-            {group ? <Avatar member={group.me} size={28} /> : <Skeleton className="size-7 rounded-full" />}
+            {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             <span className="min-w-0 flex-1 truncate">{group?.me.displayName ?? ""}</span>
             <span className="text-[12px] font-normal text-ink-2">설정</span>
           </Link>
         </aside>
 
-        <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col fold:max-w-none">
+        <div className="flex min-h-dvh w-full flex-col">
           {/* 레일 폭 상단 줄: 팀 이름 알약만 (새 소식, 프로필은 레일). 달력은 월 헤더 안에 팀 이름을 둔다 */}
           {!isCalendar && (
             <header className="hidden h-12 items-center px-6 pt-1 fold:flex wide:hidden">
@@ -296,7 +296,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </header>
           )}
           {/* 폰 상단 바 52: 팀 이름 글자 / 새 소식(점 배지) + 내 프로필 (시안 .top) */}
-          {/* 종, 프로필은 보이는 크기(32, 28) 그대로 누르는 칸만 44 (#133) */}
+          {/* 종, 프로필은 보이는 크기(32, 36) 그대로 누르는 칸만 44 (#133). 프로필 28 은 작다는 리뷰로 36 (#159) */}
           <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-4 pr-1.5 pt-[env(safe-area-inset-top)] fold:hidden">
             <button
               type="button"
@@ -325,7 +325,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               </span>
             </Link>
             <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-              {group ? <Avatar member={group.me} size={28} /> : <Skeleton className="size-7 rounded-full" />}
+              {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             </Link>
           </header>
 
@@ -339,7 +339,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
         </div>
 
         {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원) */}
-        <div className={`fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 mx-auto max-w-[448px] items-center gap-2 fold:hidden ${isForm ? "hidden" : "flex"}`}>
+        <div className={`fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 items-center gap-2 fold:hidden ${isForm ? "hidden" : "flex"}`}>
           <nav aria-label="주요 화면" className="glass-dock h-16 flex-1 rounded-full">
             <ul className="flex h-full items-center justify-around">
               {TABS.map((t) => {
