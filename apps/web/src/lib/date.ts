@@ -160,20 +160,11 @@ export function startOfWeek(key: DateKey): DateKey {
   return addDays(key, -back);
 }
 
-/** 기념일 D-day 표기 (화면흐름.md 7)
+/** D-day 표기 (화면흐름.md 7). 기념일 대표 라벨은 lib/anniversary.ts mainLabel
  *  diff = 오늘 - date. 0 → D-day, 음수 → D-12, 양수 → D+591 */
 export function dday(date: DateKey, today = todayKey()): { label: string; diff: number } {
   const diff = daysBetween(date, today);
   if (diff === 0) return { label: "D-day", diff };
   if (diff < 0) return { label: `D${diff}`, diff };
   return { label: `D+${diff}`, diff };
-}
-
-/** 지나온 기념일이 다음 100일 단위가 되기까지 30일 이내면 그 안내 */
-export function hundredHint(diff: number): string | null {
-  if (diff <= 0) return null;
-  const next = Math.ceil((diff + 1) / 100) * 100;
-  const remain = next - diff;
-  if (remain > 30) return null;
-  return `${next}일까지 ${remain}일`;
 }
