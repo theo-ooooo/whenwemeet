@@ -1,4 +1,5 @@
-// 선 아이콘 한 세트 (stroke 1.8, round). 경로는 목업(docs/설계/img/최종-A-시안.html) 과 같다.
+// 선 아이콘 한 세트 (24 격자, stroke 1.8, round). 메뉴 아이콘(달력, 빈 시간, 기념일, 팀, 새 소식)은
+// 디자인규칙.md 3장(#212): 바탕 도형은 둥근 사각, 채운 "겹침 조각" 은 정확히 하나.
 // 장식용이라 기본 aria-hidden. 의미는 옆 글자나 aria-label 로 전한다.
 import type { SVGProps } from "react";
 
@@ -24,16 +25,36 @@ function Svg({ size = 22, strokeWidth = 1.8, children, ...rest }: IconProps & { 
   );
 }
 
-export function IconCalendar({ active, ...p }: IconProps & { active?: boolean }) {
+/** 겹침 조각 (디자인규칙.md 3-1): 평소 선과 같은 색, 선택이면 코랄(--pri). 아이콘마다 정확히 하나 */
+const pieceFill = (active?: boolean) => (active ? "var(--pri)" : "currentColor");
+
+type PieceProps = IconProps & {
+  /** 선택 상태. 겹침 조각만 코랄로 바뀐다 */
+  active?: boolean;
+};
+
+export function IconCalendar({ active, ...p }: PieceProps) {
   return (
     <Svg {...p}>
-      <rect x="3" y="5" width="18" height="16" rx="4" />
-      <path d="M3 10h18M8 3v4M16 3v4" />
-      {active && <rect x="7" y="13" width="4" height="3" rx="1" fill="currentColor" stroke="none" />}
+      <rect x="3.5" y="5" width="17" height="15.5" rx="4.5" />
+      <path d="M8 3v3.5M16 3v3.5M3.5 10h17" />
+      <rect x="12.5" y="13" width="5" height="4.5" rx="1.5" fill={pieceFill(active)} stroke="none" />
     </Svg>
   );
 }
 
+/** 빈 시간: 둥근 사각 둘이 대각선으로 겹치고, 겹친 자리(둘 다 비는 시간)가 조각 */
+export function IconFree({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="3" width="12.5" height="12.5" rx="4" />
+      <rect x="8.5" y="8.5" width="12.5" height="12.5" rx="4" />
+      <path d="M8.5 12.5a4 4 0 0 1 4-4h3v3a4 4 0 0 1-4 4h-3z" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
+/** 시각 표시용 시계 (일정 시간 줄 등). 메뉴의 빈 시간은 IconFree */
 export function IconClock(p: IconProps) {
   return (
     <Svg {...p}>
@@ -43,29 +64,33 @@ export function IconClock(p: IconProps) {
   );
 }
 
-export function IconHeart(p: IconProps) {
+export function IconHeart({ active, ...p }: PieceProps) {
   return (
     <Svg {...p}>
-      <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+      <path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" />
+      <rect x="9.6" y="10.6" width="4.8" height="4.8" rx="1.2" transform="rotate(45 12 13)" fill={pieceFill(active)} stroke="none" />
     </Svg>
   );
 }
 
-export function IconTeam(p: IconProps) {
+export function IconTeam({ active, ...p }: PieceProps) {
   return (
     <Svg {...p}>
-      <circle cx="9" cy="8" r="3.2" />
-      <circle cx="17" cy="9" r="2.6" />
-      <path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15 18c0-2.3 1.8-4 4-4 1 0 2 .4 2 .4" />
+      <rect x="3" y="4" width="9" height="9" rx="3.2" />
+      <rect x="10" y="6" width="9" height="9" rx="3.2" />
+      <path d="M3 20.5c.6-2.6 2.6-4 5-4h8c2.4 0 4.4 1.4 5 4" />
+      <rect x="10" y="6" width="2" height="7" rx="0.8" fill={pieceFill(active)} stroke="none" />
     </Svg>
   );
 }
 
-export function IconBell(p: IconProps) {
+/** 새 소식 종. 조각(오른쪽 위 점)은 새 소식이 있을 때만, 늘 코랄 */
+export function IconBell({ unread, ...p }: IconProps & { unread?: boolean }) {
   return (
     <Svg {...p}>
-      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-      <path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" />
+      <path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z" />
+      <path d="M10 21h4" />
+      {unread && <circle data-piece cx="18.5" cy="5.5" r="2.6" fill="var(--pri)" stroke="none" />}
     </Svg>
   );
 }
