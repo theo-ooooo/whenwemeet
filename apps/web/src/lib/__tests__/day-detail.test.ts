@@ -15,7 +15,15 @@ const ev = (id: number, start: string, end: string, allDay = false): Event => ({
   createdAt: start,
   updatedAt: start,
 });
-const ann = (id: number, date: string): Anniversary => ({ id, groupId: 2, name: `기념${id}`, date, creator: who, createdAt: date });
+const ann = (id: number, date: string, kind: Anniversary["kind"] = "ONCE"): Anniversary => ({
+  id,
+  groupId: 2,
+  name: `기념${id}`,
+  date,
+  kind,
+  creator: who,
+  createdAt: date,
+});
 
 describe("groupByDay", () => {
   it("여러 날 종일 → 종일 → 시각 순, 걸친 날 모두", () => {
@@ -29,10 +37,14 @@ describe("groupByDay", () => {
   });
 });
 
-describe("anniversariesOn (#107 자리)", () => {
-  it("등록 날짜와 같은 날만", () => {
-    const list = [ann(1, "2026-11-10"), ann(2, "2025-11-10")];
-    expect(anniversariesOn(list, "2026-11-10").map((a) => a.id)).toEqual([1]);
+describe("anniversariesOn (#107)", () => {
+  it("그날의 항목 전부, 우선순위 순", () => {
+    const list = [ann(1, "2026-11-10"), ann(2, "2025-11-10"), ann(3, "2025-11-10", "COUNT_UP"), ann(4, "2026-08-03", "COUNT_UP")];
+    expect(anniversariesOn(list, "2026-11-10").map((o) => `${o.anniversary.id} ${o.label ?? o.type}`)).toEqual([
+      "3 1주년",
+      "4 100일",
+      "1 ORIGINAL",
+    ]);
     expect(anniversariesOn(null, "2026-11-10")).toEqual([]);
   });
 });

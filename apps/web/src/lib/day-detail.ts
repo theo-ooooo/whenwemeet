@@ -1,5 +1,6 @@
 // 날짜 상세(DayPanel) 와 달력 개요에 쓰는 순수 계산. React 를 import 하지 않는다 (단위 테스트 대상)
 import { addDays, dateKeyOf, daysBetween, dday, type DateKey } from "./date";
+import { occurrencesByDay, type Occurrence } from "./anniversary";
 import type { Anniversary, Event } from "./types";
 
 export const isMultiDayAllDay = (ev: Event) => ev.allDay && daysBetween(dateKeyOf(ev.startsAt), dateKeyOf(ev.endsAt)) > 1;
@@ -24,11 +25,11 @@ export function groupByDay(events: Event[]): Map<DateKey, Event[]> {
 }
 
 /**
- * 그날 보여 줄 기념일. 지금은 등록한 날짜와 같은 날만.
- * #107(100일 단위, N주년, 매년 자동 표시) 이 이 함수에 규칙을 더한다. DayPanel 은 이 결과만 그린다
+ * 그날 보여 줄 기념일 항목 전부 (원래 날짜, N일, N주년, 매년. #107, 기획 3장).
+ * 우선순위(N주년 > N일 > 매년/원래 날짜, 같으면 id) 순. DayPanel 은 이 결과만 그린다
  */
-export function anniversariesOn(list: Anniversary[] | null | undefined, key: DateKey): Anniversary[] {
-  return (list ?? []).filter((a) => a.date === key);
+export function anniversariesOn(list: Anniversary[] | null | undefined, key: DateKey): Occurrence[] {
+  return occurrencesByDay(list, key, key).get(key) ?? [];
 }
 
 /** 날짜 상세 기념일 줄 오른쪽 값: 오늘이면 "오늘", 아니면 오늘 기준 D-3 / D+5 */

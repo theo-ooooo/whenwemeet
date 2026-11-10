@@ -2,6 +2,7 @@
 // 날짜 상세 내용 (docs/설계/폴더블.md 5-2). 폰 바텀 시트(DaySheet) 와 넓은 화면 팝오버(DayPopover) 가 같이 쓴다.
 // 단계: 날짜(그날 일정, 기념일, 비는 시간 한 줄, "이 날 일정 추가") → 빠른 추가(QuickAddForm) / 일정 상세(EventDetail)
 // 단계 전환은 같은 표면 안에서 내용만 바꾼다. 주소(?day, &event, &add) 는 CalendarScreen 이 맡는다
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
 import { IconCalendar, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
@@ -11,7 +12,8 @@ import { memberColor } from "@/lib/colors";
 import { dayBadge } from "@/lib/day-detail";
 import { dowOf, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
-import type { Anniversary, Event } from "@/lib/types";
+import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
+import type { Event } from "@/lib/types";
 
 /** 비는 시간 한 줄. null 이면 줄을 숨긴다 (멤버 1명, 지난 날, 계산 실패) */
 export type FreeHint = { label: string; slot: { startsAt: string; endsAt: string } | null | "loading" } | null;
@@ -28,7 +30,8 @@ type Props = {
   events: Event[] | null;
   eventsError: string | null;
   onRetry: () => void;
-  anniversaries: Anniversary[];
+  /** 그날 기념일 항목 전부 (lib/day-detail.ts anniversariesOn) */
+  anniversaries: Occurrence[];
   free: FreeHint;
   /** 일정 상세 단계의 일정. undefined = 아직 못 찾음(불러오는 중) */
   event: Event | undefined;
@@ -93,7 +96,7 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onAdd, onOpenEvent }: Props) {
+function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onAdd, onOpenEvent }: Props) {
   const holiday = holidayOf(date);
   const empty = events !== null && !eventsError && events.length === 0 && anniversaries.length === 0;
 
@@ -112,14 +115,19 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         </button>
       </div>
 
-      {/* 기념일 줄. #107(자동 표시) 은 lib/day-detail.ts anniversariesOn 이 돌려주는 목록만 늘린다 */}
+      {/* 기념일 줄: 그날 항목 전부 "처음 만난 날 300일" + 오늘 / D-3 / D+5. 누르면 기념일 화면 (#107, 기획 4장) */}
       {anniversaries.length > 0 && (
         <ul className="mt-1">
-          {anniversaries.map((a) => (
-            <li key={a.id} className="flex h-9 items-center gap-2 text-[14px]">
-              <IconHeart size={16} className="shrink-0 text-acc-ink" />
-              <span className="min-w-0 flex-1 truncate">{a.name}</span>
-              <b className="shrink-0 text-[12px] font-bold text-acc-ink">{dayBadge(date, today)}</b>
+          {anniversaries.map((o) => (
+            <li key={`${o.anniversary.id}-${o.type}`}>
+              <Link
+                href={`/g/${groupId}/anniversaries`}
+                className="-mx-1.5 flex h-9 items-center gap-2 rounded-sm px-1.5 text-[14px] hover:bg-hover"
+              >
+                <IconHeart size={16} className="shrink-0 text-acc-ink" />
+                <span className="min-w-0 flex-1 truncate">{occurrenceTitle(o)}</span>
+                <b className="shrink-0 text-[12px] font-bold text-acc-ink">{dayBadge(date, today)}</b>
+              </Link>
             </li>
           ))}
         </ul>

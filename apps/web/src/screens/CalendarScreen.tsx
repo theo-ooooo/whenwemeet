@@ -26,7 +26,15 @@ import {
   type StepTarget,
 } from "@/lib/calendar-url";
 import { memberColor } from "@/lib/colors";
-import { anniversariesOn, groupByDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
+import {
+  nearestOccurrence,
+  occurrenceCellText,
+  occurrencesByDay,
+  occurrenceTitle,
+  upcomingOccurrences,
+  type Occurrence,
+} from "@/lib/anniversary";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
 import {
   addDays,
   dateKeyOf,
@@ -221,13 +229,37 @@ export function CalendarScreen({ groupId }: Props) {
     [upcomingQ.data, wide],
   );
 
-  // 가장 가까운 기념일 1개
+  // 기념일 항목 (#107): 보이는 그리드 날짜별, 다가오는 30일 안 최대 2개
+  const gridFrom = grid[0];
+  const gridTo = grid[grid.length - 1];
+  const annByDay = useMemo(() => occurrencesByDay(anniversaries, gridFrom, gridTo), [anniversaries, gridFrom, gridTo]);
+  const upcomingAnn = useMemo(() => upcomingOccurrences(anniversaries, today, 30, 2), [anniversaries, today]);
+
+  // D-day 줄: 오늘 포함 가장 가까운 다음 항목 "처음 만난 날 300일 D-35".
+  // 다음 항목이 없으면(지난 '그날만' 뿐) 가장 가까운 기념일의 D+n
   const nearest = useMemo(() => {
     if (!anniversaries || anniversaries.length === 0) return null;
-    return anniversaries
-      .map((a) => ({ a, dist: Math.abs(daysBetween(today, a.date)) }))
-      .sort((x, y2) => x.dist - y2.dist)[0].a;
+    const next = nearestOccurrence(anniversaries, today);
+    if (next) return { title: occurrenceTitle(next), value: dayBadge(next.date, today) };
+    const a = anniversaries
+      .map((x) => ({ x, dist: Math.abs(daysBetween(today, x.date)) }))
+      .sort((p, q) => p.dist - q.dist)[0].x;
+    return { title: a.name, value: dday(a.date, today).label };
   }, [anniversaries, today]);
+
+  // 다가오는 일정 줄: 일정(개수 제한 그대로) 사이에 기념일 항목을 날짜순으로 섞는다. 같은 날은 기념일 먼저
+  type UpRow = { kind: "ev"; date: DateKey; ev: Event } | { kind: "ann"; date: DateKey; o: Occurrence };
+  const upcomingRows = useMemo<UpRow[]>(() => {
+    const todayStart = Date.parse(kstToIso(today));
+    const evRows: UpRow[] = (upcomingList ?? []).map((ev) => ({
+      kind: "ev",
+      date: dateKeyOf(Math.max(Date.parse(ev.startsAt), todayStart)),
+      ev,
+    }));
+    const annRows: UpRow[] = upcomingAnn.map((o) => ({ kind: "ann", date: o.date, o }));
+    // 안정 정렬: 기념일을 앞에 두고 날짜로만 정렬하면 같은 날은 기념일이 먼저, 일정끼리는 원래 순서
+    return [...annRows, ...evRows].sort((a, b) => a.date.localeCompare(b.date));
+  }, [upcomingList, upcomingAnn, today]);
 
   const freeLabel = memberCount <= 1 ? "오늘 비는 시간" : memberCount === 2 ? "오늘 둘 다 비는 시간" : "오늘 모두 비는 시간";
 
@@ -367,8 +399,8 @@ export function CalendarScreen({ groupId }: Props) {
       <IconHeart size={16} className="shrink-0 text-acc-ink" />
       {nearest ? (
         <>
-          <span className="min-w-0 truncate">{nearest.name}</span>
-          <b className="shrink-0 font-bold">{dday(nearest.date, today).label}</b>
+          <span className="min-w-0 truncate">{nearest.title}</span>
+          <b className={`shrink-0 font-bold ${nearest.value === "오늘" ? "text-acc-ink" : ""}`}>{nearest.value}</b>
         </>
       ) : anniversaries === null ? (
         <Skeleton className="h-3.5 w-32" />
@@ -406,12 +438,44 @@ export function CalendarScreen({ groupId }: Props) {
             <Skeleton key={i} className="h-9 w-full" />
           ))}
         </div>
-      ) : upcomingList.length === 0 ? (
+      ) : upcomingList.length === 0 && upcomingAnn.length === 0 ? (
         <p className="pb-2 text-[13px] text-ink-2">앞으로 한 달 동안 잡힌 일정이 없어요. + 로 추가해 보세요</p>
       ) : (
         <ul>
-          {upcomingList.map((ev) => {
-            const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
+          {upcomingRows.map((row) => {
+            if (row.kind === "ann") {
+              const o = row.o;
+              const p = parseKey(o.date);
+              const badge = dayBadge(o.date, today);
+              const title = o.label ? `${o.label} ${o.anniversary.name}` : o.anniversary.name;
+              return (
+                <li key={`a-${o.anniversary.id}-${o.date}`}>
+                  <button
+                    type="button"
+                    onClick={() => openDay(o.date)}
+                    aria-haspopup="dialog"
+                    aria-label={`${formatDateKo(o.date)} 기념일 ${title}, ${badge}`}
+                    className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
+                  >
+                    <span aria-hidden="true" className="flex w-7 shrink-0 flex-col items-center justify-center leading-none">
+                      <small className={`text-[11px] ${o.date === today ? "font-bold text-today-ink" : "text-ink-2"}`}>{o.date === today ? "오늘" : WEEKDAYS[dowOf(o.date)]}</small>
+                      <b className="mt-0.5 text-[16px] font-bold">{p.d}</b>
+                    </span>
+                    {/* 일정 행의 3px 막대 자리에 하트 (폭은 막대와 같게 두어 제목 줄을 맞춘다) */}
+                    <span aria-hidden="true" className="-mx-[5.5px] grid w-[14px] shrink-0 place-items-center">
+                      <IconHeart size={14} className="text-acc-ink" />
+                    </span>
+                    <span aria-hidden="true" className="min-w-0 flex-1 self-center">
+                      <b className="block truncate text-[15px] font-semibold leading-5">{title}</b>
+                      <span className="block truncate text-[12px] leading-4 text-ink-2">{formatDateKo(o.date)}</span>
+                    </span>
+                    <b aria-hidden="true" className="shrink-0 self-center text-[12px] font-bold text-acc-ink">{badge}</b>
+                  </button>
+                </li>
+              );
+            }
+            const ev = row.ev;
+            const k = row.date;
             const p = parseKey(k);
             return (
               <li key={ev.id}>
@@ -584,6 +648,7 @@ export function CalendarScreen({ groupId }: Props) {
                 isSelected={key === selected}
                 isAnchor={wide && visible && urlStep.date === key}
                 events={byDay.get(key) ?? []}
+                anniversaries={annByDay.get(key) ?? []}
                 loading={events === null}
                 onPick={() => onCell(key)}
                 onOpen={(ev) => openDay(key, ev.id)}
@@ -701,6 +766,7 @@ function DayCell({
   isSelected,
   isAnchor,
   events,
+  anniversaries,
   loading,
   onPick,
   onOpen,
@@ -712,6 +778,8 @@ function DayCell({
   /** 팝오버가 붙어 있는 칸 (--pri 2px 테두리) */
   isAnchor: boolean;
   events: Event[];
+  /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
+  anniversaries: Occurrence[];
   loading: boolean;
   onPick: () => void;
   onOpen: (ev: Event) => void;
@@ -732,7 +800,12 @@ function DayCell({
         : red
           ? "font-semibold text-holiday"
           : "font-semibold";
-  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
+  // 기념일 줄 1개 (N주년 > N일 > 매년/원래 날짜). 공휴일과 겹치면 칸 글자는 기념일, 공휴일은 빨간 숫자로만 (3-6)
+  const ann = anniversaries[0] ?? null;
+  const annText = ann ? occurrenceCellText(ann) : null;
+  const holidayText = ann ? null : holiday;
+  const annLabel = anniversaries.length ? `, 기념일 ${anniversaries.map(occurrenceTitle).join(", ")}` : "";
+  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
 
   // 점 모양: 여러 날 종일 일정은 칸을 잇는 4px 막대, 나머지는 멤버 색 점(5px, 최대 3개) + 첫 일정 제목
   const band = events.find(isMultiDayAllDay) ?? null;
@@ -741,8 +814,8 @@ function DayCell({
   const rest = events.filter((e) => e !== band);
   const colors = Array.from(new Set(rest.map((e) => e.creator.color))).slice(0, 3);
   const labelEvent = band && (bandStart || dow === 0) ? band : (rest.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null);
-  // 칩 모양: 최대 3개
-  const chips = events.slice(0, 3);
+  // 칩 모양: 최대 3개 (기념일 줄이 있으면 첫 자리를 쓴다)
+  const chips = events.slice(0, ann ? 2 : 3);
   const more = events.length - chips.length;
 
   return (
@@ -760,18 +833,27 @@ function DayCell({
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
         <span className="relative flex items-center tall:gap-1">
           <span className={`anim-pick grid size-[26px] place-items-center rounded-full leading-none tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
-          {holiday && (
+          {holidayText && (
             <span aria-hidden="true" className={`hidden truncate text-[11px] font-medium tall:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}>
-              {holiday}
+              {holidayText}
             </span>
           )}
         </span>
-        {holiday && (
+        {holidayText && (
           <span
             aria-hidden="true"
             className={`relative block max-w-full truncate text-[10px] font-medium leading-3 tall:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
           >
-            {holiday}
+            {holidayText}
+          </span>
+        )}
+        {/* 기념일 줄 (점 모양): 숫자 아래 10px --acc-ink 한 줄. 일정 제목 줄 위 */}
+        {annText && (
+          <span
+            aria-hidden="true"
+            className={`relative block max-w-full truncate text-[10px] font-semibold leading-3 text-acc-ink tall:hidden ${inMonth ? "" : "opacity-60"}`}
+          >
+            {annText}
           </span>
         )}
 
@@ -792,13 +874,23 @@ function DayCell({
                   ))}
                 </span>
               )}
-              {labelEvent && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
+              {/* 기념일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지) */}
+              {labelEvent && !annText && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
             </>
           )}
         </span>
 
         {/* 제목 칩 (색 점 + 제목 + 시간), 여러 날 종일은 멤버 색 16% 면. 누르면 그날 상세 → 일정 상세 */}
         <span className="relative hidden tall:block">
+          {annText && (
+            <span
+              aria-hidden="true"
+              className={`mt-0.5 flex w-full items-center gap-1 overflow-hidden px-1 py-px text-[11px] font-semibold leading-4 whitespace-nowrap text-acc-ink ${inMonth ? "" : "opacity-60"}`}
+            >
+              <IconHeart size={11} className="shrink-0" />
+              <span className="truncate">{annText}</span>
+            </span>
+          )}
           {chips.map((ev) => {
             const isBand = isMultiDayAllDay(ev);
             const style = isBand ? { background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 16%, transparent)` } : undefined;
