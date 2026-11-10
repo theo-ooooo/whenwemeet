@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
@@ -8,6 +8,7 @@ import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass }
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
 import { charCount, clampChars } from "@/lib/chars";
+import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import type { Event, EventInput } from "@/lib/types";
 
 type Props = {
@@ -52,6 +53,10 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
   const [titleEdited, setTitleEdited] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // 처음 채운 값. 지금 값과 다르면 작성 중으로 보고 이탈 전에 묻는다 (#137)
+  const [baseline, setBaseline] = useState<string | null>(() =>
+    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), ""),
+  );
 
   // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
   const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true });
@@ -80,6 +85,17 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
         setEndTime(timeOf(ev.endsAt));
       }
       setMemo(ev.memo ?? "");
+      setBaseline(
+        formSnapshot(
+          ev.title,
+          ev.allDay,
+          dateKeyOf(ev.startsAt),
+          timeOf(ev.startsAt),
+          ev.allDay ? addDays(dateKeyOf(ev.endsAt), -1) : dateKeyOf(ev.endsAt),
+          ev.allDay ? "00:00" : timeOf(ev.endsAt),
+          ev.memo ?? "",
+        ),
+      );
       if (eventId) setCreator(ev.creator);
       setLoaded(true);
     });
@@ -116,6 +132,22 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
     return null;
   })();
   const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !saving;
+
+  // 저장, 삭제가 끝나 화면을 떠나는 중이면 확인하지 않는다
+  const [done, setDone] = useState(false);
+  const dirty =
+    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo) !== baseline;
+  const leave = useLeaveGuard(dirty);
+  const cancel = useCallback(() => leave.request(() => router.back()), [leave, router]);
+
+  // 메모 칸은 내용만큼 늘어난다 (손잡이 대신, #140 L17)
+  const memoRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = memoRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [memo, loaded]);
 
   // 종일을 켜면 종료일이 시작일보다 앞서지 않게 맞춘다
   function toggleAllDay(v: boolean) {
@@ -178,6 +210,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
     setSaveError(null);
     const r = eventId ? await update.mutate({ eventId, input: payload }) : await create.mutate(payload);
     if (r.ok) {
+      setDone(true);
       haptic("success");
       router.push(`/g/${groupId}/calendar?date=${dateKeyOf(payload.startsAt)}`);
       return;
@@ -194,6 +227,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
     if (!eventId) return;
     const r = await remove.mutate(eventId);
     if (r.ok) {
+      setDone(true);
       toast.show("일정을 삭제했어요");
       router.replace(`/g/${groupId}/calendar?date=${startDate}`);
       return;
@@ -208,8 +242,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
         <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
         <button
           type="button"
-          onClick={() => router.back()}
-          className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
+          onClick={cancel}
+          className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
         >
           취소
         </button>
@@ -304,9 +338,11 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
             <Field label="메모" hint={`${charCount(memo)}/${MEMO_MAX}`}>
               {(id, describedBy) => (
                 <textarea
+                  ref={memoRef}
                   id={id}
+                  rows={4}
                   aria-describedby={describedBy}
-                  className={`${inputClass} min-h-[96px] resize-y`}
+                  className={`${inputClass} max-h-[50dvh] min-h-[96px] resize-none overflow-y-auto`}
                   placeholder="장소, 준비물, 링크 등"
                   value={memo}
                   onChange={(e) => setMemo(clampChars(e.target.value, MEMO_MAX))}
@@ -322,7 +358,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
             </p>
           )}
 
-          <div className="flex gap-2 pt-2">
+          {/* 폰은 독을 숨긴 자리에 저장 줄을 바닥에 붙인다 (#137) */}
+          <div className="sticky bottom-0 z-10 -mx-4 flex gap-2 bg-surface px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0">
             <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">
               {editing ? "저장" : "일정 추가"}
             </Button>
@@ -336,6 +373,16 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
       )}
 
       <ConfirmDialog
+        open={leave.pending}
+        title="작성 중인 내용을 버릴까요?"
+        body="지금 나가면 입력한 내용이 저장되지 않아요"
+        confirmLabel="나가기"
+        cancelLabel="계속 쓰기"
+        danger
+        onConfirm={leave.confirm}
+        onCancel={leave.cancel}
+      />
+      <ConfirmDialog
         open={confirmDelete}
         title="이 일정을 삭제할까요?"
         body="팀원 모두에게서 사라져요"
@@ -347,4 +394,9 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
       />
     </form>
   );
+}
+
+/** 이탈 확인용 폼 값 요약. 같은 값이면 같은 문자열 */
+function formSnapshot(title: string, allDay: boolean, startDate: string, startTime: string, endDate: string, endTime: string, memo: string): string {
+  return JSON.stringify([title.trim(), allDay, startDate, allDay ? "" : startTime, endDate, allDay ? "" : endTime, memo.trim()]);
 }

@@ -65,11 +65,11 @@ export default async function LoginPage({
           <LoginActions next={next} appleEnabled={appleEnabled} appGuess={appGuess} expired={sp.reason === EXPIRED_REASON} />
           <p className="mt-3 text-center text-[12px] text-ink-2">
             시작하면{" "}
-            <Link href="/terms" className="underline underline-offset-2">
+            <Link href="/terms" className="hit inline-block underline underline-offset-2">
               이용약관
             </Link>
             과{" "}
-            <Link href="/privacy" className="underline underline-offset-2">
+            <Link href="/privacy" className="hit inline-block underline underline-offset-2">
               개인정보처리방침
             </Link>
             에 동의한 것으로 봐요

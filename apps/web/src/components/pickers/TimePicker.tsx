@@ -64,7 +64,7 @@ export function TimePicker({
         className={`${triggerClass} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${open && inline ? "outline-2 outline-ink" : ""} ${className}`}
       >
         <span className="truncate">{value ? formatTimeKo(value) : "시각 선택"}</span>
-        {value && <span className="shrink-0 text-[12px] text-ink-2">{value}</span>}
+        {/* "오전 10:00" 과 "10:00" 을 같이 쓰지 않는다 (#140 L4). 24시간 표기는 목록에서만 보조로 */}
       </button>
       {!inline && (
       <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={248}>
@@ -202,7 +202,7 @@ export function TimeList({
           aria-describedby={error ? `${ids}-err` : undefined}
           className="h-9 min-w-0 flex-1 rounded-sm bg-surface px-3 text-[14px] tabular-nums focus:outline-2 focus:outline-ink"
         />
-        <button type="button" onClick={applyDraft} className="h-9 shrink-0 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95">
+        <button type="button" onClick={applyDraft} className="hit h-9 shrink-0 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95">
           적용
         </button>
       </div>

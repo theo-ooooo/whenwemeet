@@ -102,7 +102,7 @@ function BottomSheet({ onClose, trigger, title, children }: InnerProps) {
           <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
             {title}
           </h2>
-          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+          <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
             <IconClose size={18} />
           </button>
         </div>

@@ -3,12 +3,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
 import { errorBody } from "@/lib/envelope";
-import { upstream } from "@/lib/upstream";
+import { isMock, upstream } from "@/lib/upstream";
 
 type Ctx = { params: Promise<{ path: string[] }> };
 
 async function handle(req: NextRequest, ctx: Ctx) {
   const { path } = await ctx.params;
+
+  // API_MOCK=1 전용: 목이 보관한 업로드 파일(프로필 사진)을 내준다. 목이 아니면 이 경로는 없다(아래 API 프록시로)
+  if (isMock() && req.method === "GET" && path[0] === "__mock" && path[1] === "files" && path.length === 3) {
+    const { getMockFile } = await import("@/mocks/files");
+    const file = getMockFile(path[2]);
+    if (!file) return NextResponse.json(errorBody(404, "NOT_FOUND", "파일이 없어요"), { status: 404 });
+    return new NextResponse(Buffer.from(file.bytes), {
+      headers: { "Content-Type": file.type, "Cache-Control": "private, max-age=3600" },
+    });
+  }
   const token = req.cookies.get(SESSION_COOKIE)?.value ?? null;
   const pathname = `/${path.map(encodeURIComponent).join("/")}`;
 

@@ -129,7 +129,7 @@ export function DaySheet({ titleId, onClose, paused = false, children }: Props) 
             onClick={() => setMode(full ? "half" : "full")}
             aria-expanded={full}
             aria-label={full ? "반으로 줄이기" : "전체로 펼치기"}
-            className="flex h-5 w-full items-center justify-center"
+            className="hit flex h-6 w-full items-center justify-center"
           >
             <span aria-hidden="true" className="block h-[5px] w-10 rounded-full bg-[var(--grab)]" />
           </button>

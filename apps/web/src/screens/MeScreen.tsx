@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconDevice, IconMoon, IconSun } from "@/components/icons";
-import { Avatar, Button, ErrorState, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { IconCamera, IconChevronRight, IconDevice, IconMoon, IconSun } from "@/components/icons";
+import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -107,6 +107,10 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
           className="relative shrink-0 rounded-full outline-offset-2 transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait"
         >
           <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={56} />
+          {/* 누르면 사진을 바꿀 수 있다는 표시 (#140 L12) */}
+          <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 grid size-5 place-items-center rounded-full border-2 border-paper bg-ink text-surface">
+            <IconCamera size={11} strokeWidth={2.2} />
+          </span>
           {photoBusy && (
             <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white">
               <Spinner />
@@ -208,23 +212,8 @@ function ThemePicker() {
       <h2 id="theme-label" className="text-[13px] font-bold leading-5">
         화면 테마
       </h2>
-      <div role="radiogroup" aria-labelledby="theme-label" className="mt-2 grid grid-cols-3 gap-1 rounded-sm bg-surface p-1">
-        {THEMES.map((t) => {
-          const on = theme === t.value;
-          return (
-            <button
-              key={t.value}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              onClick={() => setTheme(t.value)}
-              className={`anim-pick flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] ${on ? "bg-paper font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "font-medium text-soft hover:text-ink"}`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          );
-        })}
+      <div className="mt-2">
+        <Segmented labelledBy="theme-label" value={theme} options={THEMES} onChange={setTheme} />
       </div>
       <p className="mt-2 text-[12px] text-ink-2">시스템을 고르면 기기의 라이트/다크 설정을 따라가요</p>
     </section>
@@ -276,7 +265,7 @@ export function MeScreen() {
         <button
           type="button"
           onClick={() => setLeaving(false)}
-          className="h-8 self-start rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
+          className="hit h-8 self-start rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
         >
           돌아가기
         </button>
@@ -305,14 +294,14 @@ export function MeScreen() {
           <Button
             size="lg"
             full
-            variant="danger"
-            className="bg-danger! text-on-btn!"
+            variant="dangerFill"
             disabled={typed.trim() !== "탈퇴"}
             loading={deleting}
             onClick={deleteAccount}
           >
             회원 탈퇴
           </Button>
+          {typed.trim() !== "탈퇴" && <p className="t-sub mt-2 text-center">위 칸에 &quot;탈퇴&quot; 를 입력하면 버튼이 켜져요</p>}
         </div>
       </main>
     );
@@ -322,7 +311,7 @@ export function MeScreen() {
     <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
       <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">내 정보</h1>
-        <button type="button" onClick={() => router.back()} className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
+        <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           뒤로
         </button>
       </div>
@@ -353,9 +342,10 @@ export function MeScreen() {
               {groups
                 ? groups.map((g, i) => (
                     <li key={g.id} className={i === 0 ? "" : "border-t border-line"}>
-                      <Link href={`/g/${g.id}/calendar`} className="flex min-h-11 items-center justify-between py-2">
-                        <span className="truncate text-[15px] font-semibold">{g.name}</span>
-                        <span className="text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
+                      <Link href={`/g/${g.id}/calendar`} className="flex min-h-11 items-center gap-2 py-2">
+                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
+                        <span className="shrink-0 text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
+                        <IconChevronRight size={14} className="shrink-0 text-ink-2" />
                       </Link>
                     </li>
                   ))
@@ -370,13 +360,13 @@ export function MeScreen() {
           </form>
 
           <p className="mt-6 text-center text-[12px] text-ink-2">
-            <Link href="/terms" className="underline underline-offset-2">
+            <Link href="/terms" className="hit inline-block underline underline-offset-2">
               이용약관
             </Link>
             <span aria-hidden="true" className="mx-2">
               |
             </span>
-            <Link href="/privacy" className="underline underline-offset-2">
+            <Link href="/privacy" className="hit inline-block underline underline-offset-2">
               개인정보처리방침
             </Link>
           </p>
@@ -385,7 +375,7 @@ export function MeScreen() {
             <button
               type="button"
               onClick={() => setLeaving(true)}
-              className="rounded-sm px-3 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-danger"
+              className="hit rounded-sm px-3 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-danger"
             >
               회원 탈퇴
             </button>

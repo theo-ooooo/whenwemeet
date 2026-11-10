@@ -110,7 +110,7 @@ function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, 
         {date === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}
         {holiday && <span className="truncate text-[12px] font-medium text-holiday">{holiday}</span>}
         <span className="flex-1" />
-        <button type="button" onClick={onClose} aria-label="닫기" className="-mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onClose} aria-label="닫기" className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>

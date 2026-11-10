@@ -3,7 +3,7 @@ import { useId, useMemo, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
-import { Button, ErrorState, Field, MemberDot, Sheet, SkeletonList, inputClass } from "@/components/ui";
+import { Button, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, mainLabel, nextOccurrence, sortByNext } from "@/lib/anniversary";
 import { dayBadge } from "@/lib/day-detail";
@@ -125,7 +125,13 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
               const isToday = main === "D-day" || next?.date === today;
               // 매년, 그날만은 대표 라벨이 곧 다음 날이라 N일, N주년일 때만 (시작일 전 COUNT_UP 도 대표 라벨 D-n 이 같은 날)
               const np = next ? parseKey(next.date) : null;
-              const hint = next?.label && np ? `다음 ${next.label} ${np.m}월 ${np.d}일 ${dayBadge(next.date, today)}` : null;
+              // 당일이면 "다음 100일 11월 10일 오늘" 대신 "오늘 100일" (#140 L11)
+              const hint =
+                next?.label && np
+                  ? next.date === today
+                    ? `오늘 ${next.label}`
+                    : `다음 ${next.label} ${np.m}월 ${np.d}일 ${dayBadge(next.date, today)}`
+                  : null;
               return (
                 <li key={a.id} className={i === 0 ? "" : "border-t border-line"}>
                   <button
@@ -184,23 +190,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
             <span id={kindLabelId} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
               종류
             </span>
-            <div role="radiogroup" aria-labelledby={kindLabelId} className="grid grid-cols-3 gap-1 rounded-sm bg-surface p-1">
-              {KIND_OPTIONS.map((o) => {
-                const on = kind === o.value;
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setKind(o.value)}
-                    className={`anim-pick flex h-9 items-center justify-center rounded-[8px] px-1 text-[13px] whitespace-nowrap ${on ? "bg-paper font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "font-medium text-soft hover:text-ink"}`}
-                  >
-                    {o.label}
-                  </button>
-                );
-              })}
-            </div>
+            <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
             <p className="t-sub mt-1.5">{KIND_OPTIONS.find((o) => o.value === kind)?.hint}</p>
           </div>
           <Button type="submit" size="lg" full disabled={!valid} loading={saving}>

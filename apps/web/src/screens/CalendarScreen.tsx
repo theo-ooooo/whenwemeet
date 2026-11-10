@@ -54,28 +54,16 @@ import {
   WEEKDAYS,
   type DateKey,
 } from "@/lib/date";
+import { cellDensity } from "@/lib/calendar-cell";
+import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
-import type { Event, FreeSlots } from "@/lib/types";
+import type { Event } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 
 type Props = { groupId: number };
 
 const newEventHref = (groupId: number, start: string, end: string) =>
   `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-
-/** 30분 단위로 올림한 지금 (오늘 비는 시간의 시작을 지금 이후로 자른다) */
-function nowCeil30(): number {
-  const step = 30 * 60_000;
-  return Math.ceil(Date.now() / step) * step;
-}
-
-/** 지금 이후로 자른 빈 시간 목록 (서버가 과거 구간을 줄 수도 있어서 화면에서 한 번 더 자른다) */
-function upcoming(slots: FreeSlots["slots"] | undefined, minMinutes: number) {
-  const from = nowCeil30();
-  return (slots ?? [])
-    .map((s) => ({ startsAt: new Date(Math.max(Date.parse(s.startsAt), from)).toISOString(), endsAt: s.endsAt }))
-    .filter((s) => Date.parse(s.endsAt) - Date.parse(s.startsAt) >= minMinutes * 60_000);
-}
 
 const nowMs = () => Date.now();
 
@@ -196,8 +184,8 @@ export function CalendarScreen({ groupId }: Props) {
     { from: kstToIso(today), to: kstToIso(weekEnd), dayStart: "09:00", dayEnd: "23:00", minMinutes: 120, includeAllDay: false },
     { enabled: wide },
   );
-  const todayFree = todayFreeQ.data ? (upcoming(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
-  const weekFree = weekFreeQ.data ? upcoming(weekFreeQ.data.slots, 120).slice(0, 3) : null;
+  const todayFree = todayFreeQ.data ? (upcomingSlots(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
+  const weekFree = weekFreeQ.data ? upcomingSlots(weekFreeQ.data.slots, 120).slice(0, 3) : null;
 
   // 날짜 상세의 비는 시간 한 줄: 멤버 2명 이상, 오늘 이후만. 하루 1회, 오늘은 위 값을 다시 쓴다 (5-2)
   const surfaceDate = visible ? urlStep.date : null;
@@ -219,7 +207,7 @@ export function CalendarScreen({ groupId }: Props) {
     if (surfaceDate === today) {
       if (!todayFreeQ.error) freeHint = { label: dayFreeLabel, slot: todayFree === undefined ? "loading" : todayFree };
     } else if (!dayFreeQ.error) {
-      freeHint = { label: dayFreeLabel, slot: dayFreeQ.isLoading || !dayFreeQ.data ? "loading" : (upcoming(dayFreeQ.data.slots, 60)[0] ?? null) };
+      freeHint = { label: dayFreeLabel, slot: dayFreeQ.isLoading || !dayFreeQ.data ? "loading" : (upcomingSlots(dayFreeQ.data.slots, 60)[0] ?? null) };
     }
   }
 
@@ -602,10 +590,11 @@ export function CalendarScreen({ groupId }: Props) {
           <h1 aria-label={`${y}년 ${m}월`} className="mr-1 shrink-0 whitespace-nowrap text-[20px] font-bold leading-7 tracking-[-0.02em]">
             {y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
           </h1>
-          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="grid size-8 place-items-center rounded-sm hover:bg-hover">
+          {/* 화살표는 보이는 크기 32 그대로, 누르는 칸 44 가 겹치지 않게 중심 간격 44 (#133) */}
+          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="hit grid size-8 place-items-center rounded-sm hover:bg-hover">
             <IconChevronLeft size={18} />
           </button>
-          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="grid size-8 place-items-center rounded-sm hover:bg-hover">
+          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="hit ml-2 grid size-8 place-items-center rounded-sm hover:bg-hover">
             <IconChevronRight size={18} />
           </button>
           <span className="flex-1" />
@@ -613,7 +602,7 @@ export function CalendarScreen({ groupId }: Props) {
           <button
             type="button"
             onClick={goToday}
-            className={`h-8 shrink-0 place-items-center whitespace-nowrap rounded-sm bg-paper px-3 text-[13px] font-bold ${showToday ? "grid" : "hidden fold:grid"}`}
+            className={`hit h-8 shrink-0 place-items-center whitespace-nowrap rounded-sm bg-paper px-3 text-[13px] font-bold ${showToday ? "grid" : "hidden fold:grid"}`}
           >
             오늘
           </button>
@@ -709,14 +698,21 @@ function FreeTile({
   groupId: number;
   onRetry?: () => void;
 }) {
-  const cls = "flex h-10 w-full items-center gap-2 text-left text-[13px] hover:opacity-80";
+  // 좁은 개요 칸(890 폭 등, 264px 미만)에서는 라벨이 잘리지 않게 짧은 라벨로 (#140 L6). 전체 라벨은 aria-label 에 남는다
+  const cls = "@container flex h-10 w-full items-center gap-2 text-left text-[13px] hover:opacity-80";
+  const text = (
+    <>
+      <span className="min-w-0 truncate @max-[264px]:hidden">{label}</span>
+      <span className="hidden min-w-0 truncate @max-[264px]:inline">오늘 비는 시간</span>
+    </>
+  );
   const icon = <IconClock size={16} className="shrink-0 text-acc-ink" />;
   const go = <IconChevronRight size={14} className="ml-auto shrink-0 text-ink-2" />;
   if (onRetry && slot === undefined) {
     return (
       <button type="button" onClick={onRetry} className={cls}>
         {icon}
-        <span className="min-w-0 truncate">{label}</span>
+        {text}
         <b className="shrink-0 font-bold text-ink-2">계산 실패, 다시 시도</b>
       </button>
     );
@@ -725,7 +721,7 @@ function FreeTile({
     return (
       <div className={cls} aria-busy="true">
         {icon}
-        <span className="min-w-0 truncate">{label}</span>
+        {text}
         <Skeleton className="h-3.5 w-20" />
       </div>
     );
@@ -734,7 +730,7 @@ function FreeTile({
     return (
       <Link href={`/g/${groupId}/free`} className={cls}>
         {icon}
-        <span className="min-w-0 truncate">{label}</span>
+        {text}
         <b className="shrink-0 font-bold text-ink-2">없어요, 다른 날 찾기</b>
         {go}
       </Link>
@@ -747,7 +743,7 @@ function FreeTile({
       className={cls}
     >
       {icon}
-      <span className="min-w-0 truncate">{label}</span>
+      {text}
       <b className="shrink-0 font-bold text-acc-ink">
         {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
       </b>
@@ -813,7 +809,8 @@ function DayCell({
   const bandStart = band ? dateKeyOf(band.startsAt) === dateKey : false;
   const bandEnd = band ? addDays(dateKeyOf(band.endsAt), -1) === dateKey : false;
   const rest = events.filter((e) => e !== band);
-  const colors = Array.from(new Set(rest.map((e) => e.creator.color))).slice(0, 3);
+  // 일정 하나에 점 하나(최대 3) + 넘치면 "+N" (#139)
+  const density = cellDensity(rest);
   const labelEvent = band && (bandStart || dow === 0) ? band : (rest.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null);
   // 칩 모양: 최대 3개 (기념일 줄이 있으면 첫 자리를 쓴다)
   const chips = events.slice(0, ann ? 2 : 3);
@@ -843,7 +840,7 @@ function DayCell({
         {holidayText && (
           <span
             aria-hidden="true"
-            className={`relative block max-w-full truncate text-[10px] font-medium leading-3 tall:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
+            className={`relative block max-w-full shrink-0 truncate text-[10px] font-medium leading-3 tall:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
           >
             {holidayText}
           </span>
@@ -852,9 +849,11 @@ function DayCell({
         {annText && (
           <span
             aria-hidden="true"
-            className={`relative block max-w-full truncate text-[10px] font-semibold leading-3 text-acc-ink tall:hidden ${inMonth ? "" : "opacity-60"}`}
+            className={`relative flex max-w-full shrink-0 items-center justify-center gap-px text-[10px] font-semibold leading-3 text-acc-ink tall:hidden ${inMonth ? "" : "opacity-60"}`}
           >
-            {annText}
+            {/* 하트로 기념일임을 보인다 (주말 칸에서 공휴일처럼 보이지 않게, #140 L3) */}
+            <IconHeart size={8} strokeWidth={2.6} className="shrink-0" />
+            <span className="truncate">{annText}</span>
           </span>
         )}
 
@@ -868,15 +867,17 @@ function DayCell({
                   style={{ background: memberColor(band.creator.color) }}
                 />
               )}
-              {!band && colors.length > 0 && (
-                <span className="mt-0.5 flex h-[5px] justify-center gap-[3px]">
-                  {colors.map((c) => (
-                    <i key={c} className="block size-[5px] rounded-full" style={{ background: memberColor(c) }} />
+              {!band && density.dots.length > 0 && (
+                <span className="mt-0.5 flex h-[7px] items-center justify-center gap-[3px]">
+                  {density.dots.map((c, i) => (
+                    <i key={i} className="block size-[5px] rounded-full" style={{ background: memberColor(c) }} />
                   ))}
+                  {density.more > 0 && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more}</b>}
                 </span>
               )}
-              {/* 기념일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지) */}
-              {labelEvent && !annText && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
+              {/* 기념일, 공휴일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지).
+                  공휴일 줄은 shrink-0 이라야 truncate(overflow hidden) 때문에 높이 0 으로 눌려 사라지지 않는다 (#140 L2) */}
+              {labelEvent && !annText && !holidayText && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
             </>
           )}
         </span>
