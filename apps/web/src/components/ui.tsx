@@ -7,8 +7,8 @@ import type { Member } from "@/lib/types";
 /* ---------- 버튼 ---------- */
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill";
-  size?: "lg" | "md" | "sm";
+  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill" | "outline";
+  size?: "xl" | "lg" | "md" | "sm";
   loading?: boolean;
   full?: boolean;
 };
@@ -22,8 +22,12 @@ const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
   danger: "bg-hover text-danger hover:brightness-95 disabled:text-ink-2",
   // 되돌릴 수 없는 마지막 확인(회원 탈퇴, 삭제 확인 창). 비활성은 주 버튼과 같은 회색 (#134)
   dangerFill: "bg-danger text-on-btn hover:brightness-95 disabled:bg-line disabled:text-ink-2",
+  // 페이지 바탕(--bg) 위 보조 버튼. --hover 면은 라이트에서 바탕과 같은 색이라 안 보이므로 타일 면 + 1px 선 (#166)
+  outline: "border border-line bg-paper text-ink hover:brightness-95 disabled:text-ink-2",
 };
 const sizeClass: Record<NonNullable<ButtonProps["size"]>, string> = {
+  // 카카오, 애플 버튼(SocialLoginButton)과 같은 줄에 쌓이는 버튼: 48, 모서리 12, 15/700 (#166)
+  xl: "h-12 rounded-md px-5 text-[15px] font-bold",
   lg: "h-11 rounded-md px-5 text-[13.5px] font-bold",
   md: "h-11 rounded-md px-4 text-[13.5px] font-bold",
   sm: "hit h-8 rounded-sm px-3 text-[13px] font-bold",

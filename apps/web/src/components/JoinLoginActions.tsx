@@ -18,7 +18,7 @@ export function JoinLoginActions({ next, appleEnabled, appGuess }: { next: strin
     <div className="flex flex-col gap-2">
       {loginChoices(inApp, appleEnabled).map((c) =>
         c === "native" ? (
-          <Button key={c} size="lg" full onClick={() => postToApp({ type: "login", next })}>
+          <Button key={c} size="xl" full onClick={() => postToApp({ type: "login", next })}>
             로그인하고 합류하기
           </Button>
         ) : c === "apple" ? (

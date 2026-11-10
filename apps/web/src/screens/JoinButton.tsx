@@ -53,7 +53,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
           {error}
         </p>
       )}
-      <Button size="lg" full loading={loading} onClick={join}>
+      <Button size="xl" full loading={loading} onClick={join}>
         {autoRunning && loading ? "합류하는 중…" : "합류하기"}
       </Button>
     </div>

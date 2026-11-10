@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { DayPanel, type FreeHint } from "@/components/DayPanel";
+import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
 import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
 import { IconChevronDown, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "@/components/icons";
@@ -567,12 +567,14 @@ export function CalendarScreen({ groupId }: Props) {
       event={surfaceEvent}
       onClose={close}
       onBack={back}
-      onAdd={() => forward({ step: "add", date: surfaceDate })}
       onOpenEvent={(ev) => forward({ step: "event", date: surfaceDate, eventId: ev.id })}
       onSaved={onQuickSaved}
       onDelete={() => setConfirmDelete(true)}
     />
   ) : null;
+  // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175). 빠른 추가, 상세는 자기 버튼이 있다
+  const dayFooter =
+    surfaceDate && (!urlStep.open || urlStep.step === "day") ? <DayAddButton onAdd={() => forward({ step: "add", date: surfaceDate })} /> : null;
 
   return (
         // 레일 폭에서 개요 칸을 옆에 두는 것은 split(≥860)부터. 600~859 는 달력이 칸보다 좁아지므로(#128) 달력이 화면 높이를 채우고 개요는 아래로 내린다
@@ -677,11 +679,11 @@ export function CalendarScreen({ groupId }: Props) {
       {visible &&
         panel &&
         (wide ? (
-          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete}>
+          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
             {panel}
           </DayPopover>
         ) : (
-          <DaySheet titleId={titleId} onClose={close} paused={confirmDelete}>
+          <DaySheet titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
             {panel}
           </DaySheet>
         ))}
