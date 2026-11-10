@@ -120,7 +120,7 @@ export function DaySheet({ titleId, onClose, paused = false, children }: Props) 
           maxHeight: full ? FULL : `min(${HALF}, calc(100% - ${keyboard}px - 12px))`,
           marginBottom: keyboard || undefined,
         }}
-        className="anim-sheet relative flex w-full max-w-[480px] flex-col rounded-t-2xl bg-paper transition-[height,max-height] duration-200 ease-[var(--ease-sheet)] motion-reduce:transition-none"
+        className="anim-sheet relative flex w-full fold:max-w-[480px] flex-col rounded-t-2xl bg-paper transition-[height,max-height] duration-200 ease-[var(--ease-sheet)] motion-reduce:transition-none"
       >
         <div data-drag className="touch-none px-4">
           <button

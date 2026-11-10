@@ -40,7 +40,7 @@ export default async function LoginPage({
 
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
-      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
         <ul aria-label="이런 모임이 함께 써요" className="mb-4 mt-auto flex flex-wrap gap-1.5 pt-16">
           {["커플", "가족", "친구 모임", "스터디"].map((t) => (
