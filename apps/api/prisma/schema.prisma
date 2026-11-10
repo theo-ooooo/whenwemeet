@@ -28,17 +28,18 @@ enum EventLogAction {
 
 /// 사용자. 소셜 로그인(AuthAccount)으로만 생성. 탈퇴 시 행을 물리 삭제한다 (개인정보 즉시 삭제)
 model User {
-  id              Int      @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   /// 우리 서비스의 표시 이름. 가입 시 소셜 닉네임을 복사하고 이후 재로그인해도 덮지 않는다 (D-36)
-  nickname        String   @db.VarChar(50)
+  nickname     String   @db.VarChar(50)
   /// 프로필 사진 (File, D-38). 가입 시 소셜 프로필 사진을 R2 로 복사해 채운다. 없으면 이니셜 아바타
-  avatarFileId    Int?     @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  avatarFileId Int?     @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
   authAccounts  AuthAccount[]
+  authHandoffs  AuthHandoff[]
   memberships   Membership[]
   createdEvents Event[]       @relation("EventCreator")
   anniversaries Anniversary[] @relation("AnniversaryCreator")
@@ -54,24 +55,47 @@ enum AuthProvider {
   DEV
 }
 
-/// 사용자에 연결된 소셜 계정 (결정기록 D-34). 한 사용자에 여러 개 가능, MVP 는 KAKAO 하나
+/// 사용자에 연결된 소셜 계정 (결정기록 D-34). 한 사용자에 여러 개 가능, MVP 는 KAKAO 하나, 앱 출시부터 APPLE
 model AuthAccount {
-  id             Int          @id @default(autoincrement())
-  userId         Int
-  provider       AuthProvider
+  id               Int          @id @default(autoincrement())
+  userId           Int
+  provider         AuthProvider
   /// 제공자 쪽 사용자 식별자. 카카오 회원번호도 문자열로 저장 (D-28)
-  providerUserId String       @db.VarChar(191)
+  providerUserId   String       @db.VarChar(191)
   /// 제공자가 준 이메일. 수집 동의 없으면 null
-  email          String?      @db.VarChar(255)
+  email            String?      @db.VarChar(255)
   /// 제공자 쪽 원본 프로필. 로그인마다 갱신
-  rawProfile     Json?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  rawProfile       Json?
+  /// 토큰을 발급받은 client_id (애플: 번들 ID 또는 Service ID). 탈퇴 시 폐기를 같은 값으로 호출 (앱.md 3.5)
+  providerClientId String?      @db.VarChar(191)
+  /// 제공자 refresh token (애플만). 탈퇴 시 revoke 에만 쓴다. 사용에 .p8 서명이 필요해 평문 저장 (D-51)
+  refreshToken     String?      @db.Text
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerUserId])
   @@index([userId])
+}
+
+/// 앱 로그인 결과를 웹뷰 세션 쿠키로 넘기는 60초 1회용 토큰 (앱.md 2장, D-44, D-49)
+model AuthHandoff {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  /// sha256hex(토큰). 원문은 저장하지 않는다
+  tokenHash     String    @unique @db.Char(64)
+  /// base64url(sha256(verifier)). 교환 시 verifier 로 대조
+  codeChallenge String    @db.VarChar(64)
+  expiresAt     DateTime
+  /// 교환된 시각. null 이 아니면 재사용 불가
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// 팀. personal / team 모두 같은 모델. 마지막 멤버가 나가면 삭제
