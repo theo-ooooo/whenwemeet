@@ -30,21 +30,40 @@ export type GroupDetail = {
   me: Member;
 };
 
+/** 반복 주기 (#187, api.md 2.3). null 이면 한 번짜리 */
+export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
+
+/** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
+export type EventScope = "this" | "following";
+
 export type EventInput = {
   title: string;
   startsAt: string;
   endsAt: string;
   allDay: boolean;
   memo?: string;
+  /** 생략/null = 한 번짜리. "이 일정만" 수정에는 보내지 않는다 (#187) */
+  repeat?: Repeat | null;
+  /** 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null = 계속 */
+  repeatUntil?: string | null;
 };
 
-export type Event = EventInput & {
+export type Event = Omit<EventInput, "repeat" | "repeatUntil"> & {
   id: number;
   groupId: number;
   creator: Member;
   createdAt: string;
   updatedAt: string;
+  repeat: Repeat | null;
+  repeatUntil: string | null;
+  /** 회차의 원래 날짜 (KST). 한 번짜리는 null. 화면 키는 eventKey() */
+  occurrence: string | null;
+  /** 반복이면 원본 첫 회차 시작 ("매주 목요일" 표시용) */
+  seriesStartsAt: string | null;
 };
+
+/** 단건 GET 응답. 이 회차보다 뒤에 "이 일정만" 예외가 있는지 */
+export type EventDetailData = Event & { hasLaterExceptions: boolean };
 
 /** 기념일 종류 (api.md 2.4, D-62): 함께한 날 세기(기본) / 매년 반복 / 그날만 */
 export type AnniversaryKind = "COUNT_UP" | "YEARLY" | "ONCE";
@@ -76,6 +95,12 @@ export type NewsItem = {
   startsAt: string;
   endsAt: string;
   allDay: boolean;
+  /** 변경 시점의 반복 주기 (#187) */
+  repeat: Repeat | null;
+  /** 반복 일정에서 고른 범위. 한 번짜리, 새 반복 추가는 null */
+  scope: "THIS" | "FOLLOWING" | null;
+  /** 범위를 고른 회차 날짜 (KST) */
+  occurrence: string | null;
   actor: Member;
   createdAt: string;
   isNew: boolean;

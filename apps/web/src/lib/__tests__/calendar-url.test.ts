@@ -27,7 +27,7 @@ describe("parseDayStep", () => {
     expect(parseDayStep(p("date=2026-02-31&day=1"), TODAY)).toEqual({ open: true, date: TODAY, step: "day" });
   });
   it("event, add 단계", () => {
-    expect(parseDayStep(p("date=2026-11-12&day=1&event=7"), TODAY)).toEqual({ open: true, date: "2026-11-12", step: "event", eventId: 7 });
+    expect(parseDayStep(p("date=2026-11-12&day=1&event=7"), TODAY)).toEqual({ open: true, date: "2026-11-12", step: "event", eventId: 7, occurrence: null });
     expect(parseDayStep(p("date=2026-11-12&day=1&add=1"), TODAY)).toEqual({ open: true, date: "2026-11-12", step: "add" });
   });
   it("event 가 add 보다 앞서고, 숫자가 아닌 event 는 무시", () => {
@@ -41,7 +41,7 @@ describe("stepDepth", () => {
   it("닫힘 0, 날짜 1, 일정/추가 2", () => {
     expect(stepDepth({ open: false })).toBe(0);
     expect(stepDepth({ open: true, date: TODAY, step: "day" })).toBe(1);
-    expect(stepDepth({ open: true, date: TODAY, step: "event", eventId: 1 })).toBe(2);
+    expect(stepDepth({ open: true, date: TODAY, step: "event", eventId: 1, occurrence: null })).toBe(2);
     expect(stepDepth({ open: true, date: TODAY, step: "add" })).toBe(2);
   });
 });
@@ -52,10 +52,16 @@ describe("withDayStep", () => {
     expect(withDayStep("?date=2026-11-12", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
   it("한 단계 더: event, add 는 둘 중 하나만", () => {
-    expect(withDayStep("?date=2026-11-12&day=1&add=1", { step: "event", date: "2026-11-12", eventId: 3 }, TODAY)).toBe(
+    expect(withDayStep("?date=2026-11-12&day=1&add=1", { step: "event", date: "2026-11-12", eventId: 3, occurrence: null }, TODAY)).toBe(
       "?date=2026-11-12&day=1&event=3",
     );
     expect(withDayStep("?date=2026-11-12&day=1&event=3", { step: "add", date: "2026-11-12" }, TODAY)).toBe("?date=2026-11-12&day=1&add=1");
+  });
+  it("반복 회차는 occurrence 를 같이 싣고, 다른 단계로 가면 뗀다 (#187)", () => {
+    expect(parseDayStep(p("day=1&event=7&occurrence=2026-11-18"), TODAY)).toMatchObject({ step: "event", eventId: 7, occurrence: "2026-11-18" });
+    expect(parseDayStep(p("day=1&event=7&occurrence=2026-02-31"), TODAY)).toMatchObject({ step: "event", occurrence: null });
+    expect(withDayStep("?day=1", { step: "event", date: TODAY, eventId: 7, occurrence: "2026-11-18" }, TODAY)).toBe("?day=1&event=7&occurrence=2026-11-18");
+    expect(withDayStep("?day=1&event=7&occurrence=2026-11-18", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
   it("닫기: day, event, add 만 떼고 date, month 는 둔다", () => {
     expect(withDayStep("?date=2026-11-12&month=2026-12&day=1&event=3", { step: "closed" }, TODAY)).toBe("?date=2026-11-12&month=2026-12");

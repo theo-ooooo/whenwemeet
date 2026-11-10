@@ -7,13 +7,7 @@ import { IconBell } from "@/components/icons";
 import { EmptyState, ErrorState, MemberDot, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
 import { dateKeyOf, formatDateKo, formatEventTime, formatRelative } from "@/lib/date";
-import type { NewsItem } from "@/lib/types";
-
-const ACTION_LABEL: Record<NewsItem["action"], string> = {
-  CREATED: "추가했어요",
-  UPDATED: "수정했어요",
-  DELETED: "삭제했어요",
-};
+import { newsHref, newsPhrase } from "@/lib/news-copy";
 
 export function NewsScreen({ groupId }: { groupId: number }) {
   const router = useRouter();
@@ -57,7 +51,8 @@ export function NewsScreen({ groupId }: { groupId: number }) {
         ) : (
           <ul className="rounded-xl bg-paper px-1.5 py-1.5">
             {news.items.map((item) => {
-              const clickable = item.eventId && item.action !== "DELETED";
+              // 문구와 이동 주소는 lib/news-copy.ts (반복 일정 범위 문구, 회차 주소 #187)
+              const href = newsHref(groupId, item);
               const body = (
                 <>
                   {/* 새 항목은 행 왼쪽 6px 점 하나로 (#174 L14). 배지 글자 반복 대신 */}
@@ -70,7 +65,7 @@ export function NewsScreen({ groupId }: { groupId: number }) {
                       <span className={`font-semibold ${item.action === "DELETED" ? "line-through text-ink-2" : ""}`}>
                         &lsquo;{item.title}&rsquo;
                       </span>{" "}
-                      일정을 {ACTION_LABEL[item.action]}
+                      {newsPhrase(item)}
                     </span>
                     <span className="mt-0.5 block text-[12px] leading-4 text-ink-2 tabular-nums">
                       {formatDateKo(dateKeyOf(item.startsAt))} {formatEventTime(item.startsAt, item.endsAt, item.allDay)}
@@ -81,11 +76,11 @@ export function NewsScreen({ groupId }: { groupId: number }) {
                   </span>
                 </>
               );
-              const cls = `flex min-h-11 w-full items-start gap-2.5 rounded-sm px-2 py-2.5 text-left ${clickable ? "hover:bg-hover" : ""}`;
+              const cls = `flex min-h-11 w-full items-start gap-2.5 rounded-sm px-2 py-2.5 text-left ${href ? "hover:bg-hover" : ""}`;
               return (
                 <li key={item.id}>
-                  {clickable ? (
-                    <Link href={`/g/${groupId}/events/${item.eventId}`} className={cls}>
+                  {href ? (
+                    <Link href={href} className={cls}>
                       {body}
                     </Link>
                   ) : (

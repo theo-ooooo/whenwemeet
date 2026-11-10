@@ -14,6 +14,10 @@ const ev = (id: number, start: string, end: string, allDay = false): Event => ({
   creator: who,
   createdAt: start,
   updatedAt: start,
+  repeat: null,
+  repeatUntil: null,
+  occurrence: null,
+  seriesStartsAt: null,
 });
 const ann = (id: number, date: string, kind: Anniversary["kind"] = "ONCE"): Anniversary => ({
   id,
@@ -67,6 +71,12 @@ describe("upcomingEvents", () => {
     expect(upcomingEvents([later, past, soon, ongoing, later], now, 5).map((e) => e.id)).toEqual([2, 4, 3]);
     expect(upcomingEvents([later, soon, ongoing], now, 2).map((e) => e.id)).toEqual([2, 4]);
     expect(upcomingEvents(null, now, 3)).toEqual([]);
+  });
+  it("반복 일정은 같은 id 라도 회차마다 따로 (#187)", () => {
+    const now = Date.parse(kstToIso("2026-11-10", "12:00"));
+    const w1 = { ...ev(9, kstToIso("2026-11-11", "19:00"), kstToIso("2026-11-11", "21:00")), repeat: "WEEKLY" as const, occurrence: "2026-11-11" };
+    const w2 = { ...w1, startsAt: kstToIso("2026-11-18", "19:00"), endsAt: kstToIso("2026-11-18", "21:00"), occurrence: "2026-11-18" };
+    expect(upcomingEvents([w2, w1, w1], now, 5).map((e) => e.occurrence)).toEqual(["2026-11-11", "2026-11-18"]);
   });
 });
 

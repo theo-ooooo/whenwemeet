@@ -9,7 +9,8 @@ import {
   todayKey,
   toKst,
 } from "@/lib/date";
-import type { AnniversaryKind, GroupType, Member } from "@/lib/types";
+import type { AnniversaryKind, GroupType, Member, Repeat } from "@/lib/types";
+import type { MockException } from "./recurrence";
 
 export type UserRow = {
   id: number;
@@ -43,6 +44,11 @@ export type EventRow = {
   creatorId: number | null;
   createdAt: string;
   updatedAt: string;
+  /** (#187) null 이면 한 번짜리 */
+  repeat: Repeat | null;
+  repeatUntil: string | null;
+  /** (#187) "이 일정만" 예외. 원래 회차 날짜 기준 */
+  exceptions: MockException[];
 };
 export type AnniversaryRow = {
   id: number;
@@ -62,6 +68,9 @@ export type EventLogRow = {
   startsAt: string;
   endsAt: string;
   allDay: boolean;
+  repeat: Repeat | null;
+  scope: "THIS" | "FOLLOWING" | null;
+  occurrence: string | null;
   actorId: number | null;
   createdAt: string;
 };
@@ -111,6 +120,8 @@ export function buildStore(): Store {
     { userId: OTHER_ID, groupId: OTHER_PERSONAL_ID, color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: null },
   ];
 
+  // 반복 픽스처 첫 회차: 내일 요일, 2주 전
+  const weeklyStart = addDays(today, -13);
   const ev = (
     id: number,
     groupId: number,
@@ -133,6 +144,9 @@ export function buildStore(): Store {
     creatorId,
     createdAt: hoursAgo(30),
     updatedAt: hoursAgo(30),
+    repeat: null,
+    repeatUntil: null,
+    exceptions: [],
   });
 
   // 팀 일정 6개 (이번 달) + 개인 일정 2개 (빈 시간 계산에만 영향)
@@ -146,6 +160,16 @@ export function buildStore(): Store {
     ev(6, TEAM_ID, "제주 여행", d(24), "00:00", d(27), "00:00", ME_ID, true, "항공권 예매함"),
     ev(8, PERSONAL_ID, "팀 회의", addDays(today, 2), "14:00", addDays(today, 2), "16:00", ME_ID),
     ev(9, OTHER_PERSONAL_ID, "운동", addDays(today, 4), "18:00", addDays(today, 4), "20:00", OTHER_ID),
+    // 반복 일정 (#187): 2주 전 내일 요일부터 매주 19:30~21:00. 다음 주 회차는 "이 일정만" 20:00 으로 옮김
+    {
+      ...ev(10, TEAM_ID, "같이 요리하기", weeklyStart, "19:30", weeklyStart, "21:00", OTHER_ID, false, "장보기는 번갈아"),
+      repeat: "WEEKLY",
+      exceptions: [
+        { occurrence: addDays(weeklyStart, 21), cancelled: false, startsAt: kstToIso(addDays(weeklyStart, 21), "20:00"), endsAt: kstToIso(addDays(weeklyStart, 21), "21:30") },
+      ],
+    },
+    // 매월 반복, 올해 12월 31일까지
+    { ...ev(11, TEAM_ID, "관리비 내기", d(25), "09:00", d(25), "09:30", ME_ID), repeat: "MONTHLY", repeatUntil: keyOf(y, 12, 31) },
   ];
 
   // 기념일 (#107 자동 표시 확인용). n 년 전 같은 월일
@@ -204,6 +228,9 @@ export function buildStore(): Store {
       startsAt: kstToIso(today),
       endsAt: kstToIso(addDays(today, 1)),
       allDay: true,
+      repeat: null,
+      scope: null,
+      occurrence: null,
       actorId: OTHER_ID,
       createdAt: hoursAgo(3),
     },
@@ -216,8 +243,42 @@ export function buildStore(): Store {
       startsAt: kstToIso(d(3), "19:00"),
       endsAt: kstToIso(d(3), "21:00"),
       allDay: false,
+      repeat: null,
+      scope: null,
+      occurrence: null,
       actorId: OTHER_ID,
       createdAt: hoursAgo(10),
+    },
+    // 반복 일정 기록 (#187): 추가 1건, "이 일정만" 수정 1건
+    {
+      id: 3,
+      groupId: TEAM_ID,
+      action: "UPDATED",
+      eventId: 10,
+      title: "같이 요리하기",
+      startsAt: kstToIso(addDays(weeklyStart, 21), "20:00"),
+      endsAt: kstToIso(addDays(weeklyStart, 21), "21:30"),
+      allDay: false,
+      repeat: "WEEKLY",
+      scope: "THIS",
+      occurrence: addDays(weeklyStart, 21),
+      actorId: OTHER_ID,
+      createdAt: hoursAgo(12),
+    },
+    {
+      id: 4,
+      groupId: TEAM_ID,
+      action: "CREATED",
+      eventId: 10,
+      title: "같이 요리하기",
+      startsAt: kstToIso(weeklyStart, "19:30"),
+      endsAt: kstToIso(weeklyStart, "21:00"),
+      allDay: false,
+      repeat: "WEEKLY",
+      scope: null,
+      occurrence: null,
+      actorId: OTHER_ID,
+      createdAt: hoursAgo(24 * 13),
     },
   ];
 

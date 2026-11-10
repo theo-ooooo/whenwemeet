@@ -14,6 +14,7 @@ import { useGroupContext } from "@/components/AppShell";
 import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
 import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
+import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
 import { IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "@/components/icons";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
@@ -62,7 +63,8 @@ import {
 import { cellDensity } from "@/lib/calendar-cell";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
-import type { Event } from "@/lib/types";
+import { eventKey } from "@/lib/recurrence";
+import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { haptic } from "@/lib/app-bridge";
@@ -73,6 +75,10 @@ const newEventHref = (groupId: number, start: string, end: string) =>
   `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
 const nowMs = () => Date.now();
+
+/** 일정 상세를 여는 데 필요한 것. 반복 회차는 회차 날짜까지 (#187) */
+type EventRef = { id: number; occurrence: DateKey | null };
+const eventStep = (date: DateKey, ev: EventRef): StepTarget => ({ step: "event", date, eventId: ev.id, occurrence: ev.occurrence ?? null });
 
 /** 지금 주소의 search 를 바꿔 기록에 쓴다. state 는 null (#57: Next 가 내부 state 를 붙이고 useSearchParams 를 맞춘다) */
 function writeSearch(search: string, mode: "push" | "replace") {
@@ -118,7 +124,7 @@ export function CalendarScreen({ groupId }: Props) {
   const visible = urlStep.open && !closing;
   const ownDepth = Math.max(0, stepDepth(urlStep) - foreign);
   // 닫히는 중에 다른 날짜를 누른 경우: 닫힘이 주소에 반영된 뒤 연다
-  const pending = useRef<{ date: DateKey; eventId?: number } | null>(null);
+  const pending = useRef<{ date: DateKey; ev?: EventRef } | null>(null);
 
   // phone 일 상세에서 고른 다른 날. replaceState 가 useSearchParams 에 닿기 전에도 화면이 그날을 그리게 (스와이프 중 옛 주가 비치지 않게)
   const [dayTarget, setDayTarget] = useState<DateKey | null>(null);
@@ -270,11 +276,11 @@ export function CalendarScreen({ groupId }: Props) {
   /* ---------- 상세에 넣을 것 ---------- */
 
   const surfaceEvents = surfaceDate && events ? (byDay.get(surfaceDate) ?? []) : null;
-  const surfaceEventId = visible && urlStep.step === "event" ? urlStep.eventId : null;
-  const surfaceEvent =
-    surfaceEventId === null
-      ? undefined
-      : (events?.find((e) => e.id === surfaceEventId) ?? upcomingQ.data?.find((e) => e.id === surfaceEventId));
+  // 반복 회차는 (id, occurrence) 로 찾는다 (#187). 한 번짜리는 occurrence 가 둘 다 null
+  const surfaceRef = visible && urlStep.step === "event" ? { id: urlStep.eventId, occurrence: urlStep.occurrence } : null;
+  const surfaceEventId = surfaceRef?.id ?? null;
+  const isSurface = (e: Event) => surfaceRef !== null && e.id === surfaceRef.id && (e.occurrence ?? null) === surfaceRef.occurrence;
+  const surfaceEvent = surfaceRef === null ? undefined : (events?.find(isSurface) ?? upcomingQ.data?.find(isSurface));
   const eventMissing = surfaceEventId !== null && surfaceEvent === undefined && events !== null && !eventsError && upcomingQ.data !== null;
 
   /* ---------- 동작 ---------- */
@@ -309,10 +315,10 @@ export function CalendarScreen({ groupId }: Props) {
     else writeSearch(withDayStep(window.location.search, { step: "closed" }, today), "replace");
   }
 
-  /** 날짜 상세를 연다 (eventId 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
-  function openDay(date: DateKey, eventId?: number) {
+  /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
+  function openDay(date: DateKey, ev?: EventRef) {
     if (urlStep.open) {
-      pending.current = { date, eventId };
+      pending.current = { date, ev };
       if (!closing) close();
       return;
     }
@@ -322,14 +328,14 @@ export function CalendarScreen({ groupId }: Props) {
     const base = withSelection(window.location.search, date, today, { y: p.y, m: p.m });
     if (base !== null) writeSearch(base, "replace");
     writeSearch(withDayStep(window.location.search, { step: "day", date }, today), "push");
-    if (eventId !== undefined) writeSearch(withDayStep(window.location.search, { step: "event", date, eventId }, today), "push");
+    if (ev !== undefined) writeSearch(withDayStep(window.location.search, eventStep(date, ev), today), "push");
   }
 
   // 닫힘이 주소에 반영된 뒤 기다리던 열기를 지금 렌더의 openDay 로 (옛 렌더의 urlStep 을 보지 않게)
   const runPending = useEffectEvent(() => {
     const p = pending.current;
     pending.current = null;
-    if (p) openDay(p.date, p.eventId);
+    if (p) openDay(p.date, p.ev);
   });
 
   useEffect(() => {
@@ -402,9 +408,20 @@ export function CalendarScreen({ groupId }: Props) {
   }
 
   const remove = useDeleteEvent(groupId);
-  async function removeEvent() {
+  // 반복 일정 삭제는 범위 시트 (#187). 고른 범위의 요청 중 표시
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [scopePending, setScopePending] = useState<EventScope | null>(null);
+  function askDelete() {
+    if (surfaceEvent?.repeat) setScopeOpen(true);
+    else setConfirmDelete(true);
+  }
+  async function removeEvent(scope: EventScope | null = null) {
     if (!surfaceEvent) return;
-    const r = await remove.mutate(surfaceEvent.id);
+    setScopePending(scope);
+    const target = surfaceEvent.repeat && scope ? { occurrence: surfaceEvent.occurrence ?? undefined, scope } : {};
+    const r = await remove.mutate({ eventId: surfaceEvent.id, ...target });
+    setScopePending(null);
+    setScopeOpen(false);
     setConfirmDelete(false);
     if (!r.ok) {
       if (r.error.status === 404) {
@@ -523,10 +540,10 @@ export function CalendarScreen({ groupId }: Props) {
             const k = row.date;
             const p = parseKey(k);
             return (
-              <li key={ev.id}>
+              <li key={eventKey(ev)}>
                 <button
                   type="button"
-                  onClick={() => openDay(k, ev.id)}
+                  onClick={() => openDay(k, ev)}
                   aria-haspopup="dialog"
                   aria-label={`${formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
                   className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
@@ -668,10 +685,10 @@ export function CalendarScreen({ groupId }: Props) {
             const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
             const isToday = k === today;
             return (
-              <li key={ev.id} className="shrink-0 snap-start">
+              <li key={eventKey(ev)} className="shrink-0 snap-start">
                 <button
                   type="button"
-                  onClick={() => openDay(k, ev.id)}
+                  onClick={() => openDay(k, ev)}
                   aria-label={`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
                   className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
                 >
@@ -759,9 +776,9 @@ export function CalendarScreen({ groupId }: Props) {
       event={surfaceEvent}
       onClose={dayView ? back : close}
       onBack={back}
-      onOpenEvent={(ev) => forward({ step: "event", date: surfaceDate, eventId: ev.id })}
+      onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
       onSaved={onQuickSaved}
-      onDelete={() => setConfirmDelete(true)}
+      onDelete={askDelete}
     />
   ) : null;
   // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175). 빠른 추가, 상세는 자기 버튼이 있다
@@ -786,7 +803,7 @@ export function CalendarScreen({ groupId }: Props) {
           stripRef={stripRef}
           onPickDay={changeDay}
           onMonth={close}
-          onOpenEvent={(ev) => forward({ step: "event", date: surfaceDate, eventId: ev.id })}
+          onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
           onAdd={() => forward({ step: "add", date: surfaceDate })}
           newEventHref={(start, end) => newEventHref(groupId, start, end)}
         />
@@ -889,7 +906,7 @@ export function CalendarScreen({ groupId }: Props) {
                 anniversaries={annByDay.get(key) ?? []}
                 loading={events === null}
                 onPick={() => onCell(key)}
-                onOpen={(ev) => openDay(key, ev.id)}
+                onOpen={(ev) => openDay(key, ev)}
               />
             ))}
           </ul>
@@ -913,11 +930,11 @@ export function CalendarScreen({ groupId }: Props) {
       {visible &&
         panel &&
         (wide ? (
-          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
+          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete || scopeOpen} footer={dayFooter}>
             {panel}
           </DayPopover>
         ) : urlStep.open && urlStep.step !== "day" ? (
-          <DaySheet titleId={titleId} onClose={back} paused={confirmDelete}>
+          <DaySheet titleId={titleId} onClose={back} paused={confirmDelete || scopeOpen}>
             {panel}
           </DaySheet>
         ) : null)}
@@ -929,9 +946,19 @@ export function CalendarScreen({ groupId }: Props) {
         confirmLabel="삭제"
         danger
         loading={remove.isPending}
-        onConfirm={removeEvent}
+        onConfirm={() => void removeEvent()}
         onCancel={() => setConfirmDelete(false)}
       />
+      {surfaceEvent?.repeat && (
+        <ScopeSheet
+          open={scopeOpen}
+          mode="delete"
+          occurrence={surfaceEvent.occurrence ?? dateKeyOf(surfaceEvent.startsAt)}
+          pending={scopePending}
+          onPick={(scope) => void removeEvent(scope)}
+          onClose={() => setScopeOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1150,7 +1177,7 @@ function DayCell({
             const style = isBand ? { background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 16%, transparent)` } : undefined;
             return (
               <button
-                key={ev.id}
+                key={eventKey(ev)}
                 type="button"
                 onClick={() => onOpen(ev)}
                 aria-haspopup="dialog"

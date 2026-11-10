@@ -15,6 +15,7 @@ import { timeColumn, weekStrip } from "@/lib/day-view";
 import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 import type { Event } from "@/lib/types";
+import { eventKey } from "@/lib/recurrence";
 
 type Props = {
   groupId: number;
@@ -197,7 +198,7 @@ export function DayView({
               {events.map((ev) => {
                 const col = timeColumn(ev, date);
                 return (
-                  <li key={ev.id} className="flex gap-2">
+                  <li key={eventKey(ev)} className="flex gap-2">
                     <span aria-hidden="true" className="flex w-12 shrink-0 flex-col pt-2.5">
                       <small className="text-[11px] leading-4 text-ink-2">{col.label}</small>
                       {col.value && <b className="text-[16px] font-bold leading-5 tracking-[-0.02em]">{col.value}</b>}
