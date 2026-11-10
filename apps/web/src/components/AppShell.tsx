@@ -1,6 +1,9 @@
 "use client";
-// /g/[groupId]/* 공통 뼈대: 상단 바(팀 전환, 새 소식, 내 프로필) + 하단 탭. 팀 정보를 컨텍스트로 내려준다
-// 모양은 디자인토큰.md "2026-11 확정"(D-57): 상단 바 52, 바닥에 붙은 평평한 탭 56 + safe-area, + 는 탭 위 오른쪽 52 원
+// /g/[groupId]/* 공통 뼈대. 팀 정보를 컨텍스트로 내려준다
+// 모양은 디자인토큰.md "2026-11 확정"(D-57), 폭 구간은 폴더블.md 3, 4-1 (D-58):
+//   phone <600 : 상단 바 52(팀 전환, 새 소식, 내 프로필) + 바닥에 붙은 평평한 탭 56 + safe-area, + 는 탭 위 오른쪽 52 원
+//   600~1199   : 왼쪽 레일 64(심볼, + , 달력/빈 시간/기념일/새 소식/팀, 내 프로필). 탭과 떠 있는 + 는 숨긴다
+//   ≥1200      : PC 사이드바 220
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
@@ -22,6 +25,8 @@ type GroupCtx = {
   refresh: () => Promise<void>;
   setGroup: (g: GroupDetail) => void;
   clearUnread: () => void;
+  /** 팀 전환 시트 열기 (레일 폭에서 달력 월 헤더의 팀 이름이 쓴다) */
+  openSwitcher: () => void;
 };
 
 const Ctx = createContext<GroupCtx | null>(null);
@@ -115,9 +120,10 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
     [setGroupData, setGroups],
   );
 
+  const openSwitcher = useCallback(() => setSwitcher(true), []);
   const value = useMemo<GroupCtx>(
-    () => ({ groupId, groups, group, error, refresh, setGroup, clearUnread }),
-    [groupId, groups, group, error, refresh, setGroup, clearUnread],
+    () => ({ groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher }),
+    [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher],
   );
 
   const section = pathname.split("/")[3] ?? "calendar";
@@ -141,18 +147,64 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   const isCalendar = section === "calendar";
 
   const menu = [
-    { href: `/g/${groupId}/calendar`, label: "달력", icon: <IconCalendar size={18} />, on: section === "calendar" || section === "events" },
-    { href: `/g/${groupId}/free`, label: "빈 시간 찾기", icon: <IconClock size={18} />, on: section === "free" },
-    { href: `/g/${groupId}/anniversaries`, label: "기념일", icon: <IconHeart size={18} />, on: section === "anniversaries" },
-    { href: `/g/${groupId}/news`, label: "새 소식", icon: <IconBell size={18} />, on: section === "news", badge: unread },
-    { href: `/g/${groupId}/settings`, label: "팀 설정", icon: <IconTeam size={18} />, on: section === "settings" },
+    {
+      href: `/g/${groupId}/calendar`,
+      label: "달력",
+      short: "달력",
+      icon: <IconCalendar size={18} />,
+      railIcon: <IconCalendar size={20} active={section === "calendar" || section === "events"} />,
+      on: section === "calendar" || section === "events",
+    },
+    { href: `/g/${groupId}/free`, label: "빈 시간 찾기", short: "빈 시간", icon: <IconClock size={18} />, railIcon: <IconClock size={20} />, on: section === "free" },
+    { href: `/g/${groupId}/anniversaries`, label: "기념일", short: "기념일", icon: <IconHeart size={18} />, railIcon: <IconHeart size={20} />, on: section === "anniversaries" },
+    { href: `/g/${groupId}/news`, label: "새 소식", short: "새 소식", icon: <IconBell size={18} />, railIcon: <IconBell size={20} />, on: section === "news", badge: unread },
+    { href: `/g/${groupId}/settings`, label: "팀 설정", short: "팀", icon: <IconTeam size={18} />, railIcon: <IconTeam size={20} />, on: section === "settings" },
   ];
 
   return (
     <Ctx.Provider value={value}>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
-        {/* PC 사이드바 (목업 .side) */}
-        <aside className="sticky top-0 hidden h-dvh flex-col gap-0.5 overflow-y-auto border-r border-line bg-paper px-3 py-3.5 lg:flex">
+      <div className="min-h-dvh fold:grid fold:grid-cols-[64px_minmax(0,1fr)] wide:grid-cols-[220px_minmax(0,1fr)]">
+        {/* 레일 600~1199 (폴더블.md 4-1, 시안 final-a-wide-day) */}
+        <aside className="sticky top-0 hidden h-dvh flex-col items-center gap-1 overflow-y-auto py-3 fold:flex wide:hidden">
+          <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="grid size-10 place-items-center rounded-sm">
+            <Symbol size={24} />
+          </Link>
+          <Link
+            href={newHref}
+            aria-label="일정 추가"
+            className="mb-2 mt-1 grid size-12 place-items-center rounded-md bg-pri text-on-pri shadow-[var(--fab-shadow)] hover:brightness-95"
+          >
+            <IconPlus size={24} strokeWidth={2.2} />
+          </Link>
+          <nav aria-label="주요 화면">
+            <ul className="flex flex-col gap-1">
+              {menu.map((it) => (
+                <li key={it.label}>
+                  <Link
+                    href={it.href}
+                    aria-current={it.on ? "page" : undefined}
+                    aria-label={it.badge ? `${it.label}, 새 소식 ${it.badge}개` : undefined}
+                    className="group flex w-14 flex-col items-center gap-0.5 rounded-sm py-1 text-[10.5px] font-semibold leading-3"
+                  >
+                    <span
+                      className={`relative grid h-8 w-[52px] place-items-center rounded-md ${it.on ? "bg-paper text-ink" : "text-ink-2 group-hover:bg-hover group-hover:text-ink"}`}
+                    >
+                      {it.railIcon}
+                      {it.badge ? <i aria-hidden="true" className="absolute right-3 top-1 block size-1.5 rounded-full bg-pri" /> : null}
+                    </span>
+                    <span className={it.on ? "text-ink" : "text-ink-2"}>{it.short}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <Link href="/me" aria-label="내 정보" className="mt-auto grid size-10 place-items-center rounded-full">
+            {group ? <Avatar member={group.me} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+          </Link>
+        </aside>
+
+        {/* PC 사이드바 ≥1200 (목업 .side) */}
+        <aside className="sticky top-0 hidden h-dvh flex-col gap-0.5 overflow-y-auto border-r border-line bg-paper px-3 py-3.5 wide:flex">
           <Link href={`/g/${groupId}/calendar`} className="flex items-center gap-2 rounded-sm px-2 pb-3.5 pt-1 text-[16px] font-bold leading-6">
             <Symbol size={24} />
             언제볼까
@@ -220,9 +272,25 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </Link>
         </aside>
 
-        <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col lg:max-w-none">
-          {/* 모바일 상단 바 52: 팀 이름 글자 / 새 소식(점 배지) + 내 프로필 (시안 .top) */}
-          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center gap-0.5 pl-4 pr-3 pt-[env(safe-area-inset-top)] lg:hidden">
+        <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col fold:max-w-none">
+          {/* 레일 폭 상단 줄: 팀 이름 알약만 (새 소식, 프로필은 레일). 달력은 월 헤더 안에 팀 이름을 둔다 */}
+          {!isCalendar && (
+            <header className="hidden h-12 items-center px-6 pt-1 fold:flex wide:hidden">
+              <button type="button" onClick={() => setSwitcher(true)} aria-haspopup="dialog" className="flex h-9 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[16px] font-bold leading-6">
+                {group ? (
+                  <>
+                    <span className="truncate">{group.name}</span>
+                    <IconChevronDown size={16} className="shrink-0 text-ink-2" />
+                    <span className="sr-only">팀 바꾸기</span>
+                  </>
+                ) : (
+                  <Skeleton className="h-4 w-16" />
+                )}
+              </button>
+            </header>
+          )}
+          {/* 폰 상단 바 52: 팀 이름 글자 / 새 소식(점 배지) + 내 프로필 (시안 .top) */}
+          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center gap-0.5 pl-4 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
             <button
               type="button"
               onClick={() => setSwitcher(true)}
@@ -253,8 +321,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </header>
 
           <main
-            className={`flex-1 px-4 pb-[calc(56px+72px+env(safe-area-inset-bottom))] lg:px-0 lg:pb-0 ${
-              isCalendar ? "" : "lg:mx-auto lg:w-full lg:max-w-[720px] lg:px-8 lg:py-6"
+            className={`flex-1 px-4 pb-[calc(56px+72px+env(safe-area-inset-bottom))] fold:px-0 fold:pb-0 ${
+              isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 lg:max-w-[720px] lg:px-8 wide:py-6"
             }`}
           >
             {children}
@@ -265,11 +333,11 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
         <Link
           href={newHref}
           aria-label="일정 추가"
-          className="fixed bottom-[calc(56px+14px+env(safe-area-inset-bottom))] right-[max(16px,calc(50%-224px))] z-30 grid size-[52px] place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)] lg:hidden"
+          className="fixed bottom-[calc(56px+14px+env(safe-area-inset-bottom))] right-[max(16px,calc(50%-224px))] z-30 grid size-[52px] place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)] fold:hidden"
         >
           <IconPlus size={24} strokeWidth={2.2} />
         </Link>
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] fold:hidden">
           <nav aria-label="주요 화면" className="mx-auto h-14 max-w-[480px]">
             <ul className="flex h-full items-center justify-around">
               {TABS.map((t) => {
