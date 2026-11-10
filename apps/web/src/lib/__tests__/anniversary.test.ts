@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dayNumber,
+  listValue,
   mainLabel,
   nearestOccurrence,
   nextOccurrence,
@@ -203,5 +204,28 @@ describe("표시 우선순위와 개수", () => {
       ann(4, "2026-11-20", "ONCE"), // 다음 2026-11-20
     ];
     expect(sortByNext(list, TODAY).map((a) => a.id)).toEqual([4, 1, 3, 2]);
+  });
+});
+
+// 기념일 목록 오른쪽 값 통일 (#173): 큰 값은 모두 '다음 날까지', 누적은 보조 줄
+describe("listValue", () => {
+  it("함께한 날 세기: 오늘이 100일이면 값 '오늘', 보조 '오늘 100일'", () => {
+    const a = ann(1, addDays(TODAY, -99), "COUNT_UP");
+    expect(listValue(a, TODAY)).toEqual({ value: "오늘", tone: "today", sub: "오늘 100일" });
+  });
+  it("함께한 날 세기: 다가오는 3주년이 큰 값, 누적 일수는 보조 줄", () => {
+    const a = ann(3, "2023-11-15", "COUNT_UP");
+    expect(listValue(a, TODAY)).toEqual({ value: "D-5", tone: "ahead", sub: "1092일째, 다음 3주년 11월 15일" });
+  });
+  it("함께한 날 세기: 시작일 전이면 D-n, 보조 줄 없음", () => {
+    expect(listValue(ann(4, "2026-11-20", "COUNT_UP"), TODAY)).toEqual({ value: "D-10", tone: "ahead", sub: null });
+  });
+  it("매년 반복과 그날만은 다음 날까지만", () => {
+    expect(listValue(ann(5, "1997-11-13", "YEARLY"), TODAY)).toEqual({ value: "D-3", tone: "ahead", sub: null });
+    expect(listValue(ann(6, "2026-11-22", "ONCE"), TODAY)).toEqual({ value: "D-12", tone: "ahead", sub: null });
+    expect(listValue(ann(7, TODAY, "ONCE"), TODAY)).toEqual({ value: "오늘", tone: "today", sub: null });
+  });
+  it("지난 그날만은 D+n 흐린 값", () => {
+    expect(listValue(ann(8, "2026-10-01", "ONCE"), TODAY)).toEqual({ value: "D+40", tone: "past", sub: null });
   });
 });

@@ -26,10 +26,12 @@ type Props = {
   titleId: string;
   onClose: () => void;
   paused?: boolean;
+  /** 스크롤 밖 팝오버 바닥에 고정하는 주 버튼 바 (#175) */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 };
 
-export function DayPopover({ anchorDate, titleId, onClose, paused = false, children }: Props) {
+export function DayPopover({ anchorDate, titleId, onClose, paused = false, footer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   useDialogKeys(panel, onClose, paused);
@@ -73,9 +75,10 @@ export function DayPopover({ anchorDate, titleId, onClose, paused = false, child
       aria-labelledby={titleId}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? 0, width: POP_W, boxShadow: "var(--pop-shadow)" }}
       // 자리 잡기 전에는 투명하게만 둔다. visibility:hidden 이면 제목 입력의 autoFocus 가 먹지 않는다
-      className={`fixed z-40 max-h-[calc(100dvh-32px)] overflow-y-auto rounded-xl border border-line bg-paper px-3.5 pb-3.5 pt-1.5 ${pos ? "anim-fade" : "opacity-0"}`}
+      className={`fixed z-40 flex max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl border border-line bg-paper ${pos ? "anim-fade" : "opacity-0"}`}
     >
-      {children}
+      <div className={`min-h-0 flex-1 overflow-y-auto px-3.5 pt-1.5 ${footer ? "pb-3" : "pb-3.5"}`}>{children}</div>
+      {footer && <div className="shrink-0 border-t border-line px-3.5 py-3">{footer}</div>}
     </div>
   );
 }

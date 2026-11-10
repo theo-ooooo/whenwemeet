@@ -1,13 +1,13 @@
 "use client";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconPlus } from "@/components/icons";
+import { IconHeart, IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
-import { Button, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, inputClass } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
-import { KIND_OPTIONS, kindOf, mainLabel, nextOccurrence, sortByNext } from "@/lib/anniversary";
-import { dayBadge } from "@/lib/day-detail";
-import { formatDateKo, parseKey, todayKey } from "@/lib/date";
+import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
+import { formatDateKo, todayKey } from "@/lib/date";
 import type { Anniversary, AnniversaryKind } from "@/lib/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
@@ -46,6 +46,17 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       setKind("COUNT_UP");
     }
   }
+
+  // + 는 하나만 (#170): 폰 + 와 레일 + 가 이 화면에서는 기념일 추가 시트를 연다. 제목 옆 버튼은 + 가 없는 PC(≥1200)에만
+  const { setFabAction } = useGroupContext();
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  });
+  useEffect(() => {
+    setFabAction({ label: "기념일 추가", run: () => openRef.current({ mode: "new" }) });
+    return () => setFabAction(null);
+  }, [setFabAction]);
 
   const valid = name.trim().length >= 1 && name.trim().length <= 30 && /^\d{4}-\d{2}-\d{2}$/.test(date);
 
@@ -95,15 +106,17 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
 
   return (
     <div className="pt-1">
-      <div className="mt-2 flex items-center justify-between gap-3 lg:mt-0">
+      <div className="mt-1.5 flex items-center justify-between gap-3">
         <div>
           <h1 className="t-title">기념일</h1>
           <p className="t-sub mt-0.5">100일, 1주년, 생일이 달력에 자동으로 보여요</p>
         </div>
-        <Button size="sm" onClick={() => open({ mode: "new" })}>
-          <IconPlus size={14} strokeWidth={2.2} />
-          기념일 추가
-        </Button>
+        <span className="hidden shrink-0 wide:block">
+          <Button size="sm" onClick={() => open({ mode: "new" })}>
+            <IconPlus size={14} strokeWidth={2.2} />
+            기념일 추가
+          </Button>
+        </span>
       </div>
 
       <div className="mt-3">
@@ -112,26 +125,14 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
         ) : sorted === null ? (
           <SkeletonList rows={2} />
         ) : sorted.length === 0 ? (
-          <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
-            기념일을 등록하면 100일, 1주년이 달력에 자동으로 보여요.
-            <br />첫 기념일을 추가해 보세요
-          </p>
+          <EmptyState icon={<IconHeart size={20} />} title="아직 기념일이 없어요">
+            첫 기념일을 추가하면 100일, 1주년이 달력에 자동으로 보여요
+          </EmptyState>
         ) : (
           <ul className="rounded-xl bg-paper px-3.5 py-1">
             {sorted.map((a, i) => {
-              // 대표 라벨 (기획 3-4) + 아래 "다음 {라벨} {M월 D일} D-n". '그날만' 이 지나면 다음 줄 없음
-              const main = mainLabel(a, today);
-              const next = nextOccurrence(a, today);
-              const isToday = main === "D-day" || next?.date === today;
-              // 매년, 그날만은 대표 라벨이 곧 다음 날이라 N일, N주년일 때만 (시작일 전 COUNT_UP 도 대표 라벨 D-n 이 같은 날)
-              const np = next ? parseKey(next.date) : null;
-              // 당일이면 "다음 100일 11월 10일 오늘" 대신 "오늘 100일" (#140 L11)
-              const hint =
-                next?.label && np
-                  ? next.date === today
-                    ? `오늘 ${next.label}`
-                    : `다음 ${next.label} ${np.m}월 ${np.d}일 ${dayBadge(next.date, today)}`
-                  : null;
+              // 오른쪽 값은 모두 '다음 날까지' (D-n, 오늘), 누적 일수와 다음 라벨은 보조 줄 (#173)
+              const row = listValue(a, today);
               return (
                 <li key={a.id} className={i === 0 ? "" : "border-t border-line"}>
                   <button
@@ -147,14 +148,12 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
                         <MemberDot className="ml-1" color={a.creator.color} size={6} />
                         {a.creator.displayName}
                       </span>
-                      {hint && (
-                        <span className={`block text-[12px] font-medium leading-4 ${next?.date === today ? "text-acc-ink" : "text-soft"}`}>{hint}</span>
-                      )}
+                      {row.sub && <span className="block text-[12px] font-normal leading-4 text-ink-2">{row.sub}</span>}
                     </span>
                     <span
-                      className={`shrink-0 text-[14px] font-bold tabular-nums ${isToday ? "text-acc-ink" : ""}`}
+                      className={`shrink-0 text-[15px] font-bold tabular-nums ${row.tone === "today" ? "text-acc-ink" : row.tone === "past" ? "text-ink-2" : "text-ink"}`}
                     >
-                      {main}
+                      {row.value}
                     </span>
                   </button>
                 </li>

@@ -9,12 +9,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { DayPanel, type FreeHint } from "@/components/DayPanel";
+import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
 import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
-import { IconChevronDown, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "@/components/icons";
+import { IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "@/components/icons";
+import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
-import { ConfirmDialog, Skeleton } from "@/components/ui";
+import { ConfirmDialog, EmptyState, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
 import {
   dateParam,
@@ -34,7 +35,7 @@ import {
   upcomingOccurrences,
   type Occurrence,
 } from "@/lib/anniversary";
-import { anniversariesOn, dayBadge, groupByDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
 import {
   addDays,
   dateKeyOf,
@@ -59,6 +60,8 @@ import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import type { Event } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
+import { useMonthSwipe } from "@/lib/useMonthSwipe";
+import { haptic } from "@/lib/app-bridge";
 
 type Props = { groupId: number };
 
@@ -78,7 +81,8 @@ export function CalendarScreen({ groupId }: Props) {
   const toast = useToast();
   const layout = useLayout();
   const wide = layout !== "phone";
-  const { group, openSwitcher } = useGroupContext();
+  const { group, groups, openSwitcher } = useGroupContext();
+  const together = togetherHintOf(group, groups);
   const today = todayKey();
   // 처음 값은 서버 props 가 아니라 지금 주소에서 읽는다 (#81). 뒤로가기는 Next 가 캐시해 둔 처음 렌더(쿼리 없는 주소)를
   // 다시 쓰므로 서버가 넘긴 날짜는 오늘로 돌아가지만, useSearchParams 는 replaceState 로 바꿔 둔 주소를 돌려준다
@@ -266,6 +270,14 @@ export function CalendarScreen({ groupId }: Props) {
   function go(n: number) {
     setMonth(shiftMonth(y, m, n));
   }
+  // 달력 좌우 스와이프 (#162): 왼쪽으로 밀면 다음 달. 날짜 상세가 떠 있는 동안은 보지 않는다
+  const swipeRef = useMonthSwipe<HTMLUListElement>({
+    enabled: !visible,
+    onCommit: (dir) => {
+      go(dir);
+      haptic("light");
+    },
+  });
   function goToday() {
     const p = parseKey(today);
     setMonth({ y: p.y, m: p.m });
@@ -401,6 +413,7 @@ export function CalendarScreen({ groupId }: Props) {
   // 오늘 비는 시간 + D-day 를 한 카드의 정보 줄 두 개로 (시안 .strip)
   const infoCard = (
     <div className="rounded-xl bg-paper px-3.5">
+      {together && <TogetherHint hint={together} />}
       <FreeTile
         label={freeLabel}
         slot={todayFree}
@@ -427,15 +440,20 @@ export function CalendarScreen({ groupId }: Props) {
           ))}
         </div>
       ) : upcomingList.length === 0 && upcomingAnn.length === 0 ? (
-        <p className="pb-2 text-[13px] text-ink-2">앞으로 한 달 동안 잡힌 일정이 없어요. + 로 추가해 보세요</p>
+        <EmptyState className="pb-4 pt-2" icon={<IconCalendar size={20} />} title="한 달 동안 잡힌 일정이 없어요">
+          + 를 눌러 첫 일정을 추가해 보세요
+        </EmptyState>
       ) : (
         <ul>
-          {upcomingRows.map((row) => {
+          {upcomingRows.map((row, idx) => {
+            // 날짜 칸은 그날 첫 행에만 (#174 L11)
+            const first = idx === 0 || upcomingRows[idx - 1].date !== row.date;
             if (row.kind === "ann") {
               const o = row.o;
               const p = parseKey(o.date);
               const badge = dayBadge(o.date, today);
-              const title = o.label ? `${o.label} ${o.anniversary.name}` : o.anniversary.name;
+              // 어순은 D-day 줄과 같게 '이름 + 값' (#174 L11)
+              const title = occurrenceTitle(o);
               return (
                 <li key={`a-${o.anniversary.id}-${o.date}`}>
                   <button
@@ -446,8 +464,12 @@ export function CalendarScreen({ groupId }: Props) {
                     className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
                   >
                     <span aria-hidden="true" className="flex w-7 shrink-0 flex-col items-center justify-center leading-none">
-                      <small className={`text-[11px] ${o.date === today ? "font-bold text-today-ink" : "text-ink-2"}`}>{o.date === today ? "오늘" : WEEKDAYS[dowOf(o.date)]}</small>
-                      <b className="mt-0.5 text-[16px] font-bold">{p.d}</b>
+                      {first && (
+                        <>
+                          <small className={`text-[11px] ${o.date === today ? "font-bold text-today-ink" : "text-ink-2"}`}>{o.date === today ? "오늘" : WEEKDAYS[dowOf(o.date)]}</small>
+                          <b className="mt-0.5 text-[16px] font-bold">{p.d}</b>
+                        </>
+                      )}
                     </span>
                     {/* 일정 행의 3px 막대 자리에 하트 (폭은 막대와 같게 두어 제목 줄을 맞춘다) */}
                     <span aria-hidden="true" className="-mx-[5.5px] grid w-[14px] shrink-0 place-items-center">
@@ -475,8 +497,12 @@ export function CalendarScreen({ groupId }: Props) {
                   className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
                 >
                   <span aria-hidden="true" className="flex w-7 shrink-0 flex-col items-center justify-center leading-none">
-                    <small className={`text-[11px] ${k === today ? "font-bold text-today-ink" : "text-ink-2"}`}>{k === today ? "오늘" : WEEKDAYS[dowOf(k)]}</small>
-                    <b className="mt-0.5 text-[16px] font-bold">{p.d}</b>
+                    {first && (
+                      <>
+                        <small className={`text-[11px] ${k === today ? "font-bold text-today-ink" : "text-ink-2"}`}>{k === today ? "오늘" : WEEKDAYS[dowOf(k)]}</small>
+                        <b className="mt-0.5 text-[16px] font-bold">{p.d}</b>
+                      </>
+                    )}
                   </span>
                   <i aria-hidden="true" className="my-1 block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
                   <span aria-hidden="true" className="min-w-0 flex-1 self-center">
@@ -557,12 +583,14 @@ export function CalendarScreen({ groupId }: Props) {
       event={surfaceEvent}
       onClose={close}
       onBack={back}
-      onAdd={() => forward({ step: "add", date: surfaceDate })}
       onOpenEvent={(ev) => forward({ step: "event", date: surfaceDate, eventId: ev.id })}
       onSaved={onQuickSaved}
       onDelete={() => setConfirmDelete(true)}
     />
   ) : null;
+  // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175). 빠른 추가, 상세는 자기 버튼이 있다
+  const dayFooter =
+    surfaceDate && (!urlStep.open || urlStep.step === "day") ? <DayAddButton onAdd={() => forward({ step: "add", date: surfaceDate })} /> : null;
 
   return (
         // 레일 폭에서 개요 칸을 옆에 두는 것은 split(≥860)부터. 600~859 는 달력이 칸보다 좁아지므로(#128) 달력이 화면 높이를 채우고 개요는 아래로 내린다
@@ -570,7 +598,8 @@ export function CalendarScreen({ groupId }: Props) {
       {/* 왼쪽: 월 헤더 + 달력 */}
       <section className="flex flex-col fold:h-[calc(100dvh-28px)] fold:min-h-[480px] split:h-auto split:min-h-0">
         {/* 월 헤더: (레일 폭이면 팀 이름) "11월" 20/28 700 + 좌우 화살표 한 줄, 연도는 다른 해일 때만 (시안 .mh) */}
-        <div className="flex items-center gap-1 pb-2 pt-1 fold:h-10 fold:p-0">
+        {/* 제목 줄 높이 40 고정, 다른 탭 화면과 제목 y 가 같다 (#174 L1) */}
+        <div className="mt-1 flex h-10 items-center gap-1 fold:mt-0">
           <button
             type="button"
             onClick={openSwitcher}
@@ -620,7 +649,7 @@ export function CalendarScreen({ groupId }: Props) {
         <div className="mb-2 fold:hidden">{infoCard}</div>
 
         {/* 달력 타일 */}
-        <div className="rounded-xl bg-paper px-1.5 pb-1 fold:mt-2 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
+        <div className="overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-2 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
           <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
               <span key={w} className={i === 0 || i === 6 ? "text-holiday" : ""}>
@@ -628,7 +657,12 @@ export function CalendarScreen({ groupId }: Props) {
               </span>
             ))}
           </div>
-          <ul aria-label={`${y}년 ${m}월 날짜`} className="grid grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr">
+          {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
+          <ul
+            ref={swipeRef}
+            aria-label={`${y}년 ${m}월 날짜`}
+            className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
+          >
             {grid.map((key) => (
               <DayCell
                 key={key}
@@ -662,11 +696,11 @@ export function CalendarScreen({ groupId }: Props) {
       {visible &&
         panel &&
         (wide ? (
-          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete}>
+          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
             {panel}
           </DayPopover>
         ) : (
-          <DaySheet titleId={titleId} onClose={close} paused={confirmDelete}>
+          <DaySheet titleId={titleId} onClose={close} paused={confirmDelete} footer={dayFooter}>
             {panel}
           </DaySheet>
         ))}
@@ -894,7 +928,8 @@ function DayCell({
             </span>
           )}
           {chips.map((ev) => {
-            const isBand = isMultiDayAllDay(ev);
+            // 여러 날 일정은 종일, 시간 모두 옅은 멤버 색 칩 (#174 L13)
+            const isBand = isMultiDay(ev);
             const style = isBand ? { background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 16%, transparent)` } : undefined;
             return (
               <button

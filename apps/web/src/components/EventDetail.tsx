@@ -44,11 +44,12 @@ export function EventDetail({
 
   return (
     <div>
+      {/* 뒤로 화살표 선을 시트 여백 16 에 맞춘다(광학 정렬, 빠른 추가와 같음). 버튼 칸은 왼쪽으로 내밀고 누르는 영역 44 는 hit 가 유지 (#174 L9) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
         <button
           type="button"
           onClick={onBack}
-          className="hit -ml-1.5 flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-0.5 pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
+          className="hit -ml-2 flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-0.5 pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
         >
           <IconChevronLeft size={18} className="shrink-0" />
           <span className="truncate">{backLabel}</span>
@@ -66,41 +67,57 @@ export function EventDetail({
       <h2 id={titleId} tabIndex={-1} data-autofocus className="mt-1 text-[20px] font-bold leading-7 tracking-[-0.02em] break-words outline-none">
         {ev.title}
       </h2>
-      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-sm bg-surface px-3.5 py-2.5">
-        <div>
+      {/* 같은 날이면 날짜는 한 번, 시각은 '10:30 → 12:00' (#174 L8). 여러 날이면 시작, 끝 칸에 날짜를 각각 */}
+      {startKey === endKey ? (
+        <div className="mt-2 rounded-sm bg-surface px-3.5 py-2.5">
           <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
-          <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.startsAt)}</b>
+          <b className="flex items-center gap-1.5 text-[15px] font-bold leading-5">
+            {ev.allDay ? (
+              "종일"
+            ) : (
+              <>
+                {timeOf(ev.startsAt)}
+                <IconArrowRight size={14} className="text-ink-2" />
+                <span className="sr-only">부터</span>
+                {timeOf(ev.endsAt)}
+              </>
+            )}
+          </b>
         </div>
-        <IconArrowRight size={16} className="text-ink-2" />
-        <div className="text-right">
-          <small className="block text-[12px] leading-4 text-ink-2">{short(endKey)}</small>
-          <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.endsAt)}</b>
+      ) : (
+        <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-sm bg-surface px-3.5 py-2.5">
+          <div>
+            <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
+            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.startsAt)}</b>
+          </div>
+          <IconArrowRight size={16} className="text-ink-2" />
+          <div className="text-right">
+            <small className="block text-[12px] leading-4 text-ink-2">{short(endKey)}</small>
+            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.endsAt)}</b>
+          </div>
         </div>
-      </div>
+      )}
       {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
       <p className="mt-2.5 text-[12px] leading-4 text-ink-2">
         {stamp(ev.createdAt)} 등록{edited ? ` · ${stamp(ev.updatedAt)} 수정` : ""}
       </p>
-      <div className="mt-4 flex gap-2">
+      {/* 세 버튼 같은 폭 (#167). 위계는 색으로: 수정 주 버튼, 복제 보조 면, 삭제 보조 면 + 위험 글자. 시트와 팝오버가 같다 */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
         <button
           type="button"
           onClick={() => router.push(`/g/${groupId}/events/${ev.id}`)}
-          className="h-11 flex-1 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
+          className="h-11 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
         >
           수정
         </button>
         <button
           type="button"
           onClick={() => router.push(`/g/${groupId}/events/new?copy=${ev.id}`)}
-          className="h-11 flex-1 rounded-md bg-hover text-[13.5px] font-bold hover:brightness-95"
+          className="h-11 rounded-md bg-hover text-[13.5px] font-bold hover:brightness-95"
         >
           복제
         </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="h-11 shrink-0 basis-14 rounded-md bg-hover px-3 text-[13.5px] font-bold text-danger hover:brightness-95"
-        >
+        <button type="button" onClick={onDelete} className="h-11 rounded-md bg-hover text-[13.5px] font-bold text-danger hover:brightness-95">
           삭제
         </button>
       </div>

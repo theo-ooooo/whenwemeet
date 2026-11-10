@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { ErrorState, MemberDot, SkeletonList } from "@/components/ui";
+import { IconBell } from "@/components/icons";
+import { EmptyState, ErrorState, MemberDot, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
 import { dateKeyOf, formatDateKo, formatEventTime, formatRelative } from "@/lib/date";
 import type { NewsItem } from "@/lib/types";
@@ -33,7 +34,7 @@ export function NewsScreen({ groupId }: { groupId: number }) {
 
   return (
     <div className="pt-1">
-      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
+      <div className="flex h-10 items-center justify-between">
         <h1 className="t-title">새 소식</h1>
         <button
           type="button"
@@ -50,17 +51,18 @@ export function NewsScreen({ groupId }: { groupId: number }) {
         ) : news === null ? (
           <SkeletonList rows={3} />
         ) : news.items.length === 0 ? (
-          <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
-            아직 새 소식이 없어요.
-            <br />
+          <EmptyState icon={<IconBell size={20} />} title="아직 새 소식이 없어요">
             팀원이 일정을 바꾸면 여기에 모여요
-          </p>
+          </EmptyState>
         ) : (
           <ul className="rounded-xl bg-paper px-1.5 py-1.5">
             {news.items.map((item) => {
               const clickable = item.eventId && item.action !== "DELETED";
               const body = (
                 <>
+                  {/* 새 항목은 행 왼쪽 6px 점 하나로 (#174 L14). 배지 글자 반복 대신 */}
+                  <i aria-hidden="true" className={`mt-[7px] -mr-1 block size-1.5 shrink-0 rounded-full ${item.isNew ? "bg-pri" : ""}`} />
+                  {item.isNew && <span className="sr-only">새 소식,</span>}
                   <MemberDot color={item.actor.color} size={8} className="mt-1.5" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] leading-5">
@@ -75,7 +77,6 @@ export function NewsScreen({ groupId }: { groupId: number }) {
                     </span>
                   </span>
                   <span className="shrink-0 text-right text-[12px] leading-4 text-ink-2">
-                    {item.isNew && <span className="mb-0.5 flex items-center justify-end gap-1 font-bold text-ink"><i aria-hidden="true" className="block size-1.5 rounded-full bg-pri" />새 소식</span>}
                     {formatRelative(item.createdAt)}
                   </span>
                 </>

@@ -28,7 +28,11 @@ type GroupCtx = {
   clearUnread: () => void;
   /** 팀 전환 시트 열기 (레일 폭에서 달력 월 헤더의 팀 이름이 쓴다) */
   openSwitcher: () => void;
+  /** 화면별 + 동작 (#170). 화면이 정하면 폰 + 와 레일 + 가 일정 추가 대신 이것을 부른다. null 이면 일정 추가 */
+  setFabAction: (a: FabAction | null) => void;
 };
+
+export type FabAction = { label: string; run: () => void };
 
 const Ctx = createContext<GroupCtx | null>(null);
 
@@ -122,8 +126,9 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   );
 
   const openSwitcher = useCallback(() => setSwitcher(true), []);
+  const [fabAction, setFabAction] = useState<FabAction | null>(null);
   const value = useMemo<GroupCtx>(
-    () => ({ groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher }),
+    () => ({ groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setFabAction }),
     [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher],
   );
 
@@ -175,13 +180,24 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="grid size-10 place-items-center rounded-sm">
             <Symbol size={24} />
           </Link>
-          <Link
-            href={newHref}
-            aria-label="일정 추가"
-            className="mb-2 mt-1 grid size-12 place-items-center rounded-md bg-pri text-on-pri shadow-[var(--fab-shadow)] hover:brightness-95"
-          >
-            <IconPlus size={24} strokeWidth={2.2} />
-          </Link>
+          {fabAction ? (
+            <button
+              type="button"
+              onClick={fabAction.run}
+              aria-label={fabAction.label}
+              className="mb-2 mt-1 grid size-12 place-items-center rounded-md bg-pri text-on-pri shadow-[var(--fab-shadow)] hover:brightness-95"
+            >
+              <IconPlus size={24} strokeWidth={2.2} />
+            </button>
+          ) : (
+            <Link
+              href={newHref}
+              aria-label="일정 추가"
+              className="mb-2 mt-1 grid size-12 place-items-center rounded-md bg-pri text-on-pri shadow-[var(--fab-shadow)] hover:brightness-95"
+            >
+              <IconPlus size={24} strokeWidth={2.2} />
+            </Link>
+          )}
           <nav aria-label="주요 화면">
             <ul className="flex flex-col gap-1">
               {menu.map((it) => (
@@ -205,7 +221,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </ul>
           </nav>
           <Link href="/me" aria-label="내 정보" className="mt-auto grid size-11 place-items-center rounded-full">
-            {group ? <Avatar member={group.me} size={40} /> : <Skeleton className="size-10 rounded-full" />}
+            {group ? <Avatar member={group.me} color={group.me.color} size={40} /> : <Skeleton className="size-10 rounded-full" />}
           </Link>
         </aside>
 
@@ -272,7 +288,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </li>
           </ul>
           <Link href="/me" className="mt-auto flex h-11 items-center gap-2 rounded-sm px-2 text-[13px] font-semibold hover:bg-hover">
-            {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
+            {group ? <Avatar member={group.me} color={group.me.color} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             <span className="min-w-0 flex-1 truncate">{group?.me.displayName ?? ""}</span>
             <span className="text-[12px] font-normal text-ink-2">설정</span>
           </Link>
@@ -325,13 +341,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               </span>
             </Link>
             <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-              {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
+              {group ? <Avatar member={group.me} color={group.me.color} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             </Link>
           </header>
 
           <main
             className={`flex-1 px-4 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-0 fold:pb-0 ${
-              isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 lg:max-w-[720px] lg:px-8 wide:py-6"
+              isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 fold:pt-2 lg:max-w-[720px] lg:px-8 wide:pb-6"
             }`}
           >
             {children}
@@ -359,13 +375,25 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               })}
             </ul>
           </nav>
-          <Link
-            href={newHref}
-            aria-label="일정 추가"
-            className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
-          >
-            <IconPlus size={26} strokeWidth={2.2} />
-          </Link>
+          {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170) */}
+          {fabAction ? (
+            <button
+              type="button"
+              onClick={fabAction.run}
+              aria-label={fabAction.label}
+              className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+            >
+              <IconPlus size={26} strokeWidth={2.2} />
+            </button>
+          ) : (
+            <Link
+              href={newHref}
+              aria-label="일정 추가"
+              className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+            >
+              <IconPlus size={26} strokeWidth={2.2} />
+            </Link>
+          )}
         </div>
       </div>
 

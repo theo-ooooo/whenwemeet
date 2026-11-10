@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/Toast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
-import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass } from "@/components/ui";
+import { Button, ConfirmDialog, Field, MemberDot, Skeleton, Toggle, inputClass, titleInputClass } from "@/components/ui";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
 import { charCount, clampChars } from "@/lib/chars";
@@ -238,7 +238,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
 
   return (
     <form onSubmit={save} className="pt-1">
-      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
+      <div className="flex h-10 items-center justify-between">
         <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
         <button
           type="button"
@@ -264,13 +264,14 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
         </div>
       ) : (
         <div className="mt-3 space-y-2">
+          {/* 제목은 빠른 추가와 같은 44 상자 + 16/600 (#174 L3) */}
           <div className="rounded-xl bg-paper px-3.5 py-3">
             <label htmlFor="ev-title" className="sr-only">
               제목
             </label>
             <input
               id="ev-title"
-              className="w-full bg-transparent text-[20px] font-bold leading-7 tracking-[-0.02em] placeholder:font-bold placeholder:text-faint focus:outline-none"
+              className={titleInputClass}
               placeholder="무슨 일정인가요?"
               value={title}
               onChange={(e) => {

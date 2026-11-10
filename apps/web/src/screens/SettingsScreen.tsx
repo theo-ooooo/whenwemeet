@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { IconCheck } from "@/components/icons";
-import { Avatar, Button, ConfirmDialog, ErrorState, MemberDot, Skeleton, inputClass } from "@/components/ui";
+import { NameEditRow } from "@/components/NameEditRow";
+import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -25,7 +26,9 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
 
   return (
     <div className="space-y-2 pt-1">
-      <h1 className="t-title mt-2 lg:mt-0">팀 설정</h1>
+      <div className="flex h-10 items-center">
+        <h1 className="t-title">팀 설정</h1>
+      </div>
       {group ? (
         <>
           <NameSection group={group} onSaved={setGroup} />
@@ -62,62 +65,20 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[13px] font-bold leading-5">{children}</h2>;
 }
 
-/* 팀 이름 */
+/* 팀 이름 (#171 이름 바꾸기 공통 모양) */
 function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupDetail) => void }) {
-  const toast = useToast();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(group.name);
   const { mutate, isPending: saving } = useUpdateGroup(group.id);
-  const valid = name.trim().length >= 1 && name.trim().length <= 30;
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
-    const r = await mutate({ name: name.trim() });
-    if (!r.ok) {
-      toast.show(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
-      return;
-    }
+  async function save(name: string): Promise<string | null> {
+    const r = await mutate({ name });
+    if (!r.ok) return messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요");
     onSaved(r.data);
-    setEditing(false);
+    return null;
   }
 
   return (
     <section className="rounded-xl bg-paper px-3.5 py-3.5">
-      <SectionTitle>팀 이름</SectionTitle>
-      {editing ? (
-        <form onSubmit={save} className="mt-2 flex gap-2">
-          <input
-            aria-label="팀 이름"
-            className={inputClass}
-            value={name}
-            maxLength={30}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-          <Button type="submit" disabled={!valid} loading={saving}>
-            저장
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              setEditing(false);
-              setName(group.name);
-            }}
-          >
-            취소
-          </Button>
-        </form>
-      ) : (
-        <div className="mt-1 flex items-center justify-between gap-3">
-          {/* 설정 카드는 이름 전체를 보여 준다. 긴 이름은 두 줄까지 (#140 L14) */}
-          <p className="line-clamp-2 min-w-0 text-[18px] font-bold leading-6 tracking-[-0.02em]">{group.name}</p>
-          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
-            이름 바꾸기
-          </Button>
-        </div>
-      )}
+      <NameEditRow label="팀 이름" value={group.name} max={30} saving={saving} onSave={save} />
     </section>
   );
 }
@@ -201,6 +162,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
         title="초대 코드를 다시 만들까요?"
         body="이전 링크는 더 이상 쓸 수 없어요"
         confirmLabel="재발급"
+        neutral
         loading={rotating}
         onConfirm={rotate}
         onCancel={() => setConfirm(false)}
@@ -219,9 +181,9 @@ function MembersSection({ group }: { group: GroupDetail }) {
           const isMe = m.userId !== null && m.userId === group.me.userId;
           return (
             <li key={m.userId ?? m.displayName} className="flex min-h-11 items-center gap-2.5 py-1.5">
-              <Avatar member={m} size={28} />
+              {/* 멤버 색은 아바타가 진다 (이니셜 바탕, 사진 링). 따로 점을 두지 않는다 (#168) */}
+              <Avatar member={m} color={m.color} size={28} />
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                <MemberDot color={m.color} size={8} />
                 <span className="truncate text-[15px] font-semibold">{m.displayName}</span>
                 {isMe && <span className="text-[12px] text-ink-2">(나)</span>}
               </span>
@@ -233,78 +195,74 @@ function MembersSection({ group }: { group: GroupDetail }) {
   );
 }
 
-/* 내 표시 */
+/* 내 표시: 색은 누르면 바로 저장, 표시 이름은 이름 바꾸기 공통 모양 (#171) */
 function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupDetail) => void }) {
   const toast = useToast();
-  const [color, setColor] = useState(group.me.color);
-  const [displayName, setDisplayName] = useState(group.me.displayName);
-  const { mutate, isPending: saving } = useUpdateMembership(group.id);
-  const palette = Array.from(new Set<string>([...PICKABLE_COLORS, group.me.color.toUpperCase()]));
-  const dirty = color !== group.me.color || displayName.trim() !== group.me.displayName;
+  const { mutate, isPending } = useUpdateMembership(group.id);
+  const [pending, setPending] = useState<"color" | "name" | null>(null);
+  const color = group.me.color;
+  const palette = Array.from(new Set<string>([...PICKABLE_COLORS, color.toUpperCase()]));
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    const r = await mutate({ color, displayName: displayName.trim() === "" ? null : displayName.trim() });
-    if (!r.ok) {
-      toast.show(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
-      return;
-    }
+  async function update(input: { color: string; displayName: string | null }, what: "color" | "name") {
+    setPending(what);
+    const r = await mutate(input);
+    setPending(null);
+    if (!r.ok) return messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요");
     const me = r.data;
     onSaved({
       ...group,
       me,
       members: group.members.map((m) => (m.userId === me.userId ? { ...m, ...me } : m)),
     });
-    setDisplayName(me.displayName);
-    toast.show("내 표시를 저장했어요");
+    return null;
+  }
+
+  async function pickColor(c: string) {
+    if (isPending || c.toUpperCase() === color.toUpperCase()) return;
+    const failed = await update({ color: c, displayName: group.me.displayName }, "color");
+    toast.show(failed ?? "내 색을 바꿨어요");
   }
 
   return (
     <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <SectionTitle>이 팀에서 내 표시</SectionTitle>
-      <form onSubmit={save}>
-        <fieldset className="mt-2">
-          <legend className="sr-only">내 색</legend>
-          <div className="flex flex-wrap gap-3">
-            {palette.map((c) => {
-              const selected = c.toUpperCase() === color.toUpperCase();
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={COLOR_NAMES[PICKABLE_COLORS.indexOf(c as (typeof PICKABLE_COLORS)[number])] ?? "지금 색"}
-                  onClick={() => setColor(c)}
-                  className="hit flex size-8 items-center justify-center rounded-full"
-                  style={{
-                    backgroundColor: memberColor(c),
-                    boxShadow: selected ? `0 0 0 2px var(--tile), 0 0 0 4px ${memberColor(c)}` : undefined,
-                  }}
-                >
-                  {selected && <IconCheck size={16} strokeWidth={2.6} style={{ color: ON_MEMBER_COLOR }} />}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-        <label htmlFor="me-name" className="mt-3.5 block text-[12px] font-medium text-ink-2">
-          표시 이름
-        </label>
-        <div className="mt-1.5 flex gap-2">
-          <input
-            id="me-name"
-            className={inputClass}
-            value={displayName}
-            maxLength={20}
-            placeholder="비우면 내 닉네임"
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-          <Button type="submit" disabled={!dirty} loading={saving}>
-            저장
-          </Button>
+      <fieldset className="mt-2" aria-busy={pending === "color" || undefined}>
+        <legend className="sr-only">내 색</legend>
+        <div className="flex flex-wrap gap-3">
+          {palette.map((c) => {
+            const selected = c.toUpperCase() === color.toUpperCase();
+            return (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                aria-label={COLOR_NAMES[PICKABLE_COLORS.indexOf(c as (typeof PICKABLE_COLORS)[number])] ?? "지금 색"}
+                onClick={() => void pickColor(c)}
+                disabled={pending === "color"}
+                className="hit flex size-8 items-center justify-center rounded-full disabled:cursor-wait"
+                style={{
+                  backgroundColor: memberColor(c),
+                  boxShadow: selected ? `0 0 0 2px var(--tile), 0 0 0 4px ${memberColor(c)}` : undefined,
+                }}
+              >
+                {selected && <IconCheck size={16} strokeWidth={2.6} style={{ color: ON_MEMBER_COLOR }} />}
+              </button>
+            );
+          })}
         </div>
-      </form>
+      </fieldset>
+      <div className="mt-3.5">
+        <NameEditRow
+          label="표시 이름"
+          value={group.me.displayName}
+          max={20}
+          allowEmpty
+          placeholder="비우면 내 닉네임"
+          saving={pending === "name"}
+          onSave={(next) => update({ color, displayName: next === "" ? null : next }, "name")}
+        />
+      </div>
     </section>
   );
 }

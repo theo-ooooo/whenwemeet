@@ -1,14 +1,14 @@
 "use client";
-import { forwardRef, useEffect, useId, useRef } from "react";
+import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import { IconClose } from "./icons";
-import { memberColor } from "@/lib/colors";
+import { memberColor, ON_MEMBER_COLOR } from "@/lib/colors";
 import type { Member } from "@/lib/types";
 
 /* ---------- 버튼 ---------- */
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill";
-  size?: "lg" | "md" | "sm";
+  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill" | "outline" | "ink";
+  size?: "xl" | "lg" | "md" | "sm";
   loading?: boolean;
   full?: boolean;
 };
@@ -22,8 +22,14 @@ const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
   danger: "bg-hover text-danger hover:brightness-95 disabled:text-ink-2",
   // 되돌릴 수 없는 마지막 확인(회원 탈퇴, 삭제 확인 창). 비활성은 주 버튼과 같은 회색 (#134)
   dangerFill: "bg-danger text-on-btn hover:brightness-95 disabled:bg-line disabled:text-ink-2",
+  // 페이지 바탕(--bg) 위 보조 버튼. --hover 면은 라이트에서 바탕과 같은 색이라 안 보이므로 타일 면 + 1px 선 (#166)
+  outline: "border border-line bg-paper text-ink hover:brightness-95 disabled:text-ink-2",
+  // 되돌릴 수 있지만 무게가 있는 확인(코드 재발급). 위험 빨강과 헷갈리지 않게 먹색 면 (#174 L10)
+  ink: "bg-ink text-paper hover:brightness-110 disabled:bg-line disabled:text-ink-2",
 };
 const sizeClass: Record<NonNullable<ButtonProps["size"]>, string> = {
+  // 카카오, 애플 버튼(SocialLoginButton)과 같은 줄에 쌓이는 버튼: 48, 모서리 12, 15/700 (#166)
+  xl: "h-12 rounded-md px-5 text-[15px] font-bold",
   lg: "h-11 rounded-md px-5 text-[13.5px] font-bold",
   md: "h-11 rounded-md px-4 text-[13.5px] font-bold",
   sm: "hit h-8 rounded-sm px-3 text-[13px] font-bold",
@@ -61,6 +67,10 @@ export function Spinner({ className = "" }: { className?: string }) {
 
 export const inputClass =
   "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-3 text-[14px] leading-5 font-normal text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
+
+/** 일정 제목 입력 (#174 L3): 빠른 추가와 일정 작성이 같은 모양. 44 상자 + 16/600. 상자, 바탕, 포커스는 inputClass 와 같다 */
+export const titleInputClass =
+  "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-2.5 text-[16px] leading-6 font-semibold tracking-[-0.01em] text-ink placeholder:font-semibold placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
 
 type FieldProps = {
   label: string;
@@ -131,32 +141,9 @@ export function Toggle({
   );
 }
 
-/* ---------- 칩 ---------- */
-
-export function Chip({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`anim-pick hit h-8 shrink-0 rounded-sm px-3 text-[13px] ${selected ? "border-[1.5px] border-acc-ink font-bold text-acc-ink" : "border border-line font-medium text-soft hover:text-ink"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /* ---------- 세그먼트 ---------- */
 
-/** 2~4개 중 하나 고르기 (내 정보 테마, 기념일 종류). 선택 칸은 --seg-on 면 + --seg-edge 테두리 (#135) */
+/** 2~4개 중 하나 고르기 (내 정보 테마, 기념일 종류, 빈 시간 기간/최소 길이 #174 L2). 선택 칸은 --seg-on 면 + --seg-edge 테두리 (#135) */
 export function Segmented<T extends string>({
   labelledBy,
   value,
@@ -234,30 +221,67 @@ export function MemberDot({ color, size = 8, className = "", round = true }: { c
   );
 }
 
-/** 프로필: 사진이 있으면 사진, 없으면 먹색 원에 이름 첫 글자 (기본 28) */
-export function Avatar({ member, size = 28 }: { member: Pick<Member, "displayName" | "profileImageUrl">; size?: number }) {
+/**
+ * 프로필 (기본 28). 사진이 있으면 사진, 없으면 이니셜 원 (#168)
+ * - color(멤버 색 키)가 있으면 이니셜 바탕을 멤버 색, 글자는 --on-member (D-57: 라이트 흰색, 다크 #121214). 사진에는 2px 멤버 색 링
+ * - color 가 없으면(팀 밖 내 정보) 중립 원 (--faint 바탕, --ink 글자)
+ * - 새 사진을 받는 동안에는 이전 사진(없으면 이니셜)을 그대로 둔다 (#174 L6)
+ */
+export function Avatar({
+  member,
+  size = 28,
+  color,
+}: {
+  member: Pick<Member, "displayName" | "profileImageUrl">;
+  size?: number;
+  color?: string | null;
+}) {
   const initial = member.displayName.trim().slice(0, 1) || "?";
-  if (member.profileImageUrl) {
-    return (
-      // 외부(카카오) 이미지라 next/image 도메인 설정 대신 img 를 쓴다
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={member.profileImageUrl}
-        alt=""
-        width={size}
-        height={size}
-        className="shrink-0 rounded-full object-cover"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
+  const src = member.profileImageUrl;
+  // 마지막으로 다 받은 사진 주소. 새 주소를 받는 동안 이전 사진을 밑에 깔아 둔다
+  const [ready, setReady] = useState<string | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    // 하이드레이션 전에 이미 받은(캐시) 사진은 onLoad 가 안 올 수 있다
+    const img = imgRef.current;
+    if (src && img?.complete && img.naturalWidth > 0) setReady(src);
+  }, [src]);
+  const tint = color ? memberColor(color) : null;
+  const ring = tint && src ? 2 : 0;
+  const shown = src && ready === src;
+  const under = !shown && ready && ready !== src ? ready : null;
+  const imgStyle = { inset: ring, width: size - ring * 2, height: size - ring * 2 };
   return (
     <span
       aria-hidden="true"
-      className="inline-grid shrink-0 place-items-center rounded-full bg-ink text-surface"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.43), fontWeight: 700 }}
+      className={`relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full ${tint ? "" : "bg-faint text-ink"}`}
+      style={{
+        width: size,
+        height: size,
+        backgroundColor: tint ?? undefined,
+        color: tint ? ON_MEMBER_COLOR : undefined,
+        fontSize: Math.round(size * 0.43),
+        fontWeight: 700,
+      }}
     >
       {initial}
+      {under && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={under} alt="" className="absolute rounded-full bg-surface object-cover" style={imgStyle} />
+      )}
+      {src && (
+        // 외부(카카오) 이미지라 next/image 도메인 설정 대신 img 를 쓴다
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={imgRef}
+          key={src}
+          src={src}
+          alt=""
+          onLoad={() => setReady(src)}
+          className={`absolute rounded-full bg-surface object-cover transition-opacity duration-150 ${shown ? "opacity-100" : "opacity-0"}`}
+          style={imgStyle}
+        />
+      )}
     </span>
   );
 }
@@ -342,6 +366,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "취소",
   danger = false,
+  neutral = false,
   loading = false,
   onConfirm,
   onCancel,
@@ -353,6 +378,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** 위험은 아니지만 주 버튼(코랄) 대신 먹색으로 (#174 L10) */
+  neutral?: boolean;
   loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -383,7 +410,7 @@ export function ConfirmDialog({
           <Button ref={cancelRef} variant="secondary" full onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
-          <Button variant={danger ? "dangerFill" : "primary"} full onClick={onConfirm} loading={loading}>
+          <Button variant={danger ? "dangerFill" : neutral ? "ink" : "primary"} full onClick={onConfirm} loading={loading}>
             {confirmLabel}
           </Button>
         </div>
@@ -394,9 +421,27 @@ export function ConfirmDialog({
 
 /* ---------- 상태 블록 ---------- */
 
-export function EmptyState({ children }: { children: React.ReactNode }) {
+/** 빈 상태 (#174 L5): 카드 가운데, 아이콘 20 을 원 40 에 + 제목 14/600 + 보조 12/400. 날짜 시트의 빈 날과 같은 모양 */
+export function EmptyState({
+  icon,
+  title,
+  children,
+  className = "py-6",
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children?: React.ReactNode;
+  /** 세로 여백. 카드 안에 넣을 때는 줄인다 */
+  className?: string;
+}) {
   return (
-    <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">{children}</p>
+    <div className={`flex flex-col items-center rounded-xl bg-paper px-4 text-center ${className}`}>
+      <span aria-hidden="true" className="grid size-10 place-items-center rounded-full bg-hover text-acc-ink">
+        {icon}
+      </span>
+      <p className="mt-2.5 text-[14px] font-semibold leading-5 text-ink">{title}</p>
+      {children && <p className="mt-0.5 text-[12px] leading-4 text-ink-2">{children}</p>}
+    </div>
   );
 }
 
