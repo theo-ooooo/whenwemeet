@@ -39,6 +39,7 @@ model User {
   avatar        File?          @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]         @relation("FileOwner")
   authAccounts  AuthAccount[]
+  authHandoffs  AuthHandoff[]
   memberships   Membership[]
   createdEvents Event[]        @relation("EventCreator")
   anniversaries Anniversary[]  @relation("AnniversaryCreator")
@@ -54,7 +55,7 @@ enum AuthProvider {
   DEV
 }
 
-/// 한 사용자에 여러 소셜 계정을 연결할 수 있다 (MVP 는 KAKAO 하나)
+/// 한 사용자에 여러 소셜 계정을 연결할 수 있다 (MVP 는 KAKAO 하나, 앱 출시부터 APPLE)
 model AuthAccount {
   id             Int       @id @default(autoincrement())
   userId         Int
@@ -65,6 +66,10 @@ model AuthAccount {
   email          String?      @db.VarChar(255)
   /// 제공자 쪽 원본 프로필(닉네임, 이미지 등). 로그인마다 갱신
   rawProfile     Json?
+  /// 토큰을 발급받은 client_id (애플: 번들 ID 또는 Service ID). 탈퇴 시 폐기를 같은 값으로 호출 (앱.md 3.5)
+  providerClientId String?    @db.VarChar(191)
+  /// 제공자 refresh token (애플만). 탈퇴 시 revoke 에만 쓴다. 사용에 .p8 서명이 필요해 평문 저장 (D-51)
+  refreshToken   String?      @db.Text
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -72,6 +77,25 @@ model AuthAccount {
 
   @@unique([provider, providerUserId])
   @@index([userId])
+}
+
+/// 앱 로그인 결과를 웹뷰 세션 쿠키로 넘기는 60초 1회용 토큰 (앱.md 2장, D-44, D-49)
+model AuthHandoff {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  /// sha256hex(토큰). 원문은 저장하지 않는다
+  tokenHash     String    @unique @db.Char(64)
+  /// base64url(sha256(verifier)). 교환 시 verifier 로 대조
+  codeChallenge String    @db.VarChar(64)
+  expiresAt     DateTime
+  /// 교환된 시각. null 이 아니면 재사용 불가
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// 팀. personal / team 모두 같은 모델. 마지막 멤버가 나가면 삭제
@@ -141,6 +165,8 @@ model Anniversary {
   name      String   @db.VarChar(30)
   /// 기념일 날짜 (KST 달력 날짜). 시각 없음
   date      DateTime @db.Date
+  /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP (마이그레이션 20261110023225_anniversary_kind, #106). 항목 계산은 클라이언트 (D-60)
+  kind      AnniversaryKind @default(COUNT_UP)
   creatorId Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -149,6 +175,16 @@ model Anniversary {
   creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, date])
+}
+
+/// (#105) 기념일 종류
+/// COUNT_UP: 시작일 = 1일로 세어 100일 단위(1000일까지, 이후 1000일 단위)와 N주년 표시 (처음 만난 날)
+/// YEARLY: 매년 같은 월일 표시, 2/29 는 평년 2/28 (생일)
+/// ONCE: 그날 하나만 (시험일)
+enum AnniversaryKind {
+  COUNT_UP
+  YEARLY
+  ONCE
 }
 
 /// 새 소식용 일정 변경 이력. 일정이 삭제돼도 남아야 하므로 제목/시각을 스냅샷으로 복사해 둔다
@@ -195,8 +231,9 @@ model File {
   bucket    String          @db.VarChar(100)
   /// 객체 키. 예: avatars/12/01JCK....webp
   key       String          @db.VarChar(300)
-  /// 조회 시 조인 없이 바로 쓰는 공개 URL (provider+bucket+key 로 재계산 가능)
-  publicUrl String          @db.VarChar(500)
+  /// 사용 중단 (D-56). 도메인을 DB 에 두지 않는다. 공개 URL 은 응답 시 provider+key 와 환경 변수(R2_PUBLIC_BASE_URL) 로 만든다.
+  /// 코드는 읽지도 쓰지도 않는다. 다음 릴리스에서 컬럼 DROP (#100)
+  publicUrl String?         @db.VarChar(500)
   mimeType  String          @db.VarChar(100)
   /// 바이트
   size      Int
@@ -205,7 +242,7 @@ model File {
   kind      FileKind
   /// 올린 사람. 탈퇴 시 이 사용자의 파일을 한 번에 정리
   ownerId   Int
-  /// 외부에서 복사해 온 경우 원본 주소 (카카오 프로필 등)
+  /// 외부에서 복사해 온 경우 원본 주소 (카카오 프로필 CDN 등). 우리 도메인이 아니라 출처 기록이므로 그대로 저장. 응답에 쓰지 않음
   sourceUrl String?         @db.VarChar(500)
   createdAt DateTime        @default(now())
 

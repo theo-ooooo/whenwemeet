@@ -3,7 +3,7 @@
 이 디렉토리 안에서 작업할 때는 상위 `cce-ai-hub/CLAUDE.md` 대신 **이 파일을 따른다** (CCE 규칙은 적용하지 않음).
 
 ## 한 줄 정의
-개인 / 커플 / 가족 / 팀이 하나의 달력을 같이 쓰며 "언제 볼까?" 를 바로 잡는 공유 일정 서비스. 실서비스 목표. 모바일 웹 우선.
+개인 / 커플 / 가족 / 팀이 하나의 달력을 같이 쓰며 "언제 볼까?" 를 바로 잡는 공유 일정 서비스. 실서비스 목표. 모바일 웹 우선, 같은 웹을 띄우는 iOS/Android 앱(Expo 셸) 병행.
 
 ## 확정 사항 (2026-11-09)
 | 항목 | 결정 |
@@ -16,12 +16,13 @@
 | 백엔드 | NestJS 12 — `apps/api`, prefix `/v1` |
 | DB | MySQL 8 (docker-compose) + **Prisma** |
 | 인증 | 카카오 로그인을 NestJS 가 직접 OAuth 처리 → 자체 JWT 발급. 브라우저는 httpOnly 쿠키, Next route handler 가 API 로 프록시 |
+| 앱 | Expo 셸 + WebView 로 `whenwemeet.day` 를 띄움 — `apps/mobile`. 번들/패키지 `day.whenwemeet.app`, 로그인은 카카오 SDK + Sign in with Apple, 세션은 handoff → 웹 쿠키 (D-42 ~ D-48, `docs/기획/앱.md`) |
 | 패키지 | pnpm workspace (`apps/*`) |
 | 언어 | 코드 주석, 문서, 커밋 메시지 한국어 |
 
 ## 파이프라인
 ```
-/기획 → 기획 승인 → /설계 → 설계 승인 → /백엔드 + /프론트 + /인프라 (병렬) → /QA
+/기획 → 기획 승인 → /설계 → 설계 승인 → /백엔드 + /프론트 + /모바일 + /인프라 (병렬) → /QA
 ```
 - 각 단계는 `agents/<역할>.md` 를 **먼저 읽고** 그 범위 안에서만 작업한다.
 - 승인은 사용자가 "기획 승인", "설계 승인" 으로 입력.
@@ -34,6 +35,7 @@
 | 설계 | `agents/design.md` | `docs/설계/` | 화면 흐름, API 명세, Prisma 스키마 초안 |
 | 백엔드 | `agents/backend.md` | `apps/api/`, `apps/api/prisma/` | Nest 모듈, 마이그레이션, 테스트 |
 | 프론트 | `agents/frontend.md` | `apps/web/` | 화면, 컴포넌트, 프록시 라우트 |
+| 모바일 | `agents/mobile.md` | `apps/mobile/` | Expo 셸, 네이티브 로그인, 브리지, EAS 빌드 설정 |
 | 인프라 | `agents/infra.md` | `docker-compose.yml`, `.env.example`, 배포 설정 | 로컬 환경, 배포 절차 |
 | QA | `agents/qa.md` | `docs/QA/` | 시나리오 테스트 결과 |
 
@@ -45,7 +47,7 @@
 - 커밋: `<type>: 메시지 (#이슈번호)` — type 은 feat, fix, docs, chore, refactor, test, infra
 - PR 제목 = 커밋 type 규칙과 동일. 본문은 `.github/PULL_REQUEST_TEMPLATE.md` 채움. 기능/수정 PR(→ develop) 머지는 squash
 - GATE 승인(기획/설계) 은 **해당 PR 승인 또는 "기획 승인" 댓글** 로 대체
-- 이슈 라벨: `planning` `design` `backend` `frontend` `infra` `qa` `bug`. 마일스톤 `MVP`
+- 이슈 라벨: `planning` `design` `backend` `frontend` `mobile` `infra` `qa` `bug`. 마일스톤 `MVP`
 - **병렬 작업은 각자 `git worktree`** 에서 한다 (`git worktree add ../whenwemeet-<이슈> -b <브랜치> develop`). 한 워킹 트리에서 두 에이전트가 브랜치를 바꾸면 서로의 파일이 섞인다
 
 ## 토큰 절약 규칙
@@ -62,6 +64,7 @@ whenwemeet/
   docs/기획 docs/설계 docs/QA docs/status
   apps/web           ← Next.js
   apps/api           ← NestJS (+ prisma/)
+  apps/mobile        ← Expo 셸 (WebView)
   docker-compose.yml ← MySQL (인프라 단계에서 생성)
 ```
 

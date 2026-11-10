@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import type { AnniversaryKind } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
+import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export const ANNIVERSARY_SELECT = {
@@ -7,6 +9,7 @@ export const ANNIVERSARY_SELECT = {
   groupId: true,
   name: true,
   date: true,
+  kind: true,
   creatorId: true,
   createdAt: true,
   creator: USER_PUBLIC_SELECT,
@@ -17,6 +20,7 @@ export interface AnniversaryRow {
   groupId: number;
   name: string;
   date: Date;
+  kind: AnniversaryKind;
   creatorId: number | null;
   createdAt: Date;
   creator: UserRow | null;
@@ -24,25 +28,30 @@ export interface AnniversaryRow {
 
 type AnniversaryRecord = Omit<AnniversaryRow, 'creator'> & { creator: UserPublicRecord | null };
 
-function toAnniversaryRow(record: AnniversaryRecord): AnniversaryRow {
-  return { ...record, creator: toUserRowOrNull(record.creator) };
+function toAnniversaryRow(record: AnniversaryRecord, urls: FileUrlBuilder): AnniversaryRow {
+  return { ...record, creator: toUserRowOrNull(record.creator, urls) };
 }
 
 export interface AnniversaryCreateInput {
   groupId: number;
   name: string;
   date: Date;
+  kind: AnniversaryKind;
   creatorId: number;
 }
 
 export interface AnniversaryUpdateInput {
   name?: string;
   date?: Date;
+  kind?: AnniversaryKind;
 }
 
 @Injectable()
 export class AnniversariesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly urls: FileUrlBuilder,
+  ) {}
 
   /** date 오름차순, 같은 날은 만든 순 */
   async listByGroup(groupId: number): Promise<AnniversaryRow[]> {
@@ -51,7 +60,7 @@ export class AnniversariesRepository {
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
       select: ANNIVERSARY_SELECT,
     });
-    return rows.map(toAnniversaryRow);
+    return rows.map((row) => toAnniversaryRow(row, this.urls));
   }
 
   /** 다른 팀 자원을 가리키는 ID 는 null */
@@ -60,11 +69,11 @@ export class AnniversariesRepository {
   }
 
   async create(data: AnniversaryCreateInput): Promise<AnniversaryRow> {
-    return toAnniversaryRow(await this.prisma.anniversary.create({ data, select: ANNIVERSARY_SELECT }));
+    return toAnniversaryRow(await this.prisma.anniversary.create({ data, select: ANNIVERSARY_SELECT }), this.urls);
   }
 
   async update(anniversaryId: number, data: AnniversaryUpdateInput): Promise<AnniversaryRow> {
-    return toAnniversaryRow(await this.prisma.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT }));
+    return toAnniversaryRow(await this.prisma.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT }), this.urls);
   }
 
   async delete(anniversaryId: number): Promise<void> {

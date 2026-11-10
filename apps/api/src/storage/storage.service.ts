@@ -3,7 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 
-/** R2 설정 변수 (docs/운영/cloudflare-r2.md). 하나라도 비면 저장소 미설정 */
+/**
+ * R2 설정 변수 (docs/운영/cloudflare-r2.md). 하나라도 비면 저장소 미설정.
+ * `R2_PUBLIC_BASE_URL` 은 여기서 쓰지 않고 FileUrlBuilder 가 읽지만, 올린 사진의 URL 을 돌려줄 수 있어야 하므로 업로드 조건에 넣는다 (D-56)
+ */
 export const R2_ENV_KEYS = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'] as const;
 
 /** 공개 URL 로 바로 서빙하므로 키는 매번 새로 만든다 (덮어쓰기 없음). 그래서 길게 캐시해도 된다 */
@@ -18,7 +21,6 @@ export class StorageService {
   readonly provider = 'R2' as const;
   private readonly client: S3Client | null = null;
   private readonly bucketName: string | null = null;
-  private readonly publicBaseUrl: string | null = null;
 
   constructor(config: ConfigService) {
     if (!R2_ENV_KEYS.every((key) => config.get<string>(key))) return;
@@ -31,7 +33,6 @@ export class StorageService {
       },
     });
     this.bucketName = config.getOrThrow<string>('R2_BUCKET');
-    this.publicBaseUrl = config.getOrThrow<string>('R2_PUBLIC_BASE_URL').replace(/\/+$/, '');
   }
 
   isConfigured(): boolean {
@@ -57,11 +58,6 @@ export class StorageService {
   /** 객체 삭제. 다른 버킷(이전 환경) 에 있는 파일이면 bucket 을 넘긴다. 없는 키도 성공 (S3 규약) */
   async delete(key: string, bucket: string = this.bucket): Promise<void> {
     await this.s3().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-  }
-
-  publicUrl(key: string): string {
-    this.assertConfigured();
-    return `${this.publicBaseUrl}/${key}`;
   }
 
   private s3(): S3Client {

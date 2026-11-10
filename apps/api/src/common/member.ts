@@ -1,3 +1,5 @@
+import { FILE_LOCATION_SELECT, type FileLocation, type FileUrlBuilder } from '../files/file-url.builder.js';
+
 /** 합류 시 자동 배정하는 멤버 색 팔레트 (api.md 2.2) */
 export const MEMBER_COLORS = [
   '#F26D6D',
@@ -48,24 +50,24 @@ export interface UserRow {
 }
 
 /**
- * 사람 정보가 필요한 조회의 User select. 사진은 File.publicUrl 에서 읽는다 (결정기록 D-38).
+ * 사람 정보가 필요한 조회의 User select. 사진은 File 의 provider/key 로 읽고 URL 은 FileUrlBuilder 가 만든다 (결정기록 D-38, D-56).
  * Repository 는 이 모양으로 읽고 `toUserRow` 로 `{ nickname, profileImageUrl }` 로 바꿔 돌려준다 (응답 계약 유지)
  */
-export const USER_PUBLIC_SELECT = { select: { nickname: true, avatar: { select: { publicUrl: true } } } } as const;
+export const USER_PUBLIC_SELECT = { select: { nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } as const;
 
 /** USER_PUBLIC_SELECT 로 읽은 행 */
 export interface UserPublicRecord {
   nickname: string;
-  avatar: { publicUrl: string } | null;
+  avatar: FileLocation | null;
 }
 
-export function toUserRow(user: UserPublicRecord): UserRow {
-  return { nickname: user.nickname, profileImageUrl: user.avatar?.publicUrl ?? null };
+export function toUserRow(user: UserPublicRecord, urls: FileUrlBuilder): UserRow {
+  return { nickname: user.nickname, profileImageUrl: urls.publicUrlOrNull(user.avatar) };
 }
 
 /** 탈퇴자(FK SetNull) 를 그대로 null 로 넘기는 판 */
-export function toUserRowOrNull(user: UserPublicRecord | null): UserRow | null {
-  return user ? toUserRow(user) : null;
+export function toUserRowOrNull(user: UserPublicRecord | null, urls: FileUrlBuilder): UserRow | null {
+  return user ? toUserRow(user, urls) : null;
 }
 
 /** Membership + User → Member. displayName = Membership.displayName ?? User.nickname */
@@ -103,13 +105,19 @@ export class MemberResolver {
   }
 }
 
-/** 팀에서 가장 적게 쓰인 팔레트 색. 동률이면 팔레트 순서 (결정기록 D-21) */
+/**
+ * 새로 배정하는 색 후보: 팔레트 앞 7개. 화면은 멤버 색을 7개로 그리므로(디자인토큰.md "2026-11 확정", D-57)
+ * 8번째 키(#F279B5)를 새로 주지 않는다. 이미 그 값을 가진 멤버는 그대로 둔다 (화면이 따로 매핑)
+ */
+export const ASSIGNABLE_COLORS = MEMBER_COLORS.slice(0, 7);
+
+/** 팀에서 가장 적게 쓰인 색(앞 7개 중). 동률이면 팔레트 순서 (결정기록 D-21) */
 export function pickLeastUsedColor(usedColors: readonly string[]): string {
   const counts = new Map<string, number>();
   for (const color of usedColors) counts.set(color.toUpperCase(), (counts.get(color.toUpperCase()) ?? 0) + 1);
-  let best: string = MEMBER_COLORS[0];
+  let best: string = ASSIGNABLE_COLORS[0];
   let bestCount = Number.POSITIVE_INFINITY;
-  for (const color of MEMBER_COLORS) {
+  for (const color of ASSIGNABLE_COLORS) {
     const count = counts.get(color) ?? 0;
     if (count < bestCount) {
       best = color;

@@ -26,23 +26,23 @@ export function NewGroupScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] lg:pt-[26px]">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
       <div className="flex items-center justify-between">
         <Symbol size={36} />
-        <Link href="/" className="flex h-9 items-center rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95">
+        <Link href="/" className="flex h-8 items-center rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           닫기
         </Link>
       </div>
 
-      <form onSubmit={submit} className="mt-10 flex flex-1 flex-col px-1.5">
-        <h1 className="text-[40px] font-extrabold leading-[1.05] tracking-[-0.06em]">
+      <form onSubmit={submit} className="mt-8 flex flex-1 flex-col px-1">
+        <h1 className="text-[28px] font-bold leading-9 tracking-[-0.03em]">
           어떤 모임의
           <br />
           달력인가요?
         </h1>
-        <p className="mt-3 text-[16px] font-medium text-soft">커플, 가족, 친구 모임 어디든 좋아요</p>
+        <p className="mt-2 text-[14px] leading-5 text-soft">커플, 가족, 친구 모임 어디든 좋아요</p>
 
-        <div className="mt-8 rounded-xl bg-paper px-5 py-5">
+        <div className="mt-6 rounded-xl bg-paper px-3.5 py-3.5">
           <Field label="팀 이름" hint={`${trimmed.length}/30`} error={error}>
             {(id, describedBy) => (
               <input
@@ -66,7 +66,7 @@ export function NewGroupScreen() {
             만들기
           </Button>
           {/* 이미 있는 팀에 들어갈 사람은 만들지 않고 코드로 합류 (#56) */}
-          <Link href="/join" className="mt-3 flex h-11 items-center justify-center rounded-full text-[14px] font-bold text-ink-2 hover:text-ink">
+          <Link href="/join" className="mt-2 flex h-11 items-center justify-center rounded-md text-[13.5px] font-bold text-ink-2 hover:text-ink">
             초대 코드를 받았나요? 코드로 합류하기
           </Link>
         </div>

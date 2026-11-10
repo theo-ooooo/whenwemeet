@@ -28,17 +28,17 @@ export function MaintenanceScreen({ from }: { from?: string }) {
       <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
         <div role="alert" className="mt-auto pt-16">
-          <span className="inline-flex rounded-full bg-brand-soft px-3 py-[7px] text-[13px] font-bold text-sel-ink">
+          <span className="inline-flex text-[13px] font-bold text-acc-ink">
             서버 점검
           </span>
-          <h1 className="mt-[22px] text-[44px] font-extrabold leading-[1.05] tracking-[-0.06em]">점검 중이에요</h1>
-          <p className="mt-[18px] text-[16px] font-medium text-soft">
+          <h1 className="mt-2 text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">점검 중이에요</h1>
+          <p className="mt-3 text-[15px] leading-[22px] text-soft">
             잠시 후 다시 시도해 주세요
             <br />
             서버가 돌아오면 원래 화면으로 자동으로 이동해요
           </p>
         </div>
-        <div className="mt-10">
+        <div className="mt-8">
           <Button size="lg" full onClick={() => window.location.assign(target(from))}>
             다시 시도
           </Button>

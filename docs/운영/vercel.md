@@ -26,6 +26,10 @@ Project > Settings
   |------|-----------|---------|-------------|
   | `API_URL` | `https://api.whenwemeet.day` | (넣지 않음) | (넣지 않음) |
   | `API_MOCK` | (절대 넣지 않음) | `1` | - |
+  | `APPLE_LOGIN_ENABLED` | `1` (API 애플 설정 확인 후) | (넣지 않음) | - |
+  | `APPLE_TEAM_ID` | Apple Team ID | (넣지 않음) | - |
+  | `ANDROID_CERT_SHA256` | 서명 인증서 SHA-256, 쉼표 구분 | (넣지 않음) | - |
+  - `APPLE_TEAM_ID`, `ANDROID_CERT_SHA256` 은 앱 딥링크 검증 파일(`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`)에 쓰인다. 비어 있으면 두 주소가 404. 배포 후 `curl -i https://whenwemeet.day/.well-known/assetlinks.json` 이 리다이렉트 없이 200 `application/json` 인지 확인
   - Preview(develop, PR 브랜치) 는 메모리 목으로 떠서 운영 API, DB, 카카오를 건드리지 않는다
 - **Build and Deployment > Root Directory**: `apps/web`, "Include files outside the root directory in the Build Step" 켬(기본), "Skip deployments when there are no changes to the root directory or its dependencies" 켬(기본, API 만 바뀐 커밋은 웹을 건너뜀)
 - **Build and Deployment > Node.js Version**: 24.x (package.json `engines` 가 우선하므로 확인만)

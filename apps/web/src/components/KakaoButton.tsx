@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { postToApp } from "@/lib/app-bridge";
 
 /** 카카오 로그인 버튼. 카카오 디자인 가이드: 배경 #FEE500, 글자 #191919, 심볼 왼쪽. 색 변경 금지 */
 export function KakaoButton({ next, label = "카카오로 시작하기" }: { next: string; label?: string }) {
@@ -14,9 +15,14 @@ export function KakaoButton({ next, label = "카카오로 시작하기" }: { nex
           e.preventDefault();
           return;
         }
+        // 앱 안이면 웹 로그인 대신 네이티브 로그인 화면 (앱.md 4.3). 셸이 없으면 기존처럼 이동
+        if (postToApp({ type: "login", next })) {
+          e.preventDefault();
+          return;
+        }
         setGoing(true);
       }}
-      className={`flex h-[58px] w-full items-center justify-center gap-2 rounded-full bg-kakao px-4 text-[16px] font-bold text-kakao-ink ${going ? "pointer-events-none opacity-70" : "hover:brightness-95"}`}
+      className={`flex h-12 w-full items-center justify-center gap-2 rounded-md bg-kakao px-4 text-[15px] font-bold text-kakao-ink ${going ? "pointer-events-none opacity-70" : "hover:brightness-95"}`}
     >
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" className="shrink-0">
         <path

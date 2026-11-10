@@ -64,7 +64,7 @@ export function TimePicker({
         className={`${triggerClass} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${open && inline ? "outline-2 outline-ink" : ""} ${className}`}
       >
         <span className="truncate">{value ? formatTimeKo(value) : "시각 선택"}</span>
-        {value && <span className="shrink-0 text-[12px] font-semibold text-ink-2">{value}</span>}
+        {value && <span className="shrink-0 text-[12px] text-ink-2">{value}</span>}
       </button>
       {!inline && (
       <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={248}>
@@ -170,7 +170,7 @@ export function TimeList({
 
   return (
     <div>
-      <label htmlFor={`${ids}-in`} className="mb-1 block px-1 text-[12px] font-semibold text-ink-2">
+      <label htmlFor={`${ids}-in`} className="mb-1 block px-1 text-[12px] font-medium text-ink-2">
         직접 입력
       </label>
       <div className="flex gap-1.5">
@@ -200,14 +200,14 @@ export function TimeList({
           }}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${ids}-err` : undefined}
-          className="h-10 min-w-0 flex-1 rounded-sm bg-surface px-3 text-[15px] font-semibold tabular-nums focus:outline-2 focus:outline-ink"
+          className="h-9 min-w-0 flex-1 rounded-sm bg-surface px-3 text-[14px] tabular-nums focus:outline-2 focus:outline-ink"
         />
-        <button type="button" onClick={applyDraft} className="h-10 shrink-0 rounded-full bg-btn px-3.5 text-[13px] font-bold text-on-btn hover:brightness-95">
+        <button type="button" onClick={applyDraft} className="h-9 shrink-0 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95">
           적용
         </button>
       </div>
       {error && (
-        <p id={`${ids}-err`} role="alert" className="mt-1 px-1 text-[12px] font-semibold text-danger">
+        <p id={`${ids}-err`} role="alert" className="mt-1 px-1 text-[12px] text-danger">
           {error}
         </p>
       )}
@@ -232,12 +232,12 @@ export function TimeList({
               aria-selected={selected}
               onClick={() => onPick(o)}
               onPointerMove={() => setActive(i)}
-              className={`anim-pick flex h-11 cursor-pointer items-center justify-between rounded-sm px-3 text-[15px] font-bold tabular-nums ${
-                selected ? "bg-today text-sel-ink" : isActive ? "bg-surface" : ""
+              className={`anim-pick flex h-10 cursor-pointer items-center justify-between rounded-sm px-3 text-[14px] tabular-nums ${
+                selected ? "font-bold text-acc-ink" : isActive ? "bg-hover" : ""
               } ${isActive ? "ring-2 ring-inset ring-ink/15" : ""}`}
             >
               <span>{formatTimeKo(o)}</span>
-              <span className={`text-[12px] font-semibold ${selected ? "" : "text-ink-2"}`}>{o}</span>
+              <span className={`text-[12px] ${selected ? "" : "text-ink-2"}`}>{o}</span>
             </li>
           );
         })}

@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
+import { haptic } from "@/lib/app-bridge";
 import { rememberGroup } from "@/lib/group-cookie";
 
 /** 자동 합류 표시(`?auto=1`)는 한 번만 쓴다. 주소에서 떼어 두면 실패 후 새로고침해도 확인 버튼이 나온다 (D-41) */
@@ -31,6 +32,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
       setAutoRunning(false);
       return;
     }
+    haptic("success");
     rememberGroup(r.data.id);
     router.replace(`/g/${r.data.id}/calendar`);
   }
@@ -47,7 +49,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
   return (
     <div>
       {error && (
-        <p role="alert" className="mb-3 text-[14px] font-semibold text-danger">
+        <p role="alert" className="mb-3 text-[13px] text-danger">
           {error}
         </p>
       )}

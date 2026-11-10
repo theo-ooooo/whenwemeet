@@ -87,29 +87,29 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
 
   return (
     <div className="pt-1">
-      <div className="mt-4 flex items-end justify-between gap-3 lg:mt-0">
+      <div className="mt-2 flex items-center justify-between gap-3 lg:mt-0">
         <div>
           <h1 className="t-title">기념일</h1>
-          <p className="t-sub mt-1.5">가장 가까운 날이 달력에 보여요</p>
+          <p className="t-sub mt-0.5">가장 가까운 날이 달력에 보여요</p>
         </div>
         <Button size="sm" onClick={() => open({ mode: "new" })}>
-          <IconPlus size={14} strokeWidth={2.6} />
+          <IconPlus size={14} strokeWidth={2.2} />
           기념일 추가
         </Button>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3">
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : items === null ? (
           <SkeletonList rows={2} />
         ) : items.length === 0 ? (
-          <p className="rounded-xl bg-paper px-5 py-8 text-center text-[14px] font-semibold leading-relaxed text-ink-2">
+          <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
             기념일을 등록하면 달력 위에 D-day 가 보여요.
             <br />첫 기념일을 추가해 보세요
           </p>
         ) : (
-          <ul className="rounded-xl bg-paper px-4 py-1">
+          <ul className="rounded-xl bg-paper px-3.5 py-1">
             {items.map((a, i) => {
               const d = dday(a.date, today);
               const hint = hundredHint(d.diff);
@@ -119,19 +119,19 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
                     aria-haspopup="dialog"
-                    className="flex w-full items-center gap-4 py-3.5 text-left"
+                    className="flex min-h-11 w-full items-center gap-3 py-2 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[16px] font-bold tracking-[-0.02em]">{a.name}</b>
-                      <span className="mt-0.5 flex items-center gap-1.5 text-[12px] font-semibold text-ink-2">
+                      <b className="block truncate text-[15px] font-semibold leading-5">{a.name}</b>
+                      <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
                         {formatDateKo(a.date, true)}
-                        <MemberDot className="ml-1" color={a.creator.color} size={8} />
+                        <MemberDot className="ml-1" color={a.creator.color} size={6} />
                         {a.creator.displayName}
                       </span>
-                      {hint && <span className="mt-1 block text-[12px] font-bold text-soft">{hint}</span>}
+                      {hint && <span className="block text-[12px] font-medium leading-4 text-soft">{hint}</span>}
                     </span>
                     <span
-                      className={`shrink-0 text-[22px] font-extrabold tracking-[-0.04em] tabular-nums ${d.diff === 0 ? "text-brand" : ""}`}
+                      className={`shrink-0 text-[14px] font-bold tabular-nums ${d.diff === 0 ? "text-acc-ink" : ""}`}
                     >
                       {d.label}
                     </span>
@@ -144,7 +144,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       </div>
 
       <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.mode === "edit" ? "기념일 수정" : "기념일 추가"}>
-        <form onSubmit={save} className="space-y-4">
+        <form onSubmit={save} className="space-y-3">
           <Field label="이름" hint={`${name.trim().length}/30`} error={formError}>
             {(id, describedBy) => (
               <input

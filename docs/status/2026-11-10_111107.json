@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-11-10T11:11:07+09:00",
+  "session_topic": "언제볼까 앱 P5 Expo 셸 (#95)",
+  "command": "/모바일 (앱 P5)",
+  "agent": "agents/mobile.md",
+  "status": "apps/mobile Expo SDK 58 셸 구현, 단위 테스트/lint/tsc/expo-doctor/prebuild/export 통과. PR 리뷰와 실기기 확인 대기",
+  "tasks": [
+    {"id": 1, "subject": "Expo 프로젝트, app.config.ts, eas.json, 아이콘/스플래시", "status": "completed"},
+    {"id": 2, "subject": "웹뷰, 브리지 5종, 딥링크, 오프라인, 새로고침, 뒤로가기", "status": "completed"},
+    {"id": 3, "subject": "카카오/애플 네이티브 로그인 → handoff → /auth/app", "status": "completed"},
+    {"id": 4, "subject": "docs/운영/앱-빌드.md", "status": "completed"},
+    {"id": 5, "subject": "eas init, EAS 빌드, 실기기 확인 (사용자)", "status": "pending"}
+  ],
+  "artifacts": ["apps/mobile/", "docs/운영/앱-빌드.md", ".github/workflows/ci.yml"],
+  "key_findings": {
+    "cookies": "@react-native-cookies/cookies 가 새 아키텍처 미지원 → modules/cookie-flush 로컬 Expo 모듈로 대체",
+    "ci_glob": "ci.yml 의 pnpm -r --filter ./apps/* 가 bash 글롭으로 펼쳐져 lint/test/build 가 아무것도 안 돈다 (기존 결함). 모바일은 별도 step 으로 실행",
+    "env": "카카오 키 이름은 설계대로 KAKAO_NATIVE_APP_KEY (app.config extra 로 JS 에 전달)"
+  },
+  "recommended_actions": "CI 글롭 결함은 인프라 이슈로 분리, eas init 후 EAS_PROJECT_ID 커밋, development 빌드로 실기기 확인",
+  "pending_user_input": "Expo 로그인과 eas init, 카카오 키 EAS 환경 변수, Apple/Play 계정"
+}

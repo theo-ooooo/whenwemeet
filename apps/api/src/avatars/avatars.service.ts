@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ulid } from 'ulid';
+import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { FilesRepository, StoredObjectRef } from '../files/files.repository.js';
 import { StorageService } from '../storage/storage.service.js';
 import { AVATAR_MAX_BYTES, avatarInvalid, toAvatarWebp } from './avatar-image.js';
@@ -15,6 +16,7 @@ export interface UploadedImage {
 
 /**
  * 프로필 사진 (결정기록 D-37, D-38). 검증/변환 → R2 put → File 행 + User.avatarFileId 교체 → 이전 객체 삭제.
+ * 응답 URL 은 FileUrlBuilder 가 provider/key 로 만든다 (D-56).
  * 객체 삭제 실패는 로그만 남긴다 (고아 객체는 bucket/key 로 나중에 청소 가능)
  */
 @Injectable()
@@ -24,6 +26,7 @@ export class AvatarsService {
   constructor(
     private readonly files: FilesRepository,
     private readonly storage: StorageService,
+    private readonly urls: FileUrlBuilder,
   ) {}
 
   /** POST /me/avatar. 저장소 미설정이면 503, 파일이 없거나 형식/크기 오류면 400 */
@@ -74,7 +77,6 @@ export class AvatarsService {
         provider: this.storage.provider,
         bucket: this.storage.bucket,
         key,
-        publicUrl: this.storage.publicUrl(key),
         mimeType: image.mimeType,
         size: image.buffer.length,
         width: image.width,
@@ -88,7 +90,7 @@ export class AvatarsService {
       throw error;
     }
     if (result.previous) await this.deleteObjectQuietly(result.previous);
-    return result.publicUrl;
+    return this.urls.requirePublicUrl({ provider: this.storage.provider, key });
   }
 
   private async deleteObjectQuietly(file: Omit<StoredObjectRef, 'id'>): Promise<void> {

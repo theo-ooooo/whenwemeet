@@ -4,6 +4,7 @@
 
 - 프론트 `apps/web` — Next.js 16
 - 백엔드 `apps/api` — NestJS 12 + Prisma + MySQL 8
+- 앱 `apps/mobile` — Expo SDK 58 셸 (웹뷰 + 네이티브 로그인). 빌드는 [docs/운영/앱-빌드.md](docs/운영/앱-빌드.md)
 - 로그인 — 카카오
 
 작업 규칙과 진행 방식은 [CLAUDE.md](./CLAUDE.md), 역할별 지침은 [agents/](./agents) 를 본다.

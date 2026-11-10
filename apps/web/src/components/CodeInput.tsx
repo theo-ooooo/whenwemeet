@@ -36,11 +36,11 @@ export function CodeInput({ id, value, onChange, describedBy, invalid, disabled,
           return (
             <span
               key={i}
-              className={`grid h-[58px] place-items-center rounded-sm bg-surface text-[26px] font-extrabold tracking-[-0.02em] transition-[box-shadow] ${
+              className={`grid h-12 place-items-center rounded-sm bg-surface text-[22px] font-bold transition-[box-shadow] ${
                 invalid ? "shadow-[inset_0_0_0_1.5px_var(--holiday)]" : on ? "shadow-[inset_0_0_0_2px_var(--ink)]" : ""
               } ${disabled ? "opacity-60" : ""}`}
             >
-              {ch || (on ? <span className="h-7 w-[2px] animate-pulse rounded-full bg-ink" /> : "")}
+              {ch || (on ? <span className="h-6 w-[2px] animate-pulse rounded-full bg-ink" /> : "")}
             </span>
           );
         })}

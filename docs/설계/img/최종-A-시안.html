@@ -1,0 +1,168 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>최종 A 시안</title>
+<!-- #99 확정안: 밀도 조정 + 색 A (D-57, 2026-11-10). ?f=phone-cal|phone-sheet|wide-day|pc-cal (+ &dark). 토큰은 디자인토큰.md "2026-11 확정" -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--mH:var(--m1);--mJ:var(--m4);--bg:#F4F3F1;--tile:#FFFFFF;--ink:#26252A;--mute:#6C6C70;--faint:#C7C7CC;--line:#ECEBE8;--acc:#FF3D1F;
+--hl-time:#C2402A;--today-bg:#FFE1D9;--today-ink:#C2412C;--sel-ink:#A93520;--pri:#E0533D;--on-pri:#fff;--sel-fill:#C8432D;--btn:#C8432D;--on-btn:#fff;
+--holiday:#B4475C;--holiday-faint:#DDB3BB;--m1:#2563EB;--m2:#A16207;--m3:#0B7A8A;--m4:#7C3AED;--m5:#15803D;--m6:#8B6B4A;--m7:#64748B;--hover:#F4F3F1;--pop-shadow:0 10px 32px rgba(38,37,42,.14)}
+html.dark{--av-ink:#121214;--bg:#121214;--tile:#1D1D21;--ink:#ECECEF;--mute:#8E8E93;--faint:#3A3A3F;--line:#2A2A2F;--acc:#FF4A2E;
+--hl-time:#FF8670;--today-bg:#4A2C26;--today-ink:#FFB4A5;--sel-ink:#FFB4A5;--pri:#FF8670;--on-pri:#1A0E0B;--btn:#FF8670;--on-btn:#1A0E0B;
+--sel-fill:#FF8670;--holiday:#D3949E;--holiday-faint:#5E3A41;--m1:#6B9BFF;--m2:#F2C14E;--m3:#3CC6D6;--m4:#A78BFA;--m5:#4ADE80;--m6:#C9A27A;--m7:#9AA8BA;--hl-time:#FF8670;--hover:#26262B;--pop-shadow:0 10px 32px rgba(0,0,0,.5)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Pretendard Variable",Pretendard,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:20px;overflow:hidden;letter-spacing:-.01em}
+svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mute{color:var(--mute)}.acc{color:var(--hl-time)}
+/* 공통 조각 */
+.card{background:var(--tile);border-radius:16px}
+.ibtn{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;color:var(--ink)}.ibtn svg{width:18px;height:18px}
+.ibtn.b{background:var(--tile)}
+.tbtn{height:32px;padding:0 12px;border-radius:10px;font-size:13px;font-weight:700;display:grid;place-items:center;background:var(--tile)}
+.mh{display:flex;align-items:center;gap:4px}.mh h2{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-right:4px}
+.team{display:flex;align-items:center;gap:4px;font-size:16px;font-weight:700}.team svg{width:16px;height:16px;color:var(--mute)}
+.av{width:28px;height:28px;border-radius:50%;background:var(--mJ);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.bell{position:relative}.bell i{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--pri)}
+/* 달력 */
+.wk{display:grid;grid-template-columns:repeat(7,1fr);font-size:11px;font-weight:600;color:var(--mute);text-align:center;height:28px;align-items:center}
+.wk span:first-child,.wk span:last-child{color:var(--holiday)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:1fr;gap:0}
+.d{display:flex;flex-direction:column;align-items:center;padding-top:4px;min-height:0;overflow:hidden;border-top:1px solid var(--line)}
+.d .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600}
+.d.we .n{color:var(--holiday)}.d.o .n{color:var(--faint);font-weight:500}.d.o.we .n{color:var(--holiday-faint)}
+.d.today .n{color:var(--today-ink);font-weight:700}
+.d.sel .n{background:var(--sel-fill);color:var(--on-pri);font-weight:700}
+.d.ring .n{box-shadow:inset 0 0 0 1.5px var(--pri)}
+.dots{display:flex;gap:3px;margin-top:2px;height:5px}.dots i{width:5px;height:5px;border-radius:50%}
+.d .t{font-size:10px;font-weight:500;color:var(--mute);margin-top:1px;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.d .bar{height:4px;align-self:stretch;margin:3px -1px 0;background:var(--mJ);opacity:.85}
+.d .bar.s{margin-left:4px;border-radius:2px 0 0 2px}.d .bar.e{margin-right:4px;border-radius:0 2px 2px 0}
+/* PC 칩 칸 */
+.chip .d{align-items:stretch;padding:4px 4px 0}.chip .d .n{width:24px;height:24px;font-size:12px;margin-left:2px}
+.e{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500;line-height:16px;margin-top:2px;padding:1px 4px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.e i{width:6px;height:6px;border-radius:50%;flex:none}
+.e.all{background:color-mix(in srgb,var(--mJ) 16%,transparent);color:var(--ink)}
+/* 목록 행 */
+.sec{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;height:32px}
+.sec .more{margin-left:auto;font-size:12px;font-weight:500;color:var(--mute)}
+.row{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 0}
+.row .c{width:3px;align-self:stretch;border-radius:2px;margin:4px 0}
+.row .tx{min-width:0;flex:1}.row b{display:block;font-size:15px;font-weight:600;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row small{display:block;font-size:12px;line-height:16px;color:var(--mute)}
+.row .r{font-size:12px;color:var(--mute)}
+.row svg{width:16px;height:16px}
+.row .dt{width:34px;text-align:center;font-size:11px;line-height:13px;color:var(--mute);font-weight:500}.row .dt b{font-size:15px;font-weight:700;color:var(--ink);line-height:18px}
+.hr{height:1px;background:var(--line)}
+.info{display:flex;align-items:center;gap:8px;height:40px;font-size:13px}
+.info svg{width:16px;height:16px;color:var(--hl-time)}.info b{font-weight:700}
+.info .go{margin-left:auto;color:var(--mute)}.info .go svg{color:var(--mute);width:14px;height:14px}
+.btn{height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13.5px;font-weight:700;background:var(--btn);color:var(--on-btn)}
+.btn svg{width:16px;height:16px;stroke-width:2.2}
+.btn.ghost{background:var(--hover);color:var(--ink)}
+/* 폰 */
+.ph{height:100vh;display:flex;flex-direction:column;position:relative}
+.ph .top{height:52px;display:flex;align-items:center;padding:0 12px 0 16px;gap:2px}
+.ph .top .team{margin-right:auto}
+.ph .mrow{display:flex;align-items:center;padding:4px 16px 8px}
+.ph .mrow .sp{flex:1}
+.ph .strip{margin:0 16px 8px;padding:0 14px}
+.ph .cal{margin:0 16px;padding:0 6px 4px}
+.ph .cal .grid{grid-auto-rows:52px}
+.ph .list{margin:8px 16px 0;padding:4px 14px 6px}
+.tab{position:absolute;left:0;right:0;bottom:0;height:64px;padding-bottom:8px;background:var(--tile);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:center}
+.tab span{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:600;color:var(--mute);width:60px}
+.tab span.on{color:var(--ink)}.tab svg{width:22px;height:22px}
+.fab{position:absolute;right:16px;bottom:78px;width:52px;height:52px;border-radius:50%;background:var(--pri);color:var(--on-pri);display:grid;place-items:center;box-shadow:0 6px 20px rgba(224,83,61,.3)}
+.fab svg{width:24px;height:24px;stroke-width:2.2}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--tile);border-radius:20px 20px 0 0;padding:8px 16px 24px;display:flex;flex-direction:column}
+.grab{width:36px;height:4px;border-radius:4px;background:var(--faint);margin:0 auto 8px}
+.dh{display:flex;align-items:center;gap:8px;height:40px}.dh h3{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.dh .tg{font-size:12px;font-weight:700;color:var(--today-ink)}
+.dh .x{margin-left:auto;color:var(--mute)}
+/* 넓은 화면 */
+.wd{display:grid;height:100vh;grid-template-columns:64px minmax(0,1fr)}
+.rail{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 0;border-right:1px solid var(--line);background:var(--tile)}
+.sym{position:relative;width:24px;height:24px;margin:4px 0 12px}.sym i{position:absolute;width:14px;height:14px;border-radius:5px}
+.sym i:nth-child(1){left:1px;top:1px;background:#FF3D1F}.sym i:nth-child(2){left:9px;top:9px;background:#1F5BFF}.sym i:nth-child(3){left:9px;top:9px;width:6px;height:6px;border-radius:0 0 5px 0;background:#9A1DFF}
+.rfab{width:40px;height:40px;border-radius:12px;background:var(--pri);color:var(--on-pri);display:grid;place-items:center;margin-bottom:8px}.rfab svg{stroke-width:2.2}
+.ri{width:52px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:10px;font-size:10px;font-weight:600;color:var(--mute);position:relative}
+.ri.on{color:var(--ink);background:var(--hover)}.ri .bd{position:absolute;top:5px;right:12px;width:6px;height:6px;border-radius:50%;background:var(--pri)}
+.main{display:flex;flex-direction:column;padding:10px 12px 12px;gap:8px;min-width:0}
+.head{display:flex;align-items:center;gap:4px;height:40px}
+.panes{flex:1;display:grid;grid-template-columns:minmax(0,1fr) var(--pane,272px);gap:8px;min-height:0}
+.wcal{padding:0 6px 0;display:flex;flex-direction:column;min-height:0}.wcal .grid{flex:1}
+.side{padding:6px 14px;overflow:hidden}
+.pop{position:fixed;width:300px;background:var(--tile);border:1px solid var(--line);border-radius:16px;box-shadow:var(--pop-shadow);padding:6px 14px 14px;display:flex;flex-direction:column;z-index:5}
+/* PC */
+.pc{display:grid;height:100vh;grid-template-columns:220px minmax(0,1fr)}
+.nav{display:flex;flex-direction:column;gap:2px;padding:14px 12px;border-right:1px solid var(--line);background:var(--tile)}
+.logo{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;padding:4px 8px 14px}.logo .sym{margin:0}
+.ni{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:10px;font-size:14px;font-weight:700;color:var(--ink)}
+.ni.on{background:var(--hover)}.ni svg{width:18px;height:18px}.ni .n2{margin-left:auto;font-size:11px;font-weight:700;color:var(--acc)}
+.nsec{font-size:11px;font-weight:600;color:var(--mute);padding:14px 12px 4px}
+.ni .dot{width:8px;height:8px;border-radius:3px}
+.me{margin-top:auto;display:flex;align-items:center;gap:8px;height:44px;padding:0 8px;font-size:13px;font-weight:600}
+html.dark .av{color:#121214}
+</style></head><body><div id="app"></div>
+<script>
+const P=new URLSearchParams(location.search);if(P.has('dark'))document.documentElement.classList.add('dark');
+const F=P.get('f')||'phone-sheet';
+const I={cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',heart:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',team:'<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5M15 18c0-2.3 1.8-4 4-4"/></svg>',bell:'<svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',down:'<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',l:'<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',r:'<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',x:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'};
+const EV={3:[['mH','저녁 약속']],7:[['mJ','치과']],10:[['mH','원고 마감'],['mJ','영화']],11:[['mJ','부모님 댁']],13:[['mH','요가']]};
+const TRIP=[24,25,26];
+function grid(mode,sel,ring){let h='';const cell=(i,o)=>{const we=(i-1)%7===0||(i-1)%7===6;
+ if(o)return `<div class="d o${i===5?' we':''}"><span class="n">${i}</span></div>`;
+ const e=EV[i]||[];let c='';
+ if(mode==='chip'){c=e.map(x=>`<span class="e"><i style="background:var(--${x[0]})"></i>${x[1]}</span>`).join('');if(TRIP.includes(i))c=`<span class="e all">${i===24?'제주 여행':'&nbsp;'}</span>`;}
+ else{if(TRIP.includes(i))c=`<span class="bar${i===24?' s':''}${i===26?' e':''}"></span>${i===24?'<span class="t">제주 여행</span>':''}`;
+  else if(e.length)c=`<span class="dots">${e.map(x=>`<i style="background:var(--${x[0]})"></i>`).join('')}</span><span class="t">${e[0][1]}</span>`;}
+ return `<div class="d${we?' we':''}${i===10?' today':''}${i===sel?' sel':''}${i===ring?' ring':''}"><span class="n">${i}</span>${c}</div>`};
+ for(let i=1;i<=30;i++)h+=cell(i);for(let i=1;i<=5;i++)h+=cell(i,true);
+ return `<div class="wk"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div class="grid">${h}</div>`}
+const mhead=`<div class="mh"><h2>11월</h2><span class="ibtn">${I.l}</span><span class="ibtn">${I.r}</span></div>`;
+const strip=`<div class="info">${I.clock}<span>오늘 둘 다 비는 시간</span><b class="acc">11:00~19:30</b><span class="go">${I.r}</span></div><div class="hr"></div><div class="info">${I.heart}<span>처음 만난 날</span><b>D+591</b></div>`;
+const evRows=`<div class="row"><span class="c" style="background:var(--mH)"></span><span class="tx"><b>원고 마감</b><small>종일</small></span><span class="r">하늘</span></div>
+<div class="row"><span class="c" style="background:var(--mJ)"></span><span class="tx"><b>영화</b><small>19:30~22:00</small></span><span class="r">지우</span></div>`;
+const dayPanel=(close)=>`<div class="dh"><h3>10일 화요일</h3><span class="tg">오늘</span><span class="x ibtn">${I.x}</span></div>
+<div class="info" style="height:36px">${I.heart}<span>하늘 생일</span><b class="acc" style="margin-left:auto;font-size:12px">오늘</b></div>
+${evRows}<div class="info" style="height:36px">${I.clock}<span class="mute">둘 다 비는 시간</span><b class="acc">11:00~19:30</b></div>
+<div class="btn" style="margin-top:8px">${I.plus}이 날 일정 추가</div>`;
+const upcoming=`<div class="sec">다가오는 일정<span class="more">전체</span></div>
+<div class="row"><span class="dt">수<br><b>11</b></span><span class="c" style="background:var(--mJ)"></span><span class="tx"><b>부모님 댁</b><small>종일, 지우</small></span></div>
+<div class="row"><span class="dt">금<br><b>13</b></span><span class="c" style="background:var(--mH)"></span><span class="tx"><b>요가</b><small>07:00~08:00, 하늘</small></span></div>
+<div class="row"><span class="dt">화<br><b>24</b></span><span class="c" style="background:var(--mJ)"></span><span class="tx"><b>제주 여행</b><small>24일~26일, 지우</small></span></div>`;
+const weekFree=`<div class="sec" style="margin-top:4px">이번 주 빈 시간</div>
+<div class="row" style="min-height:36px"><span class="tx" style="font-size:13px">수 11/11</span><b class="acc" style="font-size:13px">09:00~23:00</b></div>
+<div class="row" style="min-height:36px"><span class="tx" style="font-size:13px">목 11/12</span><b class="acc" style="font-size:13px">09:00~14:00</b></div>`;
+const tabs=`<nav class="tab">${[['cal','달력',1],['clock','빈 시간'],['heart','기념일'],['team','팀']].map(([k,t,on])=>`<span class="${on?'on':''}">${I[k]}${t}</span>`).join('')}</nav>`;
+const app=document.getElementById('app');
+if(F.startsWith('phone')){
+  app.className='ph';
+  app.innerHTML=`<div class="top"><span class="team">우리 둘 ${I.down}</span><span class="ibtn bell">${I.bell}<i></i></span><span class="ibtn"><span class="av">지</span></span></div>
+  <div class="mrow">${mhead}<span class="sp"></span><span class="tbtn">오늘</span></div>
+  <div class="card strip">${strip}</div>
+  <div class="card cal">${grid('dot',10)}</div>
+  <div class="card list">${upcoming}</div>
+  <span class="fab">${I.plus}</span>${tabs}
+  ${F==='phone-sheet'?`<div class="scrim"></div><div class="sheet" role="dialog"><div class="grab"></div>${dayPanel()}</div>`:''}`;
+}else if(F==='wide-day'){
+  app.className='wd';
+  app.innerHTML=`<nav class="rail"><div class="sym"><i></i><i></i><i></i></div><span class="rfab">${I.plus}</span>
+  ${[['cal','달력',1],['clock','빈 시간'],['heart','기념일'],['bell','새 소식'],['team','팀']].map(([k,t,on])=>`<span class="ri${on?' on':''}">${I[k]}${t}${k==='bell'?'<i class="bd"></i>':''}</span>`).join('')}
+  <span class="av" style="margin-top:auto">지</span></nav>
+  <div class="main"><div class="head"><span class="team" style="margin-right:12px">우리 둘 ${I.down}</span>${mhead}<span style="flex:1"></span><span class="tbtn">오늘</span></div>
+  <div class="panes"><div class="card wcal">${grid('dot',10,10)}</div><div style="display:flex;flex-direction:column;gap:8px;min-height:0"><div class="card" style="padding:0 14px">${strip}</div><div class="card side">${upcoming}${weekFree}</div></div></div></div>`;
+  const cell=[...document.querySelectorAll('.grid .d')][9];const r=cell.getBoundingClientRect();
+  const pop=document.createElement('div');pop.className='pop';pop.innerHTML=dayPanel();document.body.appendChild(pop);
+  let left=r.right+6;if(left+300>innerWidth-8)left=r.left-306;pop.style.left=left+'px';pop.style.top=Math.max(8,Math.min(r.top-4,innerHeight-8-pop.offsetHeight))+'px';
+}else if(F==='pc-cal'){
+  app.className='pc';
+  app.innerHTML=`<nav class="nav"><div class="logo"><div class="sym"><i></i><i></i><i></i></div>언제볼까</div>
+  ${[['cal','달력',1],['clock','빈 시간 찾기'],['heart','기념일'],['bell','새 소식'],['team','팀 설정']].map(([k,t,on])=>`<span class="ni${on?' on':''}">${I[k]}${t}${k==='bell'?'<span class="n2">2</span>':''}</span>`).join('')}
+  <div class="nsec">내 팀</div><span class="ni"><i class="dot" style="background:var(--ink)"></i>내 달력</span><span class="ni on"><i class="dot" style="background:var(--mJ)"></i>우리 둘</span>
+  <span class="ni mute" style="font-weight:600;color:var(--mute)">${I.plus}팀 만들기</span>
+  <div class="me"><span class="av">지</span>지우<span class="mute" style="margin-left:auto;font-size:12px">설정</span></div></nav>
+  <div class="main" style="padding:14px 16px 16px"><div class="head"><span class="team" style="margin-right:12px">우리 둘</span>${mhead}<span style="flex:1"></span><span class="tbtn">오늘</span><span class="btn" style="height:32px;padding:0 12px;border-radius:10px;margin-left:6px">${I.plus}일정 추가</span></div>
+  <div class="panes" style="--pane:300px"><div class="card wcal chip">${grid('chip',10)}</div><div style="display:flex;flex-direction:column;gap:8px;min-height:0"><div class="card" style="padding:0 14px">${strip}</div><div class="card side">${upcoming}${weekFree}</div></div></div></div>`;
+}
+</script></body></html>

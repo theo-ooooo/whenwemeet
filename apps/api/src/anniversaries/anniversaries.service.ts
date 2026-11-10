@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AnniversaryKind } from '../generated/prisma/enums.js';
 import { ApiException } from '../common/errors.js';
 import { Member, MemberResolver } from '../common/member.js';
 import { MembershipService } from '../groups/membership.service.js';
@@ -11,6 +12,8 @@ export interface AnniversaryView {
   name: string;
   /** `YYYY-MM-DD` (KST 달력 날짜, 결정기록 D-17) */
   date: string;
+  /** 자동 표시 종류 (#105, D-62) */
+  kind: AnniversaryKind;
   creator: Member;
   createdAt: Date;
 }
@@ -30,6 +33,7 @@ export function toAnniversaryView(row: AnniversaryRow, resolver: MemberResolver)
     groupId: row.groupId,
     name: row.name,
     date: dbToDateString(row.date),
+    kind: row.kind,
     creator: resolver.resolve(row.creatorId, row.creator),
     createdAt: row.createdAt,
   };
@@ -51,7 +55,13 @@ export class AnniversariesService {
 
   async create(userId: number, groupId: number, dto: CreateAnniversaryDto): Promise<AnniversaryView> {
     await this.memberships.assertMember(userId, groupId);
-    const row = await this.anniversaries.create({ groupId, name: dto.name, date: dateStringToDb(dto.date), creatorId: userId });
+    const row = await this.anniversaries.create({
+      groupId,
+      name: dto.name,
+      date: dateStringToDb(dto.date),
+      kind: dto.kind ?? AnniversaryKind.COUNT_UP,
+      creatorId: userId,
+    });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);
   }
@@ -62,6 +72,7 @@ export class AnniversariesService {
     const row = await this.anniversaries.update(anniversaryId, {
       ...(dto.name !== undefined ? { name: dto.name } : {}),
       ...(dto.date !== undefined ? { date: dateStringToDb(dto.date) } : {}),
+      ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
     });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);
