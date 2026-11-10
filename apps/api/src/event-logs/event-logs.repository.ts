@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
+import { dbToDate } from '../events/events.repository.js';
+import type { Repeat } from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export const EVENT_LOG_SELECT = {
@@ -13,6 +15,9 @@ export const EVENT_LOG_SELECT = {
   endsAt: true,
   allDay: true,
   createdAt: true,
+  repeat: true,
+  scope: true,
+  occurrence: true,
   actor: USER_PUBLIC_SELECT,
 } as const;
 
@@ -26,6 +31,12 @@ export interface EventLogRow {
   endsAt: Date;
   allDay: boolean;
   createdAt: Date;
+  /** (#187) 변경 시점의 반복 주기 */
+  repeat: Repeat | null;
+  /** (#187) 반복 일정에서 고른 범위 */
+  scope: 'THIS' | 'FOLLOWING' | null;
+  /** (#187) 범위를 고른 회차 날짜 'YYYY-MM-DD' (KST) */
+  occurrence: string | null;
   actor: UserRow | null;
 }
 
@@ -60,6 +71,10 @@ export class EventLogsRepository {
       take: limit,
       select: EVENT_LOG_SELECT,
     });
-    return rows.map((row) => ({ ...row, actor: toUserRowOrNull(row.actor, this.urls) }));
+    return rows.map((row) => ({
+      ...row,
+      occurrence: row.occurrence === null ? null : dbToDate(row.occurrence),
+      actor: toUserRowOrNull(row.actor, this.urls),
+    }));
   }
 }
