@@ -160,14 +160,16 @@ model Event {
 
 /// 기념일. 날짜만 가지며 D-day 계산은 클라이언트가 한다
 model Anniversary {
-  id        Int      @id @default(autoincrement())
+  id        Int             @id @default(autoincrement())
   groupId   Int
-  name      String   @db.VarChar(30)
+  name      String          @db.VarChar(30)
   /// 기념일 날짜 (KST 달력 날짜). 시각 없음
-  date      DateTime @db.Date
+  date      DateTime        @db.Date
+  /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
+  kind      AnniversaryKind @default(COUNT_UP)
   creatorId Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
@@ -196,6 +198,16 @@ model EventLog {
   actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
+}
+
+/// (#105) 기념일 종류
+/// COUNT_UP: 시작일 = 1일로 세어 100일 단위(1000일까지, 이후 1000일 단위)와 N주년 표시 (처음 만난 날)
+/// YEARLY: 매년 같은 월일 표시, 2/29 는 평년 2/28 (생일)
+/// ONCE: 그날 하나만 (시험일)
+enum AnniversaryKind {
+  COUNT_UP
+  YEARLY
+  ONCE
 }
 
 /// 저장소 종류

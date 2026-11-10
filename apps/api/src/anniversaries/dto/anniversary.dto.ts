@@ -1,5 +1,10 @@
-import { IsOptional, IsString, Length, Matches, Validate, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length, Matches, Validate, ValidateIf, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 import { isCalendarDate, Trim } from '../../common/validation.js';
+import { AnniversaryKind } from '../../generated/prisma/enums.js';
+
+/** 기념일 종류 (#105, D-62). 계산은 클라이언트, 서버는 저장만 */
+export const ANNIVERSARY_KINDS = Object.values(AnniversaryKind);
+const KIND_MESSAGE = `종류는 ${ANNIVERSARY_KINDS.join(', ')} 중 하나여야 해요`;
 
 @ValidatorConstraint({ name: 'calendarDate', async: false })
 export class CalendarDateConstraint implements ValidatorConstraintInterface {
@@ -21,6 +26,11 @@ export class CreateAnniversaryDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 해요' })
   @Validate(CalendarDateConstraint)
   date!: string;
+
+  /** 생략하면 COUNT_UP. null 은 IsOptional 과 달리 거부 (컬럼이 NOT NULL) */
+  @ValidateIf((_, value) => value !== undefined)
+  @IsIn(ANNIVERSARY_KINDS, { message: KIND_MESSAGE })
+  kind?: AnniversaryKind;
 }
 
 export class UpdateAnniversaryDto {
@@ -34,4 +44,8 @@ export class UpdateAnniversaryDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 해요' })
   @Validate(CalendarDateConstraint)
   date?: string;
+
+  @ValidateIf((_, value) => value !== undefined)
+  @IsIn(ANNIVERSARY_KINDS, { message: KIND_MESSAGE })
+  kind?: AnniversaryKind;
 }

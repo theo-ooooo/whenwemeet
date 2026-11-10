@@ -165,7 +165,7 @@ model Anniversary {
   name      String   @db.VarChar(30)
   /// 기념일 날짜 (KST 달력 날짜). 시각 없음
   date      DateTime @db.Date
-  /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
+  /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP (마이그레이션 20261110023225_anniversary_kind, #106). 항목 계산은 클라이언트 (D-60)
   kind      AnniversaryKind @default(COUNT_UP)
   creatorId Int?
   createdAt DateTime @default(now())
