@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { Prisma, PrismaClient } from '../generated/prisma/client.js';
+import { withDriverDefaults } from './database-url.js';
 
 /** 트랜잭션 안팎 어디서나 같은 코드를 쓰기 위한 클라이언트 타입 (Repository 전용) */
 export type Db = Prisma.TransactionClient;
@@ -10,7 +11,7 @@ export type Db = Prisma.TransactionClient;
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor(config: ConfigService) {
-    super({ adapter: new PrismaMariaDb(config.getOrThrow<string>('DATABASE_URL')) });
+    super({ adapter: new PrismaMariaDb(withDriverDefaults(config.getOrThrow<string>('DATABASE_URL'))) });
   }
 
   async onModuleInit(): Promise<void> {
