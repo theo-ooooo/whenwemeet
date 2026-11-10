@@ -19,7 +19,7 @@ import { Avatar, Skeleton } from "./ui";
 type Props = {
   groupId: number;
   group: GroupDetail | null;
-  /** 주소의 셋째 조각 (calendar, free, anniversaries, news, settings, events) */
+  /** 주소의 셋째 조각 (calendar, upcoming, free, anniversaries, news, settings, events) */
   section: string;
   unread: number;
   /** 넓은 화면일 때만 아래 묶음 데이터를 받는다 (폰은 이 사이드바가 숨어 있다) */
@@ -82,7 +82,8 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
   const annFailed = annQ.error !== null;
   const nextAnn = useMemo(() => (annData ? nextOccurrences(annData, today, 2) : annFailed ? [] : null), [annData, annFailed, today]);
 
-  const calendarOn = section === "calendar" || section === "events";
+  // 다가오는 일정 목록(#222)도 달력에 딸린 화면으로 본다
+  const calendarOn = section === "calendar" || section === "events" || section === "upcoming";
   const menu = [
     { key: "calendar", href: `/g/${groupId}/calendar`, label: "달력", on: calendarOn },
     { key: "free", href: `/g/${groupId}/free`, label: "빈 시간", on: section === "free" },
@@ -152,7 +153,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
         <div className={head}>
           <h2 id="side-up">다가오는 일정</h2>
           <span className="flex-1" />
-          <Link href={`/g/${groupId}/calendar`} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
+          <Link href={`/g/${groupId}/upcoming`} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
             전체보기
           </Link>
         </div>

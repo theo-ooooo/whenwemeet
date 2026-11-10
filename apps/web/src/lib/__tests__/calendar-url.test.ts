@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateParam, monthParam, parseDayStep, stepDepth, withDayStep, withSelection } from "../calendar-url";
+import { calendarEventHref, dateParam, monthParam, parseDayStep, stepDepth, withDayStep, withSelection } from "../calendar-url";
 
 const TODAY = "2026-11-10";
 const p = (s: string) => new URLSearchParams(s);
@@ -81,5 +81,18 @@ describe("withSelection (#81)", () => {
   it("이미 맞으면 null, 날짜 상세 쿼리는 그대로 둔다", () => {
     expect(withSelection("?date=2026-11-12&day=1", "2026-11-12", TODAY, view)).toBeNull();
     expect(withSelection("?day=1&event=3", "2026-11-12", TODAY, view)).toBe("?day=1&event=3&date=2026-11-12");
+  });
+});
+
+describe("calendarEventHref (#222)", () => {
+  it("그날 상세 → 일정 상세 주소. 오늘이면 date 를 뗀다", () => {
+    expect(calendarEventHref(3, "2026-11-12", { id: 7, occurrence: null }, "2026-11-11")).toBe("/g/3/calendar?date=2026-11-12&day=1&event=7");
+    expect(calendarEventHref(3, "2026-11-11", { id: 7 }, "2026-11-11")).toBe("/g/3/calendar?day=1&event=7");
+  });
+  it("반복 회차는 occurrence 를 붙이고, 주소를 다시 읽으면 같은 단계", () => {
+    const href = calendarEventHref(3, "2026-11-19", { id: 7, occurrence: "2026-11-19" }, "2026-11-11");
+    expect(href).toBe("/g/3/calendar?date=2026-11-19&day=1&event=7&occurrence=2026-11-19");
+    const q = new URLSearchParams(href.split("?")[1]);
+    expect(parseDayStep(q, "2026-11-11")).toEqual({ open: true, date: "2026-11-19", step: "event", eventId: 7, occurrence: "2026-11-19" });
   });
 });

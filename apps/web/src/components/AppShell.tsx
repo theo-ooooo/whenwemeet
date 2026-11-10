@@ -149,7 +149,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   function switchTo(id: number) {
     setSwitcher(false);
     if (id === groupId) return;
-    const tab = TABS.some((t) => t.key === section) ? section : "calendar";
+    // 다가오는 일정 목록(#222)은 다른 팀에서도 같은 목록으로
+    const tab = TABS.some((t) => t.key === section) || section === "upcoming" ? section : "calendar";
     // 일정 작성 중이면 입력을 버릴지 먼저 묻는다 (#137)
     confirmLeave(() => {
       rememberGroup(id);
@@ -233,7 +234,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           <nav aria-label="주요 화면" className="glass-dock h-16 min-w-0 flex-1 rounded-full px-2">
             <ul className="flex h-full items-center justify-between">
               {TABS.map((t) => {
-                const active = section === t.key || (t.key === "calendar" && section === "events");
+                // 다가오는 일정 목록(#222)은 달력에 딸린 화면이라 달력 칩을 켠다
+                const active = section === t.key || (t.key === "calendar" && (section === "events" || section === "upcoming"));
                 return (
                   <li key={t.key} className="flex h-full items-center">
                     <Link

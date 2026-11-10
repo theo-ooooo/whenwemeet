@@ -95,3 +95,11 @@ export function withSelection(search: string, selected: DateKey, today: DateKey,
   const s = q.toString();
   return s ? `?${s}` : "";
 }
+
+/**
+ * 달력 밖(다가오는 일정 목록, #222)에서 일정 상세로 가는 주소. 홈 다가오는 일정 카드와 같은 곳(그날 상세 → 일정 상세)을 연다.
+ * date 는 그 일정을 묶은 날 (오늘이면 date 를 뗀다)
+ */
+export function calendarEventHref(groupId: number, date: DateKey, ev: { id: number; occurrence?: string | null }, today: DateKey): string {
+  return `/g/${groupId}/calendar${withDayStep("", { step: "event", date, eventId: ev.id, occurrence: ev.occurrence ?? null }, today)}`;
+}
