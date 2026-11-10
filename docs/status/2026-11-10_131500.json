@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-10T13:15:00+09:00",
+  "session_topic": "QA v0.3.0 회귀 (#124)",
+  "command": "/QA",
+  "agent": "agents/qa.md",
+  "status": "회귀 완료, 통과 (Critical/High 0). 결함 Medium 2건 이슈 등록, PR 대기",
+  "tasks": [
+    {"id": 1, "subject": "실 스택(API 4124, 웹 3124, DB whenwemeet_qa2) 기동", "status": "completed"},
+    {"id": 2, "subject": "API 회귀와 신규(kind, handoff, File URL) 확인", "status": "completed"},
+    {"id": 3, "subject": "UI 회귀 (폰, 폴드, PC, 라이트/다크, 앱 브리지)", "status": "completed"},
+    {"id": 4, "subject": "시나리오.md 갱신, 결과_2026-11-10.md, 결함 이슈 #128 #129", "status": "completed"},
+    {"id": 5, "subject": "서버 종료, DB DROP, PR", "status": "in_progress"}
+  ],
+  "artifacts": ["docs/QA/시나리오.md", "docs/QA/결과_2026-11-10.md", "docs/QA/img/qa2-*.png"],
+  "key_findings": "66 시나리오: PASS 63, FAIL 2, 제외 1. #56~#65 전부 수정 확인. #128 폭 600~700 달력 협소, #129 초대 화면 애플 버튼 없음 (둘 다 Medium)",
+  "recommended_actions": "#128, #129 프론트 수정. handoff verifier 불일치 시 비소비 동작은 앱.md 에 명시 권장",
+  "pending_user_input": "PR 리뷰와 머지"
+}
