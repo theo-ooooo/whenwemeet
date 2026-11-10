@@ -3,7 +3,7 @@
   "session_topic": "#99 폴더블(갤럭시 Z 폴드, 아이폰 듀오) 레이아웃 진단과 제안",
   "command": "설계 에이전트 (agents/design.md)",
   "agent": "agents/design.md",
-  "status": "진단, 시안(fold 2단 + 날짜 탭=그날 상세: phone 시트, 넓은 화면 팝오버), 폴더블.md 작성. PR #103 (머지 안 함), 사용자 시안 확인 대기",
+  "status": "밀도 조정 + 색 A 확정(D-57), 폴더블 레이아웃은 제안(D-58). PR #103 머지 안 함",
   "tasks": [
     {
       "id": 1,
@@ -31,8 +31,13 @@
       "status": "completed"
     },
     {
+      "id": 8,
+      "subject": "색 A 확정: 강조 코랄, 주말 장미빛, 멤버 7색, 기존 멤버 색 화면 매핑 (final-a-*)",
+      "status": "completed"
+    },
+    {
       "id": 4,
-      "subject": "docs/설계/폴더블.md, 결정기록 D-57(제안, develop 의 D-42~56 과 겹쳐 재번호)",
+      "subject": "docs/설계/폴더블.md, 결정기록 D-58(레이아웃 제안)",
       "status": "completed"
     },
     {
@@ -48,7 +53,7 @@
     "docs/QA/img/fold-before-*.png",
     "PR #103"
   ],
-  "key_findings": "<1024 는 전부 480px 1단이라 600~1023(폴드 펼침 984, 아이폰 듀오 890x626)에서 절반이 비고 떠 있는 탭이 달력을 가린다. Viewport Segments 는 Chrome 138+ 만, Safari 미지원",
+  "key_findings": "<1024 는 전부 480px 1단이라 600~1023(폴드 펼침 984, 아이폰 듀오 890x626)에서 절반이 비고 떠 있는 탭이 달력을 가린다. Viewport Segments 는 Chrome 138+ 만, Safari 미지원. 서버 MEMBER_COLORS hex 는 화면에서 순번 키로만 쓰여 DISPLAY 매핑 교체만으로 기존 빨강 멤버가 바뀜(DB 이전 불필요)",
   "recommended_actions": "열린 질문 Q1~Q5 사용자 확정 후 프론트 이슈로 구현",
-  "pending_user_input": "Q1(오른쪽 칸 개요 A vs B), Q2(바로 추가 경로 제거), Q4(1024~1199 레일), Q7(밀도 조정 선적용), Q8(평평한 하단 탭)"
+  "pending_user_input": "레이아웃 Q1(개요 A vs B), Q2(바로 추가 제거), Q4(1024~1199 레일), Q7(밀도+색 선적용), Q8(평평한 탭)"
 }
