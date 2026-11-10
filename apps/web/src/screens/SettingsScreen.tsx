@@ -111,7 +111,8 @@ function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Grou
         </form>
       ) : (
         <div className="mt-1 flex items-center justify-between gap-3">
-          <p className="truncate text-[18px] font-bold tracking-[-0.02em]">{group.name}</p>
+          {/* 설정 카드는 이름 전체를 보여 준다. 긴 이름은 두 줄까지 (#140 L14) */}
+          <p className="line-clamp-2 min-w-0 text-[18px] font-bold leading-6 tracking-[-0.02em]">{group.name}</p>
           <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
             이름 바꾸기
           </Button>
@@ -191,7 +192,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
       <button
         type="button"
         onClick={() => setConfirm(true)}
-        className="mt-2 w-full rounded-sm py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
+        className="hit mt-2 w-full rounded-sm py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
       >
         코드 재발급
       </button>
@@ -264,7 +265,7 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
       <form onSubmit={save}>
         <fieldset className="mt-2">
           <legend className="sr-only">내 색</legend>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {palette.map((c) => {
               const selected = c.toUpperCase() === color.toUpperCase();
               return (
@@ -275,7 +276,7 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
                   aria-checked={selected}
                   aria-label={COLOR_NAMES[PICKABLE_COLORS.indexOf(c as (typeof PICKABLE_COLORS)[number])] ?? "지금 색"}
                   onClick={() => setColor(c)}
-                  className="flex size-8 items-center justify-center rounded-full"
+                  className="hit flex size-8 items-center justify-center rounded-full"
                   style={{
                     backgroundColor: memberColor(c),
                     boxShadow: selected ? `0 0 0 2px var(--tile), 0 0 0 4px ${memberColor(c)}` : undefined,

@@ -1,6 +1,7 @@
 // API_MOCK=1 메모리 API. api.md 의 봉투와 상태 코드를 그대로 따른다. 응답은 전부 ok / err 를 거친다 (봉투 모양은 lib/envelope.ts).
 import { addDays, dateKeyOf, kstToIso } from "@/lib/date";
 import { errorBody, okBody } from "@/lib/envelope";
+import { ceilToStep } from "@/lib/free-time";
 import { parseId } from "@/lib/id";
 import { MEMBER_COLORS } from "@/lib/types";
 import {
@@ -128,7 +129,8 @@ function freeSlots(s: Store, groupId: number, q: URLSearchParams): MockResult {
   if (Number.isNaN(from) || Number.isNaN(to) || to - from > 31 * DAY_MS || to <= from) {
     return err(400, "EVENT_RANGE_INVALID", "조회 기간은 31일 이내로 잡아 주세요");
   }
-  from = Math.max(from, Date.now());
+  // api.md 2.5: from 이 과거면 지금을 다음 30분 경계로 올려 자른다 (서버 ceilToSlotStep 과 같은 규칙, #136)
+  if (from < Date.now()) from = ceilToStep(Date.now());
   const dayStart = q.get("dayStart") ?? "09:00";
   const dayEnd = q.get("dayEnd") ?? "23:00";
   const minMinutes = Number(q.get("minMinutes") ?? 120);
@@ -226,15 +228,15 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
   }
 
-  // /me/avatar (api.md 2.1). 목은 업로드한 바이트를 data URL 로 들고 있는다
+  // /me/avatar (api.md 2.1). 목은 업로드한 바이트를 mocks/files.ts 에 두고 /api/__mock/files/<id> 경로를 준다
   if (seg[0] === "me" && seg[1] === "avatar" && seg.length === 2) {
     const u = s.users.find((x) => x.id === userId)!;
     if (method === "POST") {
-      const file = body?.file as { type: string; size: number; dataUrl: string } | undefined;
+      const file = body?.file as { type: string; size: number; url: string } | undefined;
       if (!file || !/^image\/(jpeg|png|webp|heic)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
         return err(400, "VALIDATION_FAILED", "jpg, png, webp 10MB 까지 올릴 수 있어요");
       }
-      u.profileImageUrl = file.dataUrl;
+      u.profileImageUrl = file.url;
       return ok({ profileImageUrl: u.profileImageUrl });
     }
     if (method === "DELETE") {

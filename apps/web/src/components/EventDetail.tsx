@@ -48,14 +48,14 @@ export function EventDetail({
         <button
           type="button"
           onClick={onBack}
-          className="-ml-1.5 flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-0.5 pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
+          className="hit -ml-1.5 flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-0.5 pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
         >
           <IconChevronLeft size={18} className="shrink-0" />
           <span className="truncate">{backLabel}</span>
           <span className="sr-only">로 돌아가기</span>
         </button>
         <span className="flex-1" />
-        <button type="button" onClick={onClose} aria-label="닫기" className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>

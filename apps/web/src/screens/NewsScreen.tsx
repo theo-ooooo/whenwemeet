@@ -38,7 +38,7 @@ export function NewsScreen({ groupId }: { groupId: number }) {
         <button
           type="button"
           onClick={() => router.back()}
-          className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95 fold:hidden"
+          className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95 fold:hidden"
         >
           뒤로
         </button>
