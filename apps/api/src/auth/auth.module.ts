@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
+import { AuthHandoffsModule } from '../auth-handoffs/auth-handoffs.module.js';
 import { AvatarsModule } from '../avatars/avatars.module.js';
 import { UsersModule } from '../users/users.module.js';
+import { AppAuthService } from './app-auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
@@ -15,6 +17,7 @@ import { KakaoProvider } from './providers/kakao.provider.js';
   imports: [
     UsersModule,
     AvatarsModule,
+    AuthHandoffsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -28,7 +31,7 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, KakaoProvider, DevProvider, AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [AuthService, AppAuthService, KakaoProvider, DevProvider, AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
   exports: [AuthService, AuthProviders, JwtModule],
 })
 export class AuthModule {}
