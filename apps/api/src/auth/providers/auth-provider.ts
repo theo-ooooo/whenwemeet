@@ -15,13 +15,30 @@ export interface ProviderProfile {
   profileImageUrl: string | null;
   email?: string | null;
   raw: RawProfile;
+  /** 탈퇴 시 제공자 토큰 폐기에 쓸 값 (애플만, 앱.md 3.2). 있으면 AuthAccount 에 저장한다 */
+  credentials?: ProviderCredentials;
 }
 
-/** 소셜 로그인 제공자 하나. `auth/providers/<provider>.provider.ts` 가 구현한다 */
+/** 제공자 토큰 폐기용 값 (D-51) */
+export interface ProviderCredentials {
+  /** 토큰을 발급받은 client_id (애플: 번들 ID 또는 Service ID) */
+  providerClientId: string;
+  refreshToken: string;
+}
+
+/** 탈퇴 시 unlink 에 넘기는 연결 계정 (앱.md 3.5). 카카오는 providerUserId 만 쓴다 */
+export interface LinkedAccount {
+  providerUserId: string;
+  providerClientId: string | null;
+  refreshToken: string | null;
+}
+
+/**
+ * 소셜 로그인 제공자 하나. `auth/providers/<provider>.provider.ts` 가 구현한다.
+ * 로그인 방식(인가 코드, 네이티브 토큰)은 제공자마다 달라 각 구현의 메서드로 두고, 공통은 탈퇴 시 unlink 만
+ */
 export interface AuthProviderClient {
   readonly provider: AuthProvider;
-  /** 인가 코드 → 프로필 */
-  exchangeCode(code: string): Promise<ProviderProfile>;
-  /** 회원 탈퇴 시 제공자 쪽 연결 끊기. 이미 끊긴 경우는 성공으로 본다 */
-  unlink(providerUserId: string): Promise<void>;
+  /** 회원 탈퇴 시 제공자 쪽 연결 끊기(카카오 unlink, 애플 토큰 폐기). 이미 끊긴 경우는 성공으로 본다 */
+  unlink(account: LinkedAccount): Promise<void>;
 }

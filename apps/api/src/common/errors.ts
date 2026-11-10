@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID 와 HANDOFF_INVALID 는 앱 로그인 (앱.md 8장) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -15,7 +15,9 @@ export const ERROR_STATUS = {
   PAYLOAD_TOO_LARGE: 413,
   INTERNAL: 500,
   KAKAO_ERROR: 502,
+  APPLE_ERROR: 502,
   KAKAO_NOT_CONFIGURED: 503,
+  APPLE_NOT_CONFIGURED: 503,
   STORAGE_NOT_CONFIGURED: 503,
   DB_UNAVAILABLE: 503,
 } as const;
@@ -38,6 +40,8 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   INTERNAL: '잠시 후 다시 시도해 주세요',
   KAKAO_ERROR: '카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
   KAKAO_NOT_CONFIGURED: '카카오 로그인이 설정되지 않았어요',
+  APPLE_ERROR: 'Apple 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
+  APPLE_NOT_CONFIGURED: 'Apple 로그인이 설정되지 않았어요',
   STORAGE_NOT_CONFIGURED: '사진 업로드를 지금 사용할 수 없어요',
   DB_UNAVAILABLE: '서버를 점검하고 있어요. 잠시 후 다시 시도해 주세요',
 };
