@@ -15,6 +15,8 @@ WORKDIR /repo
 # lockfile 만으로 패키지를 먼저 받아 둔다 (소스만 바뀐 빌드는 이 층을 재사용).
 # install/deploy 에 --offline 을 붙이지 않는다: deploy 가 peer 를 다시 풀며 fetch 에 없는 메타데이터를 찾는다 (#76)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# pnpm patchedDependencies(모바일 iOS 빌드용 expo-modules-jsi 패치)가 root package.json 에 있어 패치 파일이 없으면 fetch 가 실패한다
+COPY patches ./patches
 RUN pnpm fetch
 
 COPY apps/api ./apps/api
