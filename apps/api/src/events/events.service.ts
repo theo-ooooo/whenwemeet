@@ -15,6 +15,7 @@ import {
   type ScopeLog,
 } from './events.repository.js';
 import {
+  anchorMatchesStart,
   applyException,
   expand,
   fitsInPeriod,
@@ -52,6 +53,8 @@ export interface EventView {
   occurrence: string | null;
   /** (#187) 반복이면 첫 회차 시작 */
   seriesStartsAt: Date | null;
+  /** (#228) 반복 기준 날짜 'YYYY-MM-DD'. null 이면 seriesStartsAt 의 KST 날짜 (D-71) */
+  repeatAnchor: string | null;
 }
 
 /** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67) */
@@ -156,6 +159,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     repeatUntil: row.repeatUntil ?? null,
     occurrence: row.repeat ? kstDate(row.startsAt) : null,
     seriesStartsAt: row.repeat ? row.startsAt : null,
+    repeatAnchor: row.repeat ? row.repeatAnchor : null,
   };
 }
 
@@ -173,7 +177,23 @@ export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver
 }
 
 function seriesRule(row: EventRow): SeriesRule {
-  return { startsAt: row.startsAt, endsAt: row.endsAt, allDay: row.allDay, repeat: row.repeat as Repeat, repeatUntil: row.repeatUntil };
+  return {
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    allDay: row.allDay,
+    repeat: row.repeat as Repeat,
+    repeatUntil: row.repeatUntil,
+    repeatAnchor: row.repeatAnchor,
+  };
+}
+
+/**
+ * "이후 모두" 로 저장할 반복 기준 날짜 (D-71). 반복 주기가 그대로인 매월/매년이고 날짜를 바꾸지 않았으면 기준을 잇는다.
+ * 첫 회차(원본 수정)는 원본 값 그대로, 그 뒤 회차(새 원본)는 원본 기준 또는 원본 시작 날짜. 날짜나 주기를 바꾸면 null (새 시작이 기준)
+ */
+export function followingAnchor(series: EventRow, repeat: Repeat | null, dateChanged: boolean, isFirst: boolean): string | null {
+  if (repeat !== series.repeat || dateChanged || (repeat !== 'MONTHLY' && repeat !== 'YEARLY')) return null;
+  return isFirst ? series.repeatAnchor : (series.repeatAnchor ?? kstDate(series.startsAt));
 }
 
 /** 회차의 현재 값 (예외 반영) */
@@ -384,7 +404,8 @@ export class EventsService {
   }
 
   /**
-   * "이후 모두" 수정 (D-66, D-67). 기준 값은 그 회차의 현재 값 + 본문.
+   * "이후 모두" 수정 (D-66, D-67, D-71). 기준 값은 그 회차의 **규칙 자리**(예외 적용 전 원래 회차, 말일 보정 그대로) + 본문.
+   * 옮긴 회차("이 일정만")에서 골라도 본문에 시각이 없으면 원래 요일, 날짜에서 잇는다 (QA3-M3).
    * 첫 회차면 원본을 수정하고 예외를 모두 지운다. 그 뒤 회차면 원본을 전날에서 끊고 새 원본(원본 등록자)을 만든다
    */
   private async updateFollowing(
@@ -394,27 +415,34 @@ export class EventsService {
     occurrence: Occurrence,
     dto: EventPatchDto,
   ): Promise<EventView> {
-    const next = mergeValues(occurrenceValues(series, occurrence), dto);
+    const slot = originalOccurrence(seriesRule(series), occurrence.occurrence);
+    const original = occurrenceValues(series, slot);
+    const next = mergeValues(original, dto);
     assertEventRange(next.startsAt, next.endsAt);
     const repeat = dto.repeat !== undefined ? dto.repeat : series.repeat;
     const repeatUntil = dto.repeatUntil !== undefined ? dto.repeatUntil : repeat ? inheritedUntil(series.repeatUntil, next.startsAt) : null;
     assertRepeatRule(repeat, repeatUntil, next.startsAt, next.endsAt);
+    const isFirst = occurrence.occurrence === kstDate(series.startsAt);
+    const repeatAnchor = followingAnchor(series, repeat, kstDate(next.startsAt) !== occurrence.occurrence, isFirst);
+    if (repeat && !anchorMatchesStart(repeat, next.startsAt, repeatAnchor)) {
+      throw new ApiException('EVENT_RANGE_INVALID', '반복 기준 날짜와 시작 날짜가 맞지 않아요');
+    }
+    // 기준 날짜는 비교하지 않는다. 그 뒤 회차에서 잇는 기준은 원본과 같은 규칙이다
     const sameRule = repeat === series.repeat && repeatUntil === series.repeatUntil;
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };
     const resolver = await this.memberships.resolverFor(series.groupId);
 
-    if (occurrence.occurrence === kstDate(series.startsAt)) {
+    if (isFirst) {
       if (sameRule && exceptions.length === 0 && isUnchanged(series, next)) return toOccurrenceView(series, occurrence, resolver);
-      const row = await this.events.updateSeriesFromStartTx(series.id, { ...next, repeat, repeatUntil }, log);
+      const row = await this.events.updateSeriesFromStartTx(series.id, { ...next, repeat, repeatUntil, repeatAnchor }, log);
       return toEventView(row, resolver);
     }
 
     // 원래 회차 값과 같고 이 회차부터 예외가 없으면 나눠도 펼친 결과가 같다 (#62)
-    const original = occurrenceValues(series, originalOccurrence(seriesRule(series), occurrence.occurrence));
     const hasFollowingExceptions = exceptions.some((exception) => exception.occurrence >= occurrence.occurrence);
     if (sameRule && !hasFollowingExceptions && isUnchanged(original, next)) return toOccurrenceView(series, occurrence, resolver);
 
-    const created: EventCreateInput = { groupId: series.groupId, ...next, creatorId: series.creatorId, repeat, repeatUntil };
+    const created: EventCreateInput = { groupId: series.groupId, ...next, creatorId: series.creatorId, repeat, repeatUntil, repeatAnchor };
     const row = await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
     return toEventView(row, resolver);
   }

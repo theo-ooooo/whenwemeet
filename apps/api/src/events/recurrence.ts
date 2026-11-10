@@ -27,6 +27,11 @@ export interface SeriesRule {
   repeat: Repeat;
   /** KST 날짜 'YYYY-MM-DD'. 그날 시작하는 회차까지 포함. null 이면 계속 */
   repeatUntil: string | null;
+  /**
+   * (#228, D-71) 반복 기준 날짜 'YYYY-MM-DD' (KST). MONTHLY 는 이 날짜의 일, YEARLY 는 월일로 회차 날짜를 정한다.
+   * 생략/null 이면 startsAt 의 KST 날짜. WEEKLY/BIWEEKLY 는 무시한다
+   */
+  repeatAnchor?: string | null;
 }
 
 /** 회차 하나의 예외 (D-65). null 은 원본 값 */
@@ -99,23 +104,41 @@ function clampedDay(y: number, m: number, day: number): number {
   return Math.floor(Date.UTC(y, m, Math.min(day, daysInMonth(y, m))) / DAY_MS);
 }
 
-/** k 번째 회차의 원래 날짜 번호 (k >= 0). 기준은 항상 첫 회차 날짜 d0 */
-function nthOccurrenceDay(repeat: Repeat, d0: number, k: number): number {
+/** 규칙의 기준 날짜 번호. repeatAnchor 가 없으면 첫 회차 날짜 (D-71) */
+function anchorDay(series: Pick<SeriesRule, 'startsAt' | 'repeatAnchor'>): number {
+  return series.repeatAnchor ? dateToDay(series.repeatAnchor) : kstDayNumber(series.startsAt);
+}
+
+/**
+ * k 번째 회차의 원래 날짜 번호 (k >= 0). 주간은 첫 회차 날짜 d0 에서 7, 14일씩.
+ * 매월/매년은 d0 의 연월(연)에서 k 만큼 간 달(해)의 기준 날짜 일(월일), 없으면 말일 (D-64, D-71)
+ */
+function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number = d0): number {
   switch (repeat) {
     case 'WEEKLY':
       return d0 + 7 * k;
     case 'BIWEEKLY':
       return d0 + 14 * k;
     case 'MONTHLY': {
-      const { y, m, d } = ymd(d0);
+      const { y, m } = ymd(d0);
       const total = m + k;
-      return clampedDay(y + Math.floor(total / 12), total % 12, d);
+      return clampedDay(y + Math.floor(total / 12), total % 12, ymd(anchor).d);
     }
     case 'YEARLY': {
-      const { y, m, d } = ymd(d0);
-      return clampedDay(y + k, m, d);
+      const a = ymd(anchor);
+      return clampedDay(ymd(d0).y + k, a.m, a.d);
     }
   }
+}
+
+/**
+ * 기준 날짜가 시작 날짜와 맞는지 (D-71). 매월은 시작 달의 기준 일(말일 보정), 매년은 시작 해의 기준 월일(2/29 → 평년 2/28) 이
+ * 시작 날짜와 같아야 한다. 주간이나 기준 날짜가 없으면 항상 true
+ */
+export function anchorMatchesStart(repeat: Repeat, startsAt: Date, repeatAnchor: string | null): boolean {
+  if (repeatAnchor === null || repeat === 'WEEKLY' || repeat === 'BIWEEKLY') return true;
+  const d0 = kstDayNumber(startsAt);
+  return nthOccurrenceDay(repeat, d0, 0, dateToDay(repeatAnchor)) === d0;
 }
 
 /**
@@ -140,12 +163,13 @@ function kRange(repeat: Repeat, d0: number, lo: number, hi: number): [number, nu
 /** date 가 이 규칙의 원래 회차 날짜인지 (repeatUntil 포함 검사) */
 export function isOccurrenceDate(series: SeriesRule, date: string): boolean {
   const d0 = kstDayNumber(series.startsAt);
+  const anchor = anchorDay(series);
   const day = dateToDay(date);
   if (day < d0) return false;
   if (series.repeatUntil !== null && day > dateToDay(series.repeatUntil)) return false;
   const [kMin, kMax] = kRange(series.repeat, d0, day, day);
   for (let k = kMin; k <= kMax; k += 1) {
-    if (nthOccurrenceDay(series.repeat, d0, k) === day) return true;
+    if (nthOccurrenceDay(series.repeat, d0, k, anchor) === day) return true;
   }
   return false;
 }
@@ -191,7 +215,7 @@ export function seriesCandidateWindow(from: Date, to: Date): { startsBefore: Dat
 
 /**
  * 원본 하나를 [from, to) 에 겹치는 회차로 펼친다 (설계 3장 1~5단계).
- * 1. 원래 회차 날짜를 [from - 31일, to + 31일) 에서 k 범위로 바로 구한다
+ * 1. 원래 회차 날짜를 [from - 31일, to + 31일) 에서 k 범위로 바로 구한다 (매월/매년 날짜는 기준 날짜, D-71)
  * 2. 시각 = 그 날짜 + 원본 벽시계 시각, 끝 = 시작 + 원본 길이
  * 3. repeatUntil 이후 날짜는 뺀다
  * 4. 예외 적용 (cancelled 는 빼고 나머지는 덮는다)
@@ -199,6 +223,7 @@ export function seriesCandidateWindow(from: Date, to: Date): { startsBefore: Dat
  */
 export function expand(series: SeriesRule, exceptions: readonly ExceptionRule[], from: Date, to: Date): Occurrence[] {
   const d0 = kstDayNumber(series.startsAt);
+  const anchor = anchorDay(series);
   const [windowLo, windowHi] = expansionDays(from, to);
   const lo = Math.max(windowLo, d0);
   const hi = series.repeatUntil === null ? windowHi : Math.min(windowHi, dateToDay(series.repeatUntil));
@@ -210,7 +235,7 @@ export function expand(series: SeriesRule, exceptions: readonly ExceptionRule[],
   const result: Occurrence[] = [];
   const [kMin, kMax] = kRange(series.repeat, d0, lo, hi);
   for (let k = kMin; k <= kMax; k += 1) {
-    const day = nthOccurrenceDay(series.repeat, d0, k);
+    const day = nthOccurrenceDay(series.repeat, d0, k, anchor);
     if (day < lo || day > hi) continue;
     const date = dayToDate(day);
     const occurrence = applyException(originalOccurrence(series, date), byDate.get(date));

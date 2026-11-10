@@ -1,5 +1,5 @@
 // API_MOCK 전용 반복 회차 펼치기 (#187). 서버 apps/api/src/events/recurrence.ts 의 규칙을 ISO 문자열로 옮긴 것.
-// 화면을 눌러 보는 데 필요한 만큼만: 주기 4종, 말일 보정, repeatUntil, 예외(취소, 값 덮기)
+// 화면을 눌러 보는 데 필요한 만큼만: 주기 4종, 말일 보정, 반복 기준 날짜(D-71), repeatUntil, 예외(취소, 값 덮기)
 import { addDays, dateKeyOf, daysBetween, daysInMonth, kstToIso, parseKey, keyOf } from "@/lib/date";
 import type { Repeat } from "@/lib/types";
 
@@ -16,7 +16,15 @@ export type MockException = {
   memo?: string | null;
 };
 
-export type MockSeries = { startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat; repeatUntil: string | null };
+export type MockSeries = {
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  repeat: Repeat;
+  repeatUntil: string | null;
+  /** (#228) 반복 기준 날짜. 매월은 일, 매년은 월일. 없으면 첫 회차 날짜 (D-71) */
+  repeatAnchor?: string | null;
+};
 
 export type MockOccurrence = {
   occurrence: string;
@@ -27,12 +35,14 @@ export type MockOccurrence = {
   memo?: string;
 };
 
-/** k 번째 회차의 원래 날짜 (첫 회차 d0 기준, 없는 날은 말일) */
-function nth(repeat: Repeat, d0: string, k: number): string {
+/** k 번째 회차의 원래 날짜 (첫 회차 d0 의 연월에서 k, 날짜는 기준 anchor 의 일/월일, 없는 날은 말일) */
+function nth(repeat: Repeat, d0: string, k: number, anchor: string = d0): string {
   if (repeat === "WEEKLY") return addDays(d0, 7 * k);
   if (repeat === "BIWEEKLY") return addDays(d0, 14 * k);
-  const { y, m, d } = parseKey(d0);
-  const idx = repeat === "MONTHLY" ? y * 12 + (m - 1) + k : (y + k) * 12 + (m - 1);
+  const { y, m } = parseKey(d0);
+  const a = parseKey(anchor);
+  const d = a.d;
+  const idx = repeat === "MONTHLY" ? y * 12 + (m - 1) + k : (y + k) * 12 + (a.m - 1);
   const ny = Math.floor(idx / 12);
   const nm = (idx % 12) + 1;
   return keyOf(ny, nm, Math.min(d, daysInMonth(ny, nm)));
@@ -54,7 +64,7 @@ function datesBetween(s: MockSeries, lo: string, hi: string): string[] {
     k = Math.max(0, s.repeat === "MONTHLY" ? (b.y - a.y) * 12 + (b.m - a.m) - 1 : b.y - a.y - 1);
   }
   for (; ; k += 1) {
-    const day = nth(s.repeat, d0, k);
+    const day = nth(s.repeat, d0, k, s.repeatAnchor ?? d0);
     if (day > last) break;
     if (day >= first) out.push(day);
   }
