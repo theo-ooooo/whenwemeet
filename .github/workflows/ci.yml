@@ -67,6 +67,6 @@ jobs:
             echo "apps/api/prisma/schema.prisma 없음 — prisma generate 건너뜀"
           fi
 
-      - run: pnpm -r --filter ./apps/* --if-present lint
-      - run: pnpm -r --filter ./apps/* --if-present test
-      - run: pnpm -r --filter ./apps/* --if-present build
+      - run: pnpm -r --filter './apps/*' --if-present lint
+      - run: pnpm -r --filter './apps/*' --if-present test
+      - run: pnpm -r --filter './apps/*' --if-present build
