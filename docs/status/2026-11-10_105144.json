@@ -26,8 +26,13 @@
       "status": "completed"
     },
     {
+      "id": 7,
+      "subject": "밀도 조정 제안(디자인토큰.md 제안 절, density-* 시안, 전후 비교)",
+      "status": "completed"
+    },
+    {
       "id": 4,
-      "subject": "docs/설계/폴더블.md, 결정기록 D-42(제안)",
+      "subject": "docs/설계/폴더블.md, 결정기록 D-57(제안, develop 의 D-42~56 과 겹쳐 재번호)",
       "status": "completed"
     },
     {
@@ -45,5 +50,5 @@
   ],
   "key_findings": "<1024 는 전부 480px 1단이라 600~1023(폴드 펼침 984, 아이폰 듀오 890x626)에서 절반이 비고 떠 있는 탭이 달력을 가린다. Viewport Segments 는 Chrome 138+ 만, Safari 미지원",
   "recommended_actions": "열린 질문 Q1~Q5 사용자 확정 후 프론트 이슈로 구현",
-  "pending_user_input": "Q1(오른쪽 칸 개요 A vs 칸만 B), Q2(바로 추가 경로 제거), Q4(1024~1199 레일)"
+  "pending_user_input": "Q1(오른쪽 칸 개요 A vs B), Q2(바로 추가 경로 제거), Q4(1024~1199 레일), Q7(밀도 조정 선적용), Q8(평평한 하단 탭)"
 }
