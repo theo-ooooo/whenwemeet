@@ -128,6 +128,8 @@ Event      = EventInput & { id, groupId, creator: Member|탈퇴자, createdAt, u
 - 팀원 누구나 수정/삭제. 등록자 제한 없음
 - 단건(GET/PATCH/DELETE)의 `eventId` 는 `groupId` 안에서만 찾는다. 멤버가 아니면 403 FORBIDDEN, 멤버이지만 다른 팀 소속 일정이면 없는 ID 와 똑같이 404 NOT_FOUND (존재 여부 비노출. 결정기록 D-31)
 
+반복 일정(#187): `repeat`, `repeatUntil`, 회차 펼치기, `occurrence`/`scope` 쿼리, 예외 규칙은 `반복-일정.md` 4장이 이 절보다 우선한다.
+
 ### 2.4 기념일
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
