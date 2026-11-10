@@ -8,7 +8,7 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 
 // `eas init` 이 알려주는 프로젝트 ID 를 여기에 적는다 (공개값). docs/운영/앱-빌드.md 2단계
-const EAS_PROJECT_ID: string | undefined = undefined;
+const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43";
 
 const VERSION = "1.0.0";
 const BUNDLE_ID = "day.whenwemeet.app";
