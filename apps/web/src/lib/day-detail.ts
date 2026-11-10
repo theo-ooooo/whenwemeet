@@ -5,6 +5,10 @@ import type { Anniversary, Event } from "./types";
 
 export const isMultiDayAllDay = (ev: Event) => ev.allDay && daysBetween(dateKeyOf(ev.startsAt), dateKeyOf(ev.endsAt)) > 1;
 
+/** 여러 날에 걸친 일정 (종일이든 시간이든). 끝 시각이 자정이면 그 앞날까지로 본다. 넓은 화면 칩 모양에 쓴다 (#174 L13) */
+export const isMultiDay = (ev: Event) =>
+  ev.allDay ? isMultiDayAllDay(ev) : dateKeyOf(ev.startsAt) !== dateKeyOf(Date.parse(ev.endsAt) - 1);
+
 /** 날짜별 일정 (겹치는 모든 날에 넣는다). 여러 날 종일 → 종일 → 시각 순 */
 export function groupByDay(events: Event[]): Map<DateKey, Event[]> {
   const map = new Map<DateKey, Event[]>();

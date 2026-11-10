@@ -5,3 +5,19 @@ export function iGa(name: string): string {
   if (code < 0 || code > 11171) return `${name} 님이`; // 한글이 아니면 '님이' 로 둔다
   return code % 28 === 0 ? `${name}가` : `${name}이`;
 }
+
+/** 받침 유무로 조사 고르기 ("닉네임을", "팀 이름은"). 한글이 아니면 받침 없음 쪽 */
+function hasBatchim(word: string): boolean {
+  const code = word.trim().slice(-1).charCodeAt(0) - 0xac00;
+  return code >= 0 && code <= 11171 && code % 28 !== 0;
+}
+export const eulReul = (w: string) => `${w}${hasBatchim(w) ? "을" : "를"}`;
+export const eunNeun = (w: string) => `${w}${hasBatchim(w) ? "은" : "는"}`;
+
+/** 이름 칸 공통 규칙 (닉네임, 팀 이름, 표시 이름 #171). 통과하면 null */
+export function nameProblem(label: string, value: string, max: number, allowEmpty = false): string | null {
+  const n = Array.from(value.trim()).length;
+  if (n === 0 && !allowEmpty) return `${eulReul(label)} 입력해 주세요`;
+  if (n > max) return `${eunNeun(label)} ${max}자까지 쓸 수 있어요`;
+  return null;
+}

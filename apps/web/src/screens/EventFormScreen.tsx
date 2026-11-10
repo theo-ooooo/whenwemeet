@@ -238,7 +238,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
 
   return (
     <form onSubmit={save} className="pt-1">
-      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
+      <div className="flex h-10 items-center justify-between">
         <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
         <button
           type="button"

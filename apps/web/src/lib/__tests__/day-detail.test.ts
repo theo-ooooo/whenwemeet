@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anniversariesOn, dayBadge, groupByDay, sheetSnap, upcomingEvents } from "../day-detail";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDay, sheetSnap, upcomingEvents } from "../day-detail";
 import { kstToIso } from "../date";
 import type { Anniversary, Event, Member } from "../types";
 
@@ -84,5 +84,20 @@ describe("sheetSnap", () => {
     expect(sheetSnap("full", 40)).toBe("full");
     expect(sheetSnap("full", 20, 1)).toBe("half");
     expect(sheetSnap("full", -100)).toBe("full");
+  });
+});
+
+// 넓은 화면 칩: 여러 날 일정은 종일, 시간 모두 같은 옅은 색 칩 (#174 L13)
+describe("isMultiDay", () => {
+  it("시간 일정이 날을 넘으면 여러 날", () => {
+    expect(isMultiDay(ev(1, kstToIso("2026-11-27", "09:00"), kstToIso("2026-11-30", "18:00")))).toBe(true);
+    expect(isMultiDay(ev(2, kstToIso("2026-11-27", "09:00"), kstToIso("2026-11-27", "18:00")))).toBe(false);
+  });
+  it("자정에 끝나면 그 앞날까지", () => {
+    expect(isMultiDay(ev(3, kstToIso("2026-11-27", "22:00"), kstToIso("2026-11-28", "00:00")))).toBe(false);
+  });
+  it("종일은 이틀 이상일 때만", () => {
+    expect(isMultiDay(ev(4, kstToIso("2026-11-21"), kstToIso("2026-11-25"), true))).toBe(true);
+    expect(isMultiDay(ev(5, kstToIso("2026-11-21"), kstToIso("2026-11-22"), true))).toBe(false);
   });
 });

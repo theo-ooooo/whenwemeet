@@ -221,7 +221,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </ul>
           </nav>
           <Link href="/me" aria-label="내 정보" className="mt-auto grid size-11 place-items-center rounded-full">
-            {group ? <Avatar member={group.me} size={40} /> : <Skeleton className="size-10 rounded-full" />}
+            {group ? <Avatar member={group.me} color={group.me.color} size={40} /> : <Skeleton className="size-10 rounded-full" />}
           </Link>
         </aside>
 
@@ -288,7 +288,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </li>
           </ul>
           <Link href="/me" className="mt-auto flex h-11 items-center gap-2 rounded-sm px-2 text-[13px] font-semibold hover:bg-hover">
-            {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
+            {group ? <Avatar member={group.me} color={group.me.color} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             <span className="min-w-0 flex-1 truncate">{group?.me.displayName ?? ""}</span>
             <span className="text-[12px] font-normal text-ink-2">설정</span>
           </Link>
@@ -341,13 +341,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               </span>
             </Link>
             <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-              {group ? <Avatar member={group.me} size={36} /> : <Skeleton className="size-9 rounded-full" />}
+              {group ? <Avatar member={group.me} color={group.me.color} size={36} /> : <Skeleton className="size-9 rounded-full" />}
             </Link>
           </header>
 
           <main
             className={`flex-1 px-4 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-0 fold:pb-0 ${
-              isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 lg:max-w-[720px] lg:px-8 wide:py-6"
+              isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 fold:pt-2 lg:max-w-[720px] lg:px-8 wide:pb-6"
             }`}
           >
             {children}

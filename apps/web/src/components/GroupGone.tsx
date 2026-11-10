@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Symbol } from "./Logo";
 import { Button } from "./ui";
 
-const TITLE = "이 팀에 더 이상 접근할 수 없어요";
+// 404, 점검과 같은 코랄 머리말 + 한 줄 제목 (#174 L7)
+const TITLE = "이 팀을 열 수 없어요";
 
 export function GroupGone() {
   return (
@@ -19,7 +20,8 @@ export function GroupGone() {
       >
         <Symbol size={40} />
         <div className="mt-auto pt-16">
-          <h1 className="text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">{TITLE}</h1>
+          <span className="inline-flex text-[13px] font-bold text-acc-ink">접근 불가</span>
+          <h1 className="mt-2 break-keep text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">{TITLE}</h1>
           <p className="mt-3 text-[15px] leading-[22px] text-soft">
             팀을 나갔거나 팀이 삭제됐을 수 있어요.
             <br />내 팀 목록에서 다른 달력을 열어 보세요
