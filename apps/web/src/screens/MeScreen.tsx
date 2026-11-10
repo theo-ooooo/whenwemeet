@@ -271,8 +271,8 @@ export function MeScreen() {
         </button>
         <h1 className="t-title mt-6">정말 탈퇴할까요?</h1>
         <p className="mt-2 text-[14px] leading-5 text-soft">
-          개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오 연결도
-          끊어져요.
+          개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오나 Apple
+          연결도 끊어져요.
         </p>
         <label htmlFor="confirm-leave" className="mt-6 block text-[13px] font-semibold">
           계속하려면 <span className="text-danger">탈퇴</span> 라고 입력해 주세요
@@ -368,6 +368,12 @@ export function MeScreen() {
             </span>
             <Link href="/privacy" className="hit inline-block underline underline-offset-2">
               개인정보처리방침
+            </Link>
+            <span aria-hidden="true" className="mx-2">
+              |
+            </span>
+            <Link href="/support" className="hit inline-block underline underline-offset-2">
+              고객 지원
             </Link>
           </p>
 
