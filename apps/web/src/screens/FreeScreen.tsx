@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { IconArrowRight } from "@/components/icons";
+import { IconArrowRight, IconClock } from "@/components/icons";
 import { DatePicker, TimePicker } from "@/components/pickers";
 import { minutesOf } from "@/components/pickers/time";
-import { Chip, ErrorState, Skeleton, Toggle } from "@/components/ui";
+import { EmptyState, ErrorState, Segmented, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useFreeSlots } from "@/hooks";
 import {
   addDays,
@@ -23,6 +23,12 @@ import { upcomingSlots } from "@/lib/free-time";
 import type { FreeSlots } from "@/lib/types";
 
 type Period = "thisWeek" | "nextWeek" | "custom";
+
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "thisWeek", label: "이번 주" },
+  { value: "nextWeek", label: "다음 주" },
+  { value: "custom", label: "직접" },
+];
 
 const MIN_OPTIONS = [
   { value: 60, label: "1시간" },
@@ -89,23 +95,16 @@ export function FreeScreen({ groupId }: { groupId: number }) {
 
   return (
     <div className="pt-1">
-      <h1 className="t-title mt-2 lg:mt-0">빈 시간 찾기</h1>
+      <div className="flex h-10 items-center">
+        <h1 className="t-title">빈 시간 찾기</h1>
+      </div>
       <p className="t-sub mt-0.5">모두 비는 시간을 골라 바로 일정으로 만들어요</p>
 
       <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5">
         <div>
-          <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
-          <div className="-my-1.5 flex gap-2 overflow-x-auto py-1.5">
-            <Chip selected={period === "thisWeek"} onClick={() => setPeriod("thisWeek")}>
-              이번 주
-            </Chip>
-            <Chip selected={period === "nextWeek"} onClick={() => setPeriod("nextWeek")}>
-              다음 주
-            </Chip>
-            <Chip selected={period === "custom"} onClick={() => setPeriod("custom")}>
-              직접
-            </Chip>
-          </div>
+          {/* 하나만 고르는 것은 세그먼트 하나로 (기념일 종류, 테마와 같은 모양, #174 L2) */}
+          <h2 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
+          <Segmented labelledBy="free-period" value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
           {period === "custom" && (
             <div className="mt-2 grid grid-cols-2 gap-2">
               <DatePicker
@@ -130,7 +129,8 @@ export function FreeScreen({ groupId }: { groupId: number }) {
             <div className="min-w-0 flex-1">
               <TimePicker label="시작 시각" value={dayStart} onChange={setDayStart} to={DAY_END_MAX - 30} />
             </div>
-            <span className="shrink-0 text-[13px] text-ink-2">부터</span>
+            {/* 가운데 '~' (#174 L12). 스크린리더는 피커 라벨(시작 시각, 끝나는 시각)로 읽는다 */}
+            <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">~</span>
             <div className="min-w-0 flex-1">
               <TimePicker label="끝나는 시각" value={dayEnd} onChange={setDayEnd} from={30} allow24 />
             </div>
@@ -138,14 +138,13 @@ export function FreeScreen({ groupId }: { groupId: number }) {
         </div>
 
         <div>
-          <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h2>
-          <div className="-my-1.5 flex gap-2 overflow-x-auto py-1.5">
-            {MIN_OPTIONS.map((o) => (
-              <Chip key={o.value} selected={minMinutes === o.value} onClick={() => setMinMinutes(o.value)}>
-                {o.label}
-              </Chip>
-            ))}
-          </div>
+          <h2 id="free-min" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h2>
+          <Segmented
+            labelledBy="free-min"
+            value={String(minMinutes)}
+            options={MIN_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+            onChange={(v) => setMinMinutes(Number(v))}
+          />
         </div>
 
         <div className="border-t border-line pt-3">
@@ -173,11 +172,9 @@ export function FreeScreen({ groupId }: { groupId: number }) {
             <Skeleton className="h-9 w-full" />
           </div>
         ) : result && result.slots.length === 0 ? (
-          <p className="rounded-xl bg-paper px-4 py-6 text-center text-[14px] leading-5 text-ink-2">
-            이 조건에 모두 비는 시간이 없어요.
-            <br />
+          <EmptyState icon={<IconClock size={20} />} title="이 조건에 모두 비는 시간이 없어요">
             기간을 늘리거나 최소 길이를 줄여 보세요
-          </p>
+          </EmptyState>
         ) : result ? (
           <div className={loading ? "opacity-60 transition-opacity" : ""}>
             <p className="px-1 text-[12px] leading-4 text-ink-2">

@@ -170,3 +170,24 @@ export function sortByNext(list: Anniversary[], today: DateKey): Anniversary[] {
     return a.date.localeCompare(b.date) || a.id - b.id;
   });
 }
+
+/**
+ * 기념일 목록 한 행의 값 (#173). 오른쪽 큰 값은 종류와 상관없이 '다음 날까지' 하나로 통일한다
+ * - value: 다음 항목까지 "D-n" / 당일 "오늘". 다음이 없는 지난 '그날만' 은 "D+n" (tone past)
+ * - sub: 보조 줄. 함께한 날 세기는 누적 "N일째" 와 다음 라벨("1092일째, 다음 3주년 11월 15일", 당일이면 "오늘 100일"). 그 밖은 null
+ */
+export function listValue(
+  a: Anniversary,
+  today: DateKey,
+): { value: string; tone: "today" | "ahead" | "past"; sub: string | null } {
+  const next = nextOccurrence(a, today);
+  if (!next) return { value: dday(a.date, today).label, tone: "past", sub: null };
+  const diff = daysBetween(next.date, today);
+  const value = diff === 0 ? "오늘" : `D-${-diff}`;
+  const tone = diff === 0 ? "today" : "ahead";
+  if (kindOf(a) !== "COUNT_UP" || a.date > today) return { value, tone, sub: null };
+  const count = `${dayNumber(a.date, today)}일째`;
+  if (!next.label) return { value, tone, sub: count };
+  const { m, d } = parseKey(next.date);
+  return { value, tone, sub: diff === 0 ? `오늘 ${next.label}` : `${count}, 다음 ${next.label} ${m}월 ${d}일` };
+}

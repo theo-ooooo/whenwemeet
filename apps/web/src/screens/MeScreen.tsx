@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconCamera, IconChevronRight, IconDevice, IconMoon, IconSun } from "@/components/icons";
+import { IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { NameEditRow } from "@/components/NameEditRow";
 import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
@@ -13,25 +14,14 @@ import type { Me } from "@/lib/types";
 
 const NICKNAME_MAX = 20;
 
-/** 닉네임 규칙 (api.md PATCH /me). 통과하면 null */
-function nicknameProblem(value: string): string | null {
-  const v = value.trim();
-  if (v.length === 0) return "닉네임을 입력해 주세요";
-  if (v.length > NICKNAME_MAX) return `닉네임은 ${NICKNAME_MAX}자까지 쓸 수 있어요`;
-  return null;
-}
-
 function photoErrorText(e: ApiFailure): string {
   if (e.code === "STORAGE_NOT_CONFIGURED" || e.status === 503) return "사진 업로드를 지금 사용할 수 없어요";
   if (e.code === "VALIDATION_FAILED") return messageOf(e, "jpg, png, webp 10MB 까지 올릴 수 있어요");
   return messageOf(e, "사진을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
 }
 
-/** 내 정보 상단: 사진(탭 → 바꾸기/기본으로), 닉네임(탭 → 인라인 편집) */
+/** 내 정보 상단: 사진(탭 → 바꾸기/기본으로), 닉네임(이름 바꾸기 공통 모양 #171) */
 function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(me.nickname);
-  const [nickError, setNickError] = useState<string | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -40,31 +30,11 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
   const { mutate: removeAvatar, isPending: removing } = useDeleteAvatar();
   const photoBusy = uploading || removing;
 
-  function startEdit() {
-    setDraft(me.nickname);
-    setNickError(null);
-    setEditing(true);
-  }
-
-  async function saveNickname(e: React.FormEvent) {
-    e.preventDefault();
-    const problem = nicknameProblem(draft);
-    if (problem) {
-      setNickError(problem);
-      return;
-    }
-    const next = draft.trim();
-    if (next === me.nickname) {
-      setEditing(false);
-      return;
-    }
+  async function saveNickname(next: string): Promise<string | null> {
     const r = await updateMe({ nickname: next });
-    if (!r.ok) {
-      setNickError(messageOf(r.error, "닉네임을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요"));
-      return;
-    }
+    if (!r.ok) return messageOf(r.error, "닉네임을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
     onChange(r.data);
-    setEditing(false);
+    return null;
   }
 
   function pickPhoto() {
@@ -98,7 +68,8 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
 
   return (
     <section className="mt-3 rounded-xl bg-paper px-3.5 py-3.5">
-      <div className="flex items-center gap-3">
+      {/* 위 맞춤: 편집 중 오류 줄이 생겨도 사진이 움직이지 않는다 (#171) */}
+      <div className="flex items-start gap-3">
         <button
           type="button"
           onClick={() => setPhotoOpen(true)}
@@ -118,57 +89,16 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
           )}
         </button>
         <div className="min-w-0 flex-1">
-          {editing ? (
-            <form onSubmit={saveNickname} noValidate>
-              <label htmlFor="nickname" className="sr-only">
-                닉네임
-              </label>
-              <input
-                id="nickname"
-                className={inputClass}
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  setNickError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setEditing(false);
-                }}
-                maxLength={NICKNAME_MAX}
-                autoComplete="nickname"
-                autoFocus
-                aria-invalid={nickError ? true : undefined}
-                aria-describedby={nickError ? "nickname-error" : "nickname-count"}
-              />
-              <div className="mt-2 flex items-center gap-1.5">
-                <span id="nickname-count" className={`mr-auto text-[12px] ${draft.trim().length > NICKNAME_MAX ? "text-danger" : "text-ink-2"}`}>
-                  {draft.trim().length}/{NICKNAME_MAX}
-                </span>
-                <Button size="sm" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
-                  취소
-                </Button>
-                <Button size="sm" type="submit" loading={saving}>
-                  저장
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={startEdit}
-              className="-mx-2 -my-1 block w-[calc(100%+16px)] rounded-sm px-2 py-1 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-ink"
-            >
-              <span className="block truncate text-[18px] font-bold tracking-[-0.02em]">{me.nickname}</span>
-              <span className="t-sub mt-0.5 block">눌러서 닉네임 바꾸기</span>
-            </button>
-          )}
+          <NameEditRow
+            label="닉네임"
+            value={me.nickname}
+            max={NICKNAME_MAX}
+            saving={saving}
+            onSave={saveNickname}
+            autoComplete="nickname"
+          />
         </div>
       </div>
-      {nickError && (
-        <p id="nickname-error" role="alert" className="mt-3 text-[12px] text-danger">
-          {nickError}
-        </p>
-      )}
       {uploading && (
         <p role="status" className="t-sub mt-3">
           사진을 올리는 중이에요
@@ -309,7 +239,7 @@ export function MeScreen() {
 
   return (
     <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
-      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
+      <div className="mt-2 flex h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">내 정보</h1>
         <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           뒤로
@@ -350,6 +280,15 @@ export function MeScreen() {
                     </li>
                   ))
                 : [0, 1].map((i) => <Skeleton key={i} className="my-3 h-5 w-full" />)}
+              {/* 팀 만들기 입구 (#172). 개인 달력만 있는 사용자도 여기서 시작할 수 있게 */}
+              {groups && (
+                <li className="border-t border-line">
+                  <Link href="/groups/new" className="flex h-10 items-center gap-2 text-[14px] font-semibold text-acc-ink">
+                    <IconPlus size={16} strokeWidth={2.2} className="shrink-0" />
+                    팀 만들기
+                  </Link>
+                </li>
+              )}
             </ul>
           </section>
 

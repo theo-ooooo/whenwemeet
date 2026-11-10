@@ -26,15 +26,16 @@ export function NewGroupScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
       <div className="flex items-center justify-between">
-        <Symbol size={36} />
+        {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24 (#174 L4) */}
+        <Symbol size={32} />
         <Link href="/" className="hit flex h-8 items-center rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           닫기
         </Link>
       </div>
 
-      <form onSubmit={submit} className="mt-8 flex flex-1 flex-col px-1">
+      <form onSubmit={submit} className="mt-8 flex flex-1 flex-col">
         <h1 className="text-[28px] font-bold leading-9 tracking-[-0.03em]">
           어떤 모임의
           <br />
