@@ -8,7 +8,7 @@ import { OpenInApp } from "@/components/OpenInApp";
 import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
-import { OG_IMAGE, SITE_NAME } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
@@ -22,7 +22,7 @@ const loadInvite = cache((code: string) =>
   serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, { auth: false, from: `/join/${code}` }),
 );
 
-// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 루트 레이아웃의 정적 이미지를 그대로 쓴다
+// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 같은 폴더 opengraph-image.tsx 가 팀 이름을 넣어 그린다 (#159)
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
   const code = (await params).code.toUpperCase();
   const { data } = await loadInvite(code);
@@ -39,9 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
       title: shareTitle,
       description,
       url: `/join/${code}`,
-      images: [OG_IMAGE],
     },
-    twitter: { card: "summary_large_image", title: shareTitle, description, images: [OG_IMAGE.url] },
+    twitter: { card: "summary_large_image", title: shareTitle, description },
   };
 }
 
@@ -73,7 +72,7 @@ export default async function JoinPage({
   const { data, error } = await loadInvite(code);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
       <Symbol size={40} />
 
       {data ? (
