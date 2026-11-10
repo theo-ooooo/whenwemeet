@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
 import { createValidationPipe } from './common/validation.js';
 import { EventsModule } from './events/events.module.js';
+import { FileUrlModule } from './files/file-url.module.js';
 import { FreeSlotsModule } from './free-slots/free-slots.module.js';
 import { GroupsModule } from './groups/groups.module.js';
 import { HealthController } from './health/health.controller.js';
@@ -18,6 +19,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    FileUrlModule,
     AuthModule,
     GroupsModule,
     EventsModule,
