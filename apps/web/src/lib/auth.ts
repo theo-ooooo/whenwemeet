@@ -10,73 +10,55 @@ export const EXPIRED_PATH = "/auth/expired";
 /** /login 에 붙는 만료 표시. 이 값이 있으면 /login 은 쿠키와 무관하게 항상 화면을 그린다 (루프 차단, #37) */
 export const EXPIRED_REASON = "expired";
 
-/** 경로 부분에 허용하는 글자 (API 의 next 검사와 같은 규칙) */
+/** next 최대 길이 (API next-path.ts 와 같은 값) */
+export const NEXT_MAX_LENGTH = 512;
+/** 경로와 쿼리에 허용하는 글자. API(`apps/api/src/auth/next-path.ts`)와 같은 규칙 (D-41, #71) */
 const NEXT_PATH = /^\/[A-Za-z0-9/_-]*$/;
+const NEXT_QUERY = /^[A-Za-z0-9\-._~%&=+,:;@/]*$/;
+const BROKEN_PERCENT = /%(?![0-9A-Fa-f]{2})/;
+const FORBIDDEN_PERCENT = /%(?:[01][0-9A-Fa-f]|7[Ff]|5[Cc])/;
+const CONTROL = /[\u0000-\u001f\u007f]/;
 
 /**
- * next 는 같은 사이트의 웹 경로(+쿼리)만 허용, 아니면 `/`.
- * 세션 만료 후 돌아올 달력은 항상 `?date=` 가 붙어 있어 쿼리를 살린다 (#65). 해시는 버린다.
+ * next 는 같은 사이트의 웹 경로(+쿼리)만 허용, 아니면 `/`. 해시는 버린다.
+ * URL 로 한 번 정규화(비ASCII 쿼리는 퍼센트 인코딩)한 뒤 API 와 같은 글자 규칙으로 검사한다.
+ * 그래서 여기를 통과한 값은 API `/v1/auth/kakao` 도 그대로 받는다 (#65, #71)
  */
 export function safeNext(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
+  if (!raw || raw.length > NEXT_MAX_LENGTH || CONTROL.test(raw)) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\")) return "/";
   try {
     const base = "http://wwm.invalid";
     const u = new URL(raw, base);
-    if (u.origin !== base || !NEXT_PATH.test(u.pathname)) return "/";
-    return u.pathname + u.search;
+    if (u.origin !== base || !NEXT_PATH.test(u.pathname) || u.pathname.startsWith("//")) return "/";
+    const query = u.search.slice(1);
+    if (!query) return u.pathname;
+    if (!NEXT_QUERY.test(query) || BROKEN_PERCENT.test(query) || FORBIDDEN_PERCENT.test(query)) return "/";
+    const next = `${u.pathname}?${query}`;
+    return next.length > NEXT_MAX_LENGTH ? "/" : next;
   } catch {
     return "/";
   }
 }
 
-// API(`/v1/auth/kakao`) 는 OAuth state 에 next 를 싣고 `^/[A-Za-z0-9/_-]*$` 로 검사해 쿼리가 있으면 `/` 로 바꾼다.
-// 쿼리를 base64url 로 바꿔 경로 끝에 붙여 보내고(`<경로>/_q_/<b64>`), 콜백에서 되돌린다 (#65)
-const QUERY_MARK = "/_q_/";
-
-function toBase64Url(s: string): string {
-  const bytes = new TextEncoder().encode(s);
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/**
+ * PR #69 시절 API 가 쿼리를 받지 않아 `<경로>/_q_/<base64url>` 로 싸서 보내던 next (#65).
+ * 배포 직전에 로그인을 시작한 사람의 state 에 남아 있을 수 있어, 꼬리를 떼고 경로만 살린다 (쿼리는 버림, D-41)
+ */
+export function dropLegacyQueryMark(raw: string | null | undefined): string | null | undefined {
+  if (!raw) return raw;
+  const m = /^(.*?)\/_q_\/[A-Za-z0-9_-]*$/.exec(raw);
+  return m ? m[1] || "/" : raw;
 }
 
-function fromBase64Url(s: string): string | null {
-  try {
-    const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
-    const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
-    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-  } catch {
-    return null;
-  }
-}
+/** 초대 화면 자동 합류 표시. 로그인 next 에 실어 보낸다 (`/join/<code>?auto=1`, D-41) */
+export const JOIN_AUTO_PARAM = "auto";
+/** 이 초 안에 발급된 세션일 때만 auto 를 따른다 = 방금 로그인하고 돌아온 경우 */
+export const JOIN_AUTO_FRESH_SEC = 300;
 
-/** next 를 API 검사(`^/[A-Za-z0-9/_-]*$`)를 통과하는 모양으로. 쿼리가 없으면 그대로 */
-export function encodeNextForApi(next: string): string {
-  const safe = safeNext(next);
-  const i = safe.indexOf("?");
-  if (i < 0) return safe;
-  const path = safe.slice(0, i);
-  return `${path === "/" ? "" : path}${QUERY_MARK}${toBase64Url(safe.slice(i + 1))}`;
-}
-
-/** encodeNextForApi 의 반대. 콜백이 받은 next 를 원래 경로(+쿼리)로 되돌리고 다시 safeNext 로 검사한다 */
-export function decodeNextFromApi(raw: string | null | undefined): string {
-  if (!raw) return "/";
-  const m = /^(.*)\/_q_\/([A-Za-z0-9_-]+)$/.exec(raw);
-  if (!m) return safeNext(raw);
-  const query = fromBase64Url(m[2]);
-  if (query === null) return safeNext(m[1] || "/");
-  return safeNext(`${m[1] || "/"}?${query}`);
-}
-
-/** 초대 링크에서 로그인한 직후 바로 합류시키는 표시 쿠키 (`/join/<code>` 가 읽고 지운다) */
-export const JOIN_AUTO_COOKIE = "wwm_join_auto";
-export const JOIN_AUTO_MAX_AGE = 300; // 5분
-
-/** next 가 초대 수락 화면이면 그 코드(대문자), 아니면 null */
-export function joinCodeOf(next: string): string | null {
-  const m = /^\/join\/([A-Za-z0-9]{1,32})$/.exec(next.split("?")[0]);
-  return m ? m[1].toUpperCase() : null;
+/** 초대 화면에서 카카오 로그인 후 돌아올 next */
+export function joinAutoNext(code: string): string {
+  return `/join/${encodeURIComponent(code)}?${JOIN_AUTO_PARAM}=1`;
 }
 
 /** JWT 모양(점으로 나뉜 3조각) 만 확인. 서명 검증은 API 가 한다 */

@@ -16,8 +16,8 @@ function decodeBase64Url(part: string): string | null {
   }
 }
 
-/** JWT payload 의 exp(초). 모양이 틀리거나 디코드에 실패하거나 exp 가 없으면 null */
-export function readJwtExp(token: string | null | undefined): number | null {
+/** JWT payload 의 숫자 클레임(초). 모양이 틀리거나 디코드에 실패하거나 값이 없으면 null */
+function readJwtNumericClaim(token: string | null | undefined, claim: "exp" | "iat"): number | null {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length !== 3 || parts.some((p) => !p)) return null;
@@ -26,11 +26,29 @@ export function readJwtExp(token: string | null | undefined): number | null {
   try {
     const payload: unknown = JSON.parse(json);
     if (!payload || typeof payload !== "object") return null;
-    const exp = (payload as { exp?: unknown }).exp;
-    return typeof exp === "number" && Number.isFinite(exp) ? exp : null;
+    const value = (payload as Record<string, unknown>)[claim];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
   } catch {
     return null;
   }
+}
+
+/** JWT payload 의 exp(초). 모양이 틀리거나 디코드에 실패하거나 exp 가 없으면 null */
+export function readJwtExp(token: string | null | undefined): number | null {
+  return readJwtNumericClaim(token, "exp");
+}
+
+/**
+ * 방금(maxAgeSec 안에) 발급된 세션인지. 초대 자동 합류(`?auto=1`)는 이 경우만 따른다 (D-41).
+ * 로그인한 채 누가 보낸 `?auto=1` 링크를 열면 iat 가 오래돼 확인 버튼이 그대로 나온다.
+ * 서명 검증은 하지 않는다(위조해 봐야 자기 계정으로 확인 없이 합류할 뿐). 목 모드 토큰은 iat 가 없어 항상 true
+ */
+export function isFreshSession(token: string | null | undefined, maxAgeSec: number, nowSec = Date.now() / 1000): boolean {
+  if (!token) return false;
+  if (process.env.API_MOCK === "1") return true;
+  const iat = readJwtNumericClaim(token, "iat");
+  // 서버 간 시계 차이를 감안해 미래 쪽은 1분까지 허용
+  return iat !== null && iat <= nowSec + 60 && nowSec - iat <= maxAgeSec;
 }
 
 /**
