@@ -56,7 +56,7 @@ export function DatePicker({ value, onChange, label, id, min, max, className = "
   );
 }
 
-const navBtn = "flex size-9 items-center justify-center rounded-full text-ink-2 hover:bg-surface hover:text-ink";
+const navBtn = "flex size-8 items-center justify-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink";
 
 function clamp(key: DateKey, min?: DateKey, max?: DateKey): DateKey {
   if (min && key < min) return min;
@@ -135,7 +135,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
             <IconChevronLeft size={18} />
           </button>
         </span>
-        <h3 id={headingId} aria-live="polite" className="text-[16px] font-extrabold tracking-[-0.02em] tabular-nums">
+        <h3 id={headingId} aria-live="polite" className="text-[15px] font-bold tracking-[-0.02em] tabular-nums">
           {view.y}년 {view.m}월
         </h3>
         <span className="flex">
@@ -149,7 +149,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
         </span>
       </div>
       <div role="grid" aria-labelledby={headingId} ref={grid} onKeyDown={onKey}>
-        <div role="row" className="grid grid-cols-7 pb-1 text-center text-[11px] font-bold text-ink-2">
+        <div role="row" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
           {WEEKDAYS.map((w, i) => (
             <span key={w} role="columnheader" aria-label={`${w}요일`} className={i === 0 || i === 6 ? "text-holiday" : ""}>
               {w}
@@ -167,17 +167,18 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
               const selected = k === value;
               const isToday = k === today;
               const off = disabled(k);
+              // 선택 = --sel-fill 원 + 흰 숫자, 오늘 = 숫자만 --today-ink (D-57)
               const tone = selected
-                ? "bg-pri text-on-pri"
+                ? "bg-sel-fill font-bold text-on-pri"
                 : isToday
-                  ? "bg-today text-today-ink"
+                  ? "font-bold text-today-ink hover:bg-hover"
                   : !inMonth
                     ? red
-                      ? "text-[var(--holiday-faint)]"
-                      : "text-faint"
+                      ? "font-medium text-holiday-faint"
+                      : "font-medium text-faint"
                     : red
-                      ? "text-holiday hover:bg-surface"
-                      : "hover:bg-surface";
+                      ? "font-semibold text-holiday hover:bg-hover"
+                      : "font-semibold hover:bg-hover";
               return (
                 <div role="gridcell" key={k} aria-selected={selected} className="grid place-items-center">
                   <button
@@ -189,11 +190,11 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
                     aria-label={`${formatDateKo(k, true)}${holiday ? `, ${holiday}` : ""}${isToday ? ", 오늘" : ""}`}
                     aria-current={isToday ? "date" : undefined}
                     title={holiday ?? undefined}
-                    className={`anim-pick relative grid size-10 place-items-center rounded-full text-[14px] font-bold tabular-nums disabled:cursor-not-allowed disabled:opacity-30 ${tone}`}
+                    className={`anim-pick relative grid size-9 place-items-center rounded-full text-[13px] tabular-nums disabled:cursor-not-allowed disabled:opacity-30 ${tone}`}
                   >
                     {p.d}
                     {holiday && inMonth && !selected && (
-                      <span aria-hidden="true" className="absolute bottom-1 size-1 rounded-full bg-holiday" />
+                      <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-holiday" />
                     )}
                   </button>
                 </div>
@@ -203,12 +204,12 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
         ))}
       </div>
       <div className="mt-2 flex items-center justify-between border-t border-line px-1 pt-2">
-        <span className="min-w-0 truncate text-[12px] font-semibold text-ink-2">{holidayOf(focus) ?? ""}</span>
+        <span className="min-w-0 truncate text-[12px] text-ink-2">{holidayOf(focus) ?? ""}</span>
         <button
           type="button"
           disabled={disabled(today)}
           onClick={() => onPick(today)}
-          className="h-8 shrink-0 rounded-full bg-surface px-3 text-[13px] font-bold hover:brightness-95 disabled:opacity-40"
+          className="h-8 shrink-0 rounded-sm bg-hover px-3 text-[13px] font-bold hover:brightness-95 disabled:opacity-40"
         >
           오늘
         </button>

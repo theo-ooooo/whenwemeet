@@ -9,10 +9,8 @@ import { Avatar, Button, ConfirmDialog, ErrorState, MemberDot, Skeleton, inputCl
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
-import { memberColor, onMemberColor, PICKABLE_COLORS } from "@/lib/colors";
+import { COLOR_NAMES, memberColor, ON_MEMBER_COLOR, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
-
-const COLOR_NAMES = ["레드", "블루", "보라", "그린", "오렌지"];
 
 export function SettingsScreen({ groupId, openInvite }: { groupId: number; openInvite: boolean }) {
   const { group, error, refresh, setGroup } = useGroupContext();
@@ -27,15 +25,15 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
 
   return (
     <div className="space-y-2 pt-1">
-      <h1 className="t-title mt-4 lg:mt-0">팀 설정</h1>
+      <h1 className="t-title mt-2 lg:mt-0">팀 설정</h1>
       {group ? (
         <>
           <NameSection group={group} onSaved={setGroup} />
           {group.type === "TEAM" ? (
             <InviteSection group={group} onSaved={setGroup} open={openInvite} />
           ) : (
-            <section className="rounded-xl bg-paper px-5 py-5">
-              <p className="text-[14px] font-semibold leading-relaxed text-soft">
+            <section className="rounded-xl bg-paper px-3.5 py-3.5">
+              <p className="text-[14px] leading-5 text-soft">
                 개인 달력은 나만 볼 수 있어요. 여럿이 쓰려면 새 팀을 만들어 보세요
               </p>
               <Link href="/groups/new" className="mt-3 block">
@@ -61,7 +59,7 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-[12px] font-semibold text-ink-2">{children}</h2>;
+  return <h2 className="text-[13px] font-bold leading-5">{children}</h2>;
 }
 
 /* 팀 이름 */
@@ -85,7 +83,7 @@ function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Grou
   }
 
   return (
-    <section className="rounded-xl bg-paper px-5 py-5">
+    <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <SectionTitle>팀 이름</SectionTitle>
       {editing ? (
         <form onSubmit={save} className="mt-2 flex gap-2">
@@ -113,7 +111,7 @@ function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Grou
         </form>
       ) : (
         <div className="mt-1 flex items-center justify-between gap-3">
-          <p className="truncate text-[22px] font-extrabold tracking-[-0.04em]">{group.name}</p>
+          <p className="truncate text-[18px] font-bold tracking-[-0.02em]">{group.name}</p>
           <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
             이름 바꾸기
           </Button>
@@ -177,11 +175,11 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
     <section
       ref={ref}
       tabIndex={-1}
-      className={`rounded-xl bg-paper px-5 py-5 outline-none ${open ? "ring-2 ring-ink" : ""}`}
+      className={`rounded-xl bg-paper px-3.5 py-3.5 outline-none ${open ? "ring-2 ring-ink" : ""}`}
     >
       <SectionTitle>초대</SectionTitle>
-      <p className="mt-1 text-[14px] font-semibold text-soft">링크를 열거나 코드를 입력하면 이 달력에 합류해요</p>
-      <p className="mt-4 rounded-[18px] bg-surface py-4 text-center text-[40px] font-extrabold tracking-[0.18em] tabular-nums" aria-label={`초대 코드 ${group.inviteCode?.split("").join(" ")}`}>
+      <p className="mt-0.5 text-[13px] leading-5 text-soft">링크를 열거나 코드를 입력하면 이 달력에 합류해요</p>
+      <p className="mt-3 rounded-sm bg-surface py-3 text-center text-[28px] font-bold leading-9 tracking-[0.18em] tabular-nums" aria-label={`초대 코드 ${group.inviteCode?.split("").join(" ")}`}>
         {group.inviteCode}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -193,7 +191,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
       <button
         type="button"
         onClick={() => setConfirm(true)}
-        className="mt-3 w-full rounded-full py-2 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink"
+        className="mt-2 w-full rounded-sm py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
       >
         코드 재발급
       </button>
@@ -213,18 +211,18 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
 /* 멤버 */
 function MembersSection({ group }: { group: GroupDetail }) {
   return (
-    <section className="rounded-xl bg-paper px-5 py-5">
+    <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <SectionTitle>멤버 {group.members.length}명</SectionTitle>
-      <ul className="mt-2 divide-y divide-line">
+      <ul className="mt-1 divide-y divide-line">
         {group.members.map((m) => {
           const isMe = m.userId !== null && m.userId === group.me.userId;
           return (
-            <li key={m.userId ?? m.displayName} className="flex items-center gap-3 py-2.5">
-              <Avatar member={m} size={36} />
+            <li key={m.userId ?? m.displayName} className="flex min-h-11 items-center gap-2.5 py-1.5">
+              <Avatar member={m} size={28} />
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                <MemberDot color={m.color} size={10} />
-                <span className="truncate text-[16px] font-bold tracking-[-0.02em]">{m.displayName}</span>
-                {isMe && <span className="text-[13px] font-semibold text-ink-2">(나)</span>}
+                <MemberDot color={m.color} size={8} />
+                <span className="truncate text-[15px] font-semibold">{m.displayName}</span>
+                {isMe && <span className="text-[12px] text-ink-2">(나)</span>}
               </span>
             </li>
           );
@@ -261,12 +259,12 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
   }
 
   return (
-    <section className="rounded-xl bg-paper px-5 py-5">
+    <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <SectionTitle>이 팀에서 내 표시</SectionTitle>
       <form onSubmit={save}>
         <fieldset className="mt-2">
           <legend className="sr-only">내 색</legend>
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-wrap gap-2">
             {palette.map((c) => {
               const selected = c.toUpperCase() === color.toUpperCase();
               return (
@@ -277,22 +275,22 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
                   aria-checked={selected}
                   aria-label={COLOR_NAMES[PICKABLE_COLORS.indexOf(c as (typeof PICKABLE_COLORS)[number])] ?? "지금 색"}
                   onClick={() => setColor(c)}
-                  className="flex size-10 items-center justify-center rounded-full"
+                  className="flex size-8 items-center justify-center rounded-full"
                   style={{
                     backgroundColor: memberColor(c),
                     boxShadow: selected ? `0 0 0 2px var(--tile), 0 0 0 4px ${memberColor(c)}` : undefined,
                   }}
                 >
-                  {selected && <IconCheck size={18} strokeWidth={3} style={{ color: onMemberColor(c) }} />}
+                  {selected && <IconCheck size={16} strokeWidth={2.6} style={{ color: ON_MEMBER_COLOR }} />}
                 </button>
               );
             })}
           </div>
         </fieldset>
-        <label htmlFor="me-name" className="mt-5 block text-[12px] font-semibold text-ink-2">
+        <label htmlFor="me-name" className="mt-3.5 block text-[12px] font-medium text-ink-2">
           표시 이름
         </label>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-1.5 flex gap-2">
           <input
             id="me-name"
             className={inputClass}

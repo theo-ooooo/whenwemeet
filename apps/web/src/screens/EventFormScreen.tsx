@@ -204,39 +204,39 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
 
   return (
     <form onSubmit={save} className="pt-1">
-      <div className="mt-4 flex items-center justify-between lg:mt-0">
+      <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
         <button
           type="button"
           onClick={() => router.back()}
-          className="h-9 rounded-full bg-paper px-4 text-[13px] font-bold hover:brightness-95"
+          className="h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
         >
           취소
         </button>
       </div>
 
       {saveError && (
-        <p role="alert" className="mt-3 rounded-lg bg-paper px-4 py-3 text-[14px] font-semibold text-danger">
+        <p role="alert" className="mt-2 rounded-xl bg-paper px-3.5 py-2.5 text-[14px] text-danger">
           {saveError}
         </p>
       )}
 
       {!loaded ? (
-        <div className="mt-4 space-y-4" aria-busy="true" aria-label="불러오는 중">
+        <div className="mt-3 space-y-2" aria-busy="true" aria-label="불러오는 중">
           <Skeleton className="h-14 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
       ) : (
-        <div className="mt-4 space-y-2">
-          <div className="rounded-xl bg-paper px-5 py-5">
+        <div className="mt-3 space-y-2">
+          <div className="rounded-xl bg-paper px-3.5 py-3">
             <label htmlFor="ev-title" className="sr-only">
               제목
             </label>
             <input
               id="ev-title"
-              className="w-full bg-transparent text-[26px] font-extrabold tracking-[-0.04em] placeholder:font-bold placeholder:text-faint focus:outline-none"
+              className="w-full bg-transparent text-[20px] font-bold leading-7 tracking-[-0.02em] placeholder:font-bold placeholder:text-faint focus:outline-none"
               placeholder="무슨 일정인가요?"
               value={title}
               onChange={(e) => {
@@ -253,15 +253,15 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
               aria-describedby={titleError ? "ev-title-err" : undefined}
             />
             {titleError && (
-              <p id="ev-title-err" role="alert" className="mt-1.5 text-[13px] text-danger">
+              <p id="ev-title-err" role="alert" className="mt-1.5 text-[12px] text-danger">
                 {titleError}
               </p>
             )}
           </div>
 
-          <div className="rounded-xl bg-paper px-5 py-4">
+          <div className="rounded-xl bg-paper px-3.5 py-2">
             <Toggle checked={allDay} onChange={toggleAllDay} label="종일" />
-            <div className="mt-3 space-y-4 border-t border-line pt-4">
+            <div className="mt-2 space-y-3 border-t border-line pb-1 pt-3">
               {(
                 [
                   { key: "start", label: "시작", date: startDate, time: startTime },
@@ -269,7 +269,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
                 ] as const
               ).map((row) => (
                 <div key={row.key}>
-                  <span className="mb-2 block text-[12px] font-semibold text-ink-2">{row.label}</span>
+                  <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">{row.label}</span>
                   <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
                       <DatePicker
@@ -293,14 +293,14 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
               ))}
             </div>
             {rangeError && touched && (
-              <p role="alert" className="mt-3 text-[13px] text-danger">
+              <p role="alert" className="mb-1 mt-2 text-[12px] text-danger">
                 {rangeError}
               </p>
             )}
-            {rangeError && !touched && <p className="t-sub mt-3">{rangeError}</p>}
+            {rangeError && !touched && <p className="t-sub mb-1 mt-2">{rangeError}</p>}
           </div>
 
-          <div className="rounded-xl bg-paper px-5 py-4">
+          <div className="rounded-xl bg-paper px-3.5 py-3">
             <Field label="메모" hint={`${charCount(memo)}/${MEMO_MAX}`}>
               {(id, describedBy) => (
                 <textarea
@@ -316,13 +316,13 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
           </div>
 
           {editing && creator && (
-            <p className="flex items-center gap-1.5 px-2 pt-1 text-[13px] font-semibold text-ink-2">
-              <MemberDot color={creator.color} size={10} round />
+            <p className="flex items-center gap-1.5 px-1 pt-1 text-[12px] text-ink-2">
+              <MemberDot color={creator.color} size={8} />
               {creator.displayName}님이 등록한 일정
             </p>
           )}
 
-          <div className="flex gap-2 pt-3">
+          <div className="flex gap-2 pt-2">
             <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">
               {editing ? "저장" : "일정 추가"}
             </Button>
