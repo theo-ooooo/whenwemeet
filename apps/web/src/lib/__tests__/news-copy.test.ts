@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newsHref, newsPhrase } from "../news-copy";
+import { newsDateLabel, newsHref, newsPhrase } from "../news-copy";
 import type { NewsItem } from "../types";
 
 type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventId">;
@@ -38,5 +38,21 @@ describe("newsHref", () => {
     expect(newsHref(2, it0)).toBe("/g/2/events/7");
     expect(newsHref(2, { ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "THIS", occurrence: "2026-11-18" })).toBe("/g/2/events/7?occurrence=2026-11-18");
     expect(newsHref(2, { ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "FOLLOWING", occurrence: "2026-11-18" })).toBe("/g/2/events/7");
+  });
+});
+
+describe("newsDateLabel — 시각 줄 날짜 (QA3-L6)", () => {
+  it("올해 회차는 연도 없이", () => {
+    expect(newsDateLabel("2026-11-27T19:00:00+09:00", "2026-11-11")).toBe("11월 27일 (금)");
+  });
+
+  it("다른 해 회차는 연도를 붙인다 (앞, 뒤 모두)", () => {
+    expect(newsDateLabel("2024-02-29T09:00:00+09:00", "2026-11-11")).toBe("2024년 2월 29일 (목)");
+    expect(newsDateLabel("2027-01-05T09:00:00+09:00", "2026-11-11")).toBe("2027년 1월 5일 (화)");
+  });
+
+  it("연도는 KST 기준 (UTC 로는 전해인 1월 1일 00:30)", () => {
+    expect(newsDateLabel("2026-12-31T15:30:00Z", "2026-11-11")).toBe("2027년 1월 1일 (금)");
+    expect(newsDateLabel("2027-01-01T00:30:00+09:00", "2027-01-01")).toBe("1월 1일 (금)");
   });
 });

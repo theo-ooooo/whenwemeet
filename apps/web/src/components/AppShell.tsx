@@ -182,9 +182,9 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
 
         <div className="flex min-h-dvh w-full flex-col">
           {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
-              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133) */}
+              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3) */}
           <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
-            <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
+            <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
               <Symbol size={30} />
             </Link>
             <button

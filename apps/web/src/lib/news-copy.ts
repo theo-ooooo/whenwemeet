@@ -1,6 +1,6 @@
 // 새 소식 문구 (#187, 설계 4-3, 기획 3-6). React 를 import 하지 않는다 (단위 테스트 대상)
 // 화면은 "{이름}님이 '{제목}' " 뒤에 newsPhrase 를 붙인다
-import { parseKey } from "./date";
+import { dateKeyOf, formatDateKo, parseKey, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
 import type { NewsItem } from "./types";
 
@@ -33,4 +33,10 @@ export function newsHref(groupId: number, item: Item): string | null {
   if (!item.eventId || item.action === "DELETED") return null;
   const base = `/g/${groupId}/events/${item.eventId}`;
   return item.scope === "THIS" && item.occurrence ? `${base}?occurrence=${item.occurrence}` : base;
+}
+
+/** 시각 줄 앞 날짜 "2월 29일 (목)". 올해(KST) 가 아닌 회차는 연도를 붙인다 ("2024년 2월 29일 (목)", QA3-L6) */
+export function newsDateLabel(startsAt: string, today: DateKey): string {
+  const key = dateKeyOf(startsAt);
+  return formatDateKo(key, parseKey(key).y !== parseKey(today).y);
 }

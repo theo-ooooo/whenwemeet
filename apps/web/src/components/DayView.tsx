@@ -98,7 +98,7 @@ export function DayView({
           const red = dow === 0 || dow === 6 || Boolean(holidayOf(k));
           const dayEvents = byDay?.get(k) ?? [];
           const dots = cellDensity(dayEvents).dots;
-          const tone = sel ? "text-on-pri" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
+          const tone = sel ? "text-on-strip-sel" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
           return (
             <li key={k}>
               <button
@@ -106,9 +106,9 @@ export function DayView({
                 onClick={() => onPickDay(k)}
                 aria-pressed={sel}
                 aria-label={`${formatDateKo(k)}${k === today ? ", 오늘" : ""}${dayEvents.length ? `, 일정 ${dayEvents.length}개` : ""}`}
-                className={`anim-pick flex h-[70px] w-full flex-col items-center justify-center gap-1 rounded-[14px] ${sel ? "bg-sel-fill" : "bg-paper hover:bg-hover"}`}
+                className={`anim-pick flex h-[70px] w-full flex-col items-center justify-center gap-1 rounded-[14px] ${sel ? "bg-strip-sel" : "bg-paper hover:bg-hover"}`}
               >
-                <span aria-hidden="true" className={`text-[11px] font-medium leading-4 ${sel ? "text-on-pri" : red ? "text-holiday" : "text-ink-2"}`}>
+                <span aria-hidden="true" className={`text-[11px] font-medium leading-4 ${sel ? "text-on-strip-sel" : red ? "text-holiday" : "text-ink-2"}`}>
                   {WEEKDAYS[dow]}
                 </span>
                 <span aria-hidden="true" className={`text-[16px] font-bold leading-5 ${tone}`}>
@@ -125,7 +125,7 @@ export function DayView({
         })}
       </ul>
 
-      {/* 그날 요약: 흰 카드 한 장에 두 줄 (겹침 아이콘 20 + 라벨 14 + 값 15/700 --acc-ink) */}
+      {/* 그날 요약: 흰 카드 한 장에 두 줄 (겹침 아이콘 20 + 라벨 14 + 값 15/700 --acc-ink). 값 링크는 hit 로 누르는 높이 44 (QA3-L3) */}
       <div className="mt-[22px] rounded-xl bg-paper px-3.5">
         <SummaryRow icon={<IconFree size={20} />} label={free?.label ?? "비는 시간"}>
           {free === null ? (
@@ -136,12 +136,12 @@ export function DayView({
             <Link
               href={newEventHref(free.slot.startsAt, free.slot.endsAt)}
               aria-label={`${free.label} ${timeOf(free.slot.startsAt)}부터 ${timeOf(free.slot.endsAt)}까지, 눌러서 바로 약속 잡기`}
-              className="text-[15px] font-bold text-acc-ink hover:underline underline-offset-2"
+              className="hit text-[15px] font-bold text-acc-ink hover:underline underline-offset-2"
             >
               {timeOf(free.slot.startsAt)}~{timeOf(free.slot.endsAt)}
             </Link>
           ) : (
-            <Link href={`/g/${groupId}/free`} className="text-[14px] text-ink-2 hover:underline underline-offset-2">
+            <Link href={`/g/${groupId}/free`} className="hit text-[14px] text-ink-2 hover:underline underline-offset-2">
               없어요, 다른 날 찾기
             </Link>
           )}

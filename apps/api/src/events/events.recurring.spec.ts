@@ -3,7 +3,7 @@ import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
-import { assertRepeatRule, EventsService } from './events.service.js';
+import { assertRepeatRule, EventsService, inheritedUntil } from './events.service.js';
 
 /** 반복 일정 (#187, 설계 4장) 서비스 단위 테스트. Repository 는 목 */
 
@@ -367,6 +367,57 @@ describe('EventsService 반복 일정', () => {
         service.update(1, 10, 200, { endsAt: '2026-12-03T00:00:00+09:00' }, { scope: 'following', occurrence: '2026-11-25' }),
       ).rejects.toMatchObject({ message: '반복 간격보다 긴 일정은 반복할 수 없어요' });
       expect(events.splitSeriesTx).toHaveBeenCalledTimes(1);
+    });
+
+    it('QA3-L1: repeatUntil 을 안 보냈는데 종료 날짜 뒤로 옮기면 종료를 새 시작 날짜로 늘린다', async () => {
+      // 종료 11-25 인 매주 반복의 마지막 회차(11-25) 를 11-27 로
+      events.findInGroup.mockResolvedValue({ ...SERIES, repeatUntil: '2026-11-25' });
+      events.splitSeriesTx.mockResolvedValue({ ...SERIES, id: 201 });
+      await service.update(
+        1,
+        10,
+        200,
+        { startsAt: '2026-11-27T19:00:00+09:00', endsAt: '2026-11-27T21:00:00+09:00' },
+        { scope: 'following', occurrence: '2026-11-25' },
+      );
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2026-11-27T19:00:00'), repeat: 'WEEKLY', repeatUntil: '2026-11-27' });
+    });
+
+    it('QA3-L1: 첫 회차를 옮겨도 같다, 종료 안쪽이면 그대로 이어받는다', async () => {
+      events.findInGroup.mockResolvedValue({ ...SERIES, repeatUntil: '2026-11-11' });
+      events.updateSeriesFromStartTx.mockResolvedValue(SERIES);
+      await service.update(1, 10, 200, { startsAt: '2026-11-13T19:00:00+09:00', endsAt: '2026-11-13T21:00:00+09:00' }, { scope: 'following', occurrence: '2026-11-11' });
+      expect(events.updateSeriesFromStartTx.mock.calls[0][1]).toMatchObject({ repeatUntil: '2026-11-13' });
+
+      events.findInGroup.mockResolvedValue({ ...SERIES, repeatUntil: '2026-12-31' });
+      events.splitSeriesTx.mockResolvedValue({ ...SERIES, id: 201 });
+      await service.update(1, 10, 200, { startsAt: '2026-11-27T19:00:00+09:00', endsAt: '2026-11-27T21:00:00+09:00' }, { scope: 'following', occurrence: '2026-11-25' });
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ repeatUntil: '2026-12-31' });
+    });
+
+    it('QA3-L1: repeatUntil 을 보냈으면 늘리지 않고 검증한다', async () => {
+      events.findInGroup.mockResolvedValue({ ...SERIES, repeatUntil: '2026-11-25' });
+      await expect(
+        service.update(
+          1,
+          10,
+          200,
+          { startsAt: '2026-11-27T19:00:00+09:00', endsAt: '2026-11-27T21:00:00+09:00', repeatUntil: '2026-11-25' },
+          { scope: 'following', occurrence: '2026-11-25' },
+        ),
+      ).rejects.toMatchObject({ code: 'EVENT_RANGE_INVALID', message: '종료 날짜는 시작 날짜 뒤여야 해요' });
+      expect(events.splitSeriesTx).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('inheritedUntil', () => {
+    it('계속(null) 은 null, 새 시작이 종료 뒤면 새 시작 날짜(KST), 아니면 그대로', () => {
+      expect(inheritedUntil(null, kst('2026-11-27T19:00:00'))).toBeNull();
+      expect(inheritedUntil('2026-11-25', kst('2026-11-27T19:00:00'))).toBe('2026-11-27');
+      expect(inheritedUntil('2026-11-27', kst('2026-11-27T19:00:00'))).toBe('2026-11-27');
+      expect(inheritedUntil('2026-12-31', kst('2026-11-27T19:00:00'))).toBe('2026-12-31');
+      // KST 00:30 은 UTC 로 전날이지만 KST 날짜로 본다
+      expect(inheritedUntil('2026-11-26', kst('2026-11-27T00:30:00'))).toBe('2026-11-27');
     });
   });
 

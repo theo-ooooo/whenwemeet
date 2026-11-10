@@ -103,3 +103,19 @@ export function withSelection(search: string, selected: DateKey, today: DateKey,
 export function calendarEventHref(groupId: number, date: DateKey, ev: { id: number; occurrence?: string | null }, today: DateKey): string {
   return `/g/${groupId}/calendar${withDayStep("", { step: "event", date, eventId: ev.id, occurrence: ev.occurrence ?? null }, today)}`;
 }
+
+/**
+ * 일정 화면(수정, 복제)에서 일정이 404 일 때 갈 곳 (QA3-L7).
+ * - 회차 주소(?occurrence=) 인데 원본은 아직 있으면: 그 회차 날짜의 일 상세. 회차가 "이후 모두" 로 새 원본에 옮겨 갔거나
+ *   (새 소식 "이 일정만" 기록이 옛 원본을 가리킨다) 그 회차만 취소된 경우라, 그날을 보여 주는 것이 맞다
+ * - 회차 주소가 아니거나 원본도 없으면: "이미 삭제된 일정이에요" + 달력 (지금 규칙)
+ */
+export function missingEventTarget(
+  groupId: number,
+  occurrence: DateKey | null | undefined,
+  seriesAlive: boolean,
+  today: DateKey,
+): { href: string; deleted: boolean } {
+  if (occurrence && seriesAlive) return { href: `/g/${groupId}/calendar${withDayStep("", { step: "day", date: occurrence }, today)}`, deleted: false };
+  return { href: `/g/${groupId}/calendar`, deleted: true };
+}
