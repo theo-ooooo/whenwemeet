@@ -221,14 +221,17 @@ function DayGroups({
   );
 }
 
-// 줄 60 (일 상세 일정 카드와 같은 높이). 줄 사이 1px --line 은 카드 안쪽 여백 선에서
-const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-hover";
+// 줄 60 (일 상세 일정 카드와 같은 높이). 줄 사이 1px --line 은 카드 안쪽 여백 선에서.
+// 올림 표시는 카드 면(--tile)에 글자색(--ink)을 5% 섞는다 (라이트는 살짝 어둡게, 다크는 살짝 밝게).
+// --hover 는 라이트에서 바탕(--bg)과 같은 색이라 카드 안 줄에 쓰면 그 줄만 카드 밖으로 빠진 것처럼 보인다 (#223 리뷰)
+const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-[color-mix(in_srgb,var(--tile),var(--ink)_5%)]";
 
 function Row({ divider, children }: { divider: boolean; children: React.ReactNode }) {
   return (
     <li className="relative">
-      {divider && <i aria-hidden="true" className="absolute inset-x-3.5 top-0 h-px bg-line" />}
       {children}
+      {/* 줄 면 위에 그린다 (올림 표시가 구분선을 덮지 않게) */}
+      {divider && <i aria-hidden="true" className="pointer-events-none absolute inset-x-3.5 top-0 h-px bg-line" />}
     </li>
   );
 }
