@@ -86,21 +86,22 @@ export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
 
   const showInstall = phase === "failed" && plan.storeUrl;
   return (
-    <div className="mt-4 flex flex-col gap-2" data-testid="open-in-app">
+    // 위 로그인/합류 버튼과 같은 간격 8, 같은 크기 48 (#166)
+    <div className="mt-2 flex flex-col gap-2" data-testid="open-in-app">
       {showInstall ? (
         <>
           <a href={plan.storeUrl!} className="block">
-            <Button size="lg" full tabIndex={-1}>
+            <Button size="xl" full tabIndex={-1}>
               앱 설치하기
             </Button>
           </a>
-          <Button variant="ghost" size="md" full onClick={() => setPhase("dismissed")}>
+          <Button variant="ghost" size="xl" full onClick={() => setPhase("dismissed")}>
             웹에서 계속하기
           </Button>
         </>
       ) : (
         <>
-          <Button variant="secondary" size="lg" full loading={phase === "opening"} onClick={() => attempt(true)}>
+          <Button variant="outline" size="xl" full loading={phase === "opening"} onClick={() => attempt(true)}>
             앱에서 열기
           </Button>
           <p className="text-center text-[12px] leading-4 text-ink-2">

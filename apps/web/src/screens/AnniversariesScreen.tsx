@@ -1,5 +1,6 @@
 "use client";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
@@ -46,6 +47,17 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       setKind("COUNT_UP");
     }
   }
+
+  // + 는 하나만 (#170): 폰 + 와 레일 + 가 이 화면에서는 기념일 추가 시트를 연다. 제목 옆 버튼은 + 가 없는 PC(≥1200)에만
+  const { setFabAction } = useGroupContext();
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  });
+  useEffect(() => {
+    setFabAction({ label: "기념일 추가", run: () => openRef.current({ mode: "new" }) });
+    return () => setFabAction(null);
+  }, [setFabAction]);
 
   const valid = name.trim().length >= 1 && name.trim().length <= 30 && /^\d{4}-\d{2}-\d{2}$/.test(date);
 
@@ -100,10 +112,12 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
           <h1 className="t-title">기념일</h1>
           <p className="t-sub mt-0.5">100일, 1주년, 생일이 달력에 자동으로 보여요</p>
         </div>
-        <Button size="sm" onClick={() => open({ mode: "new" })}>
-          <IconPlus size={14} strokeWidth={2.2} />
-          기념일 추가
-        </Button>
+        <span className="hidden shrink-0 wide:block">
+          <Button size="sm" onClick={() => open({ mode: "new" })}>
+            <IconPlus size={14} strokeWidth={2.2} />
+            기념일 추가
+          </Button>
+        </span>
       </div>
 
       <div className="mt-3">

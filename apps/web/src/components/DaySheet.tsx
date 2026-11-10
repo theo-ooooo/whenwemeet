@@ -1,6 +1,6 @@
 "use client";
 // 폰(<600) 날짜 상세 바텀 시트 (docs/설계/폴더블.md 5-3).
-// 처음 반 높이(화면의 약 58%), 손잡이나 머리를 위로 끌면 전체, 아래로 끌거나 배경을 누르면 닫힘. 손잡이 버튼으로도 반/전체 전환.
+// 처음 높이는 내용만큼, 넘치면 화면의 70%까지(#175), 손잡이나 머리를 위로 끌면 전체, 아래로 끌거나 배경을 누르면 닫힘. 손잡이 버튼으로도 반/전체 전환.
 // 빠른 추가에서 키보드가 올라오면 visualViewport 만큼 시트를 올려 저장 버튼이 키보드 위에 남게 한다
 import { useEffect, useRef, useState } from "react";
 import { useDialogKeys } from "./useDialogKeys";
@@ -12,14 +12,16 @@ type Props = {
   onClose: () => void;
   /** 삭제 확인 창이 위에 떠 있으면 키와 포커스 가두기를 멈춘다 */
   paused?: boolean;
+  /** 스크롤 밖 시트 바닥에 고정하는 주 버튼 바 (#175). 목록이 길어도 늘 보인다 */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 };
 
 // 바깥 틀(fixed inset-0) 높이 기준. dvh 는 모바일 에뮬레이션과 일부 WebView 에서 창 높이와 어긋난다
-const HALF = "58%";
+const HALF = "70%";
 const FULL = "calc(100% - env(safe-area-inset-top) - 12px)";
 
-export function DaySheet({ titleId, onClose, paused = false, children }: Props) {
+export function DaySheet({ titleId, onClose, paused = false, footer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<SheetMode>("half");
   const [keyboard, setKeyboard] = useState(0);
@@ -134,7 +136,14 @@ export function DaySheet({ titleId, onClose, paused = false, children }: Props) 
             <span aria-hidden="true" className="block h-[5px] w-10 rounded-full bg-[var(--grab)]" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(20px+env(safe-area-inset-bottom))]">{children}</div>
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-3" : "pb-[calc(20px+env(safe-area-inset-bottom))]"}`}
+        >
+          {children}
+        </div>
+        {footer && (
+          <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3">{footer}</div>
+        )}
       </div>
     </div>
   );
