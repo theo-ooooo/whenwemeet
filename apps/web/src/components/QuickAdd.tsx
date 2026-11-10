@@ -95,9 +95,9 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
 
   return (
     <form onSubmit={save} noValidate>
-      {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2). 뒤로 아이콘 칸 32 의 왼쪽 끝을 시트 여백 16 에 맞춘다 (#174 L9) */}
+      {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2). 뒤로 화살표 선을 시트 여백 16 에 맞춘다(광학 정렬, 일정 상세와 같음). 버튼 칸은 왼쪽으로 내밀고 누르는 영역 44 는 hit 가 유지 (#174 L9) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
-        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="hit -ml-2 flex size-8 shrink-0 items-center rounded-sm pl-0.5 text-ink-2 hover:bg-hover hover:text-ink">
           <IconChevronLeft size={18} />
         </button>
         <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">

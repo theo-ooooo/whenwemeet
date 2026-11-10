@@ -44,12 +44,12 @@ export function EventDetail({
 
   return (
     <div>
-      {/* 뒤로 버튼 왼쪽 끝을 시트 여백 16 에 맞추고, 화살표는 빠른 추가의 아이콘 칸 32 가운데와 같은 자리(왼쪽 7) (#174 L9) */}
+      {/* 뒤로 화살표 선을 시트 여백 16 에 맞춘다(광학 정렬, 빠른 추가와 같음). 버튼 칸은 왼쪽으로 내밀고 누르는 영역 44 는 hit 가 유지 (#174 L9) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
         <button
           type="button"
           onClick={onBack}
-          className="hit flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-[7px] pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
+          className="hit -ml-2 flex h-8 min-w-0 items-center gap-0.5 rounded-sm pl-0.5 pr-2 text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
         >
           <IconChevronLeft size={18} className="shrink-0" />
           <span className="truncate">{backLabel}</span>
