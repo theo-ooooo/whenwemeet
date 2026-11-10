@@ -47,6 +47,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
   const [endTime, setEndTime] = useState(timeOf(defaultEnd));
   const [memo, setMemo] = useState("");
   const [touched, setTouched] = useState(false);
+  // 제목을 한 번이라도 고쳤는지. 빈 제목 오류는 고친 뒤 벗어나거나 저장을 눌렀을 때만 띄운다 (#80)
+  const [titleEdited, setTitleEdited] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -235,8 +237,15 @@ export function EventFormScreen({ groupId, eventId, copyFrom, initialStart, init
               className="w-full bg-transparent text-[26px] font-extrabold tracking-[-0.04em] placeholder:font-bold placeholder:text-faint focus:outline-none"
               placeholder="무슨 일정인가요?"
               value={title}
-              onChange={(e) => setTitle(clampChars(e.target.value, TITLE_MAX))}
-              onBlur={() => setTouched(true)}
+              onChange={(e) => {
+                setTitle(clampChars(e.target.value, TITLE_MAX));
+                setTitleEdited(true);
+              }}
+              // 자동 포커스된 빈 제목에서 그냥 벗어나는 것(모바일 키보드 닫기, 날짜 칸 탭)은 오류로 보지 않는다 (#80).
+              // 예전에는 blur 마다 touched 를 켜서 제목 아래 오류 줄(약 26px)이 끼어들며 아래 칸이 한 번에 밀렸다
+              onBlur={() => {
+                if (titleEdited) setTouched(true);
+              }}
               autoFocus={!editing}
               aria-invalid={Boolean(titleError)}
               aria-describedby={titleError ? "ev-title-err" : undefined}
