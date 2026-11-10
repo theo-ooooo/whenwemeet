@@ -14,7 +14,7 @@ export function NotFoundScreen() {
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
       <title>{NOT_FOUND_DOC_TITLE}</title>
-      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
         <div className="mt-auto pt-16">
           <span className="inline-flex text-[13px] font-bold text-acc-ink">404</span>
@@ -40,7 +40,7 @@ export function GroupNotFound({ calendarHref }: { calendarHref: string }) {
   return (
     <div className="flex min-h-[60dvh] items-center lg:min-h-dvh lg:px-8">
       <title>{NOT_FOUND_DOC_TITLE}</title>
-      <div className="mx-auto w-full max-w-[480px] rounded-xl bg-paper px-5 py-7 text-center">
+      <div className="mx-auto w-full fold:max-w-[480px] rounded-xl bg-paper px-5 py-7 text-center">
         <h1 className="t-title">{TITLE}</h1>
         <p className="mt-2 text-[14px] leading-5 text-soft">
           주소가 잘못됐거나 이미 삭제된 일정일 수 있어요.

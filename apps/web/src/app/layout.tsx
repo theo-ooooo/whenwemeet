@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/Toast";
-import { OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -8,7 +8,7 @@ const PRETENDARD_CSS =
   "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css";
 
 export const metadata: Metadata = {
-  // 공유 미리보기(카카오톡, 메신저, SNS) (#154). og:image 같은 상대 주소를 절대 주소로. 프리뷰 배포에서도 운영 이미지 주소를 쓴다 (카카오 스크래퍼는 운영 주소만 본다)
+  // 공유 미리보기(카카오톡, 메신저, SNS) (#154). og:image 는 app/opengraph-image.tsx 가 그린다 (#159). 상대 주소를 절대 주소로. 프리뷰 배포에서도 운영 이미지 주소를 쓴다 (카카오 스크래퍼는 운영 주소만 본다)
   metadataBase: new URL(SITE_URL),
   applicationName: "언제볼까",
   title: { default: "언제볼까", template: "%s | 언제볼까" },
@@ -19,9 +19,8 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: [OG_IMAGE],
   },
-  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION, images: [OG_IMAGE.url] },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
   icons: {
     icon: [
       { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
