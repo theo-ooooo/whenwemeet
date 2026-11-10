@@ -38,12 +38,16 @@ export async function upstream(opts: {
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
+    const { putMockFile } = await import("@/mocks/files");
     let parsed: Record<string, unknown> | null = null;
     if (body instanceof ArrayBuffer) {
-      // 목은 업로드한 사진을 data URL 로 들고 있는다 (R2 대신)
+      // 목은 업로드한 사진을 메모리에 두고 실제 API 처럼 http 경로를 준다 (R2 대신, /api/__mock/files/<id>)
       const form = await new Response(body, { headers: { "Content-Type": contentType ?? "" } }).formData();
       const file = form.get("file");
-      parsed = file instanceof Blob ? { file: { type: file.type, size: file.size, dataUrl: await toDataUrl(file) } } : {};
+      parsed =
+        file instanceof Blob
+          ? { file: { type: file.type, size: file.size, url: putMockFile(file.type, new Uint8Array(await file.arrayBuffer())) } }
+          : {};
     } else if (body) {
       try {
         parsed = JSON.parse(body) as Record<string, unknown>;
@@ -88,7 +92,3 @@ export async function upstream(opts: {
   }
 }
 
-async function toDataUrl(file: Blob): Promise<string> {
-  const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-  return `data:${file.type || "application/octet-stream"};base64,${base64}`;
-}

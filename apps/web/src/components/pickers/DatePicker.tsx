@@ -56,7 +56,7 @@ export function DatePicker({ value, onChange, label, id, min, max, className = "
   );
 }
 
-const navBtn = "flex size-8 items-center justify-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink";
+const navBtn = "hit flex size-8 items-center justify-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink";
 
 function clamp(key: DateKey, min?: DateKey, max?: DateKey): DateKey {
   if (min && key < min) return min;
@@ -126,7 +126,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
   return (
     <div>
       <div className="flex items-center justify-between px-1 pb-2">
-        <span className="flex">
+        <span className="flex gap-3">
           <button type="button" onClick={() => shiftView(-12)} aria-label="이전 해" className={navBtn}>
             <IconChevronLeft size={16} className="-mr-2.5" />
             <IconChevronLeft size={16} />
@@ -138,7 +138,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
         <h3 id={headingId} aria-live="polite" className="text-[15px] font-bold tracking-[-0.02em] tabular-nums">
           {view.y}년 {view.m}월
         </h3>
-        <span className="flex">
+        <span className="flex gap-3">
           <button type="button" onClick={() => shiftView(1)} aria-label="다음 달" className={navBtn}>
             <IconChevronRight size={18} />
           </button>
@@ -209,7 +209,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
           type="button"
           disabled={disabled(today)}
           onClick={() => onPick(today)}
-          className="h-8 shrink-0 rounded-sm bg-hover px-3 text-[13px] font-bold hover:brightness-95 disabled:opacity-40"
+          className="hit h-8 shrink-0 rounded-sm bg-hover px-3 text-[13px] font-bold hover:brightness-95 disabled:opacity-40"
         >
           오늘
         </button>

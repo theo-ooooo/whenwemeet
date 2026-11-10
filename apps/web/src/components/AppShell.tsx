@@ -9,6 +9,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, rememberGroup } from "@/lib/group-cookie";
+import { confirmLeave } from "@/lib/leave-guard";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
@@ -134,9 +135,12 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   function switchTo(id: number) {
     setSwitcher(false);
     if (id === groupId) return;
-    rememberGroup(id);
     const tab = TABS.some((t) => t.key === section) ? section : "calendar";
-    router.push(`/g/${id}/${tab}`);
+    // 일정 작성 중이면 입력을 버릴지 먼저 묻는다 (#137)
+    confirmLeave(() => {
+      rememberGroup(id);
+      router.push(`/g/${id}/${tab}`);
+    });
   }
 
   // + 버튼: 달력에서 고른 날(쿼리 date), 없으면 오늘 10:00~11:00
@@ -145,6 +149,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   const newHref = `/g/${groupId}/events/new?start=${encodeURIComponent(kstToIso(baseDay, "10:00"))}&end=${encodeURIComponent(kstToIso(baseDay, "11:00"))}`;
   const dots = teamDotColors(groups ?? []);
   const isCalendar = section === "calendar";
+  // 일정 작성/수정 화면(/events/new, /events/<id>)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137)
+  const isForm = section === "events";
 
   const menu = [
     {
@@ -290,12 +296,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             </header>
           )}
           {/* 폰 상단 바 52: 팀 이름 글자 / 새 소식(점 배지) + 내 프로필 (시안 .top) */}
-          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center gap-0.5 pl-4 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
+          {/* 종, 프로필은 보이는 크기(32, 28) 그대로 누르는 칸만 44 (#133) */}
+          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-4 pr-1.5 pt-[env(safe-area-inset-top)] fold:hidden">
             <button
               type="button"
               onClick={() => setSwitcher(true)}
               aria-haspopup="dialog"
-              className="mr-auto flex h-9 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[16px] font-bold leading-6"
+              className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[16px] font-bold leading-6"
             >
               {group ? (
                 <>
@@ -310,18 +317,20 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
             <Link
               href={`/g/${groupId}/news`}
               aria-label={unread > 0 ? `새 소식 ${unread}개` : "새 소식"}
-              className="relative grid size-8 place-items-center rounded-sm text-ink hover:bg-hover"
+              className="group grid size-11 place-items-center text-ink"
             >
-              <IconBell size={18} />
-              {unread > 0 && <i aria-hidden="true" className="absolute right-1.5 top-1.5 block size-1.5 rounded-full bg-pri" />}
+              <span className="relative grid size-8 place-items-center rounded-sm group-hover:bg-hover">
+                <IconBell size={18} />
+                {unread > 0 && <i aria-hidden="true" className="absolute right-1.5 top-1.5 block size-1.5 rounded-full bg-pri" />}
+              </span>
             </Link>
-            <Link href="/me" aria-label="내 정보" className="grid size-8 place-items-center rounded-full">
+            <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
               {group ? <Avatar member={group.me} size={28} /> : <Skeleton className="size-7 rounded-full" />}
             </Link>
           </header>
 
           <main
-            className={`flex-1 px-4 pb-[calc(56px+72px+env(safe-area-inset-bottom))] fold:px-0 fold:pb-0 ${
+            className={`flex-1 px-4 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-0 fold:pb-0 ${
               isCalendar ? "" : "fold:mx-auto fold:w-full fold:max-w-[640px] fold:px-6 fold:pb-6 lg:max-w-[720px] lg:px-8 wide:py-6"
             }`}
           >
@@ -329,16 +338,9 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </main>
         </div>
 
-        {/* 모바일 하단 탭: 바닥에 붙은 평평한 바 56 + safe-area, 위 1px 선. + 는 탭 위 오른쪽 52 원 (시안 .tab, .fab) */}
-        <Link
-          href={newHref}
-          aria-label="일정 추가"
-          className="fixed bottom-[calc(56px+14px+env(safe-area-inset-bottom))] right-[max(16px,calc(50%-224px))] z-30 grid size-[52px] place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)] fold:hidden"
-        >
-          <IconPlus size={24} strokeWidth={2.2} />
-        </Link>
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] fold:hidden">
-          <nav aria-label="주요 화면" className="mx-auto h-14 max-w-[480px]">
+        {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원) */}
+        <div className={`fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 mx-auto max-w-[448px] items-center gap-2 fold:hidden ${isForm ? "hidden" : "flex"}`}>
+          <nav aria-label="주요 화면" className="glass-dock h-16 flex-1 rounded-full">
             <ul className="flex h-full items-center justify-around">
               {TABS.map((t) => {
                 const active = section === t.key || (t.key === "calendar" && section === "events");
@@ -347,7 +349,7 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
                     <Link
                       href={`/g/${groupId}/${t.key}`}
                       aria-current={active ? "page" : undefined}
-                      className={`flex w-[60px] flex-col items-center gap-0.5 rounded-sm py-1 text-[10px] font-semibold leading-3 ${active ? "text-ink" : "text-ink-2"}`}
+                      className={`flex min-w-[52px] flex-col items-center gap-[3px] rounded-sm py-1 text-[10.5px] font-bold ${active ? "text-ink" : "text-ink-2"}`}
                     >
                       <TabIcon name={t.key} active={active} />
                       {t.label}
@@ -357,6 +359,13 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
               })}
             </ul>
           </nav>
+          <Link
+            href={newHref}
+            aria-label="일정 추가"
+            className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+          >
+            <IconPlus size={26} strokeWidth={2.2} />
+          </Link>
         </div>
       </div>
 

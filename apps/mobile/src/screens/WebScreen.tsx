@@ -176,7 +176,8 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       setSupportMultipleWindows={false}
       allowsBackForwardNavigationGestures
       pullToRefreshEnabled
-      decelerationRate="normal"
+      // iOS 전용. Android 네이티브 정의는 Double 인데 "normal" 문자열을 그대로 넘겨 실행 직후 강제 종료됐다 (ClassCastException)
+      {...(Platform.OS === "ios" ? { decelerationRate: "normal" as const } : {})}
       bounces
       allowsInlineMediaPlayback
       webviewDebuggingEnabled={__DEV__}

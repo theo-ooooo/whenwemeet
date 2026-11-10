@@ -97,13 +97,13 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
     <form onSubmit={save} noValidate>
       {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
-        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="-ml-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="hit -ml-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconChevronLeft size={18} />
         </button>
         <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">
           {parseKey(date).d}일 {WEEKDAYS[dowOf(date)]}요일에 추가
         </h2>
-        <button type="button" onClick={onClose} aria-label="닫기" className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>

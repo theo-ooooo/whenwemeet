@@ -19,6 +19,7 @@ import {
   todayKey,
   WEEKDAYS,
 } from "@/lib/date";
+import { upcomingSlots } from "@/lib/free-time";
 import type { FreeSlots } from "@/lib/types";
 
 type Period = "thisWeek" | "nextWeek" | "custom";
@@ -68,7 +69,11 @@ export function FreeScreen({ groupId }: { groupId: number }) {
     { from: kstToIso(range.from), to: kstToIso(range.to), dayStart, dayEnd, minMinutes, includeAllDay },
     { enabled: !conditionError, debounceMs: 300 },
   );
-  const result = freeQ.data;
+  // 달력 개요와 같은 규칙(지금을 30분 경계로 올림)으로 자른다 (#136)
+  const result = useMemo(
+    () => (freeQ.data ? { ...freeQ.data, slots: upcomingSlots(freeQ.data.slots, minMinutes) } : undefined),
+    [freeQ.data, minMinutes],
+  );
   const loading = freeQ.isLoading;
   const error = freeQ.error ? messageOf(freeQ.error, "빈 시간을 계산하지 못했어요. 다시 시도해 주세요") : null;
 
@@ -90,7 +95,7 @@ export function FreeScreen({ groupId }: { groupId: number }) {
       <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5">
         <div>
           <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="-my-1.5 flex gap-2 overflow-x-auto py-1.5">
             <Chip selected={period === "thisWeek"} onClick={() => setPeriod("thisWeek")}>
               이번 주
             </Chip>
@@ -134,7 +139,7 @@ export function FreeScreen({ groupId }: { groupId: number }) {
 
         <div>
           <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h2>
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="-my-1.5 flex gap-2 overflow-x-auto py-1.5">
             {MIN_OPTIONS.map((o) => (
               <Chip key={o.value} selected={minMinutes === o.value} onClick={() => setMinMinutes(o.value)}>
                 {o.label}
@@ -176,8 +181,15 @@ export function FreeScreen({ groupId }: { groupId: number }) {
         ) : result ? (
           <div className={loading ? "opacity-60 transition-opacity" : ""}>
             <p className="px-1 text-[12px] leading-4 text-ink-2">
-              <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
-              일정도 반영됐어요
+              {result.memberCount > 1 ? (
+                <>
+                  <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
+                  일정도 반영됐어요
+                </>
+              ) : (
+                // 개인 달력은 "1명 모두" 대신 (#140 L10)
+                <>내 일정 기준으로 비는 시간이에요. 다른 팀 일정도 반영됐어요</>
+              )}
             </p>
             <div className="mt-2 space-y-2">
               {grouped.map(([key, slots]) => {

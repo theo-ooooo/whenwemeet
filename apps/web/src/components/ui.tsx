@@ -7,7 +7,7 @@ import type { Member } from "@/lib/types";
 /* ---------- 버튼 ---------- */
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill";
   size?: "lg" | "md" | "sm";
   loading?: boolean;
   full?: boolean;
@@ -20,11 +20,13 @@ const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
   tile: "bg-paper text-ink hover:brightness-95 disabled:text-ink-2",
   ghost: "bg-transparent text-ink hover:bg-hover disabled:text-ink-2",
   danger: "bg-hover text-danger hover:brightness-95 disabled:text-ink-2",
+  // 되돌릴 수 없는 마지막 확인(회원 탈퇴, 삭제 확인 창). 비활성은 주 버튼과 같은 회색 (#134)
+  dangerFill: "bg-danger text-on-btn hover:brightness-95 disabled:bg-line disabled:text-ink-2",
 };
 const sizeClass: Record<NonNullable<ButtonProps["size"]>, string> = {
   lg: "h-11 rounded-md px-5 text-[13.5px] font-bold",
   md: "h-11 rounded-md px-4 text-[13.5px] font-bold",
-  sm: "h-8 rounded-sm px-3 text-[13px] font-bold",
+  sm: "hit h-8 rounded-sm px-3 text-[13px] font-bold",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -145,10 +147,55 @@ export function Chip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`anim-pick h-8 shrink-0 rounded-sm px-3 text-[13px] ${selected ? "border-[1.5px] border-acc-ink font-bold text-acc-ink" : "border border-line font-medium text-soft hover:text-ink"}`}
+      className={`anim-pick hit h-8 shrink-0 rounded-sm px-3 text-[13px] ${selected ? "border-[1.5px] border-acc-ink font-bold text-acc-ink" : "border border-line font-medium text-soft hover:text-ink"}`}
     >
       {children}
     </button>
+  );
+}
+
+/* ---------- 세그먼트 ---------- */
+
+/** 2~4개 중 하나 고르기 (내 정보 테마, 기념일 종류). 선택 칸은 --seg-on 면 + --seg-edge 테두리 (#135) */
+export function Segmented<T extends string>({
+  labelledBy,
+  value,
+  options,
+  onChange,
+}: {
+  labelledBy: string;
+  value: T;
+  options: { value: T; label: string; icon?: React.ReactNode }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      className="grid gap-1 rounded-sm bg-surface p-1"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
+      {options.map((o) => {
+        const on = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(o.value)}
+            className={`anim-pick hit flex h-9 items-center justify-center gap-1.5 rounded-[8px] border px-1 text-[13px] whitespace-nowrap ${
+              on
+                ? "border-[var(--seg-edge)] bg-[var(--seg-on)] font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                : "border-transparent font-medium text-soft hover:text-ink"
+            }`}
+          >
+            {o.icon}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -277,7 +324,7 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
+            className="hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
           >
             <IconClose size={18} />
           </button>
@@ -336,13 +383,7 @@ export function ConfirmDialog({
           <Button ref={cancelRef} variant="secondary" full onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
-          <Button
-            variant={danger ? "danger" : "primary"}
-            full
-            onClick={onConfirm}
-            loading={loading}
-            className={danger ? "bg-danger! text-on-btn!" : ""}
-          >
+          <Button variant={danger ? "dangerFill" : "primary"} full onClick={onConfirm} loading={loading}>
             {confirmLabel}
           </Button>
         </div>
