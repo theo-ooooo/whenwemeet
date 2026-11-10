@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 import { ApiException } from '../common/errors.js';
+import { AppAuthService, type HandoffIssued } from './app-auth.service.js';
 import { AuthService } from './auth.service.js';
+import { HandoffExchangeDto, KakaoNativeLoginDto } from './dto/app-auth.dto.js';
 import { DevLoginDto } from './dto/dev-login.dto.js';
 import { Public } from './jwt-auth.guard.js';
 import { DevProvider } from './providers/dev.provider.js';
@@ -16,6 +18,7 @@ const STATE_COOKIE_MAX_AGE_MS = 600 * 1000;
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly appAuth: AppAuthService,
     private readonly kakao: KakaoProvider,
     private readonly dev: DevProvider,
     private readonly config: ConfigService,
@@ -61,6 +64,24 @@ export class AuthController {
       const codeParam = error instanceof ApiException ? error.code : 'KAKAO_ERROR';
       res.redirect(302, `${webOrigin}/login?error=${codeParam}`);
     }
+  }
+
+  /** 앱 카카오 SDK 로그인 (앱.md 3.1). 세션 JWT 대신 60초 1회용 handoff 를 돌려준다 */
+  @Public()
+  @Post('kakao/native')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  kakaoNative(@Body() dto: KakaoNativeLoginDto): Promise<HandoffIssued> {
+    return this.appAuth.loginWithKakao(dto.accessToken, dto.codeChallenge);
+  }
+
+  /** handoff + verifier → 세션 JWT (앱.md 2.2). 호출자는 웹 서버(`/auth/app` route handler) 뿐 */
+  @Public()
+  @Post('handoff')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  exchangeHandoff(@Body() dto: HandoffExchangeDto): Promise<{ token: string }> {
+    return this.appAuth.exchangeHandoff(dto.handoff, dto.verifier);
   }
 
   /** 개발 전용 (결정기록 D-29). AuthAccount(DEV, 닉네임) 로 로그인. 운영에서는 존재하지 않는 경로처럼 404 */

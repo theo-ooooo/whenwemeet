@@ -1,6 +1,6 @@
 import { ApiException } from '../../common/errors.js';
 import { urlOf } from '../../testing/fetch-url.js';
-import { KAKAO_ME_URL, KAKAO_TOKEN_URL, KAKAO_UNLINK_URL, KakaoProvider } from './kakao.provider.js';
+import { KAKAO_ME_URL, KAKAO_TOKEN_INFO_URL, KAKAO_TOKEN_URL, KAKAO_UNLINK_URL, KakaoProvider } from './kakao.provider.js';
 
 function configOf(values: Record<string, string | undefined>) {
   return {
@@ -18,6 +18,7 @@ const FULL = {
   KAKAO_CLIENT_SECRET: 'csecret',
   KAKAO_REDIRECT_URI: 'http://localhost:4000/v1/auth/kakao/callback',
   KAKAO_ADMIN_KEY: 'admin',
+  KAKAO_APP_ID: '1234',
 };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -32,6 +33,52 @@ describe('KakaoProvider', () => {
     expect(new KakaoProvider(configOf(FULL)).isLoginConfigured()).toBe(true);
     expect(new KakaoProvider(configOf({ ...FULL, KAKAO_CLIENT_ID: '' })).isLoginConfigured()).toBe(false);
     expect(new KakaoProvider(configOf({ ...FULL, KAKAO_ADMIN_KEY: undefined })).isUnlinkConfigured()).toBe(false);
+    expect(new KakaoProvider(configOf(FULL)).isAppConfigured()).toBe(true);
+    expect(new KakaoProvider(configOf({ ...FULL, KAKAO_APP_ID: '' })).isAppConfigured()).toBe(false);
+  });
+
+  describe('verifyAppToken (앱.md 3.1)', () => {
+    it('app_id 가 같으면 통과, Bearer 로 access_token_info 를 부른다 (숫자/문자열 app_id 모두)', async () => {
+      const fetchMock = vi.fn<typeof fetch>(async () => json({ id: 5, expires_in: 100, app_id: 1234 }));
+      globalThis.fetch = fetchMock;
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).resolves.toBeUndefined();
+      expect(urlOf(fetchMock.mock.calls[0][0])).toBe(KAKAO_TOKEN_INFO_URL);
+      expect((fetchMock.mock.calls[0][1]!.headers as Record<string, string>).Authorization).toBe('Bearer AT');
+
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({ app_id: '1234' }));
+      await expect(new KakaoProvider(configOf({ ...FULL, KAKAO_APP_ID: ' 1234 ' })).verifyAppToken('AT')).resolves.toBeUndefined();
+    });
+
+    it('다른 앱의 토큰(app_id 불일치) → 401 SOCIAL_TOKEN_INVALID', async () => {
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({ id: 5, app_id: 9999 }));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'SOCIAL_TOKEN_INVALID' });
+    });
+
+    it('토큰 무효(401) → SOCIAL_TOKEN_INVALID, 그 밖의 실패와 app_id 없음 → KAKAO_ERROR', async () => {
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({ code: -401 }, 401));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'SOCIAL_TOKEN_INVALID' });
+
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({ code: -2 }, 400));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({}, 503));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+
+      globalThis.fetch = vi.fn<typeof fetch>(async () => json({ id: 5 }));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+
+      globalThis.fetch = vi.fn<typeof fetch>(async () => new Response('not json', { status: 200 }));
+      await expect(new KakaoProvider(configOf(FULL)).verifyAppToken('AT')).rejects.toMatchObject({ code: 'KAKAO_ERROR' });
+    });
+
+    it('KAKAO_APP_ID 가 없으면 카카오를 부르지 않고 503 KAKAO_NOT_CONFIGURED (D-55)', async () => {
+      const fetchMock = vi.fn<typeof fetch>();
+      globalThis.fetch = fetchMock;
+      await expect(new KakaoProvider(configOf({ ...FULL, KAKAO_APP_ID: undefined })).verifyAppToken('AT')).rejects.toMatchObject({
+        code: 'KAKAO_NOT_CONFIGURED',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it('authorizeUrl 은 필수 파라미터를 싣고, 미설정이면 KAKAO_NOT_CONFIGURED', () => {

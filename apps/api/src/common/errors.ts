@@ -1,12 +1,14 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID 와 HANDOFF_INVALID 는 앱 로그인 (앱.md 8장) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
   GROUP_NOT_INVITABLE: 400,
   GROUP_PERSONAL_LEAVE: 400,
   UNAUTHORIZED: 401,
+  SOCIAL_TOKEN_INVALID: 401,
+  HANDOFF_INVALID: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   INVITE_NOT_FOUND: 404,
@@ -27,6 +29,8 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   GROUP_NOT_INVITABLE: '개인 달력에는 초대할 수 없어요',
   GROUP_PERSONAL_LEAVE: '개인 달력은 나갈 수 없어요',
   UNAUTHORIZED: '로그인이 필요해요',
+  SOCIAL_TOKEN_INVALID: '로그인 정보를 확인하지 못했어요. 다시 시도해 주세요',
+  HANDOFF_INVALID: '로그인이 만료됐어요. 다시 시도해 주세요',
   FORBIDDEN: '이 팀의 멤버가 아니에요',
   NOT_FOUND: '찾을 수 없어요',
   INVITE_NOT_FOUND: '초대 코드를 찾을 수 없어요',

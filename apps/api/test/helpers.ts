@@ -40,6 +40,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.membership.deleteMany();
   await prisma.group.deleteMany();
   await prisma.file.deleteMany();
+  await prisma.authHandoff.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();
 }
