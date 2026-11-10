@@ -4,7 +4,7 @@
 // PC: 가운데 큰 달력(칸 안 일정 칩) + 우측 패널(비는 시간, D-day, 선택일 일정 또는 일정 상세, 이번 주 빈 시간)
 // 바로 추가(#46): 모바일은 선택된 날짜 재탭 = 빠른 추가 시트, PC 는 날짜 칸 빈 곳 클릭 = 칸 옆 팝오버
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { IconArrowRight, IconChevronLeft, IconChevronRight, IconClose, IconPlus } from "@/components/icons";
@@ -38,7 +38,22 @@ import { iGa } from "@/lib/text";
 import type { Event, FreeSlots } from "@/lib/types";
 import { useIsDesktop } from "@/lib/useIsDesktop";
 
-type Props = { groupId: number; initialDate: string | null };
+type Props = { groupId: number };
+
+/** 쿼리의 날짜(YYYY-MM-DD)를 검사한다. 2026-02-31 처럼 없는 날은 버린다 */
+function dateParam(raw: string | null): DateKey | null {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const { y, m, d } = parseKey(raw);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d ? raw : null;
+}
+
+/** 쿼리의 보던 달(YYYY-MM) */
+function monthParam(raw: string | null): { y: number; m: number } | null {
+  if (!raw || !/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return null;
+  const [y, m] = raw.split("-").map(Number);
+  return { y, m };
+}
 
 const newEventHref = (groupId: number, start: string, end: string) =>
   `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
@@ -59,16 +74,16 @@ function upcoming(slots: FreeSlots["slots"] | undefined, minMinutes: number) {
 
 const isMultiDayAllDay = (ev: Event) => ev.allDay && daysBetween(dateKeyOf(ev.startsAt), dateKeyOf(ev.endsAt)) > 1;
 
-export function CalendarScreen({ groupId, initialDate }: Props) {
+export function CalendarScreen({ groupId }: Props) {
   const toast = useToast();
   const isDesktop = useIsDesktop();
   const { group } = useGroupContext();
   const today = todayKey();
-  const [selected, setSelected] = useState(initialDate ?? today);
-  const [{ y, m }, setMonth] = useState(() => {
-    const p = parseKey(initialDate ?? today);
-    return { y: p.y, m: p.m };
-  });
+  // 처음 값은 서버 props 가 아니라 지금 주소에서 읽는다 (#81). 뒤로가기는 Next 가 캐시해 둔 처음 렌더(쿼리 없는 주소)를
+  // 다시 쓰므로 서버가 넘긴 날짜는 오늘로 돌아가지만, useSearchParams 는 replaceState 로 바꿔 둔 주소를 돌려준다
+  const searchParams = useSearchParams();
+  const [selected, setSelected] = useState(() => dateParam(searchParams.get("date")) ?? today);
+  const [{ y, m }, setMonth] = useState(() => monthParam(searchParams.get("month")) ?? parseKey(selected));
   const [detail, setDetail] = useState<Event | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closeDetail = useCallback(() => setDetail(null), []);
@@ -113,15 +128,23 @@ export function CalendarScreen({ groupId, initialDate }: Props) {
   const todayFree = todayFreeQ.data ? (upcoming(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
   const weekFree = weekFreeQ.data ? upcoming(weekFreeQ.data.slots, 120).slice(0, 3) : null;
 
-  // 선택 날짜를 URL 에 남긴다 (새로고침, 공유, + 버튼의 기준 날짜)
+  // 선택 날짜와 보던 달을 URL 에 남긴다 (새로고침, 공유, 뒤로가기 복원 #81, + 버튼의 기준 날짜 #57)
+  // date 는 오늘이 아닐 때만, month 는 선택 날짜와 다른 달을 볼 때만 붙여 기본 주소(/calendar)를 깨끗하게 둔다
+  // router.replace 대신 history.replaceState 를 쓴다. router.replace 는 날짜를 누를 때마다 서버 렌더를 다시 받는다.
   // state 는 null 로 넘긴다. Next 내부 state(__NA)를 그대로 넘기면 Next 가 내부 호출로 보고 useSearchParams 를 갱신하지 않아
   // AppShell 의 + 버튼이 처음 연 날짜에 머문다 (#57). null 이면 Next 가 내부 state 를 복사해 붙이고 쿼리를 동기화한다
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.get("date") === selected) return;
-    url.searchParams.set("date", selected);
+    const sel = parseKey(selected);
+    const date = selected === today ? null : selected;
+    const month = sel.y === y && sel.m === m ? null : `${y}-${String(m).padStart(2, "0")}`;
+    if (url.searchParams.get("date") === date && url.searchParams.get("month") === month) return;
+    if (date) url.searchParams.set("date", date);
+    else url.searchParams.delete("date");
+    if (month) url.searchParams.set("month", month);
+    else url.searchParams.delete("month");
     window.history.replaceState(null, "", url);
-  }, [selected]);
+  }, [selected, today, y, m]);
 
   // 날짜별 일정 (겹치는 모든 날에 넣는다). 여러 날 종일 → 종일 → 시각 순
   const byDay = useMemo(() => {

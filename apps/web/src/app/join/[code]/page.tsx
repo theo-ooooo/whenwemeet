@@ -4,22 +4,32 @@ import Link from "next/link";
 import { Symbol } from "@/components/Logo";
 import { KakaoButton } from "@/components/KakaoButton";
 import { Button } from "@/components/ui";
-import { JOIN_AUTO_COOKIE, SESSION_COOKIE } from "@/lib/auth";
+import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
+import { isFreshSession } from "@/lib/session";
 import { JoinButton } from "@/screens/JoinButton";
 
 export const metadata: Metadata = { title: "초대" };
 export const dynamic = "force-dynamic";
 
-export default async function JoinPage({ params }: { params: Promise<{ code: string }> }) {
+export default async function JoinPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { code: raw } = await params;
   const code = raw.toUpperCase();
+  const sp = await searchParams;
   const jar = await cookies();
-  const loggedIn = Boolean(jar.get(SESSION_COOKIE)?.value);
-  // 이 초대 링크에서 막 로그인하고 돌아온 경우(콜백이 남긴 표시)만 "합류하기" 없이 바로 합류한다.
-  // 로그인한 채 링크를 그냥 연 경우는 실수 합류를 막으려고 확인 버튼을 그대로 둔다
-  const autoJoin = loggedIn && jar.get(JOIN_AUTO_COOKIE)?.value?.toUpperCase() === code;
+  const session = jar.get(SESSION_COOKIE)?.value;
+  const loggedIn = Boolean(session);
+  // 이 초대 링크에서 막 로그인하고 돌아온 경우(next 의 `?auto=1` + 방금 발급된 세션)만 "합류하기" 없이 바로 합류한다.
+  // 쿠키에 기대지 않아 카카오 인앱 브라우저에서도 동작한다. 로그인한 채 `?auto=1` 링크를 그냥 연 경우는
+  // 세션이 오래돼 확인 버튼을 그대로 둔다 (실수 합류 방지, D-41)
+  const autoJoin = loggedIn && sp[JOIN_AUTO_PARAM] === "1" && isFreshSession(session, JOIN_AUTO_FRESH_SEC);
   const { data, error } = await serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, {
     auth: false,
     from: `/join/${code}`,
@@ -46,7 +56,7 @@ export default async function JoinPage({ params }: { params: Promise<{ code: str
             {loggedIn ? (
               <JoinButton code={code} auto={autoJoin} />
             ) : (
-              <KakaoButton next={`/join/${code}`} label="카카오로 로그인하고 합류하기" />
+              <KakaoButton next={joinAutoNext(code)} label="카카오로 로그인하고 합류하기" />
             )}
           </div>
         </>
