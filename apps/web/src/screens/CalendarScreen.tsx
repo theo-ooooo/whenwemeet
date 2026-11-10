@@ -462,16 +462,16 @@ export function CalendarScreen({ groupId }: Props) {
   );
 
   // "다가오는 일정" 카드 148×108: 날짜(12/600, 오늘이면 --today-ink "오늘") + 멤버 점 8 / 제목 16/700 두 줄 / 시각 12 --mute.
-  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 오늘 일 상세 (주간 줄로 넘겨 본다)
+  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 다가오는 일정 목록 화면 (#222, D-68 의 "오늘 일 상세" 를 대신한다)
   const phoneUpcoming = (
     <section aria-labelledby={`${titleId}-pup`} className="mt-[22px]">
       {sectionHead(
         `${titleId}-pup`,
         "다가오는 일정",
-        <button type="button" onClick={() => openDay(today)} className={moreCls}>
+        <Link href={`/g/${groupId}/upcoming`} className={moreCls}>
           전체보기
           <IconChevronRight size={14} />
-        </button>,
+        </Link>,
       )}
       {upcomingQ.error ? (
         emptyLine(
