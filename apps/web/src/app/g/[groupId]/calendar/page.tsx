@@ -4,15 +4,8 @@ import { CalendarScreen } from "@/screens/CalendarScreen";
 
 export const metadata: Metadata = { title: "달력" };
 
-export default async function CalendarPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ groupId: string }>;
-  searchParams: Promise<{ date?: string }>;
-}) {
+// 선택 날짜(?date)와 보던 달(?month)은 CalendarScreen 이 주소에서 직접 읽는다 (#81)
+export default async function CalendarPage({ params }: { params: Promise<{ groupId: string }> }) {
   const groupId = idParam((await params).groupId);
-  const { date } = await searchParams;
-  const initialDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
-  return <CalendarScreen groupId={groupId} initialDate={initialDate} />;
+  return <CalendarScreen groupId={groupId} />;
 }

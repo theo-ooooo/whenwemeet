@@ -5,10 +5,15 @@ import { Symbol } from "./Logo";
 import { Button } from "./ui";
 
 const TITLE = "페이지를 찾을 수 없어요";
+/** 탭 제목 (#82). layout.tsx 의 title 템플릿("%s | 언제볼까")과 같은 모양.
+ *  잘못된 팀 경로(/g/abc)는 layout 이 notFound() 를 던져 하위 페이지의 metadata("달력" 등)나 Next 기본 404 제목이 남으므로
+ *  화면에서 React <title> 로 직접 덮는다 (React 19 가 <head> 로 올린다) */
+export const NOT_FOUND_DOC_TITLE = `${TITLE} | 언제볼까`;
 
 export function NotFoundScreen() {
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
+      <title>{NOT_FOUND_DOC_TITLE}</title>
       <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
         <div className="mt-auto pt-16">
@@ -34,6 +39,7 @@ export function NotFoundScreen() {
 export function GroupNotFound({ calendarHref }: { calendarHref: string }) {
   return (
     <div className="flex min-h-[60dvh] items-center lg:min-h-dvh lg:px-8">
+      <title>{NOT_FOUND_DOC_TITLE}</title>
       <div className="mx-auto w-full max-w-[480px] rounded-xl bg-paper px-6 py-9 text-center">
         <h1 className="text-[24px] font-extrabold leading-snug tracking-[-0.04em]">{TITLE}</h1>
         <p className="mt-2 text-[14px] font-semibold leading-relaxed text-soft">
