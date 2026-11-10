@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-11-10T12:00:00+09:00",
+  "session_topic": "기념일 자동 표시 기획 (#105)",
+  "command": "/기획 + /설계 (기념일 자동 표시)",
+  "agent": "agents/planning.md, agents/design.md",
+  "status": "기획문서와 설계 제안 작성, 구현 이슈 #106(API) #107(웹) 생성. 기획 승인과 미결 Q1~Q3 대기",
+  "tasks": [
+    {"id": 1, "subject": "docs/기획/기념일-자동표시.md", "status": "completed"},
+    {"id": 2, "subject": "MVP.md, 화면흐름.md, api.md, schema.prisma 제안 반영, 결정기록 D-58~D-61", "status": "completed"},
+    {"id": 3, "subject": "구현 이슈 #106, #107 (#99 개편 후 착수)", "status": "completed"},
+    {"id": 4, "subject": "기획 승인, 미결 Q1~Q3 확정", "status": "pending"}
+  ],
+  "artifacts": ["docs/기획/기념일-자동표시.md", "docs/기획/MVP.md", "docs/설계/화면흐름.md", "docs/설계/api.md", "docs/설계/schema.prisma", "docs/설계/결정기록.md"],
+  "key_findings": {
+    "현행": "달력 칸에 기념일 없음, 생일 매년 표시 없음, hundredHint 가 시작일 0일 기준이라 하루 늦음",
+    "규칙": "시작일=1일, 100 단위~1000 이후 1000 단위, N주년 같은 월일, 2/29 평년 2/28, KST 날짜 계산, 범위만 해석적 계산",
+    "D번호": "D-57 은 PR #103(#99) 이 선점, 이번은 D-58~D-61"
+  },
+  "recommended_actions": "Q1 kind enum 3종, Q2 COUNT_UP 대표 라벨 N일, Q3 기존 행 COUNT_UP 확정 후 #99 머지 뒤 #106 → #107",
+  "pending_user_input": "기획 승인, 미결 Q1~Q3"
+}
