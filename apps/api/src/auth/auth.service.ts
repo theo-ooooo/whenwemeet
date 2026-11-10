@@ -4,10 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MEMBER_COLORS } from '../common/member.js';
 import { UsersRepository } from '../users/users.repository.js';
+import { sanitizeNext } from './next-path.js';
 import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js';
-
-/** 로그인 후 돌아갈 웹 경로. 인증흐름.md 2단계 규칙 */
-const NEXT_PATH = /^\/[A-Za-z0-9/_-]*$/;
 
 export interface OAuthState {
   nonce: string;
@@ -32,8 +30,9 @@ export class AuthService {
     private readonly avatars: AvatarsService,
   ) {}
 
+  /** 로그인 후 돌아갈 웹 경로(+쿼리). 규칙은 next-path.ts (인증흐름.md 2단계, D-41) */
   sanitizeNext(next: unknown): string {
-    return typeof next === 'string' && NEXT_PATH.test(next) ? next : '/';
+    return sanitizeNext(next);
   }
 
   /** nonce 는 32바이트 랜덤 hex. state 는 서명하지 않는다 (결정기록 D-08) */
