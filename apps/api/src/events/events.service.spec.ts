@@ -20,6 +20,7 @@ const ROW = {
   updatedAt: new Date('2026-11-01T00:00:00.000Z'),
   repeat: null,
   repeatUntil: null,
+  repeatAnchor: null,
   creator: { nickname: '앨리스', profileImageUrl: null },
 };
 

@@ -60,7 +60,12 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil"> & {
   occurrence: string | null;
   /** 반복이면 원본 첫 회차 시작 ("매주 목요일" 표시용) */
   seriesStartsAt: string | null;
+  /** (#228) 반복 기준 날짜 'YYYY-MM-DD'. 매월은 일, 매년은 월일. null 이면 seriesStartsAt 의 날짜 (D-71) */
+  repeatAnchor: string | null;
 };
+
+/** PATCH 본문. "이후 모두" 에서 날짜를 그대로 두면 startsAt, endsAt 을 빼고 보낸다 (QA3-M3) */
+export type EventPatchInput = Omit<EventInput, "startsAt" | "endsAt"> & Partial<Pick<EventInput, "startsAt" | "endsAt">>;
 
 /** 단건 GET 응답. 이 회차보다 뒤에 "이 일정만" 예외가 있는지 */
 export type EventDetailData = Event & { hasLaterExceptions: boolean };

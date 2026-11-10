@@ -18,6 +18,7 @@ const ev = (id: number, start: string, end: string, allDay = false): Event => ({
   repeatUntil: null,
   occurrence: null,
   seriesStartsAt: null,
+  repeatAnchor: null,
 });
 const ann = (id: number, date: string, kind: Anniversary["kind"] = "ONCE"): Anniversary => ({
   id,

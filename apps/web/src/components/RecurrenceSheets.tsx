@@ -13,6 +13,7 @@ export function RepeatSheet({
   open,
   value,
   firstDate,
+  labelDate,
   onPick,
   onClose,
 }: {
@@ -20,12 +21,14 @@ export function RepeatSheet({
   value: Repeat | null;
   /** 첫 회차 날짜. 항목마다 "매주 목요일" 처럼 실제 규칙을 보여 준다 */
   firstDate: DateKey;
+  /** 주기별 설명 날짜. 반복 일정을 고칠 때 이어받는 기준 날짜(D-71) 를 쓴다. 없으면 firstDate */
+  labelDate?: (repeat: Repeat) => DateKey;
   onPick: (v: Repeat | null) => void;
   onClose: () => void;
 }) {
   const options: { value: Repeat | null; label: string }[] = [
     { value: null, label: "반복 안 함" },
-    ...REPEATS.map((r) => ({ value: r, label: repeatLabel(r, firstDate) })),
+    ...REPEATS.map((r) => ({ value: r, label: repeatLabel(r, labelDate ? labelDate(r) : firstDate) })),
   ];
   return (
     <Sheet open={open} onClose={onClose} title="반복">

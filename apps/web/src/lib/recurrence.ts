@@ -45,6 +45,22 @@ export function eventCopyHref(groupId: number, ev: { id: number; occurrence?: st
 }
 
 /**
+ * "이후 모두" 저장 때 시작, 종료를 불러온 회차 값 그대로 두었는지 (같은 순간이면 같다). 그대로면 본문에서 빼서
+ * 서버가 그 회차의 규칙 자리(옮기기 전, 말일 보정된 날짜) 에서 잇게 한다. 보내면 옮긴 회차의 요일, 날짜가 새 기준이 된다 (QA3-M3)
+ */
+export function keepsLoadedTimes(payload: { startsAt: string; endsAt: string }, loaded: { startsAt: string; endsAt: string }): boolean {
+  return Date.parse(payload.startsAt) === Date.parse(loaded.startsAt) && Date.parse(payload.endsAt) === Date.parse(loaded.endsAt);
+}
+
+/**
+ * 폼에 채울 반복 값. 복제(copy) 는 회차 하나를 한 번짜리 새 일정으로 만든다 (QA3-L2): 반복 안 함, 종료 없음.
+ * 수정은 불러온 값 그대로
+ */
+export function formRepeatOf(ev: { repeat: Repeat | null; repeatUntil: string | null }, copying: boolean): { repeat: Repeat | null; until: string | null } {
+  return copying ? { repeat: null, until: null } : { repeat: ev.repeat, until: ev.repeatUntil };
+}
+
+/**
  * "이후 모두" 저장 때 보낼 repeatUntil. 종료 날짜를 원본 값 그대로 두었으면 undefined(보내지 않음).
  * 서버가 원본 값을 이어받고, 회차를 그 종료 날짜 뒤로 옮겼으면 새 시작 날짜까지 늘린다 (QA3-L1).
  * 그대로 보내면 사용자가 건드리지 않은 종료 날짜 때문에 "종료 날짜는 시작 날짜 뒤여야 해요" 로 막힌다

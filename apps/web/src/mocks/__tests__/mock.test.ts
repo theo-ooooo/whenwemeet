@@ -137,4 +137,42 @@ describe("목 반복 일정 (#187)", () => {
     expect(r.status).toBe(201);
     expect(mine("2027-02-01T00:00:00+09:00", "2027-04-01T00:00:00+09:00", "월말테스트").map((e) => e.occurrence)).toEqual(["2027-02-28", "2027-03-31"]);
   });
+
+  it("매월 31일을 2/28 회차에서 이후 모두로 제목만 바꿔도 3-31, 4-30 (반복 기준 날짜, QA3-M3)", () => {
+    const r = call("POST", "/groups/2/events", {
+      title: "기준테스트",
+      startsAt: "2027-01-31T10:00:00+09:00",
+      endsAt: "2027-01-31T11:00:00+09:00",
+      allDay: false,
+      repeat: "MONTHLY",
+    });
+    expect(r.body.data.repeatAnchor).toBeNull();
+    const split = call("PATCH", `/groups/2/events/${r.body.data.id}`, { title: "기준테스트2", repeat: "MONTHLY" }, "occurrence=2027-02-28&scope=following");
+    expect(split.status).toBe(200);
+    expect(split.body.data).toMatchObject({ occurrence: "2027-02-28", repeatAnchor: "2027-01-31" });
+    expect(mine("2027-03-01T00:00:00+09:00", "2027-05-01T00:00:00+09:00", "기준테스트2").map((e) => e.occurrence)).toEqual(["2027-03-31", "2027-04-30"]);
+    // 날짜를 바꾸면 기준이 사라진다
+    const moved = call(
+      "PATCH",
+      `/groups/2/events/${split.body.data.id}`,
+      { startsAt: "2027-02-27T10:00:00+09:00", endsAt: "2027-02-27T11:00:00+09:00" },
+      "occurrence=2027-02-28&scope=following",
+    );
+    expect(moved.body.data).toMatchObject({ occurrence: "2027-02-27", repeatAnchor: null });
+  });
+
+  it("옮긴 회차에서 이후 모두로 제목만 바꾸면 원래 요일에서 잇는다 (QA3-M3)", () => {
+    const r = call("POST", "/groups/2/events", {
+      title: "요일테스트",
+      startsAt: "2027-05-05T19:00:00+09:00",
+      endsAt: "2027-05-05T20:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+    });
+    const id = r.body.data.id as number;
+    call("PATCH", `/groups/2/events/${id}`, { startsAt: "2027-05-14T19:00:00+09:00", endsAt: "2027-05-14T20:00:00+09:00" }, "occurrence=2027-05-12&scope=this");
+    const split = call("PATCH", `/groups/2/events/${id}`, { title: "요일테스트2", repeat: "WEEKLY" }, "occurrence=2027-05-12&scope=following");
+    expect(split.body.data).toMatchObject({ occurrence: "2027-05-12", repeatAnchor: null });
+    expect(mine("2027-05-10T00:00:00+09:00", "2027-05-25T00:00:00+09:00", "요일테스트2").map((e) => e.occurrence)).toEqual(["2027-05-12", "2027-05-19"]);
+  });
 });
