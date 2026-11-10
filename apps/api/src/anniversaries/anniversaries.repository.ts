@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AnniversaryKind } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -8,6 +9,7 @@ export const ANNIVERSARY_SELECT = {
   groupId: true,
   name: true,
   date: true,
+  kind: true,
   creatorId: true,
   createdAt: true,
   creator: USER_PUBLIC_SELECT,
@@ -18,6 +20,7 @@ export interface AnniversaryRow {
   groupId: number;
   name: string;
   date: Date;
+  kind: AnniversaryKind;
   creatorId: number | null;
   createdAt: Date;
   creator: UserRow | null;
@@ -33,12 +36,14 @@ export interface AnniversaryCreateInput {
   groupId: number;
   name: string;
   date: Date;
+  kind: AnniversaryKind;
   creatorId: number;
 }
 
 export interface AnniversaryUpdateInput {
   name?: string;
   date?: Date;
+  kind?: AnniversaryKind;
 }
 
 @Injectable()

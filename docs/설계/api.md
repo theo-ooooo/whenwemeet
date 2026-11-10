@@ -133,17 +133,18 @@ Event      = EventInput & { id, groupId, creator: Member|탈퇴자, createdAt, u
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/groups/:groupId/anniversaries` | 멤버 | - | `{ data: Anniversary[] }` date 오름차순 |
-| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD' }` | 201 `{ data: Anniversary }` |
-| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date? }` | `{ data: Anniversary }` |
+| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD', kind? }` (kind 생략 시 `COUNT_UP`) | 201 `{ data: Anniversary }` |
+| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date?, kind? }` | `{ data: Anniversary }` |
 | DELETE | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | - | `{ data: { ok: true } }` |
 
 ```ts
-Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', creator: Member|탈퇴자, createdAt }
+Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, creator: Member|탈퇴자, createdAt }
+AnniversaryKind = 'COUNT_UP' | 'YEARLY' | 'ONCE'   // 함께한 날 세기(기본) / 매년 반복 / 그날만
 ```
 
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
-**확정 (#105, D-62)**: 기념일 종류 `kind: 'COUNT_UP' | 'YEARLY' | 'ONCE'` 추가. POST `kind?` (생략 시 `COUNT_UP`), PATCH `kind?`, 응답 `Anniversary` 에 `kind`. 잘못된 값은 400 VALIDATION_FAILED. 100일 단위, N주년, 매년 항목 계산은 여전히 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
+기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
 
 ### 2.5 빈 시간 찾기
 

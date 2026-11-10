@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Anniversary` ADD COLUMN `kind` ENUM('COUNT_UP', 'YEARLY', 'ONCE') NOT NULL DEFAULT 'COUNT_UP';

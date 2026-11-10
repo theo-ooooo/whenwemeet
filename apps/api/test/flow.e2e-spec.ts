@@ -330,6 +330,43 @@ describe('핵심 흐름 (e2e)', () => {
     expect(gone.body.error.code).toBe('NOT_FOUND');
   });
 
+  it('기념일 종류(kind): 생략하면 COUNT_UP, 지정/수정한 값이 목록까지 이어지고 잘못된 값은 400 (#106)', async () => {
+    const counted = await api(app).post(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).send({ name: '처음 만난 날', date: '2025-01-01' }).expect(201);
+    expect(counted.body.data.kind).toBe('COUNT_UP');
+
+    const birthday = await api(app)
+      .post(`/v1/groups/${groupId}/anniversaries`)
+      .set(auth(bob))
+      .send({ name: '생일', date: '2000-05-05', kind: 'YEARLY' })
+      .expect(201);
+    expect(birthday.body.data).toMatchObject({ name: '생일', date: '2000-05-05', kind: 'YEARLY' });
+
+    const patched = await api(app)
+      .patch(`/v1/groups/${groupId}/anniversaries/${counted.body.data.id}`)
+      .set(auth(bob))
+      .send({ kind: 'ONCE' })
+      .expect(200);
+    expect(patched.body.data).toMatchObject({ name: '처음 만난 날', date: '2025-01-01', kind: 'ONCE' });
+
+    const list = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
+    const kinds = Object.fromEntries(list.body.data.map((a: { id: number; kind: string }) => [a.id, a.kind]));
+    expect(kinds[counted.body.data.id]).toBe('ONCE');
+    expect(kinds[birthday.body.data.id]).toBe('YEARLY');
+
+    for (const [method, path, body] of [
+      ['post', `/v1/groups/${groupId}/anniversaries`, { name: 'x', date: '2024-01-01', kind: 'WEEKLY' }],
+      ['post', `/v1/groups/${groupId}/anniversaries`, { name: 'x', date: '2024-01-01', kind: null }],
+      ['patch', `/v1/groups/${groupId}/anniversaries/${birthday.body.data.id}`, { kind: 'yearly' }],
+      ['patch', `/v1/groups/${groupId}/anniversaries/${birthday.body.data.id}`, { kind: null }],
+    ] as const) {
+      const res = await api(app)[method](path).set(auth(alice)).send(body).expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_FAILED');
+      expect(res.body.error.details[0].field).toBe('kind');
+    }
+    const unchanged = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
+    expect(unchanged.body.data.find((a: { id: number }) => a.id === birthday.body.data.id).kind).toBe('YEARLY');
+  });
+
   it('일정 삭제는 DELETED 스냅샷을 남기고 eventId 는 null 이 된다', async () => {
     const res = await api(app).delete(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(200);
     expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
