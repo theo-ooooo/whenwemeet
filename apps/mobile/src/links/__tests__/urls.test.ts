@@ -1,4 +1,4 @@
-import { buildAuthAppUrl, decideNavigation, deepLinkToWebUrl, isWebOrigin, parseAuthReturn, safeNext } from "../urls";
+import { buildAuthAppUrl, decideNavigation, deepLinkToWebUrl, isWebOrigin, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -81,7 +81,18 @@ describe("deepLinkToWebUrl", () => {
       "https://staging.example.com/join/ABC",
     );
   });
-  it("대상 밖 경로, 다른 호스트, 커스텀 스킴은 null", () => {
+  it("커스텀 스킴 whenwemeet://join, //g 도 같은 경로로 (#154)", () => {
+    expect(deepLinkToWebUrl("whenwemeet://join/ABC123", WEB)).toBe("https://whenwemeet.day/join/ABC123");
+    expect(deepLinkToWebUrl("whenwemeet://join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
+    expect(deepLinkToWebUrl("whenwemeet:///join/ABC123", WEB)).toBe("https://whenwemeet.day/join/ABC123");
+    expect(deepLinkToWebUrl("whenwemeet://g/12/events?date=2026-11-10", WEB)).toBe(
+      "https://whenwemeet.day/g/12/events?date=2026-11-10",
+    );
+    expect(deepLinkToWebUrl("whenwemeet://join/ABC", "https://staging.example.com/")).toBe(
+      "https://staging.example.com/join/ABC",
+    );
+  });
+  it("대상 밖 경로, 다른 호스트, 다른 스킴, auth 복귀는 null", () => {
     for (const u of [
       "https://whenwemeet.day/",
       "https://whenwemeet.day/login?next=/",
@@ -91,11 +102,29 @@ describe("deepLinkToWebUrl", () => {
       "https://evil.com/join/ABC",
       "http://whenwemeet.day/join/ABC",
       "whenwemeet://auth?h=x",
+      "whenwemeet:///auth?h=x",
+      "whenwemeet://",
+      "whenwemeet://join",
+      "whenwemeet://join/",
+      "whenwemeet://login?next=/",
+      "whenwemeet://gallery/1",
+      "whenwemeet:////evil.com/join/AB",
+      "otherapp://join/ABC",
       "garbage",
     ]) {
       expect(deepLinkToWebUrl(u, WEB)).toBeNull();
     }
   });
+});
+
+describe("parseSchemeLink", () => {
+  it.each([
+    ["whenwemeet://join/AB?x=1", { path: "/join/AB", search: "?x=1" }],
+    ["whenwemeet:///join/AB", { path: "/join/AB", search: "" }],
+    ["whenwemeet://", { path: "/", search: "" }],
+    ["https://whenwemeet.day/join/AB", null],
+    ["kakao123://oauth", null],
+  ])("%p", (raw, out) => expect(parseSchemeLink(raw)).toEqual(out));
 });
 
 describe("buildAuthAppUrl", () => {
@@ -120,5 +149,25 @@ describe("parseAuthReturn", () => {
     expect(parseAuthReturn("whenwemeet://auth?h=short")).toEqual({ ok: false, error: "HANDOFF_INVALID" });
     expect(parseAuthReturn(`https://whenwemeet.day/auth?h=${h}`)).toBeNull();
     expect(parseAuthReturn(`whenwemeet://other?h=${h}`)).toBeNull();
+  });
+});
+
+describe("RN URL 구현에서도 같은 결과 (#154)", () => {
+  // RN 의 URL 은 http(s) 가 아니면 host, pathname 이 비어 커스텀 스킴을 못 읽는다. jest(Node URL) 만 믿지 않게 바꿔 끼워 본다
+  const NodeURL = global.URL;
+  beforeAll(() => {
+    global.URL = jest.requireActual("react-native/Libraries/Blob/URL").URL;
+  });
+  afterAll(() => {
+    global.URL = NodeURL;
+  });
+  it("커스텀 스킴과 https 둘 다", () => {
+    expect(new URL("whenwemeet://join/AB").pathname).toBe("/"); // RN URL 한계 확인 (이게 바뀌면 이 블록을 다시 본다)
+    expect(deepLinkToWebUrl("whenwemeet://join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
+    expect(deepLinkToWebUrl("whenwemeet://g/12", WEB)).toBe("https://whenwemeet.day/g/12");
+    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe(
+      "https://whenwemeet.day/join/ABC123?auto=1",
+    );
+    expect(deepLinkToWebUrl("whenwemeet://auth?h=x", WEB)).toBeNull();
   });
 });

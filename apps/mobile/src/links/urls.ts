@@ -64,16 +64,39 @@ export function safeNext(next: string | null | undefined): string {
 const DEEP_LINK_PATHS = ["/join", "/g"];
 
 /**
+ * whenwemeet://join/AB?x=1 → { path: "/join/AB", search: "?x=1" }. 커스텀 스킴이 아니면 null.
+ * RN 의 URL 은 http(s) 가 아니면 host, pathname 을 못 읽어서(react-native/Libraries/Blob/URL.js) 문자열로 자른다.
+ * whenwemeet:///join/AB (슬래시 셋) 도 같은 경로로 본다
+ */
+export function parseSchemeLink(raw: string): { path: string; search: string } | null {
+  const m = /^whenwemeet:\/\/([^?#]*)(\?[^#]*)?/i.exec(raw);
+  if (!m) return null;
+  return { path: `/${m[1].replace(/^\/+/, "")}`, search: m[2] ?? "" };
+}
+
+/**
  * 들어온 링크 → 웹뷰가 열 주소. 대상이 아니면 null
  * - https://whenwemeet.day/join/<code>?.. , /g/.. → 같은 경로를 webOrigin 에서 (스테이징 빌드면 스테이징 웹)
+ * - whenwemeet://join/<code>?.. , whenwemeet://g/.. → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
+ *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다)
  * - whenwemeet://auth?... 는 openAuthSessionAsync 가 받으므로 null
  */
 export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whenwemeet.day"): string | null {
-  const u = parseUrl(raw);
-  if (!u) return null;
-  if (u.protocol !== "https:" || u.hostname !== linkHost) return null;
-  if (!DEEP_LINK_PATHS.some((p) => pathIs(u.pathname, p) && u.pathname.length > p.length + 1)) return null;
-  return `${webOrigin.replace(/\/+$/, "")}${u.pathname}${u.search}`;
+  let pathname: string;
+  let search: string;
+  const scheme = parseSchemeLink(raw);
+  if (scheme) {
+    ({ path: pathname, search } = scheme);
+  } else {
+    const u = parseUrl(raw);
+    if (!u || u.protocol !== "https:" || u.hostname !== linkHost) return null;
+    pathname = u.pathname;
+    search = u.search;
+  }
+  // 경로 조작(//evil, 백슬래시, 제어문자)은 버린다. safeNext 와 같은 규칙
+  if (safeNext(pathname) !== pathname) return null;
+  if (!DEEP_LINK_PATHS.some((p) => pathIs(pathname, p) && pathname.length > p.length + 1)) return null;
+  return `${webOrigin.replace(/\/+$/, "")}${pathname}${search}`;
 }
 
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */
