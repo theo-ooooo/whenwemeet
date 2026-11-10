@@ -7,20 +7,22 @@
 
 | 항목 | 규칙 |
 |------|------|
-| 성공 | `200 { data }`. 생성은 `201 { data }`. 삭제는 `200 { data: { ok: true } }` |
-| 실패 | `{ error: { code, message } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장 |
+| 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값 |
+| 성공 | `200 { status: 200, data, message: "OK" }`. 생성은 201. 삭제는 `data: { ok: true }`. 이 문서의 엔드포인트 표에 적힌 `{ data: ... }` 는 `data` 필드의 모양이다 |
+| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록 |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
-| 날짜시각 | ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
-| ID | cuid 문자열 |
+| 날짜시각 | 응답은 ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 입력(본문 `startsAt`/`endsAt`, 쿼리 `from`/`to`)은 날짜, 시각, 오프셋(`Z` 또는 `±HH:mm`)이 모두 있어야 하며 없으면 400 VALIDATION_FAILED (D-40). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
+| ID | 모든 모델 `Int` 자동증가. JSON 에서는 숫자. 경로 파라미터는 양의 정수만 허용(아니면 400 VALIDATION_FAILED) |
 | 검증 | class-validator. 실패 시 400 VALIDATION_FAILED, message 는 첫 번째 위반 항목 |
+| 문자열 공백 | 이름/제목 문자열(팀 `name`, 일정 `title`, 기념일 `name`, `displayName`, `nickname`) 은 앞뒤 공백을 잘라 검증하고 잘린 값을 저장한다. 공백만이면 길이 0 이라 400 VALIDATION_FAILED. 길이 제한도 잘린 값 기준 |
 | 표시 이름 | 응답의 사람 정보는 항상 `{ userId, displayName, color, profileImageUrl }` 형태의 `member` 객체. displayName = `Membership.displayName ?? User.nickname`. 탈퇴자는 `{ userId: null, displayName: "탈퇴한 멤버", color: "#9CA3AF", profileImageUrl: null }` |
 
 ### 오류 코드
 
 | code | HTTP | 언제 |
 |------|------|------|
-| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값 |
+| VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값, 본문이 JSON 이 아님(message "요청 형식이 올바르지 않아요" 고정) |
 | EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과 |
 | GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청 |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
@@ -28,18 +30,25 @@
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
 | NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
+| PAYLOAD_TOO_LARGE | 413 | JSON 본문이 100KB 초과 (express 기본 한도). message "요청 내용이 너무 커요". 아바타 파일 크기 초과는 해당 없음(400 VALIDATION_FAILED) |
 | KAKAO_ERROR | 502 | 카카오 토큰 교환/사용자 조회/unlink 실패 |
+| STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
+| KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
+| DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 환경 변수 (apps/api/.env)
+
+`NODE_ENV=production` 이면 `PORT`, `JWT_EXPIRES_IN` 을 뺀 아래 값이 모두 있어야 기동한다 (`src/config/env.validation.ts`, 운영 목록은 docs/운영/배포.md).
 
 | 이름 | 용도 |
 |------|------|
 | `DATABASE_URL` | `mysql://user:pass@host:3306/whenwemeet` |
 | `PORT` | 기본 4000 |
-| `WEB_ORIGIN` | CORS 허용 origin 이자 로그인 후 리다이렉트 대상 (`https://whenwemeet.app`, 로컬 `http://localhost:3000`) |
+| `WEB_ORIGIN` | CORS 허용 origin 이자 로그인 후 리다이렉트 대상 (`https://whenwemeet.day`, 로컬 `http://localhost:3000`) |
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | HS256 비밀키, `30d` |
 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI`, `KAKAO_ADMIN_KEY` | 인증흐름.md |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). docs/운영/cloudflare-r2.md |
 
 ## 2. 엔드포인트
 
@@ -47,11 +56,14 @@
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/health` | 없음 | - | `{ data: { ok: true } }` |
+| GET | `/health` | 없음 | - | `{ data: { ok: true } }`. DB 에 `SELECT 1` 을 보내 실패하면 503 DB_UNAVAILABLE |
 | GET | `/auth/kakao` | 없음 | 쿼리 `next?` (`/` 로 시작하는 웹 경로, 기본 `/`) | 302 → kauth 인가 페이지 |
 | GET | `/auth/kakao/callback` | 없음 | 쿼리 `code`, `state` | 302 → `${WEB_ORIGIN}/auth/callback?token=<JWT>&next=<path>`. 실패 시 302 → `${WEB_ORIGIN}/login?error=<code>` |
 | GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt } }` |
-| DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7) |
+| PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
+| POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `File.publicUrl` |
+| DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
+| DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
 로그아웃은 API 호출 없이 웹이 쿠키를 지운다.
 
@@ -92,7 +104,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` startsAt 오름차순 |
 | POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` + EventLog CREATED |
 | GET | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: Event }` |
-| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED |
+| PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>` | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | - | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
 
 ```ts
@@ -104,6 +116,7 @@ Event      = EventInput & { id, groupId, creator: Member|탈퇴자, createdAt, u
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
 - 팀원 누구나 수정/삭제. 등록자 제한 없음
+- 단건(GET/PATCH/DELETE)의 `eventId` 는 `groupId` 안에서만 찾는다. 멤버가 아니면 403 FORBIDDEN, 멤버이지만 다른 팀 소속 일정이면 없는 ID 와 똑같이 404 NOT_FOUND (존재 여부 비노출. 결정기록 D-31)
 
 ### 2.4 기념일
 
@@ -128,8 +141,8 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 | 쿼리 | 기본 | 제약 |
 |------|------|------|
-| `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각으로 잘라서 계산 |
-| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart < dayEnd` |
+| `from`, `to` | 필수 | ISO. `to - from <= 31일`, `from` 이 과거면 현재 시각을 **다음 30분 경계로 올려** 잘라서 계산 (14:37 → 15:00, 14:00 은 그대로. 결정기록 D-30) |
+| `dayStart`, `dayEnd` | `09:00`, `23:00` | `HH:mm` KST. `dayStart` 는 `00:00`~`23:59`, `dayEnd` 는 `00:00`~`24:00` (`24:00` 은 그날 자정 끝 = 다음 날 00:00). `dayStart < dayEnd` |
 | `minMinutes` | `120` | 30~720 |
 | `includeAllDay` | `false` | `true` 면 종일 일정도 바쁨으로 센다 |
 
@@ -182,7 +195,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 
 ```
 1. 카카오 unlink: POST https://kapi.kakao.com/v1/user/unlink
-   Authorization: KakaoAK ${KAKAO_ADMIN_KEY}, body target_id_type=user_id&target_id=<kakaoId>
+   Authorization: KakaoAK ${KAKAO_ADMIN_KEY}, body target_id_type=user_id&target_id=<AuthAccount.providerUserId>
    실패(이미 끊긴 경우 제외) → 502 KAKAO_ERROR, DB 는 건드리지 않음 (사용자가 다시 시도)
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
@@ -196,6 +209,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 | 기획 기능 | 엔드포인트 |
 |-----------|-----------|
 | 카카오 로그인 | `/auth/kakao`, `/auth/kakao/callback`, `/me` |
+| 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
 | 초대 링크 + 6자리 코드, 재발급 | `GroupDetail.inviteCode/inviteUrl`, `POST /groups/:id/invite-code`, `GET /invites/:code`, `POST /groups/join` |
 | 팀 전환 | `GET /groups` |
@@ -207,3 +221,11 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 | 멤버 색/닉네임 | `PATCH /groups/:id/me` |
 | 팀 나가기 / 삭제 | `DELETE /groups/:id/me` |
 | 회원 탈퇴 | `DELETE /me` |
+
+## 4. 개발 전용
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| POST | `/auth/dev-login` | 없음 | `{ nickname(1~50) }` | `{ data: { token, user } }`. 카카오 없이 테스트 사용자를 만들고(같은 닉네임이면 재사용) JWT 를 발급. **`NODE_ENV !== 'production'` 에서만** 존재하고 운영에서는 404 NOT_FOUND (결정기록 D-29) |
+
+- `KAKAO_CLIENT_ID` 가 비어 있어도 서버는 기동한다. 카카오가 필요한 엔드포인트(`/auth/kakao`, 실사용자 `DELETE /me` 의 unlink)만 503 `KAKAO_NOT_CONFIGURED` 를 돌려준다

@@ -26,7 +26,7 @@ cp apps/api/.env.example apps/api/.env            # 백엔드
 cp apps/web/.env.example apps/web/.env.local      # 프론트
 ```
 
-`apps/api/.env` 의 `KAKAO_*` 는 아래 "카카오 개발자센터 등록" 을 마친 뒤 채운다. `JWT_SECRET` 은 `openssl rand -base64 48` 로 만든 값으로 바꾼다.
+`apps/api/.env` 의 `KAKAO_*` 는 [docs/운영/카카오-개발자센터.md](docs/운영/카카오-개발자센터.md) 대로 앱을 등록한 뒤 채운다. `JWT_SECRET` 은 `openssl rand -base64 48` 로 만든 값으로 바꾼다.
 
 ### 2-A. MySQL — docker compose
 
@@ -71,22 +71,14 @@ pnpm dev        # web http://localhost:3000, api http://localhost:4000 동시 �
 pnpm --filter @whenwemeet/api exec prisma migrate dev
 ```
 
-## 카카오 개발자센터 등록 (사용자가 직접)
+## 외부 서비스 설정
 
-[developers.kakao.com](https://developers.kakao.com) > 내 애플리케이션 > 애플리케이션 추가 후 아래를 설정한다. 운영 배포 시에는 운영 도메인을 각 항목에 **추가** 로 등록한다 (로컬 값은 지우지 않는다).
+- 카카오 개발자센터 앱 등록과 키 발급: [docs/운영/카카오-개발자센터.md](docs/운영/카카오-개발자센터.md)
+- 프로필 사진 저장소(R2): [docs/운영/cloudflare-r2.md](docs/운영/cloudflare-r2.md)
 
-| 순서 | 위치 | 로컬 값 | 들어가는 곳 |
-|------|------|---------|------------|
-| 1 | 앱 설정 > 플랫폼 > Web > 사이트 도메인 | `http://localhost:3000` | 웹 주소 (`WEB_ORIGIN`) |
-| 2 | 제품 설정 > 카카오 로그인 > 활성화 설정 | ON | - |
-| 3 | 제품 설정 > 카카오 로그인 > Redirect URI | `http://localhost:4000/v1/auth/kakao/callback` | `apps/api/.env` `KAKAO_REDIRECT_URI` 와 글자 단위로 동일해야 함 |
-| 4 | 제품 설정 > 카카오 로그인 > 동의항목 | 닉네임(`profile_nickname`), 프로필 사진(`profile_image`) 을 "필수 동의" 또는 "선택 동의" | - |
-| 5 | 제품 설정 > 카카오 로그인 > 보안 > Client Secret | 코드 생성 후 활성화 상태 "사용함" | `apps/api/.env` `KAKAO_CLIENT_SECRET` |
-| 6 | 앱 설정 > 앱 키 > REST API 키 | 복사 | `apps/api/.env` `KAKAO_CLIENT_ID` |
-| 7 | 앱 설정 > 앱 키 > Admin 키 | 복사 | `apps/api/.env` `KAKAO_ADMIN_KEY` (회원 탈퇴 시 unlink 에 사용) |
+## 배포
 
-- 키와 Secret 은 `.env` 와 배포 플랫폼 시크릿에만 둔다. 문서, 이슈, 커밋에 쓰지 않는다.
-- 플랫폼 Web 에는 포트까지 포함한 origin 을 넣는다 (`http://localhost:3000`).
+운영 배포 흐름, 환경 변수, 비용은 [docs/운영/배포.md](docs/운영/배포.md). 플랫폼별 설정은 [Railway (API + MySQL)](docs/운영/railway.md), [Vercel (웹)](docs/운영/vercel.md).
 
 ## CI
 

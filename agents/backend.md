@@ -21,6 +21,15 @@ apps/api/src/
 apps/api/prisma/schema.prisma, migrations/
 ```
 
+## 계층 (반드시)
+```
+Controller → Service → Repository → PrismaService
+```
+- **Prisma 호출(`prisma.*`, `$transaction`)은 `*.repository.ts` 에만 둔다.** Service 에는 쿼리가 한 줄도 없어야 한다. Service 는 권한 판단, 규칙, 조합만
+- Repository 는 도메인 단위: `users`, `groups`, `memberships`, `events`, `anniversaries`, `event-logs`. 메서드 이름은 의도를 드러내게 (`findMemberGroupIds(userId)`, `listBusyRanges(groupIds, from, to)`), `select` 는 Repository 안에서 고정
+- 여러 테이블을 한 트랜잭션으로 묶어야 하면 Repository 에 그 단위의 메서드를 하나 둔다 (`leaveGroupTx(...)`). Service 가 `$transaction` 을 열지 않는다
+- 테스트: Service 는 Repository 목, Repository 는 실 DB(e2e) 로
+
 ## 규칙
 - ESM(`"type": "module"`) 이므로 상대 import 는 `.js` 확장자 필수
 - DTO 는 class-validator, 전역 `ValidationPipe({ whitelist, transform, forbidNonWhitelisted })`
@@ -31,7 +40,7 @@ apps/api/prisma/schema.prisma, migrations/
 - 비밀값은 `ConfigService.getOrThrow` 로만 읽음. 하드코딩 금지
 
 ## 테스트
-- vitest. 서비스 단위 테스트는 PrismaService 를 목으로, 컨트롤러 e2e 는 `test/` 에 supertest
+- vitest. 서비스 단위 테스트는 Repository 를 목으로, Repository 와 컨트롤러는 `test/` 의 e2e(supertest, 실 DB) 로
 - 커밋 전 `pnpm --filter @whenwemeet/api test` 와 `build` 통과
 
 ## 금지

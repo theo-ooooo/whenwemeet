@@ -1,0 +1,87 @@
+"use client";
+// 브라우저용 fetch 래퍼. 항상 웹의 /api/<path> 프록시를 부르고 봉투를 푼다(모양은 lib/envelope.ts 만 안다).
+// 화면/컴포넌트는 이 파일을 직접 쓰지 않고 src/hooks/use*.ts 를 통해서만 부른다 (agents/frontend.md 데이터 접근).
+import { readEnvelope, type ApiErrorDetail } from "./envelope";
+import { EXPIRED_PATH } from "./auth";
+import { isOutage, MAINTENANCE_PATH, maintenanceUrl } from "./maintenance";
+
+export class ApiError extends Error {
+  code: string;
+  status: number;
+  details?: ApiErrorDetail[];
+  constructor(status: number, code: string, message: string, details?: ApiErrorDetail[]) {
+    super(message);
+    this.code = code;
+    this.status = status;
+    if (details) this.details = details;
+  }
+}
+
+/** 팀 접근 권한이 사라졌을 때(403) window 에 쏘는 이벤트. AppShell 이 hooks/useGroupGone 으로 받아 안내 화면으로 바꾼다 (#18) */
+export const GROUP_GONE_EVENT = "wwm:group-gone";
+
+function currentPath(): string {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname + window.location.search;
+}
+
+export async function api<T>(
+  path: string,
+  init: {
+    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    body?: unknown;
+    form?: FormData;
+    signal?: AbortSignal;
+    /** false 면 서버 장애여도 점검 화면으로 보내지 않는다. 점검 화면의 health 확인 전용 (무한 이동 방지, #54) */
+    outageRedirect?: boolean;
+  } = {},
+): Promise<T> {
+  let res: Response;
+  // form 은 multipart 로 보낸다. Content-Type(boundary 포함) 은 브라우저가 붙인다
+  const sendsJson = init.form === undefined && init.body !== undefined;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: init.method ?? "GET",
+      headers: sendsJson ? { "Content-Type": "application/json" } : undefined,
+      body: init.form ?? (sendsJson ? JSON.stringify(init.body) : undefined),
+      signal: init.signal,
+      cache: "no-store",
+    });
+  } catch (e) {
+    if ((e as Error).name === "AbortError") throw e;
+    throw new ApiError(0, "NETWORK", "");
+  }
+
+  let json: unknown = {};
+  try {
+    json = await res.json();
+  } catch {
+    json = {};
+  }
+  const env = readEnvelope<T>(res.status, json);
+
+  if (res.status === 401) {
+    // 세션이 끝났다. 쿠키(wwm_session, wwm_group)를 지우는 route handler 를 거쳐 로그인으로 보내고 돌아올 자리를 남긴다 (#37)
+    const expired = new URL(EXPIRED_PATH, window.location.origin);
+    expired.searchParams.set("next", currentPath());
+    window.location.assign(expired.toString());
+    throw new ApiError(401, "UNAUTHORIZED", env.error?.message ?? "");
+  }
+  if (res.status === 403) {
+    // 그 팀 멤버가 아니게 된 경우. 홈으로 튕기면 남은 wwm_group 쿠키가 다시 이 팀으로 보내 무한 반복되므로
+    // 화면은 그대로 두고 AppShell 에 알려 "접근할 수 없어요" 안내로 바꾼다 (#18)
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(GROUP_GONE_EVENT));
+    throw new ApiError(403, "FORBIDDEN", env.error?.message ?? "");
+  }
+  if (!env.ok && isOutage(res.status, env.error?.code)) {
+    // 서버 장애(프록시 연결 실패 502/504, API 500 INTERNAL). 화면을 스피너에 두지 않고 점검 화면으로 보낸다 (#54).
+    // 기능 단위 503(STORAGE_NOT_CONFIGURED 등), 502 KAKAO_ERROR 는 isOutage 가 걸러 화면 안 안내로 남긴다
+    if (init.outageRedirect !== false && window.location.pathname !== MAINTENANCE_PATH) {
+      window.location.assign(maintenanceUrl(currentPath()));
+    }
+  }
+  if (!env.ok) {
+    throw new ApiError(res.status, env.error?.code ?? "INTERNAL", env.error?.message ?? "", env.error?.details);
+  }
+  return env.data as T;
+}

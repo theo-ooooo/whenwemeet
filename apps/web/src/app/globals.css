@@ -1,26 +1,318 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* docs/설계/디자인토큰.md (2026, #46 소프트 코랄) 의 값을 그대로 옮긴다. 원본: docs/설계/img/디자인-2026*.html, 톤-소프트코랄.png(A안)
+ * 색은 :root 변수로 두고 테마(라이트/다크)에서 값만 바꾼다. 유틸리티 이름은 기존 화면과 맞춘다
+ *   surface = 바탕(bg), paper = 타일(tile), ink = 먹, ink-2 = 보조 글자(mute), brand = 포인트(acc) */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-*: initial;
+  --color-surface: var(--bg);
+  --color-paper: var(--tile);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--mute);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-brand: var(--acc);
+  --color-brand-soft: var(--acc-soft);
+  --color-holiday: var(--holiday);
+  --color-danger: var(--holiday);
+  --color-member-1: var(--m1);
+  --color-member-2: var(--m2);
+  --color-member-3: var(--m3);
+  --color-member-4: var(--m4);
+  --color-member-5: var(--m5);
+  --color-glass: var(--glass);
+  /* #46 소프트 코랄: 주 버튼, 오늘/선택 칸, 강조 타일 */
+  --color-pri: var(--pri);
+  --color-on-pri: var(--on-pri);
+  --color-btn: var(--btn);
+  --color-on-btn: var(--on-btn);
+  --color-today: var(--today-bg);
+  --color-today-ink: var(--today-ink);
+  --color-sel-ink: var(--sel-ink);
+  --color-kakao: #fee500;
+  --color-kakao-ink: #191919;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+
+  /* 모서리: 작은 칩 7, 입력/칸 14, 타일 22, 큰 타일 26, 시트 30 */
+  --radius-xs: 7px;
+  --radius-sm: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 26px;
+  --radius-2xl: 30px;
+
+  --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* 라이트 (기본) */
+:root {
+  color-scheme: light;
+  /* #46 소프트 코랄(A안): 먹은 #0F0F10 → #26252A, 바탕은 따뜻한 회색 */
+  --bg: #f4f3f1;
+  --tile: #ffffff;
+  --ink: #26252a;
+  /* 목업의 #8E8E93 은 흰 바탕 대비 3.3:1 이라 글자용 보조색만 4.5:1 이상인 값으로 낮춘다 */
+  --mute: #6c6c70;
+  --soft: #555555;
+  --faint: #c7c7cc;
+  --line: #ecebe8;
+  --acc: #ff3d1f;
+  --acc-soft: #ffece8;
+  /* 오늘 모두 비는 시간 타일: 연한 코랄 면 + 갈색 글자 + 코랄 시간 */
+  --hl-tile: #ffede8;
+  --hl-ink: #7a3a2e;
+  --hl-time: #e0533d;
+  /* 오늘 칸, 선택 칸, 선택 칩: 옅은 코랄 면 + 코랄 숫자 */
+  --today-bg: #ffe1d9;
+  --today-ink: #c2412c;
+  /* 선택 칩 글자 (13px 이라 4.5:1 을 넘도록 today-ink 보다 한 단계 진하게) */
+  --sel-ink: #a93520;
+  /* + 버튼(FAB), PC 일정 추가 */
+  --pri: #e0533d;
+  --on-pri: #ffffff;
+  /* 글자가 있는 주 버튼. 흰 글자 4.5:1 을 넘게 pri 보다 한 단계 진하게 */
+  --btn: #c8432d;
+  --on-btn: #ffffff;
+  --fab-shadow: 0 8px 30px rgba(224, 83, 61, 0.32);
+  --holiday: #e5322d;
+  --holiday-faint: #f2b8b5;
+  --m1: #ff3d1f;
+  --m2: #1f5bff;
+  --m3: #9a1dff;
+  --m4: #2ed3a5;
+  --m5: #ff9f1c;
+  --glass: rgba(255, 255, 255, 0.78);
+  --pill: rgba(255, 255, 255, 0.7);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  --pop-shadow: 0 12px 40px rgba(38, 37, 42, 0.16);
+  --grab: #d9d9de;
+  --login-bg: #ffffff;
+  --chip-line: #e3e2df;
+}
+
+/* 다크: 시스템 설정을 따르고(수동 라이트가 아닐 때), 수동 다크는 data-theme 로 */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121214;
+    --tile: #1d1d21;
+    --ink: #ececef;
+    --mute: #8e8e93;
+    --soft: #a1a1a6;
+    --faint: #3a3a3f;
+    --line: #2a2a2f;
+    --acc: #ff4a2e;
+    --acc-soft: #2c1512;
+    --hl-tile: #3a2622;
+    --hl-ink: #e8c9c2;
+    --hl-time: #ff8670;
+    --today-bg: #4a2c26;
+    --today-ink: #ffb4a5;
+    --sel-ink: #ffb4a5;
+    --pri: #ff8670;
+    --on-pri: #1a0e0b;
+    --btn: #ff8670;
+    --on-btn: #1a0e0b;
+    --fab-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --holiday-faint: #5a2a28;
+    --m1: #ff4a2e;
+    --m2: #3b74ff;
+    --m3: #a855f7;
+    --glass: rgba(36, 36, 41, 0.82);
+    --pill: rgba(44, 44, 49, 0.8);
+    --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    --pop-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    --grab: #3a3a3f;
+    --login-bg: #121214;
+    --chip-line: #2e2e33;
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121214;
+  --tile: #1d1d21;
+  --ink: #ececef;
+  --mute: #8e8e93;
+  --soft: #a1a1a6;
+  --faint: #3a3a3f;
+  --line: #2a2a2f;
+  --acc: #ff4a2e;
+  --acc-soft: #2c1512;
+  --hl-tile: #3a2622;
+  --hl-ink: #e8c9c2;
+  --hl-time: #ff8670;
+  --today-bg: #4a2c26;
+  --today-ink: #ffb4a5;
+  --sel-ink: #ffb4a5;
+  --pri: #ff8670;
+  --on-pri: #1a0e0b;
+  --btn: #ff8670;
+  --on-btn: #1a0e0b;
+  --fab-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --holiday-faint: #5a2a28;
+  --m1: #ff4a2e;
+  --m2: #3b74ff;
+  --m3: #a855f7;
+  --glass: rgba(36, 36, 41, 0.82);
+  --pill: rgba(44, 44, 49, 0.8);
+  --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --pop-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --grab: #3a3a3f;
+  --login-bg: #121214;
+  --chip-line: #2e2e33;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 서체 역할 */
+.t-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+.t-sub {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+/* 포커스는 항상 보이게 */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* 요소 기본값은 base 레이어에 둬야 Tailwind 유틸리티(text-[26px] 등)가 이긴다 */
+@layer base {
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    min-height: 48px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+/* 반투명 알약(상단 팀 이름, 새 소식) 과 떠 있는 탭 */
+.glass-pill {
+  background: var(--pill);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+.glass-dock {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--dock-shadow);
+}
+
+/* 시트 열림 200ms, 날짜 선택 120ms. 모션 축소 환경에서는 즉시 */
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.anim-sheet {
+  animation: sheet-up 200ms var(--ease-sheet);
+}
+.anim-fade {
+  animation: fade-in 200ms ease-out;
+}
+.anim-pick {
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+/* 테마 전환 순간에는 transition 을 끈다 (lib/theme.ts withoutTransition, THEME_SCRIPT) */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 스켈레톤 */
+.skeleton {
+  background: var(--line);
+  border-radius: var(--radius-xs);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* 스크린리더 전용 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
