@@ -68,6 +68,10 @@ export function Spinner({ className = "" }: { className?: string }) {
 export const inputClass =
   "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-3 text-[14px] leading-5 font-normal text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
 
+/** 일정 제목 입력 (#174 L3): 빠른 추가와 일정 작성이 같은 모양. 44 상자 + 16/600. 상자, 바탕, 포커스는 inputClass 와 같다 */
+export const titleInputClass =
+  "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-2.5 text-[16px] leading-6 font-semibold tracking-[-0.01em] text-ink placeholder:font-semibold placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
+
 type FieldProps = {
   label: string;
   hint?: string;

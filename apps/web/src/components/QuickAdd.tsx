@@ -7,7 +7,7 @@ import { useId, useState } from "react";
 import { IconChevronLeft, IconClose } from "./icons";
 import { TimeList, TimePicker } from "./pickers";
 import { minutesOf, timeOfMinutes } from "./pickers/time";
-import { Button, Toggle, inputClass } from "./ui";
+import { Button, Toggle, titleInputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { clampChars } from "@/lib/chars";
@@ -95,9 +95,9 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
 
   return (
     <form onSubmit={save} noValidate>
-      {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2) */}
+      {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2). 뒤로 아이콘 칸 32 의 왼쪽 끝을 시트 여백 16 에 맞춘다 (#174 L9) */}
       <div data-drag className="flex h-10 touch-none items-center gap-1">
-        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="hit -ml-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconChevronLeft size={18} />
         </button>
         <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">
@@ -114,7 +114,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
       <input
         id={`${ids}-title`}
         autoFocus
-        className={`${inputClass} mt-2`}
+        className={`${titleInputClass} mt-2`}
         placeholder="무슨 일정인가요?"
         value={title}
         onChange={(e) => setTitle(clampChars(e.target.value, 50))}

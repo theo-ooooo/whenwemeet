@@ -73,7 +73,8 @@ export default async function JoinPage({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
-      <Symbol size={40} />
+      {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24. 브랜드 크기 제목은 로그인만 (#174 L4) */}
+      <Symbol size={32} />
 
       {data ? (
         <>
@@ -82,7 +83,7 @@ export default async function JoinPage({
               멤버 {data.memberCount}명
             </span>
           </div>
-          <h1 className="mt-3 break-keep text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">
+          <h1 className="mt-3 break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]">
             {data.groupName}
             <br />
             팀에 초대받았어요

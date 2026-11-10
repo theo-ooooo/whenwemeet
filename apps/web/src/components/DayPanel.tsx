@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
 import { IconCalendar, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
 import { QuickAddForm } from "./QuickAdd";
-import { ErrorState, Skeleton } from "./ui";
+import { EmptyState, ErrorState, Skeleton } from "./ui";
 import { memberColor } from "@/lib/colors";
 import { dayBadge } from "@/lib/day-detail";
 import { dowOf, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
@@ -189,15 +189,11 @@ function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, 
         </ul>
       ) : null}
 
-      {/* 빈 날 */}
+      {/* 빈 날: 공통 빈 상태(원 40, 제목 14/600, 보조 12) 와 같은 모양 (#174 L5) */}
       {empty && (
-        <div className="flex flex-col items-center py-5 text-center">
-          <span aria-hidden="true" className="grid size-11 place-items-center rounded-full bg-hover text-acc-ink">
-            <IconCalendar size={20} />
-          </span>
-          <b className="mt-2.5 text-[15px] font-semibold leading-5">아직 일정이 없어요</b>
-          <span className="mt-0.5 text-[13px] text-ink-2">이 날 함께할 일을 바로 적어 보세요</span>
-        </div>
+        <EmptyState className="py-5" icon={<IconCalendar size={20} />} title="아직 일정이 없어요">
+          이 날 함께할 일을 바로 적어 보세요
+        </EmptyState>
       )}
     </div>
   );
