@@ -1,72 +1,35 @@
 "use client";
-// 달력에서 바로 일정 추가 (#46).
-// 모바일: 선택된 날짜를 한 번 더 누르면 바텀 시트. PC: 날짜 칸 빈 곳을 누르면 그 칸 옆 팝오버.
-// 필드는 둘 다 같다 (제목, 종일, 시작/종료 시각). 저장은 useCreateEvent, "자세히" 는 새 일정 폼으로 값을 넘긴다.
+// 달력에서 바로 일정 추가 (#46). 폴더블.md 5-2 부터는 날짜 상세(DayPanel) 의 "이 날 일정 추가" 가 같은 자리에서 이 폼으로 바뀐다.
+// 날짜 칸을 누르면 바로 열리던 경로(모바일 재탭, PC 빈 곳 클릭)는 없앴다. 바로 추가는 + 버튼이 맡는다.
+// 필드: 제목, 종일, 시작/종료 시각. 저장은 useCreateEvent, "자세히" 는 새 일정 폼으로 값을 넘긴다.
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { IconClose } from "./icons";
+import { useId, useState } from "react";
+import { IconChevronLeft, IconClose } from "./icons";
 import { TimeList, TimePicker } from "./pickers";
 import { minutesOf, timeOfMinutes } from "./pickers/time";
 import { Button, Toggle, inputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { clampChars } from "@/lib/chars";
-import { addDays, formatDateKo, kstToIso, type DateKey } from "@/lib/date";
+import { addDays, dowOf, kstToIso, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import type { Event } from "@/lib/types";
 
 type GroupId = Event["groupId"];
 
-type CommonProps = {
+type Props = {
   groupId: GroupId;
   date: DateKey;
+  titleId: string;
   onClose: () => void;
+  /** ← : 날짜 상세로 */
+  onBack: () => void;
   /** 저장 성공. 화면은 목록을 다시 받아 바로 보여준다 */
   onSaved: (ev: Event) => void;
 };
 
-/** 창 안 포커스 가능한 요소 */
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** 열려 있는 동안 Tab 을 창 안에 가두고 Esc 로 닫는다. 닫히면 열기 전 포커스로 돌려준다 */
-function useDialogKeys(ref: React.RefObject<HTMLElement | null>, onClose: () => void) {
-  // 렌더 시점에 잡아야 한다. 효과가 돌 때는 이미 제목 입력(autoFocus)으로 포커스가 옮겨가 있다
-  const [prev] = useState(() => (typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null)));
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // 안쪽(펼친 시각 목록 등)이 Esc 를 먼저 처리했으면 창은 닫지 않는다
-      if (e.defaultPrevented) return;
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab" || !ref.current) return;
-      const items = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement;
-      if (e.shiftKey && (active === first || !ref.current.contains(active))) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || !ref.current.contains(active))) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // 닫은 뒤 원래 자리(날짜 칸, 추가 버튼)로 포커스를 돌린다
-      if (prev && document.contains(prev)) prev.focus({ preventScroll: true });
-    };
-  }, [ref, onClose, prev]);
-}
-
 /* ---------- 폼 (시트, 팝오버 공통) ---------- */
 
-function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps & { titleId: string }) {
+export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId }: Props) {
   const router = useRouter();
   const ids = useId();
   const [title, setTitle] = useState("");
@@ -132,14 +95,15 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps 
 
   return (
     <form onSubmit={save} noValidate>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <small className="block text-[12px] leading-4 text-ink-2">새 일정</small>
-          <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
-            {formatDateKo(date)}
-          </h2>
-        </div>
-        <button type="button" onClick={onClose} aria-label="빠른 추가 닫기" className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+      {/* 머리: "← 12일 목요일에 추가" + 닫기 (폴더블.md 5-2) */}
+      <div data-drag className="flex h-10 touch-none items-center gap-1">
+        <button type="button" onClick={onBack} aria-label="날짜 상세로" className="-ml-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+          <IconChevronLeft size={18} />
+        </button>
+        <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">
+          {parseKey(date).d}일 {WEEKDAYS[dowOf(date)]}요일에 추가
+        </h2>
+        <button type="button" onClick={onClose} aria-label="닫기" className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>
@@ -150,7 +114,7 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps 
       <input
         id={`${ids}-title`}
         autoFocus
-        className={`${inputClass} mt-3`}
+        className={`${inputClass} mt-2`}
         placeholder="무슨 일정인가요?"
         value={title}
         onChange={(e) => setTitle(clampChars(e.target.value, 50))}
@@ -236,100 +200,5 @@ function QuickAddForm({ groupId, date, onClose, onSaved, titleId }: CommonProps 
         </Button>
       </div>
     </form>
-  );
-}
-
-/* ---------- 모바일 바텀 시트 ---------- */
-
-export function QuickAddSheet(props: CommonProps) {
-  const panel = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-  useDialogKeys(panel, props.onClose);
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center">
-      <button type="button" aria-label="닫기" tabIndex={-1} onClick={props.onClose} className="anim-fade absolute inset-0 bg-[var(--scrim)]" />
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="anim-sheet relative max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2"
-      >
-        <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)]" />
-        <QuickAddForm {...props} titleId={titleId} />
-      </div>
-    </div>
-  );
-}
-
-/* ---------- PC 팝오버 ---------- */
-
-const POP_W = 300;
-const GAP = 10;
-const MARGIN = 16;
-
-/** 날짜 칸 옆(오른쪽, 자리가 없으면 왼쪽)에 붙인다. 위아래는 화면 안으로 맞춘다 */
-function placeBeside(anchor: DOMRect, h: number): { left: number; top: number } {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let left = anchor.right + GAP;
-  if (left + POP_W > vw - MARGIN) left = anchor.left - GAP - POP_W;
-  left = Math.max(MARGIN, Math.min(left, vw - MARGIN - POP_W));
-  const top = Math.max(MARGIN, Math.min(anchor.top, vh - MARGIN - h));
-  return { left, top };
-}
-
-export function QuickAddPopover({ anchor, ...props }: CommonProps & { anchor: HTMLElement | null }) {
-  const panel = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const { onClose } = props;
-  useDialogKeys(panel, onClose);
-
-  // 처음 그린 뒤 높이를 재서 자리를 잡는다. 창 크기가 바뀌면 다시
-  useLayoutEffect(() => {
-    const place = () => {
-      if (!panel.current) return;
-      const rect = anchor?.getBoundingClientRect() ?? new DOMRect(window.innerWidth / 2 - POP_W / 2, 120, 0, 0);
-      setPos(placeBeside(rect, panel.current.offsetHeight));
-    };
-    place();
-    const ro = new ResizeObserver(place);
-    if (panel.current) ro.observe(panel.current);
-    window.addEventListener("resize", place);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", place);
-    };
-  }, [anchor]);
-
-  // 바깥을 누르면 닫는다. 다른 칸을 누르면 닫힌 뒤 그 칸의 클릭으로 새로 열린다
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      if (panel.current && !panel.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [onClose]);
-
-  return (
-    <div
-      ref={panel}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      style={{ left: pos?.left ?? -9999, top: pos?.top ?? 0, width: POP_W, boxShadow: "var(--pop-shadow)" }}
-      // 자리 잡기 전에는 투명하게만 둔다. visibility:hidden 이면 제목 입력의 autoFocus 가 먹지 않는다
-      className={`fixed z-40 rounded-xl border border-line bg-paper px-3.5 pb-3.5 pt-2.5 ${pos ? "anim-fade" : "opacity-0"}`}
-    >
-      <QuickAddForm {...props} titleId={titleId} />
-    </div>
   );
 }

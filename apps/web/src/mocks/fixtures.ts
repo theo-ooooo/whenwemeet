@@ -145,7 +145,7 @@ export function buildStore(): Store {
     ev(9, OTHER_PERSONAL_ID, "운동", addDays(today, 4), "18:00", addDays(today, 4), "20:00", OTHER_ID),
   ];
 
-  // 기념일 1개: 처음 만난 날 (D+591 근처가 되도록 591일 전)
+  // 기념일 2개: 처음 만난 날 (D+591 근처가 되도록 591일 전), 사흘 뒤 생일
   const anniversaries: AnniversaryRow[] = [
     {
       id: 1,
@@ -154,6 +154,15 @@ export function buildStore(): Store {
       date: addDays(today, -591),
       creatorId: OTHER_ID,
       createdAt: hoursAgo(24 * 30),
+    },
+    // 날짜 상세의 기념일 줄 확인용 (폴더블.md 5-2). 등록한 날짜 그대로 보인다 (자동 표시는 #107)
+    {
+      id: 2,
+      groupId: TEAM_ID,
+      name: "하늘 생일",
+      date: addDays(today, 3),
+      creatorId: ME_ID,
+      createdAt: hoursAgo(24 * 20),
     },
   ];
 
