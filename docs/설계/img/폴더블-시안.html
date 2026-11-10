@@ -1,6 +1,6 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>폴더블 시안</title>
-<!-- #99 폴더블(펼친 화면 600~1023px) 시안. 주소 해시로 프레임 선택: #duo-cal, #duo-detail, #duo-free, #duo-form, #fold-cal (+ ?dark) -->
+<!-- #99 폴더블 시안. ?f= 로 프레임 선택: duo-cal, duo-detail, duo-free, duo-form, fold-cal, phone-sheet|empty|add, wide-day|empty|add, pc-day (+ &dark) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{--bg:#F4F3F1;--tile:#FFFFFF;--ink:#26252A;--mute:#6C6C70;--soft:#555;--faint:#C7C7CC;--line:#ECEBE8;--acc:#FF3D1F;
@@ -119,6 +119,29 @@ html.dark .ph .bell{background:rgba(40,40,46,.8)}.ph .bell svg{width:18px;height
 .sheet .sh{display:flex;align-items:center;gap:8px}.sheet .sh h4{font-size:20px;font-weight:800;letter-spacing:-.03em}
 .sheet .x{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:16px;color:var(--mute)}
 .sheet .hint{font-size:11px;color:var(--mute);font-weight:600;text-align:center;margin-top:8px}
+/* 날짜 상세 공통 (시트, 팝오버) */
+.dhead{display:flex;align-items:center;gap:8px}.dhead h4{font-size:20px;font-weight:800;letter-spacing:-.03em}
+.xbtn{margin-left:auto;width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center;color:var(--mute)}.xbtn svg{width:16px;height:16px}
+.fh{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:14px;padding:10px 12px;font-size:12px;font-weight:600;color:var(--mute)}
+.fh b{color:var(--hl-time);font-size:14px;font-weight:800}.fh svg{width:16px;height:16px;color:var(--hl-time)}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:10px 0;color:var(--mute);font-size:13px;font-weight:600}
+.empty .ring{width:52px;height:52px;border-radius:50%;background:var(--today-bg);color:var(--sel-ink);display:grid;place-items:center}.empty .ring svg{width:24px;height:24px}
+.empty b{color:var(--ink);font-size:16px;font-weight:800;letter-spacing:-.02em}
+.addp{height:52px;flex:none;border-radius:999px;background:var(--btn);color:var(--on-btn);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:auto}.addp svg{width:18px;height:18px}
+.qin{height:52px;border-radius:14px;background:var(--bg);display:flex;align-items:center;padding:0 14px;font-size:17px;font-weight:700;color:var(--ink);border:2px solid var(--pri)}
+.qin i{width:2px;height:20px;background:var(--pri);margin-left:2px}
+.qrow{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:700;padding:4px 2px}
+.qrow .tgl{width:44px;height:26px;border-radius:999px;background:var(--faint);position:relative}.qrow .tgl:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.qt{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;color:var(--mute)}.qt span{background:var(--bg);border-radius:14px;padding:12px;font-size:15px;font-weight:800;color:var(--ink);text-align:center}.qt svg{width:16px;height:16px}
+.qbtn{display:flex;gap:6px;margin-top:auto}.qbtn span{height:52px;border-radius:999px;display:grid;place-items:center;font-size:15px;font-weight:700;flex:1;background:var(--bg)}.qbtn .p{flex:1.6;background:var(--btn);color:var(--on-btn)}
+.pop{position:fixed;width:340px;background:var(--tile);border:1px solid var(--line);border-radius:26px;box-shadow:0 12px 40px rgba(38,37,42,.16);padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px;z-index:5}
+html.dark .pop{box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.pop .ev{padding:10px 0}.pop .an{margin-top:0}
+.d.ring2{outline:2px solid var(--pri);outline-offset:-2px}
+.up{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.up.f{border-top:0}
+.up .dt{width:38px;text-align:center;font-size:11px;color:var(--mute);font-weight:700;line-height:1.2}.up .dt b{display:block;font-size:17px;color:var(--ink);font-weight:800}
+.up i{width:10px;height:10px;border-radius:3px;flex:none}.up .nm{font-size:14px;font-weight:700}.up .nm small{display:block;font-size:11px;color:var(--mute);font-weight:600}
+.sheet .an{margin-top:0}
 /* 표시 */
 .dim{position:fixed;inset:0;pointer-events:none}
 </style></head><body>
@@ -172,15 +195,50 @@ if(F==='duo-cal'||F==='duo-detail'){
 <div class="tile fc"><div class="tg" style="border:0;padding:0">종일<i></i></div><span class="lb">시작</span><div class="trow"><span class="box">11월 10일 (화)</span><span class="box">오전 10:00</span></div>
 <span class="lb">종료</span><div class="trow"><span class="box">11월 10일 (화)</span><span class="box">오전 11:00</span></div><span class="save" style="margin-top:8px">저장</span></div></div></div>`;
 }
-if(F==='phone-sheet'){
-  const app=document.getElementById('app');app.className='ph';
+const X=I.plus.replace('<svg','<svg style="transform:rotate(45deg)"');
+const evRows=`<div><div class="ev first"><i style="background:var(--m2)"></i><div><b>원고 마감</b><span>종일</span></div><span class="who">하늘</span></div>
+<div class="ev"><i style="background:var(--m1)"></i><div><b>영화</b><span>19:30~22:00</span></div><span class="who">지우</span></div></div>`;
+const freeHint=(t)=>`<div class="fh">${I.clock}둘 다 비는 시간 <b>${t}</b></div>`;
+// state: day(일정 있는 날) | empty(빈 날) | add(같은 자리에서 빠른 추가로 바뀜)
+function dayBody(state){
+  if(state==='day') return `<div class="dhead"><h4>10일 화요일</h4><span class="badge">오늘</span><span class="xbtn">${X}</span></div>${anniv}${evRows}${freeHint('11:00~19:30')}<span class="addp">${I.plus}이 날 일정 추가</span>`;
+  if(state==='empty') return `<div class="dhead"><h4>12일 목요일</h4><span class="xbtn">${X}</span></div>${freeHint('09:00~14:00, 16:00~')}<div class="empty"><span class="ring">${I.cal}</span><b>아직 일정이 없어요</b>이 날 함께할 일을 바로 적어 보세요</div><span class="addp">${I.plus}이 날 일정 추가</span>`;
+  return `<div class="dhead"><span class="back">${I.l}</span><h4>12일 목요일에 추가</h4><span class="xbtn">${X}</span></div>
+  <div class="qin">저녁 산책<i></i></div><div class="qrow">종일<span class="tgl"></span></div>
+  <div class="qt"><span>오후 4:00</span>${I.arr}<span>오후 6:00</span></div><div class="qbtn"><span>자세히</span><span class="p">저장</span></div>`;
+}
+const app=document.getElementById('app');
+if(F.startsWith('phone-')){
+  const st=F.slice(6);
+  const state=st==='sheet'?'day':st;
+  app.className='ph';
   app.innerHTML=`<div class="ptop"><span class="pill">우리 둘 ${I.down}</span><span style="display:flex;gap:8px;align-items:center"><span class="bell">${I.bell}2</span><span class="av" style="margin:0">지</span></span></div>
   <div class="bigm"><b>11</b><span>월</span></div><div class="tiles">${hl}${dd}</div>${grid()}
   <div class="scrim"></div>
-  <div class="sheet" role="dialog"><div class="grab"></div><div class="sh"><h4>10일 화요일</h4><span class="badge">오늘</span><span class="x">${I.plus.replace('<svg','<svg style="width:16px;height:16px;transform:rotate(45deg)"')}</span></div>
-  ${anniv}
-  <div class="ev first" style="margin-top:6px"><i style="background:var(--m2)"></i><div><b>원고 마감</b><span>종일</span></div><span class="who">하늘</span></div>
-  <div class="ev"><i style="background:var(--m1)"></i><div><b>영화</b><span>19:30~22:00</span></div><span class="who">지우</span></div>
-  <span class="add" style="height:52px;font-size:15px">${I.plus}이 날 일정 추가</span><div class="hint">위로 끌어 올리면 전체 화면, 아래로 내리면 닫혀요</div></div>`;
-}else document.getElementById('app').innerHTML=rail+main;
+  <div class="sheet" role="dialog" style="gap:10px;height:${state==='day'?'60%':'54%'}"><div class="grab" style="margin-bottom:4px"></div>${dayBody(state)}</div>`;
+}else if(F.startsWith('wide-')||F.startsWith('pc-')){
+  const state=F.split('-')[1];
+  const isPc=F.startsWith('pc-');
+  const overview=`<div class="tile day"><h4>다가오는 일정</h4>
+  <div class="up f" style="margin-top:4px"><span class="dt">수<b>11</b></span><i style="background:var(--m1)"></i><span class="nm">부모님 댁<small>종일, 지우</small></span></div>
+  <div class="up"><span class="dt">금<b>13</b></span><i style="background:var(--m2)"></i><span class="nm">요가<small>07:00~08:00, 하늘</small></span></div>
+  <div class="up"><span class="dt">화<b>24</b></span><i style="background:var(--m1)"></i><span class="nm">제주 여행<small>24일~26일, 지우</small></span></div>
+  <h4 style="margin-top:12px">이번 주 빈 시간</h4>${['수 11/11 09:00~23:00','목 11/12 09:00~14:00'].map(t=>`<div class="sl" style="margin-top:8px"><b style="font-size:14px">${t}</b></div>`).join('')}</div>`;
+  const side=isPc?`<aside class="rail" style="align-items:stretch;padding:26px 16px;gap:6px"><div style="display:flex;gap:10px;align-items:center;font-weight:800;font-size:18px;padding:0 8px 22px"><div class="sym" style="margin:0"><i></i><i></i><i></i></div>언제볼까</div>
+  ${[['cal','달력',1],['clock','빈 시간 찾기'],['heart','기념일'],['bell','새 소식'],['team','팀 설정']].map(([k,t,on])=>`<span style="display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;font-size:14px;font-weight:600;${on?'background:var(--tile)':''}">${I[k].replace('<svg','<svg style="width:18px;height:18px"')}${t}</span>`).join('')}
+  <span class="av" style="margin-top:auto">지</span></aside>`:rail;
+  if(isPc)app.style.gridTemplateColumns='232px minmax(0,1fr)';
+  app.innerHTML=side+`<div class="body"${isPc?' style="padding:26px 22px 22px 0"':''}>${topBar(monthNav)}<div class="panes" style="--pane:${isPc?'320px':'300px'}">${isPc?gridChips():grid()}<div class="pane">${hl}${overview}</div></div></div>`;
+  const dayN=state==='day'?10:12;
+  const cell=[...document.querySelectorAll('.cal .grid .d')][dayN-1];
+  cell.classList.add('ring2');
+  const r=cell.getBoundingClientRect();
+  const pop=document.createElement('div');pop.className='pop';pop.setAttribute('role','dialog');
+  pop.innerHTML=dayBody(state).replace('class="empty"','class="empty" style="flex:none;padding:18px 0"');document.body.appendChild(pop);
+  pop.querySelectorAll('.addp,.qbtn').forEach(e=>e.style.marginTop='4px');
+  const h=pop.offsetHeight;
+  let left=r.right+8;if(left+340>innerWidth-8)left=r.left-8-340;
+  const top=Math.max(12,Math.min(r.top-10,innerHeight-12-h));
+  pop.style.left=left+'px';pop.style.top=top+'px';
+}else app.innerHTML=rail+main;
 </script></body></html>
