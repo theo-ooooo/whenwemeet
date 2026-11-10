@@ -18,6 +18,8 @@ const ROW = {
   creatorId: 1,
   createdAt: new Date('2026-11-01T00:00:00.000Z'),
   updatedAt: new Date('2026-11-01T00:00:00.000Z'),
+  repeat: null,
+  repeatUntil: null,
   creator: { nickname: '앨리스', profileImageUrl: null },
 };
 
@@ -50,6 +52,8 @@ describe('EventsService', () => {
     service = new EventsService(events as never, memberships);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
+    events.listSeriesForRange.mockResolvedValue([]);
+    events.listExceptions.mockResolvedValue([]);
   });
 
   it('멤버가 아니면 모든 메서드가 FORBIDDEN', async () => {

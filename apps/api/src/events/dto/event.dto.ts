@@ -1,5 +1,9 @@
-import { IsBoolean, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches, MaxLength, Validate } from 'class-validator';
 import { IsIsoDateTime, Trim } from '../../common/validation.js';
+import { CalendarDateConstraint } from '../../anniversaries/dto/anniversary.dto.js';
+import { REPEATS, type Repeat } from '../recurrence.js';
+
+const REPEAT_MESSAGE = `repeat 는 ${REPEATS.join(', ')} 중 하나여야 해요`;
 
 export class EventInputDto {
   @Trim()
@@ -20,6 +24,17 @@ export class EventInputDto {
   @IsString({ message: '메모는 문자열이어야 해요' })
   @MaxLength(500, { message: '메모는 500자 이하여야 해요' })
   memo?: string;
+
+  /** (#187) 생략/null 이면 한 번짜리 (PATCH 에서 생략은 그대로, null 은 반복 끄기) */
+  @IsOptional()
+  @IsIn(REPEATS, { message: REPEAT_MESSAGE })
+  repeat?: Repeat | null;
+
+  /** (#187) 반복 종료일 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null 이면 계속 */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요' })
+  @Validate(CalendarDateConstraint)
+  repeatUntil?: string | null;
 }
 
 export class EventPatchDto {
@@ -45,6 +60,17 @@ export class EventPatchDto {
   @IsString({ message: '메모는 문자열이어야 해요' })
   @MaxLength(500, { message: '메모는 500자 이하여야 해요' })
   memo?: string;
+
+  /** (#187) 생략/null 이면 한 번짜리 (PATCH 에서 생략은 그대로, null 은 반복 끄기) */
+  @IsOptional()
+  @IsIn(REPEATS, { message: REPEAT_MESSAGE })
+  repeat?: Repeat | null;
+
+  /** (#187) 반복 종료일 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null 이면 계속 */
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요' })
+  @Validate(CalendarDateConstraint)
+  repeatUntil?: string | null;
 }
 
 export class EventRangeQueryDto {

@@ -27,6 +27,7 @@ describe('FreeSlotsService', () => {
     events.listBusyRanges.mockResolvedValue([
       { startsAt: new Date('2026-11-10T01:00:00.000Z'), endsAt: new Date('2026-11-10T03:00:00.000Z') },
     ]);
+    events.listBusySeries.mockResolvedValue([]);
   });
 
   it('멤버가 아니면 FORBIDDEN 이고 DB 를 더 보지 않는다', async () => {
@@ -103,5 +104,55 @@ describe('FreeSlotsService', () => {
     await expect(service.find(1, 10, query({ dayStart: '12:00', dayEnd: '12:00' }), now)).rejects.toBeInstanceOf(ApiException);
     await expect(service.find(1, 10, query({ dayStart: '12:00', dayEnd: '12:00' }), now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'dayStart', message: 'dayStart 는 dayEnd 보다 앞이어야 해요' }] });
     expect(membershipsRepo.listUserIds).not.toHaveBeenCalled();
+  });
+  describe('반복 일정 회차도 바쁨 (#187, 설계 4-2)', () => {
+    // 11/10(화) 은 2026-11-03(화) 부터 매주인 회차가 있는 날
+    const weekly = (overrides: object = {}) => ({
+      startsAt: new Date('2026-11-03T05:00:00.000Z'), // KST 14:00
+      endsAt: new Date('2026-11-03T07:00:00.000Z'), // KST 16:00
+      allDay: false,
+      repeat: 'WEEKLY' as const,
+      repeatUntil: null,
+      exceptions: [],
+      ...overrides,
+    });
+    const pairs = (slots: { startsAt: Date; endsAt: Date }[]) => slots.map((s) => [s.startsAt.toISOString(), s.endsAt.toISOString()]);
+
+    it('펼친 회차를 한 번짜리 busy 와 합쳐 병합한다 (같은 팀 목록으로 조회)', async () => {
+      events.listBusySeries.mockResolvedValue([weekly()]);
+      const result = await service.find(1, 10, query(), now);
+      expect(events.listBusySeries).toHaveBeenCalledWith([10, 21, 22], new Date('2026-11-10T00:00:00.000Z'), new Date('2026-11-11T00:00:00.000Z'));
+      // 창 00:00Z~14:00Z 에서 01~03Z(한 번짜리), 05~07Z(반복) 를 빼고 120분 이상만 (00~01Z 는 버림)
+      expect(pairs(result.slots)).toEqual([
+        ['2026-11-10T03:00:00.000Z', '2026-11-10T05:00:00.000Z'],
+        ['2026-11-10T07:00:00.000Z', '2026-11-10T14:00:00.000Z'],
+      ]);
+    });
+
+    it('예외로 옮긴 회차는 옮긴 시각이, 취소된 회차는 바쁨에서 빠진다', async () => {
+      events.listBusySeries.mockResolvedValue([
+        weekly({ exceptions: [{ occurrence: '2026-11-10', cancelled: false, startsAt: new Date('2026-11-10T10:00:00.000Z'), endsAt: new Date('2026-11-10T11:00:00.000Z'), allDay: null }] }),
+      ]);
+      expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([
+        ['2026-11-10T03:00:00.000Z', '2026-11-10T10:00:00.000Z'],
+        ['2026-11-10T11:00:00.000Z', '2026-11-10T14:00:00.000Z'],
+      ]);
+      events.listBusySeries.mockResolvedValue([weekly({ exceptions: [{ occurrence: '2026-11-10', cancelled: true, startsAt: null, endsAt: null, allDay: null }] })]);
+      expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    });
+
+    it('종일 회차는 includeAllDay 일 때만 (예외가 종일 여부를 바꾸면 바꾼 값 기준)', async () => {
+      const allDay = weekly({ startsAt: new Date('2026-11-02T15:00:00.000Z'), endsAt: new Date('2026-11-03T15:00:00.000Z'), allDay: true });
+      events.listBusySeries.mockResolvedValue([allDay]);
+      expect((await service.find(1, 10, query(), now)).slots).toHaveLength(1);
+      expect((await service.find(1, 10, query({ includeAllDay: true }), now)).slots).toEqual([]);
+      events.listBusySeries.mockResolvedValue([weekly({ exceptions: [{ occurrence: '2026-11-10', cancelled: false, startsAt: null, endsAt: null, allDay: true }] })]);
+      expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    });
+
+    it('repeatUntil 이 지난 원본은 바쁨이 아니다', async () => {
+      events.listBusySeries.mockResolvedValue([weekly({ repeatUntil: '2026-11-09' })]);
+      expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    });
   });
 });
