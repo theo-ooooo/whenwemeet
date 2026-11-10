@@ -10,6 +10,7 @@ import { deepLinkToWebUrl } from "./links/urls";
 import { initKakao } from "./auth/login";
 import { WebScreen } from "./screens/WebScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { usePretendard } from "./ui/fonts";
 import { useTheme } from "./ui/theme";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -18,6 +19,8 @@ type LoginState = { next: string; reason?: "expired" } | null;
 
 export default function App() {
   const t = useTheme();
+  // 네이티브 화면(로그인) 글꼴을 미리 읽어 둔다. 웹뷰는 웹이 Pretendard 를 따로 읽는다
+  usePretendard();
   const [nav, setNav] = useState({ url: `${env.webOrigin}/`, key: 0 });
   const [login, setLogin] = useState<LoginState>(null);
   const handledInitial = useRef(false);

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginActions } from "@/components/LoginActions";
 import { Symbol } from "@/components/Logo";
-import { isAppUserAgent } from "@/lib/app-bridge";
-import { EXPIRED_REASON, safeNext, SESSION_COOKIE } from "@/lib/auth";
+import { parseAppUserAgent } from "@/lib/app-bridge";
+import { EXPIRED_REASON, safeNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "로그인" };
 export const dynamic = "force-dynamic";
@@ -33,8 +33,10 @@ export default async function LoginPage({
 
   const error = sp.error && !SILENT_ERRORS.has(sp.error) ? (ERROR_MESSAGES[sp.error] ?? DEFAULT_ERROR) : null;
   // 앱 셸 판정(UA)과 웹 애플 버튼 노출(P3 배포 전 숨김, 앱.md 7장)은 요청마다 서버에서 읽는다
-  const appGuess = isAppUserAgent((await headers()).get("user-agent"));
-  const appleEnabled = process.env.APPLE_LOGIN_ENABLED === "1";
+  // Android 앱 셸 안에서는 애플 버튼을 숨긴다 (#145)
+  const appUa = parseAppUserAgent((await headers()).get("user-agent"));
+  const appGuess = appUa !== null;
+  const appleEnabled = webAppleEnabled(process.env.APPLE_LOGIN_ENABLED, appUa?.os);
 
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
@@ -64,7 +66,7 @@ export default async function LoginPage({
           )}
           <LoginActions next={next} appleEnabled={appleEnabled} appGuess={appGuess} expired={sp.reason === EXPIRED_REASON} />
           <p className="mt-3 text-center text-[12px] text-ink-2">
-            시작하면{" "}
+            계속하면{" "}
             <Link href="/terms" className="hit inline-block underline underline-offset-2">
               이용약관
             </Link>
@@ -73,6 +75,11 @@ export default async function LoginPage({
               개인정보처리방침
             </Link>
             에 동의한 것으로 봐요
+          </p>
+          <p className="mt-1 text-center text-[12px] text-ink-2">
+            <Link href="/support" className="hit inline-block underline underline-offset-2">
+              고객 지원
+            </Link>
           </p>
         </div>
       </main>

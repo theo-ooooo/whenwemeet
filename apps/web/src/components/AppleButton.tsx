@@ -5,7 +5,7 @@ import { SocialLoginButton } from "./SocialLoginButton";
  * 애플 로그인 버튼 (웹, 앱.md 3.4). Apple 가이드: 검정(다크 모드는 흰색) 바탕, 반대색 글자, 로고 왼쪽.
  * 색은 먹(ink) 바탕 + 바탕(surface) 글자 토큰이라 테마에 따라 뒤집힌다. 크기와 모양은 카카오 버튼과 같은 SocialLoginButton
  */
-export function AppleButton({ next, label = "Apple로 시작하기" }: { next: string; label?: string }) {
+export function AppleButton({ next, label = "Apple로 계속하기" }: { next: string; label?: string }) {
   return (
     <SocialLoginButton
       href={`/auth/apple?next=${encodeURIComponent(next)}`}

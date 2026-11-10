@@ -82,7 +82,8 @@ export function buildAuthAppUrl(webOrigin: string, handoff: string, verifier: st
   return `${webOrigin.replace(/\/+$/, "")}/auth/app?${q.toString()}`;
 }
 
-/** Android 애플 로그인 복귀 주소 whenwemeet://auth?h=..|error=.. 해석 (3.4) */
+/** 애플 웹 로그인 복귀 주소 whenwemeet://auth?h=..|error=.. 해석 (3.4).
+ *  #145 로 Android 앱의 애플 로그인을 접어 지금은 셸에서 부르지 않는다 (API 의 client=app 경로는 남아 있음) */
 export type AuthReturn = { ok: true; handoff: string } | { ok: false; error: string };
 export function parseAuthReturn(raw: string): AuthReturn | null {
   const u = parseUrl(raw);
