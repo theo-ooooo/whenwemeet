@@ -149,7 +149,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   function switchTo(id: number) {
     setSwitcher(false);
     if (id === groupId) return;
-    const tab = TABS.some((t) => t.key === section) ? section : "calendar";
+    // 다가오는 일정 목록(#222)은 다른 팀에서도 같은 목록으로
+    const tab = TABS.some((t) => t.key === section) || section === "upcoming" ? section : "calendar";
     // 일정 작성 중이면 입력을 버릴지 먼저 묻는다 (#137)
     confirmLeave(() => {
       rememberGroup(id);
@@ -181,9 +182,9 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
 
         <div className="flex min-h-dvh w-full flex-col">
           {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
-              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133) */}
+              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3) */}
           <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
-            <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
+            <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
               <Symbol size={30} />
             </Link>
             <button
@@ -233,7 +234,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           <nav aria-label="주요 화면" className="glass-dock h-16 min-w-0 flex-1 rounded-full px-2">
             <ul className="flex h-full items-center justify-between">
               {TABS.map((t) => {
-                const active = section === t.key || (t.key === "calendar" && section === "events");
+                // 다가오는 일정 목록(#222)은 달력에 딸린 화면이라 달력 칩을 켠다
+                const active = section === t.key || (t.key === "calendar" && (section === "events" || section === "upcoming"));
                 return (
                   <li key={t.key} className="flex h-full items-center">
                     <Link

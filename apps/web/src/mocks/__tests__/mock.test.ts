@@ -92,6 +92,34 @@ describe("목 반복 일정 (#187)", () => {
     expect(mine(F, T, "반복테스트").map((e) => e.title)).toEqual(["반복테스트2", "반복테스트2"]);
   });
 
+  it("이후 모두: 종료 날짜를 안 보내고 마지막 회차를 뒤로 옮기면 종료가 새 시작으로 늘어난다 (QA3-L1)", () => {
+    const created = call("POST", "/groups/2/events", {
+      title: "종료테스트",
+      startsAt: "2027-04-07T19:00:00+09:00",
+      endsAt: "2027-04-07T20:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+      repeatUntil: "2027-04-14",
+    });
+    const id = created.body.data.id as number;
+    const moved = call(
+      "PATCH",
+      `/groups/2/events/${id}`,
+      { startsAt: "2027-04-16T19:00:00+09:00", endsAt: "2027-04-16T20:00:00+09:00", repeat: "WEEKLY" },
+      "occurrence=2027-04-14&scope=following",
+    );
+    expect(moved.status).toBe(200);
+    expect(moved.body.data.repeatUntil).toBe("2027-04-16");
+    // 종료 날짜를 보냈으면 그대로 검증한다
+    const again = call(
+      "PATCH",
+      `/groups/2/events/${moved.body.data.id}`,
+      { startsAt: "2027-04-18T19:00:00+09:00", endsAt: "2027-04-18T20:00:00+09:00", repeatUntil: "2027-04-16" },
+      "occurrence=2027-04-16&scope=following",
+    );
+    expect(again.status).toBe(400);
+  });
+
   it("길이 >= 주기, 종료 < 시작이면 거부", () => {
     const base = { title: "x", startsAt: "2027-03-03T00:00:00+09:00", allDay: true };
     expect(call("POST", "/groups/2/events", { ...base, endsAt: "2027-03-11T00:00:00+09:00", repeat: "WEEKLY" }).status).toBe(400);

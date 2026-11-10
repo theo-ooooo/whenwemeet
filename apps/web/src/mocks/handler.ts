@@ -538,7 +538,10 @@ export function mockHandle(ctx: Ctx): MockResult {
         }
         const repeat = input.repeat === undefined ? series.repeat : repeatOf(input.repeat);
         if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
-        const until = input.repeatUntil !== undefined ? (input.repeatUntil ? String(input.repeatUntil) : null) : repeat ? series.repeatUntil : null;
+        // 본문에 repeatUntil 이 없으면 이어받되, 회차를 그 뒤로 옮겼으면 새 시작 날짜까지 늘린다 (API inheritedUntil, QA3-L1)
+        const startKey = dateKeyOf(next.startsAt);
+        const inherited = series.repeatUntil && series.repeatUntil < startKey ? startKey : series.repeatUntil;
+        const until = input.repeatUntil !== undefined ? (input.repeatUntil ? String(input.repeatUntil) : null) : repeat ? inherited : null;
         const rv = repeatCheck(repeat, until, next.startsAt, next.endsAt);
         if (rv) return rv;
         const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, updatedAt: nowIso() };

@@ -34,19 +34,16 @@ import {
 } from "@/lib/calendar-url";
 import { memberColor } from "@/lib/colors";
 import {
-  nearestOccurrence,
   occurrenceCellText,
   occurrencesByDay,
   occurrenceTitle,
   type Occurrence,
 } from "@/lib/anniversary";
-import { anniversariesOn, dayBadge, groupByDay, isMultiDayAllDay, upcomingEvents } from "@/lib/day-detail";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDayAllDay, nearestAnniversary, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences, shiftWeek } from "@/lib/day-view";
 import {
   addDays,
   dateKeyOf,
-  daysBetween,
-  dday,
   dowOf,
   formatDateKo,
   formatEventTime,
@@ -59,7 +56,7 @@ import {
   WEEKDAYS,
   type DateKey,
 } from "@/lib/date";
-import { cellDensity } from "@/lib/calendar-cell";
+import { cellMarks } from "@/lib/calendar-cell";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
@@ -176,14 +173,6 @@ export function CalendarScreen({ groupId }: Props) {
   // 넓은 화면 요약 카드 "이번 주 일정" (월요일 시작 KST 한 주, 보는 달과 상관없이)
   const weekQ = useEvents(groupId, weekQueryOf(today), { enabled: wide });
   const loadWeek = weekQ.refetch;
-  const reload = useCallback(() => {
-    void loadEvents();
-    void loadUpcoming();
-    if (wide) void loadWeek();
-    // 사이드바 "다가오는 일정" 도 다시 받게
-    eventsChanged();
-  }, [loadEvents, loadUpcoming, loadWeek, wide, eventsChanged]);
-
   // 기념일은 못 받아도 빈 목록으로 본다 (D-day 줄만 안내로 바뀜)
   const anniversariesQ = useAnniversaries(groupId);
   const { data: anniversaryData, error: anniversaryError } = anniversariesQ;
@@ -208,6 +197,7 @@ export function CalendarScreen({ groupId }: Props) {
   // 날짜 상세의 비는 시간 한 줄: 멤버 2명 이상(phone 일 상세는 혼자여도 "비는 시간"), 오늘 이후만. 하루 1회, 오늘은 위 값을 다시 쓴다 (5-2)
   const surfaceDate = visible ? openDate : null;
   const minFreeMembers = wide ? 2 : 1;
+  const dayFreeEnabled = surfaceDate !== null && memberCount >= minFreeMembers && surfaceDate > today;
   const dayFreeQ = useFreeSlots(
     groupId,
     {
@@ -218,8 +208,22 @@ export function CalendarScreen({ groupId }: Props) {
       minMinutes: 60,
       includeAllDay: false,
     },
-    { enabled: surfaceDate !== null && memberCount >= minFreeMembers && surfaceDate > today },
+    { enabled: dayFreeEnabled },
   );
+  // 일정을 추가, 수정, 삭제한 뒤: 일정에서 나오는 값을 모두 다시 받는다 (월 그리드, 다가오는 일정, 이번 주, 비는 시간 QA3-M4)
+  const loadTodayFree = todayFreeQ.refetch;
+  const loadDayFree = dayFreeQ.refetch;
+  const reload = useCallback(() => {
+    void loadEvents();
+    void loadUpcoming();
+    if (wide) void loadWeek();
+    void loadTodayFree();
+    // refetch 는 enabled 를 보지 않으므로 켜져 있을 때만
+    if (dayFreeEnabled) void loadDayFree();
+    // 사이드바 "다가오는 일정" 도 다시 받게
+    eventsChanged();
+  }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, eventsChanged]);
+
   const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
   let freeHint: FreeHint = null;
   if (surfaceDate && memberCount >= minFreeMembers && surfaceDate >= today) {
@@ -243,17 +247,8 @@ export function CalendarScreen({ groupId }: Props) {
   // phone "기념일" 구역 카드: 기념일마다 다음 항목 하나 (#212)
   const annCards = useMemo(() => (anniversaries ? nextOccurrences(anniversaries, today, 10) : null), [anniversaries, today]);
 
-  // 요약 카드 "오늘 기념일" / "다음 기념일": 오늘 포함 가장 가까운 다음 항목 (이름 + D-n).
-  // 다음 항목이 없으면(지난 '그날만' 뿐) 가장 가까운 기념일의 D+n
-  const nearest = useMemo(() => {
-    if (!anniversaries || anniversaries.length === 0) return null;
-    const next = nearestOccurrence(anniversaries, today);
-    if (next) return { title: occurrenceTitle(next), value: dayBadge(next.date, today) };
-    const a = anniversaries
-      .map((x) => ({ x, dist: Math.abs(daysBetween(today, x.date)) }))
-      .sort((p, q) => p.dist - q.dist)[0].x;
-    return { title: a.name, value: dday(a.date, today).label };
-  }, [anniversaries, today]);
+  // 요약 카드 "오늘 기념일" / "다음 기념일" (이름 + N일 + D-n)
+  const nearest = useMemo(() => nearestAnniversary(anniversaries, today), [anniversaries, today]);
 
   // 요약 카드 라벨: 혼자인 팀은 "비는 시간" (디자인규칙.md 2-2, #212)
   const freeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "오늘 둘 다 비는 시간" : "오늘 모두 비는 시간";
@@ -462,16 +457,16 @@ export function CalendarScreen({ groupId }: Props) {
   );
 
   // "다가오는 일정" 카드 148×108: 날짜(12/600, 오늘이면 --today-ink "오늘") + 멤버 점 8 / 제목 16/700 두 줄 / 시각 12 --mute.
-  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 오늘 일 상세 (주간 줄로 넘겨 본다)
+  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 다가오는 일정 목록 화면 (#222, D-68 의 "오늘 일 상세" 를 대신한다)
   const phoneUpcoming = (
     <section aria-labelledby={`${titleId}-pup`} className="mt-[22px]">
       {sectionHead(
         `${titleId}-pup`,
         "다가오는 일정",
-        <button type="button" onClick={() => openDay(today)} className={moreCls}>
+        <Link href={`/g/${groupId}/upcoming`} className={moreCls}>
           전체보기
           <IconChevronRight size={14} />
-        </button>,
+        </Link>,
       )}
       {upcomingQ.error ? (
         emptyLine(
@@ -641,11 +636,16 @@ export function CalendarScreen({ groupId }: Props) {
         {nearest === null ? (
           <span className={`${sumValue} text-ink-2`}>없어요</span>
         ) : annToday ? (
-          <span className={`${sumValue} text-acc-ink`}>{nearest.title}</span>
+          // 좁은 폭(884)에서 이름만 줄이고 "1000일" 은 남긴다 (QA3-L4)
+          <span className="flex min-w-0 items-baseline gap-1 text-acc-ink">
+            <span className={`${sumValue} min-w-0`}>{nearest.name}</span>
+            {nearest.label && <span className={`${sumValue} shrink-0`}>{nearest.label}</span>}
+          </span>
         ) : (
           <span className="flex min-w-0 items-baseline gap-2">
             <b className={`${sumValue} shrink-0`}>{nearest.value}</b>
-            <span className="min-w-0 truncate text-[13px] font-medium text-soft">{nearest.title}</span>
+            <span className="min-w-0 truncate text-[13px] font-medium text-soft">{nearest.name}</span>
+            {nearest.label && <span className="-ml-1 shrink-0 text-[13px] font-medium text-soft">{nearest.label}</span>}
           </span>
         )}
       </Link>
@@ -874,13 +874,14 @@ function DayCell({
   const annLabel = anniversaries.length ? `, 기념일 ${anniversaries.map(occurrenceTitle).join(", ")}` : "";
   const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
 
-  // 점 모양: 여러 날 종일 일정은 칸을 잇는 4px 막대, 나머지는 멤버 색 점(5px, 최대 3개) + 첫 일정 제목
-  const band = events.find(isMultiDayAllDay) ?? null;
+  // 점 모양: 여러 날 종일 일정은 칸을 잇는 4px 막대, 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목
+  // 일정 하나에 점 하나(최대 3) + 넘치면 "+N" (#139)
+  const { band, density } = cellMarks(events, isMultiDayAllDay);
   const bandStart = band ? dateKeyOf(band.startsAt) === dateKey : false;
   const bandEnd = band ? addDays(dateKeyOf(band.endsAt), -1) === dateKey : false;
   const rest = events.filter((e) => e !== band);
-  // 일정 하나에 점 하나(최대 3) + 넘치면 "+N" (#139)
-  const density = cellDensity(rest);
+  // 숫자 아래 기념일/공휴일 줄 + 막대 + 점이면 칸 높이가 모자란다
+  const crowded = Boolean(band) && Boolean(annText || holidayText);
   const labelEvent = band && (bandStart || dow === 0) ? band : (rest.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null);
   // 칩 모양: tall 2자리, taller 3자리 (기념일 줄이 있으면 첫 자리를 쓴다). 넘치면 "+N개 더" 를 칸 높이별로 따로 센다
   const slots = ann ? 1 : 2;
@@ -939,10 +940,14 @@ function DayCell({
                   style={{ background: memberColor(band.creator.color) }}
                 />
               )}
-              {!band && density.dots.length > 0 && (
-                <span className="mt-0.5 flex h-[7px] items-center justify-center gap-[3px]">
+              {/* 막대가 있는 날도 그날 다른 일정은 점으로 (QA3-M2). 보통은 막대 아래 한 줄,
+                  기념일/공휴일 줄까지 있으면 칸(52)에 넷째 줄이 안 들어가 막대 위에 칸 색 테두리를 두른 점으로 겹친다 */}
+              {density.dots.length > 0 && (
+                <span
+                  className={`${!band ? "mt-0.5" : crowded ? "absolute inset-x-0 top-[3px] h-1" : "mt-px"} flex ${crowded ? "" : "h-[7px]"} items-center justify-center gap-[3px]`}
+                >
                   {density.dots.map((c, i) => (
-                    <i key={i} className="block size-[5px] rounded-full" style={{ background: memberColor(c) }} />
+                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: memberColor(c) }} />
                   ))}
                   {density.more > 0 && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more}</b>}
                 </span>

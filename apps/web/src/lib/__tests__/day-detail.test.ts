@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anniversariesOn, dayBadge, groupByDay, isMultiDay, sheetSnap, upcomingEvents } from "../day-detail";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDay, nearestAnniversary, sheetSnap, upcomingEvents } from "../day-detail";
 import { kstToIso } from "../date";
 import type { Anniversary, Event, Member } from "../types";
 
@@ -109,5 +109,26 @@ describe("isMultiDay", () => {
   it("종일은 이틀 이상일 때만", () => {
     expect(isMultiDay(ev(4, kstToIso("2026-11-21"), kstToIso("2026-11-25"), true))).toBe(true);
     expect(isMultiDay(ev(5, kstToIso("2026-11-21"), kstToIso("2026-11-22"), true))).toBe(false);
+  });
+});
+
+describe("nearestAnniversary — 요약 카드 (QA3-L4)", () => {
+  it("없으면 null", () => {
+    expect(nearestAnniversary(null, "2026-11-10")).toBeNull();
+    expect(nearestAnniversary([], "2026-11-10")).toBeNull();
+  });
+
+  it("오늘 N일이면 이름과 N일을 나눠 준다 (좁은 카드에서 이름만 줄인다)", () => {
+    // 2024-02-15 부터 1000일째 = 2026-11-10
+    const met = { ...ann(1, "2024-02-15", "COUNT_UP"), name: "처음 만난 날" };
+    expect(nearestAnniversary([met], "2026-11-10")).toEqual({ name: "처음 만난 날", label: "1000일", value: "오늘" });
+  });
+
+  it("앞으로 오는 원래 날짜는 label 없이 D-n", () => {
+    expect(nearestAnniversary([ann(1, "2026-11-13")], "2026-11-10")).toEqual({ name: "기념1", label: null, value: "D-3" });
+  });
+
+  it("다음 항목이 없으면(지난 그날만) 가장 가까운 것의 D+n", () => {
+    expect(nearestAnniversary([ann(1, "2026-11-01"), ann(2, "2026-10-01")], "2026-11-10")).toEqual({ name: "기념1", label: null, value: "D+9" });
   });
 });
