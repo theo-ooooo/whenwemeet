@@ -14,12 +14,11 @@ describe('AuthService', () => {
     service = new AuthService(users as never, jwt as never, avatars as never);
   });
 
-  it('sanitizeNext 는 / 로 시작하는 경로만 허용', () => {
+  it('sanitizeNext 는 같은 출처 상대 경로(+쿼리)만 허용 (세부 규칙은 next-path.spec)', () => {
     expect(service.sanitizeNext('/join/ABC123')).toBe('/join/ABC123');
-    expect(service.sanitizeNext('/g/x_y-z/calendar')).toBe('/g/x_y-z/calendar');
+    expect(service.sanitizeNext('/join/ABC123?auto=1')).toBe('/join/ABC123?auto=1');
     expect(service.sanitizeNext('//evil.example')).toBe('/');
     expect(service.sanitizeNext('https://evil.example')).toBe('/');
-    expect(service.sanitizeNext('/a?b=c')).toBe('/');
     expect(service.sanitizeNext(undefined)).toBe('/');
   });
 
@@ -27,6 +26,8 @@ describe('AuthService', () => {
     const { nonce, state } = service.createState('/join/ABC');
     expect(nonce).toMatch(/^[0-9a-f]{64}$/);
     expect(service.parseState(state)).toEqual({ nonce, next: '/join/ABC' });
+    const withQuery = service.createState('/g/3/calendar?date=2026-11-12');
+    expect(service.parseState(withQuery.state)?.next).toBe('/g/3/calendar?date=2026-11-12');
     expect(service.parseState('')).toBeNull();
     expect(service.parseState(undefined)).toBeNull();
     expect(service.parseState('@@@')).toBeNull();

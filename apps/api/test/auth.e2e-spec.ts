@@ -63,8 +63,15 @@ describe('카카오 OAuth (e2e)', () => {
   });
 
   it('next 가 규칙 밖이면 / 로 바꾼다', async () => {
-    const { state } = await startLogin(app, 'https://evil.example');
-    expect(JSON.parse(Buffer.from(state, 'base64url').toString('utf8')).next).toBe('/');
+    for (const bad of ['https://evil.example', '//evil.example', '/\\evil.example', '/%2F%2Fevil.example', '/g/3?x=%0D%0Aa', `/g/3?x=${'a'.repeat(600)}`]) {
+      const { state } = await startLogin(app, bad);
+      expect(JSON.parse(Buffer.from(state, 'base64url').toString('utf8')).next, bad).toBe('/');
+    }
+  });
+
+  it('next 의 쿼리는 그대로 state 에 싣고, fragment 는 버린다 (#71)', async () => {
+    const { state } = await startLogin(app, '/g/3/calendar?date=2026-11-12#top');
+    expect(JSON.parse(Buffer.from(state, 'base64url').toString('utf8')).next).toBe('/g/3/calendar?date=2026-11-12');
   });
 
   it('콜백 성공: 사용자 생성 + PERSONAL 팀 + JWT 를 웹 콜백으로 전달', async () => {
@@ -193,6 +200,26 @@ describe('카카오 OAuth (e2e)', () => {
     } finally {
       process.env.NODE_ENV = saved;
     }
+  });
+
+  it('콜백은 쿼리가 있는 next 를 웹 콜백에 그대로 넘긴다 (#71)', async () => {
+    globalThis.fetch = kakaoFetch({ id: 4_000_000_009, nickname: '쿼리유저' });
+    const { cookie, state } = await startLogin(app, '/join/ABC123?auto=1');
+    const res = await api(app).get('/v1/auth/kakao/callback').set('Cookie', cookie).query({ code: 'c', state }).expect(302);
+    const location = new URL(res.headers.location);
+    expect(location.origin + location.pathname).toBe('http://localhost:3000/auth/callback');
+    expect(location.searchParams.get('next')).toBe('/join/ABC123?auto=1');
+    // 웹 콜백 주소 자체에는 next 의 쿼리가 섞이지 않는다 (next 값 안에 인코딩)
+    expect([...location.searchParams.keys()].sort()).toEqual(['next', 'token']);
+  });
+
+  it('state 를 위조해 next 를 바꿔도 콜백에서 다시 검사해 / 로 (#71)', async () => {
+    globalThis.fetch = kakaoFetch({ id: 4_000_000_010, nickname: '위조유저' });
+    const { cookie } = await startLogin(app, '/g/3');
+    const nonce = cookie.split('=')[1];
+    const forged = Buffer.from(JSON.stringify({ nonce, next: '//evil.example/?a=1' })).toString('base64url');
+    const res = await api(app).get('/v1/auth/kakao/callback').set('Cookie', cookie).query({ code: 'c', state: forged }).expect(302);
+    expect(new URL(res.headers.location).searchParams.get('next')).toBe('/');
   });
 
   describe('회원 탈퇴의 카카오 unlink', () => {

@@ -3,17 +3,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
-import { JOIN_AUTO_COOKIE } from "@/lib/auth";
 import { rememberGroup } from "@/lib/group-cookie";
 
-/** 자동 합류 표시 쿠키는 한 번만 쓴다. 새로고침이나 뒤로 가기로 다시 열면 확인 버튼이 나온다 */
-function clearAutoJoin() {
-  document.cookie = `${JOIN_AUTO_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+/** 자동 합류 표시(`?auto=1`)는 한 번만 쓴다. 주소에서 떼어 두면 실패 후 새로고침해도 확인 버튼이 나온다 (D-41) */
+function clearAutoJoin(code: string) {
+  window.history.replaceState(window.history.state, "", `/join/${encodeURIComponent(code)}`);
 }
 
 /**
  * 초대 수락 버튼. auto 면(초대 링크에서 로그인하고 막 돌아온 경우) 누르지 않아도 바로 합류한다
- * (기획 MVP "링크 열면 로그인 후 자동 합류"). 자동 합류가 실패하면 문구와 함께 버튼으로 돌아간다
+ * (기획 MVP "링크 열면 로그인 후 자동 합류"). 이미 멤버여도 합류 API 가 멱등이라 그 팀 달력으로 간다.
+ * 자동 합류가 실패하면 문구와 함께 버튼으로 돌아간다
  */
 export function JoinButton({ code, auto = false }: { code: string; auto?: boolean }) {
   const router = useRouter();
@@ -38,7 +38,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
   useEffect(() => {
     if (!auto || started.current) return;
     started.current = true;
-    clearAutoJoin();
+    clearAutoJoin(code);
     void join();
     // 마운트 때 한 번만
     // eslint-disable-next-line react-hooks/exhaustive-deps
