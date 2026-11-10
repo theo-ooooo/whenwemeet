@@ -67,6 +67,12 @@ jobs:
             echo "apps/api/prisma/schema.prisma 없음 — prisma generate 건너뜀"
           fi
 
+      # 앱 셸은 네이티브 빌드 없이 lint(eslint + tsc) 와 단위 테스트만 (#95). EAS 빌드는 CI 에서 하지 않는다
+      - name: 모바일 lint, 타입, 테스트
+        run: |
+          pnpm --filter @whenwemeet/mobile lint
+          pnpm --filter @whenwemeet/mobile test --ci
+
       - run: pnpm -r --filter ./apps/* --if-present lint
       - run: pnpm -r --filter ./apps/* --if-present test
       - run: pnpm -r --filter ./apps/* --if-present build
