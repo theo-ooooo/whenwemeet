@@ -184,7 +184,8 @@ function mergeValues(base: EventValues, dto: EventPatchDto): EventValues {
     startsAt: dto.startsAt !== undefined ? parseIsoDate(dto.startsAt, 'startsAt') : base.startsAt,
     endsAt: dto.endsAt !== undefined ? parseIsoDate(dto.endsAt, 'endsAt') : base.endsAt,
     allDay: dto.allDay ?? base.allDay,
-    memo: dto.memo !== undefined ? dto.memo : base.memo,
+    // 빈 메모('')는 메모 지우기 = null. 회차 예외에서는 아래에서 '' 로 다시 바꿔 저장한다 (D-65)
+    memo: dto.memo !== undefined ? (dto.memo === '' ? null : dto.memo) : base.memo,
   };
 }
 
