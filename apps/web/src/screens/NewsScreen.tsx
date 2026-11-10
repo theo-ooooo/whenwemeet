@@ -6,8 +6,8 @@ import { useGroupContext } from "@/components/AppShell";
 import { IconBell } from "@/components/icons";
 import { EmptyState, ErrorState, MemberDot, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
-import { dateKeyOf, formatDateKo, formatEventTime, formatRelative } from "@/lib/date";
-import { newsHref, newsPhrase } from "@/lib/news-copy";
+import { formatEventTime, formatRelative, todayKey } from "@/lib/date";
+import { newsDateLabel, newsHref, newsPhrase } from "@/lib/news-copy";
 
 export function NewsScreen({ groupId }: { groupId: number }) {
   const router = useRouter();
@@ -68,7 +68,7 @@ export function NewsScreen({ groupId }: { groupId: number }) {
                       {newsPhrase(item)}
                     </span>
                     <span className="mt-0.5 block text-[12px] leading-4 text-ink-2 tabular-nums">
-                      {formatDateKo(dateKeyOf(item.startsAt))} {formatEventTime(item.startsAt, item.endsAt, item.allDay)}
+                      {newsDateLabel(item.startsAt, todayKey())} {formatEventTime(item.startsAt, item.endsAt, item.allDay)}
                     </span>
                   </span>
                   <span className="shrink-0 text-right text-[12px] leading-4 text-ink-2">

@@ -43,3 +43,12 @@ export function eventEditHref(groupId: number, ev: { id: number; occurrence?: st
 export function eventCopyHref(groupId: number, ev: { id: number; occurrence?: string | null }): string {
   return `/g/${groupId}/events/new?copy=${ev.id}${ev.occurrence ? `&occurrence=${ev.occurrence}` : ""}`;
 }
+
+/**
+ * "이후 모두" 저장 때 보낼 repeatUntil. 종료 날짜를 원본 값 그대로 두었으면 undefined(보내지 않음).
+ * 서버가 원본 값을 이어받고, 회차를 그 종료 날짜 뒤로 옮겼으면 새 시작 날짜까지 늘린다 (QA3-L1).
+ * 그대로 보내면 사용자가 건드리지 않은 종료 날짜 때문에 "종료 날짜는 시작 날짜 뒤여야 해요" 로 막힌다
+ */
+export function followingUntil(until: string | null, seriesUntil: string | null): string | null | undefined {
+  return until !== null && until === seriesUntil ? undefined : until;
+}

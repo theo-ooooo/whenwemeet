@@ -100,6 +100,16 @@ export function assertRepeatRule(repeat: Repeat | null, repeatUntil: string | nu
   }
 }
 
+/**
+ * "이후 모두" 에서 본문에 repeatUntil 이 없을 때 이어받는 종료 날짜 (QA3-L1).
+ * 사용자가 종료를 건드리지 않았는데 회차를 종료 날짜 뒤로 옮겼으면, 옮긴 회차가 남도록 종료를 새 시작 날짜로 늘린다
+ */
+export function inheritedUntil(seriesUntil: string | null, startsAt: Date): string | null {
+  if (seriesUntil === null) return null;
+  const startDate = kstDate(startsAt);
+  return seriesUntil < startDate ? startDate : seriesUntil;
+}
+
 /** 조회 구간 검증. `to > from`, `to - from <= maxDays` */
 export function parseRange(fromRaw: string, toRaw: string, maxDays: number): { from: Date; to: Date } {
   const from = parseIsoDate(fromRaw, 'from');
@@ -387,7 +397,7 @@ export class EventsService {
     const next = mergeValues(occurrenceValues(series, occurrence), dto);
     assertEventRange(next.startsAt, next.endsAt);
     const repeat = dto.repeat !== undefined ? dto.repeat : series.repeat;
-    const repeatUntil = dto.repeatUntil !== undefined ? dto.repeatUntil : repeat ? series.repeatUntil : null;
+    const repeatUntil = dto.repeatUntil !== undefined ? dto.repeatUntil : repeat ? inheritedUntil(series.repeatUntil, next.startsAt) : null;
     assertRepeatRule(repeat, repeatUntil, next.startsAt, next.endsAt);
     const sameRule = repeat === series.repeat && repeatUntil === series.repeatUntil;
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };

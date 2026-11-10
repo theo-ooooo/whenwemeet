@@ -9,9 +9,10 @@ import { DatePicker, TimePicker } from "@/components/pickers";
 import { Button, ConfirmDialog, Field, MemberDot, Segmented, Skeleton, Toggle, inputClass, titleInputClass } from "@/components/ui";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useUpdateEvent } from "@/hooks";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
+import { missingEventTarget } from "@/lib/calendar-url";
 import { charCount, clampChars } from "@/lib/chars";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
-import { repeatRuleError } from "@/lib/recurrence";
+import { followingUntil, repeatRuleError } from "@/lib/recurrence";
 import { repeatLabel } from "@/lib/recurrence-label";
 import type { Event, EventInput, EventScope, Repeat } from "@/lib/types";
 
@@ -124,17 +125,26 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   }, [loadedEvent, eventId]);
 
   const loadError = eventQ.error;
+  // 회차 주소가 404 면 원본이 아직 있는지 occurrence 없이 한 번 더 본다 (QA3-L7, lib/calendar-url missingEventTarget)
+  const occurrenceMissing = loadError?.status === 404 && Boolean(occurrence);
+  const seriesQ = useEvent(groupId, sourceId, null, { enabled: occurrenceMissing });
+  const seriesSettled = !occurrenceMissing || seriesQ.data !== null || seriesQ.error !== null;
+  const seriesAlive = seriesQ.data !== null;
+  const goneHandled = useRef(false);
   useEffect(() => {
     if (!loadError) return;
-    queueMicrotask(() => {
-      if (loadError.status === 404) {
-        toast.show("이미 삭제된 일정이에요");
-        router.replace(`/g/${groupId}/calendar`);
-        return;
-      }
-      setSaveError(messageOf(loadError, "일정을 불러오지 못했어요. 새로고침해 주세요"));
-    });
-  }, [loadError, groupId, router, toast]);
+    if (loadError.status === 404) {
+      if (!seriesSettled || goneHandled.current) return;
+      goneHandled.current = true;
+      const target = missingEventTarget(groupId, occurrence, seriesAlive, todayKey());
+      queueMicrotask(() => {
+        toast.show(target.deleted ? "이미 삭제된 일정이에요" : "일정이 바뀌어서 그날 일정을 열었어요");
+        router.replace(target.href);
+      });
+      return;
+    }
+    queueMicrotask(() => setSaveError(messageOf(loadError, "일정을 불러오지 못했어요. 새로고침해 주세요")));
+  }, [loadError, seriesSettled, seriesAlive, occurrence, groupId, router, toast]);
 
   // 전송할 값 (종일이면 KST 자정 ~ 다음 날 자정)
   const payload = useMemo<EventInput | null>(() => {
@@ -162,9 +172,13 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (e - s > 30 * DAY_MS) return "일정은 30일까지만 만들 수 있어요";
     return null;
   })();
-  // 반복 규칙 (설계 4-1): 길이 < 주기, 종료 날짜 >= 첫 회차 날짜. 줄을 숨기면 보지 않는다
+  // "이후 모두" 에서 종료 날짜를 원본 그대로 두었으면 보내지 않는다 (서버가 이어받고 필요하면 늘린다, QA3-L1)
+  const sentUntil = series ? followingUntil(until, series.repeatUntil) : until;
+  // 반복 규칙 (설계 4-1): 길이 < 주기, 종료 날짜 >= 첫 회차 날짜. 줄을 숨기면 보지 않는다. 보내지 않는 종료 날짜는 보지 않는다
   const repeatError =
-    payload && showRepeat ? repeatRuleError(repeat, Date.parse(payload.startsAt), Date.parse(payload.endsAt), startDate, until) : null;
+    payload && showRepeat
+      ? repeatRuleError(repeat, Date.parse(payload.startsAt), Date.parse(payload.endsAt), startDate, sentUntil === undefined ? null : sentUntil)
+      : null;
   const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !saving && scopePending === null;
 
   // 저장, 삭제가 끝나 화면을 떠나는 중이면 확인하지 않는다
@@ -247,7 +261,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   /** 보낼 본문. 반복 필드는 새 일정/한 번짜리 수정에서 켰을 때, 반복 일정은 "이후 모두" 일 때만 싣는다 (api.md 2.3) */
   function bodyFor(scope: EventScope | null): EventInput | null {
     if (!payload) return null;
-    if (series) return scope === "following" ? { ...payload, repeat, repeatUntil: until } : payload;
+    if (series) return scope === "following" ? { ...payload, repeat, ...(sentUntil === undefined ? {} : { repeatUntil: sentUntil }) } : payload;
     return repeat ? { ...payload, repeat, repeatUntil: until } : payload;
   }
 

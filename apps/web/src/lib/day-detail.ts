@@ -1,6 +1,6 @@
 // 날짜 상세(DayPanel) 와 달력 개요에 쓰는 순수 계산. React 를 import 하지 않는다 (단위 테스트 대상)
 import { addDays, dateKeyOf, daysBetween, dday, type DateKey } from "./date";
-import { occurrencesByDay, type Occurrence } from "./anniversary";
+import { nearestOccurrence, occurrencesByDay, type Occurrence } from "./anniversary";
 import { eventKey } from "./recurrence";
 import type { Anniversary, Event } from "./types";
 
@@ -41,6 +41,22 @@ export function anniversariesOn(list: Anniversary[] | null | undefined, key: Dat
 export function dayBadge(key: DateKey, today: DateKey): string {
   const { label } = dday(key, today);
   return label === "D-day" ? "오늘" : label;
+}
+
+/**
+ * 넓은 화면 요약 카드 "오늘 기념일" / "다음 기념일": 오늘 포함 가장 가까운 다음 항목.
+ * 다음 항목이 없으면(지난 '그날만' 뿐) 가장 가까운 기념일의 D+n.
+ * 이름(name) 과 N일/N주년(label) 을 나눠 둔다. 좁은 카드에서 이름만 줄이고 숫자는 남기려고 (QA3-L4)
+ */
+export function nearestAnniversary(
+  list: Anniversary[] | null | undefined,
+  today: DateKey,
+): { name: string; label: string | null; value: string } | null {
+  if (!list || list.length === 0) return null;
+  const next = nearestOccurrence(list, today);
+  if (next) return { name: next.anniversary.name, label: next.label, value: dayBadge(next.date, today) };
+  const a = list.map((x) => ({ x, dist: Math.abs(daysBetween(today, x.date)) })).sort((p, q) => p.dist - q.dist)[0].x;
+  return { name: a.name, label: null, value: dday(a.date, today).label };
 }
 
 /** 다가오는 일정: 아직 끝나지 않은 것, 시작 순, 최대 limit 개 (같은 일정은 한 번, 반복 일정은 회차마다 따로 #187) */

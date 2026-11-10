@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventCopyHref, eventEditHref, eventKey, repeatRuleError } from "../recurrence";
+import { eventCopyHref, eventEditHref, eventKey, followingUntil, repeatRuleError } from "../recurrence";
 import { kstToIso } from "../date";
 
 const ms = (k: string, t = "00:00") => Date.parse(kstToIso(k, t));
@@ -36,5 +36,18 @@ describe("수정, 복제 주소", () => {
     expect(eventEditHref(2, { id: 5, occurrence: null })).toBe("/g/2/events/5");
     expect(eventEditHref(2, { id: 5, occurrence: "2026-11-18" })).toBe("/g/2/events/5?occurrence=2026-11-18");
     expect(eventCopyHref(2, { id: 5, occurrence: "2026-11-18" })).toBe("/g/2/events/new?copy=5&occurrence=2026-11-18");
+  });
+});
+
+describe("followingUntil — 이후 모두 의 종료 날짜 (QA3-L1)", () => {
+  it("원본 종료 날짜 그대로면 보내지 않는다 (서버가 이어받고 필요하면 늘린다)", () => {
+    expect(followingUntil("2026-11-25", "2026-11-25")).toBeUndefined();
+  });
+
+  it("바꿨거나 끄거나(계속) 켰으면 그 값을 보낸다", () => {
+    expect(followingUntil("2026-12-31", "2026-11-25")).toBe("2026-12-31");
+    expect(followingUntil(null, "2026-11-25")).toBeNull();
+    expect(followingUntil("2026-12-31", null)).toBe("2026-12-31");
+    expect(followingUntil(null, null)).toBeNull();
   });
 });

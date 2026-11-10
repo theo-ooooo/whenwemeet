@@ -23,6 +23,8 @@
   --color-on-btn: var(--on-btn);
   --color-on-ink: var(--on-ink);
   --color-sel-fill: var(--sel-fill);
+  --color-strip-sel: var(--strip-sel);
+  --color-on-strip-sel: var(--on-strip-sel);
   --color-acc-ink: var(--acc-ink);
   --color-today-ink: var(--today-ink);
   --color-on-member: var(--on-member);
@@ -78,6 +80,10 @@
   --on-pri: #ffffff;
   /* 선택 날짜 원(흰 숫자 4.9:1) */
   --sel-fill: #c8432d;
+  /* 일 상세 주간 줄 선택일 칸 (45x70 면). 라이트는 선택 날짜 원과 같은 코랄, 다크는 코랄 FAB 와 같은 색이 되어
+   * 큰 코랄 면이 둘이 되므로(디자인규칙 7) 폰 독 먹색 칩처럼 --ink 면 + --on-ink 글자로 뒤집는다 (4-3, QA3-L8). 새 색이 아니라 기존 값의 연결 */
+  --strip-sel: #c8432d;
+  --on-strip-sel: #ffffff;
   /* 글자가 있는 주 버튼 (sel-fill 과 같은 값) */
   --btn: #c8432d;
   --on-btn: #ffffff;
@@ -129,6 +135,8 @@
     --pri: #ff8670;
     --on-pri: #1a0e0b;
     --sel-fill: #ff8670;
+    --strip-sel: #ececef;
+    --on-strip-sel: #121214;
     --btn: #ff8670;
     --on-btn: #1a0e0b;
     --on-ink: #121214;
@@ -169,6 +177,8 @@
   --pri: #ff8670;
   --on-pri: #1a0e0b;
   --sel-fill: #ff8670;
+  --strip-sel: #ececef;
+  --on-strip-sel: #121214;
   --btn: #ff8670;
   --on-btn: #1a0e0b;
   --on-ink: #121214;
