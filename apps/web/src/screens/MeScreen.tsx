@@ -261,7 +261,7 @@ export function MeScreen() {
 
   if (leaving) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={() => setLeaving(false)}
@@ -308,7 +308,7 @@ export function MeScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
       <div className="mt-2 flex min-h-10 items-center justify-between lg:mt-0">
         <h1 className="t-title">내 정보</h1>
         <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
