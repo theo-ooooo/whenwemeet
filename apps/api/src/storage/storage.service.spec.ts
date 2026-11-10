@@ -26,17 +26,20 @@ describe('StorageService', () => {
     expect(storage.isConfigured()).toBe(false);
     expect(() => storage.assertConfigured()).toThrow(expect.objectContaining({ code: 'STORAGE_NOT_CONFIGURED' }));
     expect(() => storage.bucket).toThrow(expect.objectContaining({ code: 'STORAGE_NOT_CONFIGURED' }));
-    expect(() => storage.publicUrl('k')).toThrow(expect.objectContaining({ code: 'STORAGE_NOT_CONFIGURED' }));
     await expect(storage.put('k', Buffer.from('x'), 'image/webp')).rejects.toMatchObject({ code: 'STORAGE_NOT_CONFIGURED' });
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('설정되면 R2 엔드포인트(region auto) 로 put/delete, 공개 URL 은 끝 슬래시 정리', async () => {
+  it('공개 주소(R2_PUBLIC_BASE_URL) 가 비어도 미설정: 올린 사진의 URL 을 돌려줄 수 없으므로', () => {
+    expect(storageWith({ ...R2, R2_PUBLIC_BASE_URL: '' }).isConfigured()).toBe(false);
+  });
+
+  it('설정되면 R2 엔드포인트(region auto) 로 put/delete. 공개 URL 은 만들지 않는다 (FileUrlBuilder, D-56)', async () => {
     const storage = storageWith(R2);
     expect(storage.isConfigured()).toBe(true);
     expect(storage.provider).toBe('R2');
     expect(storage.bucket).toBe('whenwemeet-dev');
-    expect(storage.publicUrl('avatars/1/a.webp')).toBe('https://pub-x.r2.dev/avatars/1/a.webp');
+    expect(storage).not.toHaveProperty('publicUrl');
 
     await storage.put('avatars/1/a.webp', Buffer.from('img'), 'image/webp');
     const put = send.mock.calls[0][0] as PutObjectCommand;

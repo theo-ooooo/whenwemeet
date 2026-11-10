@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecord } from '../common/member.js';
+import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 
 export const MEMBERSHIP_WITH_USER = {
@@ -18,8 +19,8 @@ export const MEMBERSHIP_WITH_USER = {
 export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date };
 
 /** user 를 USER_PUBLIC_SELECT 모양으로 읽은 멤버십 행 → 응답용 `{ nickname, profileImageUrl }` */
-function withUserRow<T extends { user: UserPublicRecord }>(row: T): Omit<T, 'user'> & { user: MembershipRow['user'] } {
-  return { ...row, user: toUserRow(row.user) };
+function withUserRow<T extends { user: UserPublicRecord }>(row: T, urls: FileUrlBuilder): Omit<T, 'user'> & { user: MembershipRow['user'] } {
+  return { ...row, user: toUserRow(row.user, urls) };
 }
 
 /** 팀 목록 화면용 한 행. 내 멤버십 + 팀 요약 */
@@ -45,17 +46,20 @@ export interface MembershipMeInput {
 
 @Injectable()
 export class MembershipsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly urls: FileUrlBuilder,
+  ) {}
 
   async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
     const row = await this.prisma.membership.findUnique({ where: { userId_groupId: { userId, groupId } }, ...MEMBERSHIP_WITH_USER });
-    return row && withUserRow(row);
+    return row && withUserRow(row, this.urls);
   }
 
   /** joinedAt 오름차순 */
   async listByGroup(groupId: number): Promise<MembershipWithUser[]> {
     const rows = await this.prisma.membership.findMany({ where: { groupId }, orderBy: { joinedAt: 'asc' }, ...MEMBERSHIP_WITH_USER });
-    return rows.map(withUserRow);
+    return rows.map((row) => withUserRow(row, this.urls));
   }
 
   /** 내가 속한 팀 전부, joinedAt 오름차순 */
@@ -108,7 +112,7 @@ export class MembershipsRepository {
         user: USER_PUBLIC_SELECT,
       },
     });
-    return withUserRow(row);
+    return withUserRow(row, this.urls);
   }
 
   markSeen(membershipId: number, at: Date): Promise<{ lastSeenAt: Date }> {
