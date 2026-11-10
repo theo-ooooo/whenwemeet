@@ -1,18 +1,18 @@
 "use client";
-// 4 달력. 목업 docs/설계/img/디자인-2026.html(모바일) 과 디자인-2026-PC.html(PC, ≥1024px) 을 그대로 옮긴다.
-// 모바일: 큰 월 숫자 → 비는 시간/D-day 타일 → 달력 타일 → 선택일 목록 타일. 일정 탭 → 바텀 시트
-// PC: 가운데 큰 달력(칸 안 일정 칩) + 우측 패널(비는 시간, D-day, 선택일 일정 또는 일정 상세, 이번 주 빈 시간)
+// 4 달력. 배치는 디자인-2026*.html 그대로, 크기와 색은 최종-A-시안.html (D-57, 밀도 조정 + 색 A).
+// 모바일: "11월" + 화살표 한 줄 → 비는 시간/D-day 정보 줄 카드 → 달력 카드 → 선택일 목록 카드. 일정 탭 → 바텀 시트
+// PC: 가운데 큰 달력(칸 안 일정 칩) + 우측 패널(정보 줄 카드, 선택일 일정 또는 일정 상세, 이번 주 빈 시간)
 // 바로 추가(#46): 모바일은 선택된 날짜 재탭 = 빠른 추가 시트, PC 는 날짜 칸 빈 곳 클릭 = 칸 옆 팝오버
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { IconArrowRight, IconChevronLeft, IconChevronRight, IconClose, IconPlus } from "@/components/icons";
+import { IconArrowRight, IconChevronLeft, IconChevronRight, IconClock, IconClose, IconHeart, IconPlus } from "@/components/icons";
 import { QuickAddPopover, QuickAddSheet } from "@/components/QuickAdd";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog, ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
-import { memberColor, onMemberColor } from "@/lib/colors";
+import { memberColor } from "@/lib/colors";
 import {
   addDays,
   dateKeyOf,
@@ -248,34 +248,30 @@ export function CalendarScreen({ groupId }: Props) {
       onRetry={todayFreeQ.error ? () => void todayFreeQ.refetch() : undefined}
     />
   );
-  const ddayTile = (
-    <Link href={`/g/${groupId}/anniversaries`} className="block rounded-lg bg-paper px-4 py-3.5 hover:brightness-[.98] lg:px-[18px] lg:py-4">
+  // D-day 정보 줄 (선 아이콘 + 라벨 + 값). 타일 면 없이 카드 안 한 줄 (D-57)
+  const ddayRow = (
+    <Link href={`/g/${groupId}/anniversaries`} className="flex h-10 items-center gap-2 text-[13px] hover:opacity-80">
+      <IconHeart size={16} className="shrink-0 text-acc-ink" />
       {nearest ? (
         <>
-          <small className="block truncate text-[12px] font-semibold text-ink-2">{nearest.name}</small>
-          <b className="mt-1 block text-[22px] font-extrabold tracking-[-0.04em]">{dday(nearest.date, today).label}</b>
-          <span className="mt-2 flex" aria-label={`멤버 ${memberCount}명`}>
-            {(group?.members ?? []).slice(0, 4).map((mb, i) => (
-              <i
-                key={mb.userId ?? i}
-                className="-ml-1.5 block size-[22px] rounded-full border-2 border-paper first:ml-0"
-                style={{ background: memberColor(mb.color) }}
-              />
-            ))}
-          </span>
+          <span className="min-w-0 truncate">{nearest.name}</span>
+          <b className="shrink-0 font-bold">{dday(nearest.date, today).label}</b>
         </>
       ) : anniversaries === null ? (
-        <>
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="mt-2 h-6 w-20" />
-        </>
+        <Skeleton className="h-3.5 w-32" />
       ) : (
-        <>
-          <small className="block text-[12px] font-semibold text-ink-2">기념일</small>
-          <b className="mt-1 block text-[15px] font-bold leading-snug tracking-[-0.02em]">등록하면 D-day 가 보여요</b>
-        </>
+        <span className="text-ink-2">기념일을 등록하면 D-day 가 보여요</span>
       )}
+      <IconChevronRight size={14} className="ml-auto shrink-0 text-ink-2" />
     </Link>
+  );
+  // 오늘 비는 시간 + D-day 를 한 카드의 정보 줄 두 개로 (시안 .strip)
+  const infoCard = (
+    <div className="rounded-xl bg-paper px-3.5">
+      {freeTile}
+      <div aria-hidden="true" className="h-px bg-line" />
+      {ddayRow}
+    </div>
   );
 
   const dayHeading = (() => {
@@ -286,20 +282,20 @@ export function CalendarScreen({ groupId }: Props) {
 
   const dayList = (
     <>
-      <h2 className="flex items-center gap-2 text-[15px] font-extrabold tracking-[-0.02em]">
+      <h2 className="t-sec">
         {dayHeading}
-        {selected === today && <em className="rounded-full bg-today px-2 py-[3px] text-[11px] font-bold not-italic text-today-ink">오늘</em>}
-        {holidayOf(selected) && <span className="text-[12px] font-bold text-holiday">{holidayOf(selected)}</span>}
+        {selected === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}
+        {holidayOf(selected) && <span className="text-[12px] font-medium text-holiday">{holidayOf(selected)}</span>}
       </h2>
       {eventsError ? (
-        <div className="mt-3">
+        <div className="mt-1">
           <ErrorState message={eventsError} onRetry={loadEvents} />
         </div>
       ) : events === null ? (
-        <div className="mt-3 space-y-3" aria-busy="true" aria-label="불러오는 중">
+        <div className="space-y-2 py-1" aria-busy="true" aria-label="불러오는 중">
           {[0, 1].map((i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="size-3 rounded-[4px]" />
+            <div key={i} className="flex min-h-11 items-center gap-2.5">
+              <Skeleton className="h-8 w-[3px] rounded-[2px]" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-1/2" />
                 <Skeleton className="h-3 w-1/4" />
@@ -308,33 +304,33 @@ export function CalendarScreen({ groupId }: Props) {
           ))}
         </div>
       ) : dayEvents.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-5 text-center">
-          <p className="text-[14px] font-semibold leading-relaxed text-ink-2">이 날은 아직 일정이 없어요. 바로 추가해 보세요</p>
+        <div className="flex flex-col gap-2 pb-1.5">
+          <p className="py-1 text-[14px] text-ink-2">이 날은 아직 일정이 없어요. 바로 추가해 보세요</p>
           <button
             type="button"
             onClick={() => openQuick(selected)}
             aria-haspopup="dialog"
-            className="flex h-11 items-center gap-1.5 rounded-full bg-today px-5 text-[14px] font-bold text-sel-ink hover:brightness-[.97]"
+            className="flex h-11 items-center justify-center gap-1.5 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
           >
-            <IconPlus size={16} strokeWidth={2.6} />이 날 일정 추가
+            <IconPlus size={16} strokeWidth={2.2} />이 날 일정 추가
           </button>
         </div>
       ) : (
-        <ul className="mt-1">
-          {dayEvents.map((ev, i) => (
-            <li key={ev.id} className={i === 0 ? "" : "border-t border-line"}>
+        <ul>
+          {dayEvents.map((ev) => (
+            <li key={ev.id}>
               <button
                 type="button"
                 onClick={() => setDetail(ev)}
                 aria-haspopup="dialog"
-                className="flex w-full items-center gap-3 py-3 text-left"
+                className="flex min-h-11 w-full items-stretch gap-2.5 rounded-sm py-1 text-left hover:bg-hover/60"
               >
-                <i aria-hidden="true" className="block size-3 shrink-0 rounded-[4px]" style={{ background: memberColor(ev.creator.color) }} />
-                <span className="min-w-0 flex-1">
-                  <b className="block truncate text-[16px] font-bold tracking-[-0.02em] lg:text-[15px]">{ev.title}</b>
-                  <span className="block text-[12px] font-semibold text-ink-2">{formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}</span>
+                <i aria-hidden="true" className="my-1 block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
+                <span className="min-w-0 flex-1 self-center">
+                  <b className="block truncate text-[15px] font-semibold leading-5">{ev.title}</b>
+                  <span className="block text-[12px] leading-4 text-ink-2">{formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}</span>
                 </span>
-                <span className="ml-auto shrink-0 text-[12px] font-semibold text-ink-2">{ev.creator.displayName}</span>
+                <span className="ml-auto shrink-0 self-center text-[12px] text-ink-2">{ev.creator.displayName}</span>
               </button>
             </li>
           ))}
@@ -344,51 +340,44 @@ export function CalendarScreen({ groupId }: Props) {
   );
 
   return (
-    <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="lg:grid lg:h-dvh lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-2 lg:px-4 lg:pb-4 lg:pt-3.5">
       {/* 가운데: 월 헤더 + 달력 */}
-      <section className="flex flex-col lg:min-h-0 lg:px-[22px] lg:pb-[22px] lg:pt-[26px]">
-        <div className="mt-[22px] flex items-end justify-between px-1.5 lg:mt-0 lg:px-0">
-          <h1 aria-label={`${y}년 ${m}월`} className="flex items-end">
-            <b className="text-[96px] font-extrabold leading-[.82] tracking-[-0.07em] lg:text-[72px] lg:leading-[.85]">{m}</b>
-            <span className="ml-1.5 text-[15px] font-semibold text-ink-2">
-              월{y !== thisYear ? ` ${y}` : ""}
-              <span className="hidden lg:inline">{y === thisYear ? ` ${y}` : ""}</span>
-            </span>
+      <section className="flex flex-col lg:min-h-0">
+        {/* 월 헤더: "11월" 20/28 700 + 좌우 화살표 한 줄, 연도는 다른 해일 때만 (시안 .mh) */}
+        <div className="flex items-center gap-1 pb-2 pt-1 lg:h-10 lg:p-0">
+          <h1 aria-label={`${y}년 ${m}월`} className="mr-1 text-[20px] font-bold leading-7 tracking-[-0.02em]">
+            {y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
           </h1>
-          <div className="mb-1.5 flex items-center gap-1.5 lg:mb-1 lg:gap-2">
-            {/* 모바일은 오늘에서 벗어났을 때만, PC 는 목업처럼 항상 */}
-            <button
-              type="button"
-              onClick={goToday}
-              className={`h-9 place-items-center rounded-full bg-paper px-3.5 text-[13px] font-bold ${showToday ? "grid" : "hidden lg:grid"}`}
-            >
-              오늘
-            </button>
-            <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="grid size-9 place-items-center rounded-full bg-paper">
-              <IconChevronLeft size={18} strokeWidth={2.6} />
-            </button>
-            <button type="button" onClick={() => go(1)} aria-label="다음 달" className="grid size-9 place-items-center rounded-full bg-paper">
-              <IconChevronRight size={18} strokeWidth={2.6} />
-            </button>
-            <Link
-              href={newHref}
-              className="hidden h-9 items-center gap-1 rounded-full bg-pri px-4 text-[13px] font-bold text-on-pri hover:brightness-95 lg:flex"
-            >
-              <IconPlus size={14} strokeWidth={2.6} />
-              일정 추가
-            </Link>
-          </div>
+          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="grid size-8 place-items-center rounded-sm hover:bg-hover">
+            <IconChevronLeft size={18} />
+          </button>
+          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="grid size-8 place-items-center rounded-sm hover:bg-hover">
+            <IconChevronRight size={18} />
+          </button>
+          <span className="flex-1" />
+          {/* 모바일은 오늘에서 벗어났을 때만, PC 는 항상. 아이콘 버튼 중 오늘만 면 */}
+          <button
+            type="button"
+            onClick={goToday}
+            className={`h-8 place-items-center rounded-sm bg-paper px-3 text-[13px] font-bold ${showToday ? "grid" : "hidden lg:grid"}`}
+          >
+            오늘
+          </button>
+          <Link
+            href={newHref}
+            className="ml-1.5 hidden h-8 items-center gap-1 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95 lg:flex"
+          >
+            <IconPlus size={16} strokeWidth={2.2} />
+            일정 추가
+          </Link>
         </div>
 
-        {/* 모바일 벤토: 오늘 비는 시간 + D-day */}
-        <div className="mt-[18px] grid grid-cols-[1.25fr_1fr] gap-2 lg:hidden">
-          {freeTile}
-          {ddayTile}
-        </div>
+        {/* 모바일: 비는 시간 + D-day 정보 줄 카드 */}
+        <div className="mb-2 lg:hidden">{infoCard}</div>
 
         {/* 달력 타일 */}
-        <div className="mt-2 rounded-xl bg-paper px-2.5 pb-2.5 pt-3.5 lg:mt-[18px] lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:rounded-[24px] lg:px-3">
-          <div aria-hidden="true" className="grid grid-cols-7 text-center text-[11px] font-bold text-ink-2 lg:px-2 lg:pb-2 lg:text-left">
+        <div className="rounded-xl bg-paper px-1.5 pb-1 lg:mt-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+          <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
               <span key={w} className={i === 0 || i === 6 ? "text-holiday" : ""}>
                 {w}
@@ -397,7 +386,7 @@ export function CalendarScreen({ groupId }: Props) {
           </div>
           <ul
             aria-label={`${y}년 ${m}월 날짜`}
-            className="mt-1.5 grid grid-cols-7 gap-y-[2px] lg:mt-0 lg:min-h-0 lg:flex-1 lg:auto-rows-fr lg:gap-[2px]"
+            className="grid grid-cols-7 lg:min-h-0 lg:flex-1 lg:auto-rows-fr"
           >
             {grid.map((key) => (
               <DayCell
@@ -420,16 +409,15 @@ export function CalendarScreen({ groupId }: Props) {
         </div>
 
         {/* 모바일 선택일 목록 */}
-        <section aria-live="polite" className="mt-2 rounded-xl bg-paper p-4 lg:hidden">
+        <section aria-live="polite" className="mt-2 rounded-xl bg-paper px-3.5 pb-1.5 pt-1 lg:hidden">
           {dayList}
         </section>
       </section>
 
       {/* PC 우측 패널 */}
-      <aside className="hidden flex-col gap-2.5 overflow-y-auto pb-[22px] pr-[22px] pt-[26px] lg:flex">
-        {freeTile}
-        {ddayTile}
-        <section aria-live="polite" className="flex-1 rounded-lg bg-paper px-[18px] py-4">
+      <aside className="hidden min-h-0 flex-col gap-2 overflow-y-auto lg:mt-12 lg:flex">
+        {infoCard}
+        <section aria-live="polite" className="flex-1 rounded-xl bg-paper px-3.5 pb-3 pt-1.5">
           {detail && isDesktop ? (
             <EventDetail
               key={detail.id}
@@ -442,17 +430,17 @@ export function CalendarScreen({ groupId }: Props) {
           ) : (
             <>
               {dayList}
-              <h2 className="mt-[18px] text-[15px] font-extrabold tracking-[-0.02em]">이번 주 빈 시간</h2>
+              <h2 className="t-sec mt-1">이번 주 빈 시간</h2>
               {weekFreeQ.error ? (
-                <p className="mt-2 text-[13px] font-semibold text-ink-2">빈 시간을 계산하지 못했어요</p>
+                <p className="text-[13px] text-ink-2">빈 시간을 계산하지 못했어요</p>
               ) : weekFree === null ? (
-                <div className="mt-2 space-y-2">
+                <div className="space-y-2">
                   {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-10 w-full rounded-[12px]" />
+                    <Skeleton key={i} className="h-7 w-full" />
                   ))}
                 </div>
               ) : weekFree.length === 0 ? (
-                <p className="mt-2 text-[13px] font-semibold leading-relaxed text-ink-2">
+                <p className="text-[13px] text-ink-2">
                   이번 주에는 두 시간 이상 모두 비는 때가 없어요.{" "}
                   <Link href={`/g/${groupId}/free`} className="underline underline-offset-2">
                     조건 바꿔 찾기
@@ -468,10 +456,15 @@ export function CalendarScreen({ groupId }: Props) {
                       <li key={s.startsAt}>
                         <Link
                           href={newEventHref(groupId, s.startsAt, s.endsAt)}
-                          className="mt-2 flex items-center justify-between rounded-[12px] bg-surface px-3 py-2.5 text-[13px] font-bold hover:brightness-95"
+                          className="-mx-1.5 flex min-h-9 items-center gap-2 rounded-sm px-1.5 text-[13px] hover:bg-hover"
                         >
-                          {WEEKDAYS[dowOf(k)]} {p.m}/{p.d} {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
-                          <span className="text-[12px] font-semibold text-ink-2">{formatMinutes(mins)}</span>
+                          <span className="w-[68px] shrink-0">
+                            {WEEKDAYS[dowOf(k)]} {p.m}/{p.d}
+                          </span>
+                          <b className="font-bold text-acc-ink">
+                            {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
+                          </b>
+                          <span className="ml-auto text-[12px] text-ink-2">{formatMinutes(mins)}</span>
                         </Link>
                       </li>
                     );
@@ -520,7 +513,7 @@ export function CalendarScreen({ groupId }: Props) {
   );
 }
 
-/* ---------- 오늘 비는 시간 타일 (연한 코랄 면, #46) ---------- */
+/* ---------- 오늘 비는 시간 정보 줄 (면 없이 아이콘 + 라벨 + --acc-ink 값, D-57) ---------- */
 
 function FreeTile({
   label,
@@ -533,43 +526,49 @@ function FreeTile({
   groupId: number;
   onRetry?: () => void;
 }) {
-  const cls = "block rounded-lg bg-[var(--hl-tile)] px-4 py-3.5 text-left text-[var(--hl-ink)] hover:brightness-[.98] lg:px-[18px] lg:py-4";
-  const sub = "block text-[12px] font-semibold text-[var(--hl-ink)]/80";
+  const cls = "flex h-10 w-full items-center gap-2 text-left text-[13px] hover:opacity-80";
+  const icon = <IconClock size={16} className="shrink-0 text-acc-ink" />;
+  const go = <IconChevronRight size={14} className="ml-auto shrink-0 text-ink-2" />;
   if (onRetry && slot === undefined) {
     return (
-      <button type="button" onClick={onRetry} className={`${cls} w-full`}>
-        <small className={sub}>{label}</small>
-        <b className="mt-1 block text-[15px] font-bold leading-snug">계산하지 못했어요. 눌러서 다시 시도</b>
+      <button type="button" onClick={onRetry} className={cls}>
+        {icon}
+        <span className="min-w-0 truncate">{label}</span>
+        <b className="shrink-0 font-bold text-ink-2">계산 실패, 다시 시도</b>
       </button>
     );
   }
   if (slot === undefined) {
     return (
       <div className={cls} aria-busy="true">
-        <small className={sub}>{label}</small>
-        <span className="mt-2 block h-6 w-28 animate-pulse rounded-[7px] bg-[var(--hl-ink)]/15" />
+        {icon}
+        <span className="min-w-0 truncate">{label}</span>
+        <Skeleton className="h-3.5 w-20" />
       </div>
     );
   }
   if (slot === null) {
     return (
       <Link href={`/g/${groupId}/free`} className={cls}>
-        <small className={sub}>{label}</small>
-        <b className="mt-1 block text-[15px] font-bold leading-snug tracking-[-0.02em]">오늘은 모두 비는 시간이 없어요</b>
-        <small className={`mt-1.5 ${sub}`}>다른 날 찾아보기</small>
+        {icon}
+        <span className="min-w-0 truncate">{label}</span>
+        <b className="shrink-0 font-bold text-ink-2">없어요, 다른 날 찾기</b>
+        {go}
       </Link>
     );
   }
   return (
-    <Link href={newEventHref(groupId, slot.startsAt, slot.endsAt)} className={cls}>
-      <small className={sub}>{label}</small>
-      <b className="mt-1 block text-[22px] font-extrabold tracking-[-0.04em] text-[var(--hl-time)]">
+    <Link
+      href={newEventHref(groupId, slot.startsAt, slot.endsAt)}
+      aria-label={`${label} ${timeOf(slot.startsAt)}부터 ${timeOf(slot.endsAt)}까지, 눌러서 바로 약속 잡기`}
+      className={cls}
+    >
+      {icon}
+      <span className="min-w-0 truncate">{label}</span>
+      <b className="shrink-0 font-bold text-acc-ink">
         {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
       </b>
-      <small className={`mt-1.5 ${sub}`}>
-        <span className="lg:hidden">탭하면</span>
-        <span className="hidden lg:inline">클릭하면</span> 바로 약속으로
-      </small>
+      {go}
     </Link>
   );
 }
@@ -602,22 +601,28 @@ function DayCell({
   const dow = dowOf(dateKey);
   const holiday = holidayOf(dateKey);
   const red = dow === 0 || dow === 6 || Boolean(holiday);
-  // 선택 칸 = 옅은 코랄 면 + 코랄 숫자, 선택 안 된 오늘 = 코랄 테두리 + 코랄 숫자 (#46 A안)
-  const numColor = isSelected || (isToday && inMonth)
-    ? "text-today-ink"
-    : !inMonth
-      ? red
-        ? "text-[var(--holiday-faint)] font-medium"
-        : "text-faint font-medium"
-      : red
-        ? "text-holiday"
-        : "";
+  // 선택 = 숫자 뒤 원(--sel-fill) + 흰 숫자, 선택 안 된 오늘 = 숫자만 --today-ink (D-57, 칸 면 채움 없음)
+  const numClass = isSelected
+    ? "bg-sel-fill font-bold text-on-pri"
+    : isToday && inMonth
+      ? "font-bold text-today-ink"
+      : !inMonth
+        ? red
+          ? "font-medium text-holiday-faint"
+          : "font-medium text-faint"
+        : red
+          ? "font-semibold text-holiday"
+          : "font-semibold";
   const hint = isDesktop ? ", 눌러서 일정 추가" : isSelected ? ", 한 번 더 누르면 일정 추가" : "";
   const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}${hint}`;
 
-  // 모바일: 색 바(멤버 색 최대 3개) + 그날 시작하는(또는 주 첫 칸의) 첫 일정 제목
-  const colors = Array.from(new Set(events.map((e) => e.creator.color))).slice(0, 3);
-  const labelEvent = events.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null;
+  // 모바일: 여러 날 종일 일정은 칸을 잇는 4px 막대, 나머지는 멤버 색 점(5px, 최대 3개) + 첫 일정 제목
+  const band = events.find(isMultiDayAllDay) ?? null;
+  const bandStart = band ? dateKeyOf(band.startsAt) === dateKey : false;
+  const bandEnd = band ? addDays(dateKeyOf(band.endsAt), -1) === dateKey : false;
+  const rest = events.filter((e) => e !== band);
+  const colors = Array.from(new Set(rest.map((e) => e.creator.color))).slice(0, 3);
+  const labelEvent = band && (bandStart || dow === 0) ? band : (rest.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null);
   // PC: 칩 최대 3개
   const chips = events.slice(0, 3);
   const more = events.length - chips.length;
@@ -625,9 +630,7 @@ function DayCell({
   return (
     <li
       data-date={dateKey}
-      className={`anim-pick relative h-[52px] overflow-hidden rounded-sm px-[3px] pt-1.5 text-center text-[14px] font-bold lg:h-auto lg:min-h-0 lg:px-2 lg:pb-1 lg:pt-2 lg:text-left lg:text-[13px] ${
-        isSelected ? "bg-today" : isToday ? "ring-[1.5px] ring-pri ring-inset" : ""
-      }`}
+      className="anim-pick relative flex h-[52px] flex-col items-center overflow-hidden border-t border-line px-[3px] pt-1 text-center text-[13px] lg:h-auto lg:min-h-0 lg:items-stretch lg:px-1 lg:pb-1 lg:text-left lg:text-[12px]"
     >
       <button
         type="button"
@@ -635,51 +638,65 @@ function DayCell({
         aria-pressed={isSelected}
         aria-label={label}
         aria-haspopup={isDesktop || isSelected ? "dialog" : undefined}
-        className={`absolute inset-0 rounded-sm ${isSelected ? "" : "hover:bg-surface/60"}`}
+        className="absolute inset-0 hover:bg-hover/50"
       />
-      <span className={`pointer-events-none relative block leading-[1.25] ${numColor}`}>{p.d}</span>
+      <span className="pointer-events-none relative flex items-center lg:gap-1">
+        <span className={`anim-pick grid size-[26px] place-items-center rounded-full leading-none lg:ml-0.5 lg:size-6 ${numClass}`}>{p.d}</span>
+        {holiday && (
+          <span
+            aria-hidden="true"
+            className={`hidden truncate text-[11px] font-medium lg:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
+          >
+            {holiday}
+          </span>
+        )}
+      </span>
       {holiday && (
         <span
           aria-hidden="true"
-          className={`pointer-events-none relative block truncate text-[8.5px] font-bold leading-[1.3] lg:inline lg:pl-1.5 lg:text-[11px] ${inMonth ? "text-holiday" : "text-[var(--holiday-faint)]"}`}
+          className={`pointer-events-none relative block max-w-full truncate text-[10px] font-medium leading-3 lg:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
         >
           {holiday}
         </span>
       )}
 
       {/* 모바일 표시 */}
-      <span aria-hidden="true" className="pointer-events-none relative block lg:hidden">
-        {loading ? null : colors.length > 0 ? (
+      <span aria-hidden="true" className="pointer-events-none relative block w-full lg:hidden">
+        {loading ? null : (
           <>
-            <span className="mx-auto mt-[5px] flex h-1 w-3/5 gap-px overflow-hidden rounded-[2px]">
-              {colors.map((c) => (
-                <s key={c} className="block h-full flex-1" style={{ background: memberColor(c) }} />
-              ))}
-            </span>
-            {labelEvent && (
-              <span className={`mt-0.5 block truncate text-[9px] font-bold ${isSelected ? "text-today-ink" : "text-soft"}`}>{labelEvent.title}</span>
+            {band && (
+              <span
+                className={`mt-[3px] block h-1 opacity-85 ${bandStart ? "ml-1 rounded-l-[2px]" : "-ml-[3px]"} ${bandEnd ? "mr-1 rounded-r-[2px]" : "-mr-[3px]"}`}
+                style={{ background: memberColor(band.creator.color) }}
+              />
             )}
+            {!band && colors.length > 0 && (
+              <span className="mt-0.5 flex h-[5px] justify-center gap-[3px]">
+                {colors.map((c) => (
+                  <i key={c} className="block size-[5px] rounded-full" style={{ background: memberColor(c) }} />
+                ))}
+              </span>
+            )}
+            {labelEvent && <span className="mx-auto mt-px block max-w-[94%] truncate text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
           </>
-        ) : null}
+        )}
       </span>
 
-      {/* PC 표시: 일정 칩 (색 점 + 제목 + 시간), 여러 날 종일은 색 띠 */}
+      {/* PC 표시: 일정 칩 (색 점 + 제목 + 시간), 여러 날 종일은 멤버 색 16% 면 */}
       <span className="relative hidden lg:block">
         {chips.map((ev) => {
-          const band = isMultiDayAllDay(ev);
-          const style = band ? { background: memberColor(ev.creator.color), color: onMemberColor(ev.creator.color) } : undefined;
+          const isBand = isMultiDayAllDay(ev);
+          const style = isBand ? { background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 16%, transparent)` } : undefined;
           return (
             <button
               key={ev.id}
               type="button"
               onClick={() => onOpen(ev)}
               aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
-              className={`mt-[5px] flex w-full items-center gap-[5px] overflow-hidden rounded-xs px-1.5 py-[3px] text-left text-[11px] font-semibold whitespace-nowrap ${
-                band ? "" : isSelected ? "bg-paper/80" : "bg-surface"
-              }`}
+              className={`mt-0.5 flex w-full items-center gap-1 overflow-hidden rounded-xs px-1 py-px text-left text-[11px] font-medium leading-4 whitespace-nowrap ${isBand ? "" : "hover:bg-hover"}`}
               style={style}
             >
-              {!band && <i aria-hidden="true" className="block size-[7px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />}
+              <i aria-hidden="true" className="block size-1.5 shrink-0 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
               <span className="truncate">
                 {ev.title}
                 {!ev.allDay && dateKeyOf(ev.startsAt) === dateKey ? ` ${timeOf(ev.startsAt)}` : ""}
@@ -688,7 +705,7 @@ function DayCell({
           );
         })}
         {more > 0 && (
-          <span aria-hidden="true" className={`pointer-events-none mt-1 block text-[11px] font-semibold ${isSelected ? "text-today-ink" : "text-ink-2"}`}>
+          <span aria-hidden="true" className="pointer-events-none mt-0.5 block px-1 text-[11px] font-medium text-ink-2">
             +{more}개 더
           </span>
         )}
@@ -732,57 +749,53 @@ function EventDetail({
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
-        <span className="inline-flex items-center gap-[7px] rounded-full bg-surface py-1.5 pl-1.5 pr-2.5 text-[13px] font-bold">
-          <i aria-hidden="true" className="block size-5 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
+        <span className="inline-flex h-8 items-center gap-1.5 text-[12px] font-medium text-ink-2">
+          <i aria-hidden="true" className="block size-2 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
           {iGa(ev.creator.displayName)} 등록
         </span>
         {panel && (
-          <button type="button" onClick={onClose} aria-label="상세 닫기" className="grid size-8 place-items-center rounded-full bg-surface">
-            <IconClose size={16} />
+          <button type="button" onClick={onClose} aria-label="상세 닫기" className="grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+            <IconClose size={18} />
           </button>
         )}
       </div>
-      <h3 id={titleId} className={`mt-3.5 font-extrabold leading-[1.1] tracking-[-0.04em] break-words ${panel ? "text-[26px]" : "text-[30px]"}`}>
+      <h3 id={titleId} className="mt-1 text-[20px] font-bold leading-7 tracking-[-0.02em] break-words">
         {ev.title}
       </h3>
-      <div className="mt-3.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2.5 rounded-[18px] bg-surface px-4 py-3.5">
+      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-sm bg-surface px-3.5 py-2.5">
         <div>
-          <small className="block text-[12px] font-semibold text-ink-2">{short(startKey)}</small>
-          <b className={`block font-extrabold tracking-[-0.03em] ${panel ? "text-[20px]" : "text-[22px]"}`}>
-            {ev.allDay ? "종일" : timeOf(ev.startsAt)}
-          </b>
+          <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
+          <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.startsAt)}</b>
         </div>
-        <IconArrowRight size={18} className="text-ink-2" />
+        <IconArrowRight size={16} className="text-ink-2" />
         <div className="text-right">
-          <small className="block text-[12px] font-semibold text-ink-2">{short(endKey)}</small>
-          <b className={`block font-extrabold tracking-[-0.03em] ${panel ? "text-[20px]" : "text-[22px]"}`}>
-            {ev.allDay ? "종일" : timeOf(ev.endsAt)}
-          </b>
+          <small className="block text-[12px] leading-4 text-ink-2">{short(endKey)}</small>
+          <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.endsAt)}</b>
         </div>
       </div>
-      {ev.memo && <p className="mt-3 whitespace-pre-wrap text-[15px] leading-normal text-soft">{ev.memo}</p>}
-      <p className="mt-3.5 text-[12px] font-semibold text-ink-2">
+      {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
+      <p className="mt-2.5 text-[12px] leading-4 text-ink-2">
         {stamp(ev.createdAt)} 등록{edited ? ` · ${stamp(ev.updatedAt)} 수정` : ""}
       </p>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-4 flex gap-2">
         <button
           type="button"
           onClick={() => router.push(`/g/${groupId}/events/${ev.id}`)}
-          className="h-[52px] flex-1 rounded-full bg-btn text-[15px] font-bold text-on-btn"
+          className="h-11 flex-1 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
         >
           수정
         </button>
         <button
           type="button"
           onClick={() => router.push(`/g/${groupId}/events/new?copy=${ev.id}`)}
-          className="h-[52px] flex-1 rounded-full bg-surface text-[15px] font-bold"
+          className="h-11 flex-1 rounded-md bg-hover text-[13.5px] font-bold hover:brightness-95"
         >
           복제
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="h-[52px] shrink-0 basis-[52px] rounded-full bg-surface px-3 text-[15px] font-bold text-danger"
+          className="h-11 shrink-0 basis-14 rounded-md bg-hover px-3 text-[13.5px] font-bold text-danger hover:brightness-95"
         >
           삭제
         </button>
@@ -810,16 +823,16 @@ function DetailSheet({ onClose, children }: { onClose: () => void; children: (ti
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center">
-      <button type="button" aria-label="닫기" tabIndex={-1} onClick={onClose} className="anim-fade absolute inset-0 bg-black/35" />
+      <button type="button" aria-label="닫기" tabIndex={-1} onClick={onClose} className="anim-fade absolute inset-0 bg-[var(--scrim)]" />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="anim-sheet relative max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-[22px] pb-[calc(34px+env(safe-area-inset-bottom))] pt-3 outline-none"
+        className="anim-sheet relative max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none"
       >
-        <div aria-hidden="true" className="mx-auto mb-[18px] h-[5px] w-10 rounded-full bg-[var(--grab)]" />
+        <div aria-hidden="true" className="mx-auto mb-1 h-1 w-9 rounded-full bg-[var(--grab)]" />
         {children(titleId)}
       </div>
     </div>

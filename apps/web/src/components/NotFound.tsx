@@ -17,15 +17,15 @@ export function NotFoundScreen() {
       <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
         <Symbol size={40} />
         <div className="mt-auto pt-16">
-          <span className="inline-flex rounded-full bg-brand-soft px-3 py-[7px] text-[13px] font-bold text-sel-ink">404</span>
-          <h1 className="mt-[22px] break-keep text-[44px] font-extrabold leading-[1.05] tracking-[-0.06em]">{TITLE}</h1>
-          <p className="mt-[18px] text-[16px] font-medium text-soft">
+          <span className="inline-flex text-[13px] font-bold text-acc-ink">404</span>
+          <h1 className="mt-2 break-keep text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">{TITLE}</h1>
+          <p className="mt-3 text-[15px] leading-[22px] text-soft">
             주소가 잘못됐거나 사라진 페이지예요
             <br />
             홈에서 내 달력을 다시 열어 보세요
           </p>
         </div>
-        <Link href="/" className="mt-10 block">
+        <Link href="/" className="mt-8 block">
           <Button size="lg" full tabIndex={-1}>
             홈으로
           </Button>
@@ -40,9 +40,9 @@ export function GroupNotFound({ calendarHref }: { calendarHref: string }) {
   return (
     <div className="flex min-h-[60dvh] items-center lg:min-h-dvh lg:px-8">
       <title>{NOT_FOUND_DOC_TITLE}</title>
-      <div className="mx-auto w-full max-w-[480px] rounded-xl bg-paper px-6 py-9 text-center">
-        <h1 className="text-[24px] font-extrabold leading-snug tracking-[-0.04em]">{TITLE}</h1>
-        <p className="mt-2 text-[14px] font-semibold leading-relaxed text-soft">
+      <div className="mx-auto w-full max-w-[480px] rounded-xl bg-paper px-5 py-7 text-center">
+        <h1 className="t-title">{TITLE}</h1>
+        <p className="mt-2 text-[14px] leading-5 text-soft">
           주소가 잘못됐거나 이미 삭제된 일정일 수 있어요.
           <br />이 팀 달력에서 다시 찾아 보세요
         </p>

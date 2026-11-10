@@ -36,18 +36,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         aria-live="polite"
         role="status"
-        className="pointer-events-none fixed inset-x-0 bottom-[calc(104px+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 lg:bottom-6"
+        className="pointer-events-none fixed inset-x-0 bottom-[calc(134px+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 lg:bottom-6"
       >
         {toast && (
           <div
             key={toast.id}
-            className="anim-sheet pointer-events-auto flex w-full max-w-[440px] items-center gap-3 rounded-[18px] bg-ink px-5 py-3.5 text-surface"
+            className="anim-sheet pointer-events-auto flex w-full max-w-[440px] items-center gap-3 rounded-md bg-ink px-4 py-3 text-surface"
           >
-            <span className="flex-1 text-[14px] font-semibold leading-snug">{toast.message}</span>
+            <span className="flex-1 text-[14px] font-medium leading-5">{toast.message}</span>
             {toast.actionLabel && (
               <button
                 type="button"
-                className="shrink-0 rounded-sm px-2 py-1 text-[14px] font-bold text-surface underline underline-offset-2"
+                className="shrink-0 rounded-sm px-2 py-1 text-[13px] font-bold text-surface underline underline-offset-2"
                 onClick={() => {
                   toast.onAction?.();
                   dismiss();
