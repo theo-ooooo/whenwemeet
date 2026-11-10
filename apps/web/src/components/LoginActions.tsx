@@ -6,6 +6,7 @@ import { AppleButton } from "./AppleButton";
 import { KakaoButton } from "./KakaoButton";
 import { Button } from "./ui";
 import { postToApp } from "@/lib/app-bridge";
+import { loginChoices } from "@/lib/auth";
 import { useInApp } from "@/lib/useInApp";
 
 export function LoginActions({
@@ -50,8 +51,9 @@ export function LoginActions({
 
   return (
     <div className="flex flex-col gap-2">
-      <KakaoButton next={next} />
-      {appleEnabled && <AppleButton next={next} />}
+      {loginChoices(false, appleEnabled).map((c) =>
+        c === "apple" ? <AppleButton key={c} next={next} /> : <KakaoButton key={c} next={next} />,
+      )}
     </div>
   );
 }

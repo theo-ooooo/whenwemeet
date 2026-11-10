@@ -47,9 +47,11 @@
 }
 
 /* 화면 폭 구간 (docs/설계/폴더블.md 3장, D-58). lib/layout.ts 와 같은 값
- *   fold: ≥600 레일 + 2단, lg: ≥1024 PC (기본값), wide: ≥1200 레일 대신 사이드바 */
+ *   fold: ≥600 레일, split: ≥860 달력 옆 개요 칸(2단, 600~859 는 개요를 달력 아래로, #128),
+ *   lg: ≥1024 PC (기본값), wide: ≥1200 레일 대신 사이드바 */
 @theme {
   --breakpoint-fold: 600px;
+  --breakpoint-split: 860px;
   --breakpoint-wide: 1200px;
 }
 /* 높이가 낮은 펼친 화면(아이폰 듀오 가로 626) */

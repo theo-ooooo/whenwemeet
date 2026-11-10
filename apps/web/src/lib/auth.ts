@@ -61,6 +61,14 @@ export function joinAutoNext(code: string): string {
   return `/join/${encodeURIComponent(code)}?${JOIN_AUTO_PARAM}=1`;
 }
 
+/** 로그인 버튼 구성. 앱 셸 안이면 네이티브 로그인(카카오, 애플 둘 다 네이티브가 고른다) 하나,
+ *  웹이면 카카오 + (APPLE_LOGIN_ENABLED=1 일 때) 애플. /login 과 초대 화면(/join/<코드>, #129)이 같이 쓴다 */
+export type LoginChoice = "native" | "kakao" | "apple";
+export function loginChoices(inApp: boolean, appleEnabled: boolean): LoginChoice[] {
+  if (inApp) return ["native"];
+  return appleEnabled ? ["kakao", "apple"] : ["kakao"];
+}
+
 /** JWT 모양(점으로 나뉜 3조각) 만 확인. 서명 검증은 API 가 한다 */
 export function looksLikeJwt(token: string | null | undefined): token is string {
   if (!token) return false;

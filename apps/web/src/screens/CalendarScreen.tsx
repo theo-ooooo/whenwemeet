@@ -577,9 +577,10 @@ export function CalendarScreen({ groupId }: Props) {
   ) : null;
 
   return (
-    <div className="fold:grid fold:h-dvh fold:grid-cols-[minmax(0,1fr)_272px] fold:gap-2 fold:px-4 fold:pb-4 fold:pt-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+        // 레일 폭에서 개요 칸을 옆에 두는 것은 split(≥860)부터. 600~859 는 달력이 칸보다 좁아지므로(#128) 달력이 화면 높이를 채우고 개요는 아래로 내린다
+    <div className="fold:px-4 fold:pb-4 fold:pt-3 split:grid split:h-dvh split:grid-cols-[minmax(0,1fr)_272px] split:gap-2 lg:grid-cols-[minmax(0,1fr)_300px]">
       {/* 왼쪽: 월 헤더 + 달력 */}
-      <section className="flex flex-col fold:min-h-0">
+      <section className="flex flex-col fold:h-[calc(100dvh-28px)] fold:min-h-[480px] split:h-auto split:min-h-0">
         {/* 월 헤더: (레일 폭이면 팀 이름) "11월" 20/28 700 + 좌우 화살표 한 줄, 연도는 다른 해일 때만 (시안 .mh) */}
         <div className="flex items-center gap-1 pb-2 pt-1 fold:h-10 fold:p-0">
           <button
@@ -598,7 +599,7 @@ export function CalendarScreen({ groupId }: Props) {
               <Skeleton className="h-4 w-16" />
             )}
           </button>
-          <h1 aria-label={`${y}년 ${m}월`} className="mr-1 text-[20px] font-bold leading-7 tracking-[-0.02em]">
+          <h1 aria-label={`${y}년 ${m}월`} className="mr-1 shrink-0 whitespace-nowrap text-[20px] font-bold leading-7 tracking-[-0.02em]">
             {y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
           </h1>
           <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="grid size-8 place-items-center rounded-sm hover:bg-hover">
@@ -612,7 +613,7 @@ export function CalendarScreen({ groupId }: Props) {
           <button
             type="button"
             onClick={goToday}
-            className={`h-8 place-items-center rounded-sm bg-paper px-3 text-[13px] font-bold ${showToday ? "grid" : "hidden fold:grid"}`}
+            className={`h-8 shrink-0 place-items-center whitespace-nowrap rounded-sm bg-paper px-3 text-[13px] font-bold ${showToday ? "grid" : "hidden fold:grid"}`}
           >
             오늘
           </button>
@@ -662,7 +663,7 @@ export function CalendarScreen({ groupId }: Props) {
       </section>
 
       {/* 넓은 화면 오른쪽 칸: 개요 (선택 날짜와 묶이지 않는다, 5-1 권장안 A) */}
-      <aside aria-label="개요" className="hidden min-h-0 flex-col gap-2 overflow-y-auto fold:mt-12 fold:flex">
+      <aside aria-label="개요" className="hidden min-h-0 flex-col gap-2 fold:mt-3 fold:flex split:mt-12 split:overflow-y-auto">
         {infoCard}
         {upcomingCard}
         {weekCard}
