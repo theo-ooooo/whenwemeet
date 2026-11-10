@@ -48,18 +48,17 @@
   --ease-sheet: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* 화면 폭 구간 (docs/설계/폴더블.md 3장, D-58). lib/layout.ts 와 같은 값
- *   fold: ≥600 레일, split: ≥860 달력 옆 개요 칸(2단, 600~859 는 개요를 달력 아래로, #128),
- *   lg: ≥1024 PC (기본값), wide: ≥1200 레일 대신 사이드바 */
+/* 화면 폭 구간 (docs/설계/폴더블.md 3장, D-58, D-69). lib/layout.ts 와 같은 값
+ *   fold: ≥600 왼쪽 사이드바 264 + 본문 (디자인규칙.md 2-2, #212), lg: ≥1024 PC (기본값) */
 @theme {
   --breakpoint-fold: 600px;
-  --breakpoint-split: 860px;
-  --breakpoint-wide: 1200px;
 }
 /* 높이가 낮은 펼친 화면(아이폰 듀오 가로 626) */
 @custom-variant short (@media (max-height: 720px));
-/* 달력 날짜 칸 높이 ≥110px 이면 PC 처럼 제목 칩, 아니면 모바일처럼 점 + 제목 한 줄 (칸이 [container-type:size]) */
-@custom-variant tall (@container (min-height: 110px));
+/* 달력 날짜 칸(넓은 화면에서 [container-type:size]) 높이로 모양을 고른다.
+ * tall ≥84: 멤버 색 칩 2줄, taller ≥110: 칩 3줄. 그 아래(아이폰 듀오 가로 등)는 점 + 제목 한 줄 */
+@custom-variant tall (@container (min-height: 84px));
+@custom-variant taller (@container (min-height: 110px));
 
 /* 라이트 (기본) */
 :root {

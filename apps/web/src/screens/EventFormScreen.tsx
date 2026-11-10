@@ -141,8 +141,9 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (!startDate || !endDate) return null;
     const startsAt = allDay ? kstToIso(startDate) : kstToIso(startDate, startTime || "00:00");
     const endsAt = allDay ? kstToIso(addDays(endDate, 1)) : kstToIso(endDate, endTime || "00:00");
-    return { title: title.trim(), startsAt, endsAt, allDay, memo: memo.trim() || undefined };
-  }, [title, allDay, startDate, startTime, endDate, endTime, memo]);
+    // 수정에서 메모를 비우면 "" 를 보내 지운다 (생략하면 서버가 기존 메모를 유지한다)
+    return { title: title.trim(), startsAt, endsAt, allDay, memo: memo.trim() || (eventId ? "" : undefined) };
+  }, [title, allDay, startDate, startTime, endDate, endTime, memo, eventId]);
 
   // 수정 중인 일정이 반복 일정인지 (범위를 묻는다). 복제는 새 일정이라 해당 없음
   const series = eventId && loadedEvent?.repeat ? loadedEvent : null;

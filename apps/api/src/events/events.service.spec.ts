@@ -117,6 +117,23 @@ describe('EventsService', () => {
     await expect(service.update(1, 10, 999, {})).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('update: 빈 메모(\'\')를 보내면 메모를 지운다 (null 로 저장)', async () => {
+    events.findInGroup.mockResolvedValue({ ...ROW, memo: '원래 메모' });
+    events.updateWithLogTx.mockResolvedValue({ ...ROW, memo: null });
+    await service.update(1, 10, 100, { memo: '' });
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(
+      100,
+      { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null },
+      1,
+    );
+  });
+
+  it('update: 메모가 이미 없을 때 빈 메모를 보내면 저장하지 않는다 (#62)', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    await service.update(1, 10, 100, { memo: '' });
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+  });
+
   it('update: 바뀐 필드가 없으면 저장도 UPDATED 로그도 없이 현재 값을 돌려준다 (#62)', async () => {
     events.findInGroup.mockResolvedValue(ROW);
     for (const dto of [{}, { title: '회의', allDay: false, memo: null }, { startsAt: '2026-12-01T19:00:00+09:00', endsAt: '2026-12-01T12:00:00.000Z' }]) {
