@@ -29,11 +29,13 @@ Project > Settings
   | `APPLE_LOGIN_ENABLED` | `1` (API 애플 설정 확인 후) | (넣지 않음) | - |
   | `APPLE_TEAM_ID` | Apple Team ID | (넣지 않음) | - |
   | `ANDROID_CERT_SHA256` | 서명 인증서 SHA-256, 쉼표 구분 | (넣지 않음) | - |
+  | `APP_STORE_LIVE` | 스토어 출시 승인 후 `1` (또는 `ios`, `android`) | (넣지 않음) | - |
   - `APPLE_TEAM_ID`, `ANDROID_CERT_SHA256` 은 앱 딥링크 검증 파일(`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`)에 쓰인다. 비어 있으면 두 주소가 404. 배포 후 `curl -i https://whenwemeet.day/.well-known/assetlinks.json` 이 리다이렉트 없이 200 `application/json` 인지 확인
   - Preview(develop, PR 브랜치) 는 메모리 목으로 떠서 운영 API, DB, 카카오를 건드리지 않는다
 - **Build and Deployment > Root Directory**: `apps/web`, "Include files outside the root directory in the Build Step" 켬(기본), "Skip deployments when there are no changes to the root directory or its dependencies" 켬(기본, API 만 바뀐 커밋은 웹을 건너뜀)
 - **Build and Deployment > Node.js Version**: 24.x (package.json `engines` 가 우선하므로 확인만)
 - **Functions > Function Regions**: `Singapore (sin1)` 로 표시되는지 확인 (`vercel.json` 이 지정)
+  - `APP_STORE_LIVE` 는 초대 화면의 "앱 설치하기" 스토어 이동 스위치 (#154). 출시 전에는 넣지 않는다 (없는 앱의 스토어 페이지로 보내지 않게). 값 설명은 [배포.md](./배포.md) 환경 변수 표
 - 환경 변수를 바꾼 뒤에는 Deployments 에서 최신 Production 을 **Redeploy** 해야 반영된다
 
 ## 3. 도메인 `whenwemeet.day`
@@ -52,3 +54,9 @@ Project > Settings
 - 롤백: Deployments > 직전 Production 배포 `⋯` > **Instant Rollback**
 - 로그: Project > Logs (Hobby 는 1시간 보관)
 - Hobby 는 **비상업 용도만** 허용. 수익 모델이 생기면 Pro 로 옮긴다 ([배포.md](./배포.md) "비용")
+
+## 5. 공유 미리보기 (Open Graph, #154)
+- 모든 화면이 `og:title` "언제볼까 - 같이 쓰는 달력", `og:image` `https://whenwemeet.day/og.png` (1200x630, `apps/web/public/og.png`) 를 낸다. 초대 화면 `/join/<코드>` 는 제목이 "<팀 이름> 팀에 초대받았어요 - 언제볼까" (공개 API `GET /v1/invites/<코드>`, 실패하면 "초대받았어요")
+- 이미지를 바꾸려면 `apps/web/scripts/gen-og.mjs` 를 고치고 `pnpm --filter @whenwemeet/web og` 로 다시 만든다 (로고는 `brand/logo-horizontal.svg`, 문구 글꼴은 `apps/mobile/assets/fonts/Pretendard-*.otf`)
+- 확인: `curl -s -A 'facebookexternalhit/1.1; kakaotalk-scrap/1.0' https://whenwemeet.day/join/<코드> | grep -o '<meta property="og:[^>]*>'`
+- **카카오는 미리보기를 캐시한다.** 이미지나 문구를 바꾼 뒤, 또는 배포 전에 한 번 공유해 빈 카드가 캐시된 주소는 [카카오 공유 디버거](https://developers.kakao.com/tool/debugger/sharing) 에 주소를 넣고 "캐시 초기화" 를 누른다 (카카오 개발자 계정 로그인 필요). 초대 링크는 코드마다 주소가 달라 새 코드는 바로 새로 읽는다
