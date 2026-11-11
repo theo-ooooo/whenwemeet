@@ -11,13 +11,15 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { type ConfigPlugin, withAndroidManifest } from "expo/config-plugins";
 
 // `eas init` 이 알려주는 프로젝트 ID 를 여기에 적는다 (공개값). docs/운영/앱-빌드.md 2단계
 const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43";
 
 // 1.1.0: 푸시 알림 (#188). 웹은 UA 버전 >= 1.1.0 일 때만 푸시 메시지를 보낸다 (D-81).
+// 1.1.1: 카카오톡 공유 (#195, @react-native-kakao/share). 웹은 UA 토큰 KakaoShare/1 로 판정한다 (D-169)
 // 빌드 번호는 eas.json appVersionSource=remote + autoIncrement 로 EAS 가 올린다
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 const BUNDLE_ID = "day.whenwemeet.app";
 const WEB_HOST = "whenwemeet.day";
 
@@ -35,6 +37,24 @@ function googleServicesFile(): string | undefined {
   if (existsSync(path.join(__dirname, local))) return local;
   return undefined;
 }
+
+/** 카카오톡 패키지. Android 11+ 패키지 공개 범위 (#195). 없으면 SDK 가 카카오톡 설치 여부를 못 봐 늘 웹 공유로 간다 */
+const KAKAOTALK_PACKAGE = "com.kakao.talk";
+
+/** AndroidManifest 에 `<queries><package android:name="com.kakao.talk"/></queries>` (카카오 SDK 매니페스트에 이미 있어도 병합 때 합쳐진다) */
+const withKakaoTalkQueries: ConfigPlugin = (cfg) =>
+  withAndroidManifest(cfg, (c) => {
+    const manifest = c.modResults.manifest as typeof c.modResults.manifest & {
+      queries?: { package?: { $: { "android:name": string } }[] }[];
+    };
+    const queries = (manifest.queries ??= [{}]);
+    const q = queries[0];
+    q.package ??= [];
+    if (!q.package.some((p) => p.$["android:name"] === KAKAOTALK_PACKAGE)) {
+      q.package.push({ $: { "android:name": KAKAOTALK_PACKAGE } });
+    }
+    return c;
+  });
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const kakaoKey = process.env.KAKAO_NATIVE_APP_KEY?.trim() || undefined;
@@ -91,7 +111,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ]);
   }
 
-  return {
+  const expo: ExpoConfig = {
     ...config,
     name: "언제볼까",
     slug: "whenwemeet",
@@ -149,4 +169,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}),
     },
   };
+  // (#195) 카카오톡 공유는 카카오 키가 있는 빌드만. iOS LSApplicationQueriesSchemes 의 kakaolink 는 위 core 플러그인이 넣는다
+  return kakaoKey ? withKakaoTalkQueries(expo) : expo;
 };

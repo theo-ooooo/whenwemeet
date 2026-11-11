@@ -2,6 +2,7 @@
 // 셸 apps/mobile/src/bridge/messages.ts 와 같은 계약. 앱 판정과 postMessage 는 이 파일 한 곳에서만 한다.
 // 판정이 틀리거나 보낼 대상이 없으면 false 를 돌려 호출부가 기존 웹 동작으로 떨어지게 한다.
 // 서버 컴포넌트와 route handler 에서도 import 하므로 React, next/* 를 import 하지 않는다.
+import type { KakaoFeedTemplate } from "./kakao-share";
 
 export const BRIDGE_VERSION = 1;
 
@@ -12,6 +13,8 @@ export type BridgeMessage =
   | { type: "logout" }
   | { type: "accountDeleted" }
   | { type: "share"; url: string; text?: string; title?: string }
+  // (#195) 카카오톡 공유. appSupportsKakaoShare() 일 때만 보낸다 (앱.md 4.6, D-169). text 는 실패 시 OS 공유 시트 본문
+  | { type: "kakaoShare"; template: KakaoFeedTemplate; text?: string }
   | { type: "haptic"; kind: HapticKind }
   // (#188) 푸시 권한과 토큰. appSupportsPush() 일 때만 보낸다 (푸시-알림.md 2-2, D-80)
   | { type: "pushStatus"; id: string }
@@ -58,6 +61,17 @@ const EMAIL_LOGIN_UA = /(?:^|\s)EmailLogin\/1(?:\s|$)/;
 /** 앱 셸이고 네이티브 로그인 화면에 이메일 버튼이 있는지. 앱이 아니면 false */
 export function appSupportsEmailLogin(ua: string | null | undefined): boolean {
   return isAppUserAgent(ua) && EMAIL_LOGIN_UA.test(ua ?? "");
+}
+
+/* ---------- (#195) 카카오톡 공유를 아는 셸 (앱.md 4.6, D-169) ---------- */
+
+/** 셸(1.1.1~)이 UA 끝에 붙이는 능력 표시. 1.1.0 셸은 kakaoShare 를 모르고 버리므로 이 토큰이 있을 때만 보낸다 */
+export const KAKAO_SHARE_UA_TOKEN = "KakaoShare/1";
+const KAKAO_SHARE_UA = /(?:^|\s)KakaoShare\/1(?:\s|$)/;
+
+/** 앱 셸이고 네이티브 카카오톡 공유를 처리하는지. 앱이 아니면 false */
+export function appSupportsKakaoShare(ua: string | null | undefined): boolean {
+  return isAppUserAgent(ua) && KAKAO_SHARE_UA.test(ua ?? "");
 }
 
 /* ---------- (#188) 푸시 지원 판정 (푸시-알림.md 2-1, D-81) ---------- */

@@ -201,6 +201,14 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
     expect(decideNavigation(`${W}/login/email/nickname`, W)).toEqual({ kind: "allow" });
     expect(decideNavigation(`${W}/auth/email?token=${"a".repeat(43)}`, W)).toEqual({ kind: "allow" });
   });
+  it("(#195) 카카오 키가 있는 빌드만 UA 끝에 KakaoShare/1 (웹 appSupportsKakaoShare 와 같은 식)", () => {
+    expect(buildUserAgentSuffix("1.1.1", "ios", true)).toBe("WhenwemeetApp/1.1.1 (ios) EmailLogin/1 KakaoShare/1");
+    expect(buildUserAgentSuffix("1.1.1", "android", false)).toBe("WhenwemeetApp/1.1.1 (android) EmailLogin/1");
+    const re = /(?:^|\s)KakaoShare\/1(?:\s|$)/;
+    expect(re.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.1.1", "android", true)}`)).toBe(true);
+    expect(/(?:^|\s)EmailLogin\/1(?:\s|$)/.test(buildUserAgentSuffix("1.1.1", "ios", true))).toBe(true);
+  });
+
   it("UA 접미사 끝에 EmailLogin/1, 앞부분은 웹 APP_UA 정규식 그대로", () => {
     const ua = buildUserAgentSuffix("1.1.0", "ios");
     expect(ua).toBe("WhenwemeetApp/1.1.0 (ios) EmailLogin/1");

@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { IconCheck, IconChevronRight } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
 import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
-import { postToApp } from "@/lib/app-bridge";
+import { isInApp, postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
 import { inviteShare } from "@/lib/invite-share";
+import { inviteKakaoFeed, preloadKakaoSdk, shareKakaoFeed } from "@/lib/kakao-share";
 import { COLOR_NAMES, memberColor, ON_MEMBER_COLOR, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
 
@@ -93,6 +94,23 @@ function NameSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Grou
 }
 
 /* 초대 */
+const noopSubscribe = () => () => {};
+const textButton = "hit rounded-sm px-1 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink";
+/** OS 공유 시트를 띄울 수 있는지: 앱 셸(share 브리지) 또는 Web Share 가 있는 브라우저. 없으면(PC 대부분) "다른 앱으로 보내기" 를 숨긴다 */
+const canUseOsShare = () => isInApp() || typeof navigator.share === "function";
+
+/** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양) */
+function KakaoSymbol() {
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" className="shrink-0">
+      <path
+        fill="#000000"
+        d="M12 3C6.48 3 2 6.58 2 10.9c0 2.78 1.84 5.22 4.62 6.6l-.94 3.48c-.08.3.26.54.52.37l4.15-2.76c.54.07 1.09.11 1.65.11 5.52 0 10-3.58 10-7.9S17.52 3 12 3z"
+      />
+    </svg>
+  );
+}
+
 function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: (g: GroupDetail) => void; open: boolean }) {
   const toast = useToast();
   const ref = useRef<HTMLElement>(null);
@@ -105,6 +123,9 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
       ref.current?.focus();
     }
   }, [open]);
+
+  // (#195) 카카오 JS SDK 는 이 칸이 그려질 때만 받는다 (다른 화면에는 싣지 않는다)
+  useEffect(() => preloadKakaoSdk(), []);
 
   // (#196) 주소는 내 표식(?by=)이 붙은 inviteShareUrl. 문구와 함께 lib/invite-share.ts 한 곳에서 (D-159)
   const { url, message, text, title } = inviteShare(group);
@@ -129,6 +150,20 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
     }
     await copy();
   }
+
+  // (#195) 카카오톡 공유 카드. 키 없음, SDK 실패, 카카오 공유를 모르는 옛 앱이면 지금 동작(OS 공유 시트, 복사)으로 (D-168, D-169)
+  const [kakaoBusy, setKakaoBusy] = useState(false);
+  async function shareKakao() {
+    const feed = inviteKakaoFeed(group);
+    setKakaoBusy(true);
+    try {
+      if (feed && (await shareKakaoFeed(feed, message))) return;
+      await share();
+    } finally {
+      setKakaoBusy(false);
+    }
+  }
+  const canOsShare = useSyncExternalStore(noopSubscribe, canUseOsShare, () => false);
 
   async function rotate() {
     const r = await rotateCode();
@@ -156,15 +191,23 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
         <Button variant="secondary" onClick={copy}>
           링크 복사
         </Button>
-        <Button onClick={share}>카카오톡으로 공유</Button>
+        {/* 카카오 공유 버튼 가이드: 바탕 #FEE500, 말풍선 심볼 #000, 글자 #000 85% (UIUX 1차 L13) */}
+        <Button variant="kakao" onClick={shareKakao} loading={kakaoBusy}>
+          {!kakaoBusy && <KakaoSymbol />}
+          카카오톡으로 공유
+        </Button>
       </div>
-      <button
-        type="button"
-        onClick={() => setConfirm(true)}
-        className="hit mt-2 w-full rounded-sm py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink"
-      >
-        코드 재발급
-      </button>
+      {/* 글자 버튼 줄: OS 공유 시트(문자, 다른 메신저)와 코드 재발급 (#195). Web Share 가 없는 PC 는 재발급만 */}
+      <div className="mt-2 flex justify-center gap-4">
+        {canOsShare && (
+          <button type="button" onClick={share} className={textButton}>
+            다른 앱으로 보내기
+          </button>
+        )}
+        <button type="button" onClick={() => setConfirm(true)} className={textButton}>
+          코드 재발급
+        </button>
+      </div>
       <ConfirmDialog
         open={confirm}
         title="초대 코드를 다시 만들까요?"

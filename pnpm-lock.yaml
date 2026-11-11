@@ -125,6 +125,9 @@ importers:
       '@react-native-kakao/core':
         specifier: ^3.2.0
         version: 3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+      '@react-native-kakao/share':
+        specifier: ^3.2.0
+        version: 3.2.0(@react-native-kakao/core@3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
       '@react-native-kakao/user':
         specifier: ^3.2.0
         version: 3.2.0(@react-native-kakao/core@3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
@@ -2393,6 +2396,13 @@ packages:
     peerDependenciesMeta:
       expo:
         optional: true
+
+  '@react-native-kakao/share@3.2.0':
+    resolution: {integrity: sha512-lToD3KQ+buUFeU8C3WKy3jrZzORA8XiB2iqB4gccx5KdmRPXUYBn/LtAzh58D1CuOM1l1yAUH82KfeTXrx5+8g==}
+    peerDependencies:
+      '@react-native-kakao/core': 3.2.0
+      react: '*'
+      react-native: '>=0.76.0'
 
   '@react-native-kakao/user@3.2.0':
     resolution: {integrity: sha512-EBrTS09UUsAeLwh4Sum1uTcCh9CPEDI0XqNiP0+9hWqgjgFpAsw6nIwrmMCTk3zPVqC4bzAojtW8MSEu4/UsBw==}
@@ -9875,6 +9885,13 @@ snapshots:
       return-fetch: 0.4.13
     optionalDependencies:
       expo: 58.0.23(@babel/core@7.29.13)(@expo/dom-webview@58.0.2)(react-dom@19.3.0(react@19.3.0))(react-native-webview@14.0.1(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)(typescript@6.0.3)
+
+  '@react-native-kakao/share@3.2.0(@react-native-kakao/core@3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      '@mj-studio/js-util': 1.1.14
+      '@react-native-kakao/core': 3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
+      react: 19.3.0
+      react-native: 0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0)
 
   '@react-native-kakao/user@3.2.0(@react-native-kakao/core@3.2.0(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)':
     dependencies:
