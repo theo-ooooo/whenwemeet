@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecord } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
+import { snapshotName } from '../group-activities/activity.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { PushRepository } from '../push/push.repository.js';
 
@@ -55,6 +57,7 @@ export class MembershipsRepository {
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
     private readonly push: PushRepository,
+    private readonly activities: GroupActivitiesRepository,
   ) {}
 
   async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
@@ -128,7 +131,8 @@ export class MembershipsRepository {
 
   /**
    * 아직 멤버가 아니면 팀에서 쓰인 색을 보고 고른 색으로 멤버십 생성. 이미 멤버면 아무것도 하지 않는다.
-   * 새로 만들었으면 같은 트랜잭션에서 합류 알림을 예약하고 true (#188, D-91)
+   * 새로 만들었으면 같은 트랜잭션에서 합류 알림을 예약하고(#188, D-91) 새 소식에 합류를 남긴 뒤(#191) true.
+   * 멱등 재호출은 기록하지 않는다
    */
   async addMemberIfAbsentTx(userId: number, groupId: number, pickColor: (usedColors: string[]) => string): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
@@ -138,27 +142,40 @@ export class MembershipsRepository {
       });
       if (existing) return false;
       const used = await tx.membership.findMany({ where: { groupId }, select: { color: true } });
-      const created = await tx.membership.create({ data: { userId, groupId, color: pickColor(used.map((m) => m.color)) }, select: { id: true } });
+      const created = await tx.membership.create({
+        data: { userId, groupId, color: pickColor(used.map((m) => m.color)) },
+        select: { id: true, user: { select: { nickname: true } } },
+      });
       await this.push.scheduleJoinTx(tx, { id: created.id, groupId, userId }, new Date());
+      await this.activities.recordTx(tx, { groupId, type: 'MEMBER_JOINED', actor: { id: userId, name: snapshotName(null, created.user.nickname) } });
       return true;
     });
   }
 
   /** 팀 나가기. 멤버십 삭제 후 남은 멤버가 0 이면 팀 삭제 (Cascade). 팀이 삭제됐으면 true */
   leaveGroupTx(membershipId: number, groupId: number): Promise<boolean> {
-    return this.prisma.$transaction((tx) => this.removeWithGroupPrune(tx, membershipId, groupId));
+    return this.prisma.$transaction((tx) => this.removeWithGroupPrune(tx, membershipId, groupId, 'MEMBER_LEFT'));
   }
 
   /**
    * 멤버십 삭제 + 그 팀 일정의 참여자 행 삭제(#248, D-139) + 빈 팀 정리 한 단계. 탈퇴 트랜잭션도 같은 단계를 쓴다.
    * 참여자 정리는 일정 변경이 아니라 로그, 새 소식, 알림을 남기지 않는다. 행이 0 이 된 일정은 "참여자 없음".
-   * 멤버십을 먼저 지운다: 일정 저장은 멤버십을 공유 잠금으로 읽어 확인하므로(D-133) 이 순서여야 고아 행이 남지 않는다
+   * 멤버십을 먼저 지운다: 일정 저장은 멤버십을 공유 잠금으로 읽어 확인하므로(D-133) 이 순서여야 고아 행이 남지 않는다.
+   * (#191) 팀이 남으면 나가기(MEMBER_LEFT) 또는 탈퇴(MEMBER_DELETED)를 지운 멤버십의 표시 이름 스냅샷으로 남긴다.
+   * 팀이 지워지면 볼 사람이 없어 남기지 않는다
    */
-  async removeWithGroupPrune(db: Db, membershipId: number, groupId: number): Promise<boolean> {
-    const { userId } = await db.membership.delete({ where: { id: membershipId }, select: { userId: true } });
+  async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
+    const removed = await db.membership.delete({
+      where: { id: membershipId },
+      select: { userId: true, displayName: true, user: { select: { nickname: true } } },
+    });
+    const { userId } = removed;
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
     const remaining = await db.membership.count({ where: { groupId } });
-    if (remaining > 0) return false;
+    if (remaining > 0) {
+      await this.activities.recordTx(db, { groupId, type: activity, actor: { id: userId, name: snapshotName(removed.displayName, removed.user.nickname) } });
+      return false;
+    }
     await db.group.delete({ where: { id: groupId } });
     return true;
   }

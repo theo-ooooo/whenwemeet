@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import { snapshotName } from '../group-activities/activity.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
@@ -29,16 +31,19 @@ export class GroupsService {
     private readonly eventLogs: EventLogsRepository,
     private readonly memberships: MembershipService,
     private readonly pushScheduler: PushScheduler,
+    private readonly activities: GroupActivitiesRepository,
   ) {}
 
-  /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 count (결정기록 D-23) */
+  /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 일정 기록 + 팀 활동 기록 count (결정기록 D-23, D-154) */
   async list(userId: number): Promise<GroupSummary[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
     rows.sort((a, b) => Number(b.group.type === 'PERSONAL') - Number(a.group.type === 'PERSONAL'));
 
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
-      const unreadNewsCount = await this.eventLogs.countUnseenByOthers(row.group.id, row.lastSeenAt, userId);
+      const unreadNewsCount =
+        (await this.eventLogs.countUnseenByOthers(row.group.id, row.lastSeenAt, userId)) +
+        (await this.activities.countUnseenByOthers(row.group.id, row.lastSeenAt, userId));
       summaries.push({
         id: row.group.id,
         type: row.group.type,
@@ -72,9 +77,10 @@ export class GroupsService {
     return this.memberships.groupDetail(groupId, userId);
   }
 
+  /** 이름 변경. 실제로 바뀌면 새 소식에 남는다 (#191) */
   async rename(userId: number, groupId: number, name: string): Promise<GroupDetail> {
-    await this.memberships.assertMember(userId, groupId);
-    await this.groupsRepo.rename(groupId, name);
+    const me = await this.memberships.assertMember(userId, groupId);
+    await this.groupsRepo.renameWithActivityTx(groupId, name, { id: userId, name: snapshotName(me.displayName, me.user.nickname) });
     return this.memberships.groupDetail(groupId, userId);
   }
 

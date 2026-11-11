@@ -1,4 +1,5 @@
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { GroupsRepository } from './groups.repository.js';
@@ -66,6 +67,7 @@ describe('GroupsService', () => {
   let groupsRepo: RepositoryMock<GroupsRepository>;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let eventLogs: RepositoryMock<EventLogsRepository>;
+  let activities: RepositoryMock<GroupActivitiesRepository>;
   let pushScheduler: { kick: ReturnType<typeof vi.fn> };
   let service: GroupsService;
 
@@ -73,9 +75,11 @@ describe('GroupsService', () => {
     groupsRepo = mockRepository(GroupsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     eventLogs = mockRepository(EventLogsRepository);
+    activities = mockRepository(GroupActivitiesRepository);
+    activities.countUnseenByOthers.mockResolvedValue(0);
     const memberships = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
     pushScheduler = { kick: vi.fn() };
-    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never);
+    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never, activities as never);
   });
 
   it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
@@ -89,6 +93,17 @@ describe('GroupsService', () => {
     expect(list[0]).toEqual({ id: 21, type: 'PERSONAL', name: '내 달력', memberCount: 1, me: { color: '#2', displayName: '나' }, unreadNewsCount: 0 });
     expect(list[1].unreadNewsCount).toBe(4);
     expect(eventLogs.countUnseenByOthers).toHaveBeenLastCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
+  });
+
+  it('list: unreadNewsCount 는 일정 기록 + 팀 활동 기록 (#191, D-154)', async () => {
+    membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
+    ]);
+    eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
+    activities.countUnseenByOthers.mockResolvedValueOnce(3);
+    const [team] = await service.list(1);
+    expect(team.unreadNewsCount).toBe(5);
+    expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
   });
 
   it('create: TEAM + 초대 코드 + 첫 멤버, 코드 충돌(P2002) 이면 재시도', async () => {
@@ -113,13 +128,14 @@ describe('GroupsService', () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(null);
     await expect(service.detail(1, 10)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.rename(1, 10, '새')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(groupsRepo.rename).not.toHaveBeenCalled();
+    expect(groupsRepo.renameWithActivityTx).not.toHaveBeenCalled();
 
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     groupsRepo.findById.mockResolvedValue({ ...GROUP, name: '새' });
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     expect((await service.rename(1, 10, '새')).name).toBe('새');
-    expect(groupsRepo.rename).toHaveBeenCalledWith(10, '새');
+    // (#191) 기록할 사람 이름은 팀 표시 이름 ?? 닉네임 스냅샷. 같은 이름이면 기록 안 함은 Repository 가 판단 (e2e)
+    expect(groupsRepo.renameWithActivityTx).toHaveBeenCalledWith(10, '새', { id: 1, name: '앨리스' });
     expect((await service.detail(1, 10)).id).toBe(10);
   });
 

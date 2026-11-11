@@ -62,6 +62,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.pushDevice.deleteMany();
   await prisma.schedulerLease.deleteMany();
   await prisma.schedulerLease.create({ data: { name: 'push', leaseUntil: new Date(0) } });
+  await prisma.groupActivity.deleteMany();
   await prisma.eventLog.deleteMany();
   await prisma.event.deleteMany();
   await prisma.anniversary.deleteMany();

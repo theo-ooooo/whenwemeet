@@ -3,6 +3,14 @@ import type { AnniversaryKind } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import type { AnniversaryReminderFlags } from './anniversary-reminders.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
+import {
+  type ActivityActor,
+  ANNIVERSARY_UNDO_WINDOW_MS,
+  anniversaryUpdatedPayload,
+  type AnniversaryValues,
+  isSameAnniversary,
+} from '../group-activities/activity.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export const ANNIVERSARY_SELECT = {
@@ -55,6 +63,7 @@ export class AnniversariesRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
+    private readonly activities: GroupActivitiesRepository,
   ) {}
 
   /** date 오름차순, 같은 날은 만든 순 */
@@ -72,15 +81,47 @@ export class AnniversariesRepository {
     return this.prisma.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true } });
   }
 
-  async create(data: AnniversaryCreateInput): Promise<AnniversaryRow> {
-    return toAnniversaryRow(await this.prisma.anniversary.create({ data, select: ANNIVERSARY_SELECT }), this.urls);
+  /**
+   * 기념일 추가 + 새 소식 기록 (#191) 한 트랜잭션.
+   * 같은 사람이 60초 안에 지운 기념일을 같은 이름, 날짜, 종류로 다시 추가하면(되돌리기 토스트) 그 삭제 기록을 지우고
+   * 추가 기록을 남기지 않는다 (D-153)
+   */
+  async createWithActivityTx(data: AnniversaryCreateInput, actor: ActivityActor, now: Date = new Date()): Promise<AnniversaryRow> {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.anniversary.create({ data, select: ANNIVERSARY_SELECT });
+      const values = valuesOf(created);
+      const since = new Date(now.getTime() - ANNIVERSARY_UNDO_WINDOW_MS);
+      const deletions = await this.activities.listAnniversaryDeletionsTx(tx, data.groupId, actor.id, since);
+      const undone = deletions.find((deletion) => isSameAnniversary(deletion.payload, values));
+      if (undone) await this.activities.deleteTx(tx, undone.id);
+      else await this.activities.recordTx(tx, { groupId: data.groupId, type: 'ANNIVERSARY_CREATED', actor, anniversaryId: created.id, payload: values });
+      return created;
+    });
+    return toAnniversaryRow(row, this.urls);
   }
 
-  async update(anniversaryId: number, data: AnniversaryUpdateInput): Promise<AnniversaryRow> {
-    return toAnniversaryRow(await this.prisma.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT }), this.urls);
+  /** 기념일 수정 + 이름, 날짜, 종류가 실제로 바뀐 경우만 새 소식 기록 (#191) 한 트랜잭션 */
+  async updateWithActivityTx(anniversaryId: number, data: AnniversaryUpdateInput, actor: ActivityActor): Promise<AnniversaryRow> {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const before = await tx.anniversary.findUniqueOrThrow({ where: { id: anniversaryId }, select: { name: true, date: true, kind: true } });
+      const updated = await tx.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT });
+      const payload = anniversaryUpdatedPayload(valuesOf(before), valuesOf(updated));
+      if (payload) await this.activities.recordTx(tx, { groupId: updated.groupId, type: 'ANNIVERSARY_UPDATED', actor, anniversaryId, payload });
+      return updated;
+    });
+    return toAnniversaryRow(row, this.urls);
   }
 
-  async delete(anniversaryId: number): Promise<void> {
-    await this.prisma.anniversary.delete({ where: { id: anniversaryId } });
+  /** 기념일 삭제 + 삭제 전 값으로 새 소식 기록 (#191) 한 트랜잭션. 기록의 anniversaryId 는 비운다 */
+  async deleteWithActivityTx(anniversaryId: number, actor: ActivityActor): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const removed = await tx.anniversary.delete({ where: { id: anniversaryId }, select: { groupId: true, name: true, date: true, kind: true } });
+      await this.activities.recordTx(tx, { groupId: removed.groupId, type: 'ANNIVERSARY_DELETED', actor, anniversaryId: null, payload: valuesOf(removed) });
+    });
   }
+}
+
+/** 새 소식 기록용 값. 날짜는 'YYYY-MM-DD' (@db.Date 는 UTC 자정) */
+function valuesOf(row: { name: string; date: Date; kind: AnniversaryKind }): AnniversaryValues {
+  return { name: row.name, date: row.date.toISOString().slice(0, 10), kind: row.kind };
 }
