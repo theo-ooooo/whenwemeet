@@ -71,3 +71,31 @@ describe("shareContent", () => {
     expect(shareContent({ url: msg.url }, "android")).toEqual({ message: msg.url });
   });
 });
+
+describe("parseBridgeMessage 푸시 (#188, 푸시-알림.md 2-2)", () => {
+  it("pushStatus, pushRequest: id 1~40자", () => {
+    expect(p({ v: 1, type: "pushStatus", id: "a1" })).toEqual({ v: 1, type: "pushStatus", id: "a1" });
+    expect(p({ v: 1, type: "pushRequest", id: "x".repeat(40), extra: 1 })).toEqual({
+      v: 1,
+      type: "pushRequest",
+      id: "x".repeat(40),
+    });
+  });
+
+  it("잘못된 id 는 버린다 (없음, 빈 문자열, 41자, 숫자, 제어문자, 줄 구분자)", () => {
+    for (const id of [undefined, "", "x".repeat(41), 7, "a\nb", "a\u2028b"]) {
+      expect(p({ v: 1, type: "pushStatus", id })).toBeNull();
+      expect(p({ v: 1, type: "pushRequest", id })).toBeNull();
+    }
+  });
+
+  it("openSettings", () => {
+    expect(p({ v: 1, type: "openSettings" })).toEqual({ v: 1, type: "openSettings" });
+  });
+
+  it("다른 출처, 다른 버전은 버린다", () => {
+    expect(p({ v: 1, type: "pushStatus", id: "a" }, "https://evil.com/")).toBeNull();
+    expect(p({ v: 1, type: "openSettings" }, "https://whenwemeet.day.evil.com/")).toBeNull();
+    expect(p({ v: 2, type: "pushRequest", id: "a" })).toBeNull();
+  });
+});

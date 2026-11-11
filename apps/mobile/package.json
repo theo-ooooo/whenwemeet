@@ -1,6 +1,6 @@
 {
   "name": "@whenwemeet/mobile",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -25,6 +25,7 @@
     "expo-haptics": "~58.0.7",
     "expo-linking": "~58.0.16",
     "expo-network": "~58.0.4",
+    "expo-notifications": "~58.1.8",
     "expo-splash-screen": "~58.0.13",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.7",

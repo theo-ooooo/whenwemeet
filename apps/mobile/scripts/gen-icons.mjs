@@ -45,3 +45,21 @@ await out("adaptive-icon.png", canvas({ ratio: 0.6 }));
 await out("adaptive-icon-monochrome.png", canvas({ ratio: 0.6, mono: true }));
 // 스플래시 심볼 (배경색은 app.config.ts 의 splash 설정)
 await out("splash-icon.png", canvas({ ratio: 1 }));
+
+// Android 상태 표시줄 알림 아이콘 (#188, 푸시-알림.md 9장): 96×96 흰 단색, 투명 배경.
+// 시스템이 알파만 쓰므로 두 사각형은 흰색 하나로 합쳐지고, 가운데 점은 마스크로 뚫어 심볼임을 알아보게 한다
+{
+  const shapes = SYMBOL.replace(/fill="#[0-9A-Fa-f]{6}"/g, 'fill="#FFFFFF"').replace(/<circle[^>]*\/>/, "");
+  const dot = /<circle[^>]*\/>/.exec(SYMBOL)?.[0].replace(/fill="#[0-9A-Fa-f]{6}"/, 'fill="#000000"') ?? "";
+  // 심볼 도형은 96 박스 중 8~88 을 쓴다. 상태 표시줄 아이콘 여백(약 4px)만 남기고 꽉 채운다
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="4 4 88 88">` +
+      `<mask id="hole"><rect x="0" y="0" width="96" height="96" fill="#FFFFFF"/>${dot}</mask>` +
+      `<g mask="url(#hole)">${shapes}</g></svg>`,
+  );
+  await sharp(svg, { density: 72 * 4 })
+    .resize(96, 96)
+    .png({ compressionLevel: 9 })
+    .toFile(path.join(ASSETS, "notification-icon.png"));
+  console.log("wrote notification-icon.png");
+}

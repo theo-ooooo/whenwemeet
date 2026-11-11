@@ -1,4 +1,4 @@
-// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
+// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53, 푸시-알림.md 2-2). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
 // 목록에 없는 type, v 불일치, 출처가 웹 오리진이 아닌 메시지는 버린다. RN 을 import 하지 않는다.
 import { isWebOrigin, safeNext } from "../links/urls";
 
@@ -11,7 +11,18 @@ export type BridgeMessage =
   | { v: 1; type: "logout" }
   | { v: 1; type: "accountDeleted" }
   | { v: 1; type: "share"; url: string; text?: string; title?: string }
-  | { v: 1; type: "haptic"; kind: HapticKind };
+  | { v: 1; type: "haptic"; kind: HapticKind }
+  // (#188) 푸시. 응답은 셸 → 웹 wwm:app 이벤트 (reply.ts)
+  | { v: 1; type: "pushStatus"; id: string }
+  | { v: 1; type: "pushRequest"; id: string }
+  | { v: 1; type: "openSettings" };
+
+/** 응답 짝짓기용 id (1~40자, 제어문자 없음). 아니면 null */
+function requestId(v: unknown): string | null {
+  if (typeof v !== "string" || v.length < 1 || v.length > 40) return null;
+  if (/[\u0000-\u001f\u007f\u2028\u2029]/.test(v)) return null;
+  return v;
+}
 
 const HAPTIC_KINDS: readonly HapticKind[] = ["success", "light", "error"];
 
@@ -64,6 +75,14 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
     case "haptic":
       if (typeof o.kind !== "string" || !HAPTIC_KINDS.includes(o.kind as HapticKind)) return null;
       return { v: 1, type: "haptic", kind: o.kind as HapticKind };
+    case "pushStatus":
+    case "pushRequest": {
+      const id = requestId(o.id);
+      if (id === null) return null;
+      return { v: 1, type: o.type, id };
+    }
+    case "openSettings":
+      return { v: 1, type: "openSettings" };
     default:
       return null;
   }
