@@ -1,11 +1,37 @@
-import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches, MaxLength, Validate } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  Validate,
+  ValidateIf,
+  type ValidationArguments,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
+} from 'class-validator';
 import { IsIsoDateTime, Trim } from '../../common/validation.js';
 import { CalendarDateConstraint } from '../../anniversaries/dto/anniversary.dto.js';
 import { EVENT_REMINDERS, type EventReminder } from '../../push/remind-at.js';
+import { type ParticipantsInput, participantsProblem } from '../participants.js';
 import { REPEATS, type Repeat } from '../recurrence.js';
 
 const REPEAT_MESSAGE = `repeat 는 ${REPEATS.join(', ')} 중 하나여야 해요`;
 const REMINDER_MESSAGE = `reminder 는 ${EVENT_REMINDERS.join(', ')} 중 하나여야 해요`;
+
+/** (#248) participants: 'ALL' 또는 양의 정수 1~50개 배열 (설계 3-2). null 도 형식 오류 */
+@ValidatorConstraint({ name: 'participants', async: false })
+export class ParticipantsConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return participantsProblem(value) === null;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    return participantsProblem(args.value) ?? '';
+  }
+}
 
 export class EventInputDto {
   @Trim()
@@ -42,6 +68,11 @@ export class EventInputDto {
   @IsOptional()
   @IsIn(EVENT_REMINDERS, { message: REMINDER_MESSAGE })
   reminder?: EventReminder;
+
+  /** (#248) 참여자 (설계 3-2). 생성에서 생략하면 [요청자], 수정에서 생략하면 그대로. 멤버 여부는 저장 트랜잭션 안에서 */
+  @ValidateIf((_object, value) => value !== undefined)
+  @Validate(ParticipantsConstraint)
+  participants?: ParticipantsInput;
 }
 
 export class EventPatchDto {
@@ -83,6 +114,11 @@ export class EventPatchDto {
   @IsOptional()
   @IsIn(EVENT_REMINDERS, { message: REMINDER_MESSAGE })
   reminder?: EventReminder;
+
+  /** (#248) 참여자 (설계 3-2). 생성에서 생략하면 [요청자], 수정에서 생략하면 그대로. 멤버 여부는 저장 트랜잭션 안에서 */
+  @ValidateIf((_object, value) => value !== undefined)
+  @Validate(ParticipantsConstraint)
+  participants?: ParticipantsInput;
 }
 
 export class EventRangeQueryDto {

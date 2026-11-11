@@ -58,7 +58,13 @@ export class PushDispatcher {
         stats.skipped += await this.push.markSkipped([row.id]);
         continue;
       }
-      const recipients = await this.push.listRecipients(row.groupId, row.kind, row.kind === 'CHANGE' || row.kind === 'JOIN' ? row.actorId : null);
+      // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138)
+      const recipients = await this.push.listRecipients(
+        row.groupId,
+        row.kind,
+        row.kind === 'CHANGE' || row.kind === 'JOIN' ? row.actorId : null,
+        row.kind === 'REMINDER' ? row.eventId : null,
+      );
       if (await this.push.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
         stats.dispatched += 1;
         stats.deliveries += recipients.length;

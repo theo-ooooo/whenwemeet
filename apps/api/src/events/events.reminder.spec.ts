@@ -27,6 +27,8 @@ const ONCE: EventRow = {
   reminder: 'HOUR_1',
   reminderSetAt: SET_AT,
   creator: { nickname: '앨리스', profileImageUrl: null },
+  allMembers: true,
+  participantIds: [] as number[],
 };
 /** 2026-11-11(수) 19:00~21:00 KST 매주, 1시간 전 */
 const SERIES: EventRow = { ...ONCE, id: 200, startsAt: kst('2026-11-11T19:00:00'), endsAt: kst('2026-11-11T21:00:00'), repeat: 'WEEKLY' };

@@ -149,9 +149,14 @@ export class MembershipsRepository {
     return this.prisma.$transaction((tx) => this.removeWithGroupPrune(tx, membershipId, groupId));
   }
 
-  /** 멤버십 삭제 + 빈 팀 정리 한 단계. 탈퇴 트랜잭션도 같은 단계를 쓴다 */
+  /**
+   * 멤버십 삭제 + 그 팀 일정의 참여자 행 삭제(#248, D-139) + 빈 팀 정리 한 단계. 탈퇴 트랜잭션도 같은 단계를 쓴다.
+   * 참여자 정리는 일정 변경이 아니라 로그, 새 소식, 알림을 남기지 않는다. 행이 0 이 된 일정은 "참여자 없음".
+   * 멤버십을 먼저 지운다: 일정 저장은 멤버십을 공유 잠금으로 읽어 확인하므로(D-133) 이 순서여야 고아 행이 남지 않는다
+   */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number): Promise<boolean> {
-    await db.membership.delete({ where: { id: membershipId } });
+    const { userId } = await db.membership.delete({ where: { id: membershipId }, select: { userId: true } });
+    await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
     const remaining = await db.membership.count({ where: { groupId } });
     if (remaining > 0) return false;
     await db.group.delete({ where: { id: groupId } });

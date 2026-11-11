@@ -18,6 +18,7 @@ import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
+import { DotCluster, useWho } from "@/components/Participants";
 import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
@@ -32,14 +33,13 @@ import {
   withSelection,
   type StepTarget,
 } from "@/lib/calendar-url";
-import { memberColor } from "@/lib/colors";
 import {
   occurrenceCellText,
   occurrencesByDay,
   occurrenceTitle,
   type Occurrence,
 } from "@/lib/anniversary";
-import { anniversariesOn, dayBadge, groupByDay, isMultiDayAllDay, nearestAnniversary, upcomingEvents } from "@/lib/day-detail";
+import { anniversariesOn, dayBadge, groupByDay, isMultiDay, nearestAnniversary, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences, shiftWeek } from "@/lib/day-view";
 import {
   addDays,
@@ -56,10 +56,12 @@ import {
   WEEKDAYS,
   type DateKey,
 } from "@/lib/date";
-import { cellMarks } from "@/lib/calendar-cell";
+import { cellDensity } from "@/lib/calendar-cell";
+import { fitWeek, packWeek, phoneDayLanes, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
+import { barColors, chipColor, participantColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
@@ -90,6 +92,7 @@ export function CalendarScreen({ groupId }: Props) {
   const wide = layout !== "phone";
   const { group, groups, eventsChanged } = useGroupContext();
   const together = togetherHintOf(group, groups);
+  const who = useWho();
   const today = todayKey();
   // 처음 값은 서버 props 가 아니라 지금 주소에서 읽는다 (#81). 뒤로가기는 Next 가 캐시해 둔 처음 렌더(쿼리 없는 주소)를
   // 다시 쓰므로 서버가 넘긴 날짜는 오늘로 돌아가지만, useSearchParams 는 replaceState 로 바꿔 둔 주소를 돌려준다
@@ -235,6 +238,15 @@ export function CalendarScreen({ groupId }: Props) {
   }
 
   const byDay = useMemo(() => groupByDay(events ?? []), [events]);
+  // 주마다 여러 날 일정 막대 레인 (#202). 넓은 화면은 칸 높이별(칩 2줄 tall, 3줄 taller) 로 자리를 맞춰 둔다
+  const weeks = useMemo(() => {
+    const out: { packed: PackedWeek<Event>; fit2: ReturnType<typeof fitWeek<Event>>; fit3: ReturnType<typeof fitWeek<Event>> }[] = [];
+    for (let i = 0; i < grid.length; i += 7) {
+      const packed = packWeek(grid.slice(i, i + 7), byDay, isMultiDay);
+      out.push({ packed, fit2: fitWeek(packed, 2), fit3: fitWeek(packed, 3) });
+    }
+    return out;
+  }, [grid, byDay]);
   const upcomingList = useMemo(
     () => (upcomingQ.data ? upcomingEvents(upcomingQ.data, nowMs(), 10) : null),
     [upcomingQ.data],
@@ -494,14 +506,15 @@ export function CalendarScreen({ groupId }: Props) {
                 <button
                   type="button"
                   onClick={() => openDay(k, ev)}
-                  aria-label={`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
+                  aria-label={withWho(`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
                   className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
                 >
                   <span aria-hidden="true" className="flex h-4 w-full items-center">
                     <small className={`text-[12px] font-semibold leading-4 ${isToday ? "text-today-ink" : "text-ink-2"}`}>
                       {isToday ? "오늘" : formatDateKo(k)}
                     </small>
-                    <i className="ml-auto block size-2 shrink-0 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
+                    {/* 참여자 점 최대 3 (간격 3) + 넘치면 "+". 참여자 없음은 회색 점 1 (#248 7-2) */}
+                    <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
                   </span>
                   <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
                     {ev.title}
@@ -592,9 +605,10 @@ export function CalendarScreen({ groupId }: Props) {
 
   /* ---------- 넓은 화면 요약 카드 (디자인규칙.md 2-2, 5: 3열 × 84, 라벨 13 --mute / 값 20/700) ---------- */
 
-  const sumCard = "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left";
-  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2";
-  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em]";
+  const sumCard =
+    "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left max-[711px]:h-12 max-[711px]:flex-row max-[711px]:items-center max-[711px]:gap-3 max-[711px]:py-0";
+  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2 max-[711px]:shrink-0";
+  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em] max-[711px]:text-[17px]";
   const freeCard =
     todayFreeQ.error && todayFree === undefined ? (
       <button type="button" onClick={() => void todayFreeQ.refetch()} className={`${sumCard} hover:bg-hover`}>
@@ -712,9 +726,11 @@ export function CalendarScreen({ groupId }: Props) {
             <IconChevronRight size={18} />
           </button>
         </div>
-        {/* 넓은 화면 제목줄 44: "2026년 11월" 28/700, 오늘 알약, ‹ ›, 오른쪽 주 버튼 "일정 추가" (FAB 대신, 디자인규칙.md 2-2) */}
-        <div className="hidden h-11 shrink-0 items-center gap-2 fold:flex">
-          <h1 className="mr-2 shrink-0 whitespace-nowrap text-[28px] font-bold leading-9 tracking-[-0.02em]">
+        {/* 넓은 화면 제목줄 44: "2026년 11월" 28/700, 오늘 알약, ‹ ›, 오른쪽 주 버튼 "일정 추가" (FAB 대신, 디자인규칙.md 2-2).
+            본문이 좁은 폭(<712, 사이드바 264 + 여백 64 를 빼면 384 미만. 아이폰 듀오 펼침 세로 669, 폴드 세로) 에서는
+            한 줄에 다 안 들어가 가로 스크롤이 생겼다. 제목만 첫 줄, 둘째 줄에 오늘 ‹ › 와 "+ 추가" */}
+        <div className="hidden shrink-0 flex-wrap items-center gap-2 fold:flex min-[712px]:h-11">
+          <h1 className="mr-2 shrink-0 whitespace-nowrap text-[28px] font-bold leading-9 tracking-[-0.02em] max-[711px]:basis-full">
             {y}년 {m}월
           </h1>
           <button type="button" onClick={goToday} className="hit h-8 shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 text-[13px] font-bold hover:bg-hover">
@@ -730,15 +746,19 @@ export function CalendarScreen({ groupId }: Props) {
           <span className="flex-1" />
           <Link
             href={newHref}
-            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-btn px-4 text-[14px] font-bold text-on-btn hover:brightness-95"
+            aria-label="일정 추가"
+            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-btn px-4 text-[14px] font-bold text-on-btn hover:brightness-95 max-[711px]:px-3"
           >
             <IconPlus size={18} strokeWidth={2.2} />
-            일정 추가
+            <span>
+              <span className="max-[711px]:hidden">일정 </span>추가
+            </span>
           </Link>
         </div>
 
-        {/* 넓은 화면 요약 카드 3열, 간격 12 */}
-        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid">
+        {/* 넓은 화면 요약 카드 3열, 간격 12. 좁은 폭(<712) 은 3열이면 카드가 85px 남짓이라 값이 잘린다 →
+            한 줄 카드(높이 48, 왼쪽 라벨, 오른쪽 값) 3장을 세로로 */}
+        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid max-[711px]:mt-3 max-[711px]:grid-cols-1 max-[711px]:gap-2">
           {freeCard}
           {annCard}
           {weekCard}
@@ -753,28 +773,57 @@ export function CalendarScreen({ groupId }: Props) {
               </span>
             ))}
           </div>
-          {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
-          <ul
-            ref={swipeRef}
-            aria-label={`${y}년 ${m}월 날짜`}
-            className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
-          >
-            {grid.map((key) => (
-              <DayCell
-                key={key}
-                dateKey={key}
-                inMonth={parseKey(key).m === m}
-                isToday={key === today}
-                isSelected={key === selected}
-                isAnchor={wide && visible && urlStep.date === key}
-                events={byDay.get(key) ?? []}
-                anniversaries={annByDay.get(key) ?? []}
-                loading={events === null}
-                onPick={() => onCell(key)}
-                onOpen={(ev) => openDay(key, ev)}
-              />
-            ))}
-          </ul>
+          {/* 날짜 칸 격자 위에 같은 줄 격자로 주마다 여러 날 일정 막대를 겹쳐 그린다 (#202, 넓은 화면) */}
+          <div className="relative fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
+            {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
+            <ul
+              ref={swipeRef}
+              aria-label={`${y}년 ${m}월 날짜`}
+              className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
+            >
+              {grid.map((key, i) => {
+                const w = weeks[Math.floor(i / 7)];
+                const col = i % 7;
+                return (
+                  <DayCell
+                    key={key}
+                    dateKey={key}
+                    inMonth={parseKey(key).m === m}
+                    isToday={key === today}
+                    isSelected={key === selected}
+                    isAnchor={wide && visible && urlStep.date === key}
+                    events={byDay.get(key) ?? []}
+                    anniversaries={annByDay.get(key) ?? []}
+                    week={w.packed}
+                    col={col}
+                    fit2={w.fit2.days[col]}
+                    fit3={w.fit3.days[col]}
+                    loading={events === null}
+                    onPick={() => onCell(key)}
+                    onOpen={(ev) => openDay(key, ev)}
+                  />
+                );
+              })}
+            </ul>
+            {events !== null && (
+              <div
+                className="pointer-events-none absolute inset-0 hidden grid-cols-7 fold:grid"
+                style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+              >
+                {weeks.map((w, r) => (
+                  // 칸(li) 과 같은 높이, 같은 위 1px 테두리라야 tall/taller 가 칸과 똑같이 갈린다
+                  <div key={w.packed.days[0]} className="relative border-t border-transparent [container-type:size]" style={{ gridRow: r + 1, gridColumn: "1 / -1" }}>
+                    {w.fit2.pieces.map((p) => (
+                      <WeekBar key={`2@${p.key}@${p.col}`} piece={p} className="hidden tall:flex taller:hidden" onOpen={() => openDay(w.packed.days[p.col], p.event)} />
+                    ))}
+                    {w.fit3.pieces.map((p) => (
+                      <WeekBar key={`3@${p.key}@${p.col}`} piece={p} className="hidden taller:flex" onOpen={() => openDay(w.packed.days[p.col], p.event)} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* phone: 다가오는 일정, 기념일 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
@@ -823,9 +872,51 @@ export function CalendarScreen({ groupId }: Props) {
 
 /* ---------- 날짜 칸 ---------- */
 
+// 칩, 막대 한 줄 = 위 여백 2 + 높이 18
+const ROW_PX = 20;
+// 칸 위 1px 테두리 다음부터 첫 줄까지: 위 여백 4 + 숫자 줄 24 + 줄 위 여백 2
+const FIRST_ROW_TOP = 30;
+
+/**
+ * 넓은 화면 여러 날 일정 막대 (#202). 한 주 줄 위에 걸친 칸만큼 한 줄로. 모양은 칩과 같다
+ * (11/500, 높이 18, 모서리 5, 옅은 멤버 색 면 + 진한 글자). 진짜 시작, 끝만 둥글고 칸 안쪽 4px 에서 시작한다.
+ * 앞 주에서 이어지거나 다음 주로 넘어가는 쪽은 칸 끝까지 각지게 붙인다. 제목은 조각마다 한 번
+ */
+function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; className: string; onOpen: () => void }) {
+  const ev = piece.event;
+  const who = useWho();
+  // 글자가 있는 막대라 칩 규칙 (#248 D-141): 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음
+  const cluster = participantColors(ev).length >= 2;
+  const l = piece.roundStart ? 4 : 0;
+  const r = piece.roundEnd ? 4 : 0;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+      className={`pointer-events-auto absolute h-[18px] items-center gap-1 overflow-hidden px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
+        piece.roundStart ? "rounded-l-[5px]" : ""
+      } ${piece.roundEnd ? "rounded-r-[5px]" : ""} ${className}`}
+      style={{
+        top: FIRST_ROW_TOP + piece.lane * ROW_PX,
+        left: `calc(${piece.col} * 100% / 7 + ${l}px)`,
+        width: `calc(${piece.span} * 100% / 7 - ${l + r}px)`,
+        background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)`,
+      }}
+    >
+      {cluster && <DotCluster event={ev} />}
+      <span className="truncate">
+        {ev.title}
+        {!ev.allDay && piece.roundStart ? ` ${timeOf(ev.startsAt)}` : ""}
+      </span>
+    </button>
+  );
+}
+
 // 칸 모양은 칸 높이로 고른다 (폴더블.md 4-2): 넓은 화면에서 칸이 [container-type:size] 이고,
-// 높이 ≥84px 이면 tall: 로 멤버 색 칩 2개, ≥110px 이면 taller: 로 3개 (디자인규칙.md 2-2: 11/500, 높이 18, 모서리 5, 옅은 멤버 색 면 + 진한 글자).
-// 그보다 낮으면(폰, 아이폰 듀오 가로) 점 + 제목 한 줄
+// 높이 ≥84px 이면 tall: 로 2줄, ≥110px 이면 taller: 로 3줄. 줄은 위에서부터 여러 날 막대 레인(WeekBar 가 겹쳐 그림, 칸은 자리만) →
+// 한 날 일정 칩(디자인규칙.md 2-2) → 넘치면 "+N개 더". 그보다 낮으면(폰, 아이폰 듀오 가로) 4px 막대 + 점 + 제목 한 줄
 function DayCell({
   dateKey,
   inMonth,
@@ -834,6 +925,10 @@ function DayCell({
   isAnchor,
   events,
   anniversaries,
+  week,
+  col,
+  fit2,
+  fit3,
   loading,
   onPick,
   onOpen,
@@ -847,10 +942,18 @@ function DayCell({
   events: Event[];
   /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
   anniversaries: Occurrence[];
+  /** 이 칸이 든 주의 막대 레인 (#202) */
+  week: PackedWeek<Event>;
+  /** 주 안 칸 (0=일) */
+  col: number;
+  /** 칩 2줄(tall), 3줄(taller) 일 때 이 칸의 칩 자리 */
+  fit2: DayFit<Event>;
+  fit3: DayFit<Event>;
   loading: boolean;
   onPick: () => void;
   onOpen: (ev: Event) => void;
 }) {
+  const who = useWho();
   const p = parseKey(dateKey);
   const dow = dowOf(dateKey);
   const holiday = holidayOf(dateKey);
@@ -874,20 +977,21 @@ function DayCell({
   const annLabel = anniversaries.length ? `, 기념일 ${anniversaries.map(occurrenceTitle).join(", ")}` : "";
   const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
 
-  // 점 모양: 여러 날 종일 일정은 칸을 잇는 4px 막대, 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목
-  // 일정 하나에 점 하나(최대 3) + 넘치면 "+N" (#139)
-  const { band, density } = cellMarks(events, isMultiDayAllDay);
-  const bandStart = band ? dateKeyOf(band.startsAt) === dateKey : false;
-  const bandEnd = band ? addDays(dateKeyOf(band.endsAt), -1) === dateKey : false;
-  const rest = events.filter((e) => e !== band);
+  // 점 모양: 여러 날 일정은 칸을 잇는 4px 막대(주 단위 레인, 최대 2줄), 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목.
+  // 기념일/공휴일 줄이 있으면 막대는 1줄. 레인이 모자란 막대 일정은 그날 점으로 (QA3-M2). 일정 하나에 점 하나 + 넘치면 "+N" (#139)
+  const lined = Boolean(annText || holidayText);
+  const phone = phoneDayLanes(week, col, lined ? 1 : 2);
+  const singles = week.singles[col];
+  const density = cellDensity([...phone.overflow, ...singles]);
+  const hasBar = phone.lanes.length > 0;
   // 숫자 아래 기념일/공휴일 줄 + 막대 + 점이면 칸 높이가 모자란다
-  const crowded = Boolean(band) && Boolean(annText || holidayText);
-  const labelEvent = band && (bandStart || dow === 0) ? band : (rest.find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null);
-  // 칩 모양: tall 2자리, taller 3자리 (기념일 줄이 있으면 첫 자리를 쓴다). 넘치면 "+N개 더" 를 칸 높이별로 따로 센다
-  const slots = ann ? 1 : 2;
-  const chips = events.slice(0, slots + 1);
-  const moreTall = events.length - Math.min(events.length, slots);
-  const moreTaller = events.length - chips.length;
+  const crowded = hasBar && lined;
+  const barHere = phone.lanes.find((s) => s !== null && s.col === col)?.event;
+  const labelEvent = barHere ?? [...phone.overflow, ...singles].find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null;
+  // 칩 모양: 막대 레인 아래 한 날 일정 칩. tall 2줄, taller 3줄. 넘치면 "+N개 더" 를 칸 높이별로 따로 센다 (month-lanes.ts)
+  const shown2 = fit2.chips.length;
+  const chips = singles.slice(0, Math.max(shown2, fit3.chips.length));
+  const rowsVar = { "--rows2": `${fit2.chipRow * ROW_PX}px`, "--rows3": `${fit3.chipRow * ROW_PX}px` } as React.CSSProperties;
 
   return (
     <li data-date={dateKey} className="relative h-[52px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
@@ -902,11 +1006,21 @@ function DayCell({
       />
       {isAnchor && <span aria-hidden="true" className="pointer-events-none absolute inset-px rounded-sm border-2 border-pri" />}
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
-        <span className="relative flex items-center tall:gap-1">
-          <span className={`anim-pick grid size-[26px] place-items-center rounded-full leading-none tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
+        <span className="relative flex max-w-full min-w-0 items-center tall:gap-1">
+          <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
           {holidayText && (
             <span aria-hidden="true" className={`hidden truncate text-[11px] font-medium tall:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}>
               {holidayText}
+            </span>
+          )}
+          {/* 기념일도 공휴일처럼 숫자 옆 한 줄 (#202): 칩 줄을 쓰면 주마다 막대 레인 높이가 칸마다 달라진다 */}
+          {annText && (
+            <span
+              aria-hidden="true"
+              className={`hidden min-w-0 items-center gap-0.5 text-[11px] font-semibold whitespace-nowrap text-acc-ink tall:flex ${inMonth ? "" : "opacity-60"}`}
+            >
+              <IconHeart size={11} className="shrink-0" />
+              <span className="truncate">{annText}</span>
             </span>
           )}
         </span>
@@ -934,22 +1048,31 @@ function DayCell({
         <span aria-hidden="true" className="relative block w-full tall:hidden">
           {loading ? null : (
             <>
-              {band && (
-                <span
-                  className={`mt-[3px] block h-1 opacity-85 ${bandStart ? "ml-1 rounded-l-[2px]" : "-ml-[3px]"} ${bandEnd ? "mr-1 rounded-r-[2px]" : "-mr-[3px]"}`}
-                  style={{ background: memberColor(band.creator.color) }}
-                />
-              )}
+              {phone.lanes.map((s, i) => {
+                const gap = i === 0 ? "mt-[3px]" : "mt-px";
+                if (!s) return <span key={`gap${i}`} className={`${gap} block h-1`} />;
+                const start = s.isStart && s.col === col;
+                const end = s.isEnd && s.col + s.span - 1 === col;
+                return (
+                  <span
+                    key={s.key}
+                    className={`${gap} block h-1 opacity-85 ${start ? "ml-1 rounded-l-[2px]" : "-ml-[3px]"} ${end ? "mr-1 rounded-r-[2px]" : "-mr-[3px]"}`}
+                    // 참여자 색을 칸마다 왼쪽에서 오른쪽으로 나눈다 (4px 두께 방향은 안 보인다, D-141)
+                    style={{ background: splitBackground(barColors(s.event), "to right") }}
+                  />
+                );
+              })}
               {/* 막대가 있는 날도 그날 다른 일정은 점으로 (QA3-M2). 보통은 막대 아래 한 줄,
                   기념일/공휴일 줄까지 있으면 칸(52)에 넷째 줄이 안 들어가 막대 위에 칸 색 테두리를 두른 점으로 겹친다 */}
               {density.dots.length > 0 && (
                 <span
-                  className={`${!band ? "mt-0.5" : crowded ? "absolute inset-x-0 top-[3px] h-1" : "mt-px"} flex ${crowded ? "" : "h-[7px]"} items-center justify-center gap-[3px]`}
+                  className={`${!hasBar ? "mt-0.5" : crowded ? "absolute inset-x-0 top-[3px] h-1" : "mt-px"} flex ${crowded ? "" : "h-[7px]"} items-center justify-center gap-[3px]`}
                 >
                   {density.dots.map((c, i) => (
-                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: memberColor(c) }} />
+                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: c }} />
                   ))}
-                  {density.more > 0 && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more}</b>}
+                  {/* +N = 점을 못 그린 일정 수, 숫자 없는 + = 참여자 점만 잘림 (#248 D-140) */}
+                  {(density.more > 0 || density.cut) && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more || ""}</b>}
                 </span>
               )}
               {/* 기념일, 공휴일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지).
@@ -959,37 +1082,32 @@ function DayCell({
           )}
         </span>
 
-        {/* 제목 칩 (색 점 + 제목 + 시간), 여러 날 종일은 멤버 색 16% 면. 누르면 그날 상세 → 일정 상세 */}
-        <span className="relative hidden tall:block">
-          {annText && (
-            <span
-              aria-hidden="true"
-              className={`mt-0.5 flex w-full items-center gap-1 overflow-hidden px-1 py-px text-[11px] font-semibold leading-4 whitespace-nowrap text-acc-ink ${inMonth ? "" : "opacity-60"}`}
-            >
-              <IconHeart size={11} className="shrink-0" />
-              <span className="truncate">{annText}</span>
-            </span>
-          )}
+        {/* 한 날 일정 칩 (제목 + 시간). 위는 여러 날 막대 레인 자리(막대는 WeekBar 가 주 줄 위에 그린다).
+            누르면 그날 상세 → 일정 상세 */}
+        <span className="relative hidden tall:block" style={rowsVar}>
+          <span aria-hidden="true" className="block h-[var(--rows2)] taller:h-[var(--rows3)]" />
           {chips.map((ev, i) => (
             <button
               key={eventKey(ev)}
               type="button"
               onClick={() => onOpen(ev)}
               aria-haspopup="dialog"
-              aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
-              className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
-                i < slots ? "flex" : "hidden taller:flex"
+              aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+              className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center gap-1 overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
+                i < shown2 ? "flex" : "hidden taller:flex"
               }`}
-              style={{ background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 18%, transparent)` }}
+              style={{ background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)` }}
             >
+              {/* 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음 (#248 7-2) */}
+              {participantColors(ev).length >= 2 && <DotCluster event={ev} />}
               <span className="truncate">
                 {ev.title}
                 {!ev.allDay && dateKeyOf(ev.startsAt) === dateKey ? ` ${timeOf(ev.startsAt)}` : ""}
               </span>
             </button>
           ))}
-          {moreTall > 0 && <span aria-hidden="true" className="mt-0.5 block px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden">+{moreTall}개 더</span>}
-          {moreTaller > 0 && <span aria-hidden="true" className="mt-0.5 hidden px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{moreTaller}개 더</span>}
+          {fit2.more > 0 && <span aria-hidden="true" className="mt-0.5 block truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden">+{fit2.more}<span className="@max-[60px]:hidden">개 더</span></span>}
+          {fit3.more > 0 && <span aria-hidden="true" className="mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{fit3.more}<span className="@max-[60px]:hidden">개 더</span></span>}
         </span>
       </div>
     </li>

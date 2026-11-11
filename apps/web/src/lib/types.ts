@@ -56,9 +56,12 @@ export type EventInput = {
   repeatUntil?: string | null;
   /** (#188) 생략 = NONE. "이 일정만" 이면 그 회차에, "이후 모두" 면 (새) 원본에 저장 */
   reminder?: EventReminder;
+  /** (#248) "ALL" = 모두(나중 합류자 포함), 배열 = 멤버 userId. 생성에서 생략 = [나], 수정에서 생략 = 그대로.
+   *  "이 일정만" 수정에는 싣지 않는다 (서버 400) */
+  participants?: "ALL" | number[];
 };
 
-export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder"> & {
+export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "participants"> & {
   id: number;
   groupId: number;
   creator: Member;
@@ -74,6 +77,9 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder"> & {
   repeatAnchor: string | null;
   /** (#188) 그 회차의 실제 알림 (예외 반영). 옛 API 는 없음 */
   reminder?: EventReminder;
+  /** (#248) all 이면 members 는 그 팀 지금 멤버 전원, 아니면 참여자 (0 = 참여자 없음). 가입순. 반복 회차는 원본 값.
+   *  옛 API 는 없음 → lib/participants participantsOf 가 등록자로 대신한다 */
+  participants?: { all: boolean; members: Member[] };
 };
 
 /** PATCH 본문. "이후 모두" 에서 날짜를 그대로 두면 startsAt, endsAt 을 빼고 보낸다 (QA3-M3) */

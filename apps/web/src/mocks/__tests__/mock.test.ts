@@ -248,3 +248,66 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
     call("PATCH", "/groups/2/me", { notify: true });
   });
 });
+
+describe("목 일정 참여자 (#248, 설계 3-2, 4장, 6장)", () => {
+  type P = { all: boolean; members: { userId: number }[] };
+  const ids = (p: P) => p.members.map((m) => m.userId);
+  const as = (userId: number, method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
+    mockHandle({ method, path, query: new URLSearchParams(query), body, userId }) as { status: number; body: { data: Record<string, unknown>; error?: { details?: { field: string }[] } } };
+  const base = { title: "참여자테스트", startsAt: "2027-06-01T10:00:00+09:00", endsAt: "2027-06-01T12:00:00+09:00", allDay: false };
+
+  it("생성: 생략 = [나], ALL = 지금 멤버 전원, 배열 = 가입순", () => {
+    expect(ids(call("POST", "/groups/4/events", base).body.data.participants as P)).toEqual([ME_ID]);
+    const all = call("POST", "/groups/4/events", { ...base, participants: "ALL" }).body.data.participants as P;
+    expect(all.all).toBe(true);
+    expect(ids(all)).toEqual([1, 3, 4, 2]);
+    expect(ids(call("POST", "/groups/4/events", { ...base, participants: [2, 4, 4] }).body.data.participants as P)).toEqual([4, 2]);
+  });
+
+  it("검증: 빈 배열, 멤버 아님, 형식 오류는 400 field participants", () => {
+    for (const participants of [[], [99], null, "SOME", ["1"]]) {
+      const r = call("POST", "/groups/4/events", { ...base, participants }) as unknown as { status: number; body: { error: { details: { field: string }[] } } };
+      expect(r.status).toBe(400);
+      expect(r.body.error.details[0].field).toBe("participants");
+    }
+  });
+
+  it("수정: 생략하면 그대로 (참여자 없음도), 주면 바뀐다", () => {
+    const id = call("POST", "/groups/4/events", { ...base, participants: [3] }).body.data.id as number;
+    expect(ids(call("PATCH", `/groups/4/events/${id}`, { title: "제목만" }).body.data.participants as P)).toEqual([3]);
+    expect(ids(call("PATCH", `/groups/4/events/${id}`, { participants: [4] }).body.data.participants as P)).toEqual([4]);
+  });
+
+  it("반복: 이 일정만 + participants 는 400, 이후 모두는 새 원본에 (생략이면 원본 값 복사)", () => {
+    const r = call("POST", "/groups/4/events", { ...base, repeat: "WEEKLY", participants: [3, 4] });
+    const id = r.body.data.id as number;
+    expect(call("PATCH", `/groups/4/events/${id}`, { participants: [3, 4] }, "occurrence=2027-06-08&scope=this").status).toBe(400);
+    const split = call("PATCH", `/groups/4/events/${id}`, { title: "참여자테스트2" }, "occurrence=2027-06-15&scope=following");
+    expect(ids(split.body.data.participants as P)).toEqual([3, 4]);
+    const changed = call("PATCH", `/groups/4/events/${split.body.data.id}`, { participants: "ALL" }, "occurrence=2027-06-22&scope=following");
+    expect((changed.body.data.participants as P).all).toBe(true);
+  });
+
+  it("빈 시간: 다른 팀 일정은 요청 팀 멤버가 참여자일 때만 바쁨", () => {
+    const day = (q: string) => as(ME_ID, "GET", "/groups/2/free-slots", null, q).body.data.slots as { startsAt: string; endsAt: string }[];
+    const q = "from=2027-07-01T00:00:00%2B09:00&to=2027-07-02T00:00:00%2B09:00&dayStart=09:00&dayEnd=23:00&minMinutes=60";
+    call("POST", "/groups/4/events", { ...base, startsAt: "2027-07-01T10:00:00+09:00", endsAt: "2027-07-01T12:00:00+09:00", participants: [4] });
+    // KST 시각 구간이 비는 구간 하나에 통째로 들어 있는지
+    const covers = (from: string, to: string) => day(q).some((x) => x.startsAt <= from && x.endsAt >= to);
+    // 아빠(4)만의 일정은 팀 2(나, 하늘) 를 막지 않는다
+    expect(covers("2027-07-01T01:00:00.000Z", "2027-07-01T03:00:00.000Z")).toBe(true);
+    // 하늘(2) 이 참여자면 막는다
+    call("POST", "/groups/4/events", { ...base, startsAt: "2027-07-01T13:00:00+09:00", endsAt: "2027-07-01T15:00:00+09:00", participants: [2] });
+    expect(covers("2027-07-01T04:00:00.000Z", "2027-07-01T06:00:00.000Z")).toBe(false);
+    expect(day(q).map((x) => x.endsAt)).toContain("2027-07-01T04:00:00.000Z");
+  });
+
+  it("나가기: 그 팀 일정의 내 참여자 행이 빠지고 0 이면 참여자 없음", () => {
+    const solo = call("POST", "/groups/4/events", { ...base, participants: [ME_ID] }).body.data.id as number;
+    const pair = call("POST", "/groups/4/events", { ...base, participants: [ME_ID, 2] }).body.data.id as number;
+    expect(call("DELETE", "/groups/4/me").status).toBe(200);
+    const get = (id: number) => as(2, "GET", `/groups/4/events/${id}`).body.data.participants as P;
+    expect(get(solo)).toEqual({ all: false, members: [] });
+    expect(ids(get(pair))).toEqual([2]);
+  });
+});

@@ -1,55 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { cellDensity, cellMarks } from "../calendar-cell";
+import { cellDensity } from "../calendar-cell";
+import { memberColor } from "../colors";
+import { MEMBER_COLORS, type Member } from "../types";
 
-const by = (...colors: string[]) => colors.map((color) => ({ creator: { color } }));
+const m = (i: number): Member => ({ userId: i + 1, displayName: `m${i}`, color: MEMBER_COLORS[i], profileImageUrl: null });
+const c = (i: number) => memberColor(MEMBER_COLORS[i]);
+const creator = m(0);
+/** 참여자 인덱스 목록. null = 옛 API (participants 없음 → 등록자) */
+const ev = (...who: number[]) => ({ creator, participants: { all: false, members: who.map(m) } });
+const none = () => ({ creator, participants: { all: false, members: [] } });
 
-describe("cellDensity — 폰 달력 칸 바쁜 정도 (#139)", () => {
+describe("cellDensity — 폰 달력 칸 참여자 점 (#139, #248 D-140)", () => {
   it("일정이 없으면 점도 없다", () => {
-    expect(cellDensity([])).toEqual({ dots: [], more: 0 });
+    expect(cellDensity([])).toEqual({ dots: [], more: 0, cut: false });
   });
 
-  it("일정 하나에 점 하나, 같은 사람이어도 개수만큼", () => {
-    expect(cellDensity(by("#A", "#A"))).toEqual({ dots: ["#A", "#A"], more: 0 });
+  it("한 명짜리 일정은 일정 하나에 점 하나, 같은 사람이어도 개수만큼", () => {
+    expect(cellDensity([ev(1), ev(1)])).toEqual({ dots: [c(1), c(1)], more: 0, cut: false });
   });
 
-  it("3개까지는 점만", () => {
-    expect(cellDensity(by("#A", "#B", "#C"))).toEqual({ dots: ["#A", "#B", "#C"], more: 0 });
+  it("참여자 점을 일정 순서대로 이어 붙인다", () => {
+    expect(cellDensity([ev(0, 1), ev(2)])).toEqual({ dots: [c(0), c(1), c(2)], more: 0, cut: false });
   });
 
-  it("넘치면 +N (7개 = 점 3 + 4)", () => {
-    expect(cellDensity(by("#A", "#A", "#A", "#A", "#A", "#A", "#A"))).toEqual({ dots: ["#A", "#A", "#A"], more: 4 });
+  it("점을 하나도 못 그린 일정이 있으면 +N (그 일정 수)", () => {
+    expect(cellDensity([ev(0, 1, 2), ev(3), ev(4)])).toEqual({ dots: [c(0), c(1), c(2)], more: 2, cut: false });
+    expect(cellDensity([ev(0), ev(0), ev(0), ev(0), ev(0), ev(0), ev(0)])).toEqual({ dots: [c(0), c(0), c(0)], more: 4, cut: false });
+  });
+
+  it("일정은 다 보였지만 참여자 점이 잘렸으면 숫자 없는 + (cut)", () => {
+    expect(cellDensity([ev(0, 1, 2, 3)])).toEqual({ dots: [c(0), c(1), c(2)], more: 0, cut: true });
+    expect(cellDensity([ev(0, 1), ev(2, 3)])).toEqual({ dots: [c(0), c(1), c(2)], more: 0, cut: true });
+  });
+
+  it("잘린 점과 못 그린 일정이 같이 있으면 +N 만", () => {
+    expect(cellDensity([ev(0, 1), ev(2, 3), ev(4)])).toEqual({ dots: [c(0), c(1), c(2)], more: 1, cut: false });
+  });
+
+  it("참여자 없음은 회색 점 1개", () => {
+    expect(cellDensity([none(), ev(1)])).toEqual({ dots: ["var(--mute)", c(1)], more: 0, cut: false });
+  });
+
+  it("옛 API (participants 없음) 는 등록자 색", () => {
+    expect(cellDensity([{ creator }])).toEqual({ dots: [c(0)], more: 0, cut: false });
   });
 
   it("최대 개수를 바꿀 수 있다", () => {
-    expect(cellDensity(by("#A", "#B", "#C"), 2)).toEqual({ dots: ["#A", "#B"], more: 1 });
-  });
-});
-
-describe("cellMarks — 막대와 점 (QA3-M2)", () => {
-  type Ev = { id: number; band: boolean; creator: { color: string } };
-  const ev = (id: number, band: boolean, color = "#A"): Ev => ({ id, band, creator: { color } });
-  const isBand = (e: Ev) => e.band;
-
-  it("막대가 있는 날도 나머지 일정은 점으로 남는다", () => {
-    const trip = ev(1, true, "#T");
-    const marks = cellMarks([trip, ev(2, false, "#B"), ev(3, false, "#C")], isBand);
-    expect(marks.band).toBe(trip);
-    expect(marks.density).toEqual({ dots: ["#B", "#C"], more: 0 });
-  });
-
-  it("막대만 있으면 점은 없다", () => {
-    expect(cellMarks([ev(1, true)], isBand).density).toEqual({ dots: [], more: 0 });
-  });
-
-  it("막대가 둘이면 첫째만 막대, 둘째는 점", () => {
-    const marks = cellMarks([ev(1, true, "#T"), ev(2, true, "#U")], isBand);
-    expect(marks.band?.id).toBe(1);
-    expect(marks.density.dots).toEqual(["#U"]);
-  });
-
-  it("막대가 없으면 전부 점 (넘치면 +N)", () => {
-    const marks = cellMarks([ev(1, false), ev(2, false), ev(3, false), ev(4, false)], isBand);
-    expect(marks.band).toBeNull();
-    expect(marks.density).toEqual({ dots: ["#A", "#A", "#A"], more: 1 });
+    expect(cellDensity([ev(0), ev(1), ev(2)], 2)).toEqual({ dots: [c(0), c(1)], more: 1, cut: false });
   });
 });

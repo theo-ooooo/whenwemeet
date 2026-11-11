@@ -68,7 +68,7 @@ export function ScopeSheet({
   mode: "save" | "delete";
   /** 고른 회차의 원래 날짜 */
   occurrence: DateKey;
-  /** 반복 규칙을 바꿨으면 "이 일정만" 은 고를 수 없다 (반복은 이후 모두에서만 바꾼다, 기획 3-4) */
+  /** 반복 규칙이나 참여자(#248 D-135)를 바꿨으면 "이 일정만" 은 고를 수 없다 (둘 다 이후 모두에서만 바꾼다, 기획 3-4) */
   onlyFollowing?: boolean;
   /** 요청 중인 선택. 그 줄에 스피너, 나머지는 잠근다 */
   pending?: EventScope | null;
@@ -81,7 +81,7 @@ export function ScopeSheet({
     {
       scope: "this",
       label: "이 일정만",
-      sub: onlyFollowing ? "반복 설정을 바꾸면 이 일정만 고칠 수 없어요" : `${day} 일정만 ${del ? "삭제해요" : "바꿔요"}`,
+      sub: onlyFollowing ? "반복이나 참여자를 바꾸면 이 일정만 고칠 수 없어요" : `${day} 일정만 ${del ? "삭제해요" : "바꿔요"}`,
       disabled: onlyFollowing,
     },
     { scope: "following", label: "이후 모두", sub: `${day}부터 반복 일정을 모두 ${del ? "삭제해요" : "바꿔요"}` },
