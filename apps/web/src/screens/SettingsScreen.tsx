@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconCheck } from "@/components/icons";
+import { IconCheck, IconChevronRight } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
 import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
@@ -55,6 +55,7 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
             <MeSection group={group} onSaved={setGroup} />
             {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
             {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
+            <ImportSection groupId={groupId} personal={group.type === "PERSONAL"} />
             {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
           </div>
         </div>
@@ -296,6 +297,23 @@ function NotifySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Gr
   return (
     <section className="rounded-xl bg-paper px-3.5 py-2">
       <Toggle checked={on} onChange={(v) => void change(v)} label="이 팀 알림 받기" description="끄면 이 팀의 알림이 모두 오지 않아요" />
+    </section>
+  );
+}
+
+/* (#279) 일정 가져오기 (.ics). 개인 달력에도 같은 줄 */
+function ImportSection({ groupId, personal }: { groupId: number; personal: boolean }) {
+  return (
+    <section className="rounded-xl bg-paper px-3.5 py-1">
+      <Link href={`/g/${groupId}/import`} className="flex min-h-12 items-center gap-3 py-1.5">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] font-semibold leading-5">일정 가져오기</span>
+          <span className="t-sub block">
+            {personal ? "다른 캘린더의 .ics 파일로 내 일정을 옮겨요" : "다른 캘린더의 .ics 파일로 일정을 한 번에 넣어요"}
+          </span>
+        </span>
+        <IconChevronRight size={18} className="shrink-0 text-ink-2" />
+      </Link>
     </section>
   );
 }

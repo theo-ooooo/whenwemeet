@@ -11,6 +11,7 @@ import { EventsModule } from './events/events.module.js';
 import { FileUrlModule } from './files/file-url.module.js';
 import { FreeSlotsModule } from './free-slots/free-slots.module.js';
 import { GroupsModule } from './groups/groups.module.js';
+import { ImportsModule } from './imports/imports.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MeModule } from './me/me.module.js';
 import { NewsModule } from './news/news.module.js';
@@ -26,6 +27,7 @@ import { PushModule } from './push/push.module.js';
     EmailLoginModule,
     GroupsModule,
     EventsModule,
+    ImportsModule,
     AnniversariesModule,
     FreeSlotsModule,
     NewsModule,

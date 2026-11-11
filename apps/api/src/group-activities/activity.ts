@@ -9,7 +9,9 @@ export type GroupActivityType =
   | 'MEMBER_JOINED'
   | 'MEMBER_LEFT'
   | 'MEMBER_DELETED'
-  | 'GROUP_RENAMED';
+  | 'GROUP_RENAMED'
+  /** (#279) ICS 파일로 일정을 가져옴 (D-166) */
+  | 'EVENTS_IMPORTED';
 
 export type AnniversaryField = 'name' | 'date' | 'kind';
 
@@ -31,8 +33,13 @@ export interface GroupRenamedPayload {
   to: string;
 }
 
+/** (#279) 가져온 일정 수 */
+export interface EventsImportedPayload {
+  count: number;
+}
+
 /** 멤버 3종은 빈 객체 (DB 에는 null) */
-export type ActivityPayload = AnniversaryPayload | GroupRenamedPayload | Record<string, never>;
+export type ActivityPayload = AnniversaryPayload | GroupRenamedPayload | EventsImportedPayload | Record<string, never>;
 
 /** 기록할 사람. name 은 그 순간의 표시 이름 (팀 표시 이름 ?? 닉네임) 스냅샷 (D-152) */
 export interface ActivityActor {

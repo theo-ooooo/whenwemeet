@@ -86,6 +86,15 @@ describe('PushDispatcher', () => {
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: '민지님이 일정을 수정했어요', body: '저녁 약속, 11월 12일 (목) 오후 6:00' });
     });
 
+    it('(#279) 가져오기 알림은 예약 때 만든 문구 그대로, 변경한 사람을 뺀다', async () => {
+      const payload = { title: '민지님이 일정 3개를 가져왔어요', subtitle: '우리', body: null, url: '/g/10/calendar', expiration: 1 };
+      push.listDuePending.mockResolvedValue([due({ id: 6, kind: 'CHANGE', payload, eventLogId: null, eventId: null, actorId: 1, changeAction: null })]);
+      await dispatcher.expandDue(NOW);
+      expect(push.findChangeLog).not.toHaveBeenCalled();
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null);
+      expect(push.dispatchTx).toHaveBeenCalledWith(6, NOW, null, expect.any(Array));
+    });
+
     it('탈퇴한 사람의 변경, 나간 사람의 합류는 이름 대신 "탈퇴한 멤버"', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 4, kind: 'JOIN', payload: null, actorId: 9 })]);
       push.findGroupName.mockResolvedValue('우리 가족');

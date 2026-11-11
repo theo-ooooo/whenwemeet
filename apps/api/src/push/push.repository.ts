@@ -429,6 +429,26 @@ export class PushRepository {
     });
   }
 
+  /**
+   * (#279) 일정 가져오기를 마친 트랜잭션 안에서. 팀원 변경 알림 1건을 문구를 미리 만든 채로 바로 예약한다 (D-166).
+   * PERSONAL 팀이면 받을 사람이 없어 만들지 않는다. dedupeKey I:{importId}
+   */
+  async scheduleImportTx(tx: Db, input: { importId: number; groupId: number; actorId: number; payload: PushPayload }, now: Date): Promise<void> {
+    const group = await tx.group.findUnique({ where: { id: input.groupId }, select: { type: true } });
+    if (!group || group.type === 'PERSONAL') return;
+    await tx.pushNotification.create({
+      data: {
+        kind: 'CHANGE',
+        dedupeKey: `I:${input.importId}`,
+        groupId: input.groupId,
+        scheduledAt: now,
+        actorId: input.actorId,
+        payload: toJson(input.payload),
+      },
+      select: { id: true },
+    });
+  }
+
   // ---------- 펼치기 (설계 5-6 A) ----------
 
   /** 예약 시각이 된 PENDING, 예약 시각 순 */

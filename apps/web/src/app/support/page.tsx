@@ -7,7 +7,7 @@ import { SUPPORT_EMAIL, supportMailto } from "@/lib/support";
 // 스토어 지원 URL 과 계정 삭제 안내 URL(#delete-account). 로그인 없이 열린다 (proxy.ts matcher 에 없음, #148)
 export const metadata: Metadata = {
   title: "고객 지원",
-  description: "언제볼까 문의 이메일, 자주 묻는 질문, 계정 삭제 방법",
+  description: "언제볼까 문의 이메일, 자주 묻는 질문, TimeTree 에서 옮기기, 계정 삭제 방법",
 };
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
@@ -52,6 +52,21 @@ const FAQ: { q: string; a: React.ReactNode }[] = [
         <p>
           가입할 때 받은 닉네임과 사진은 처음 값으로만 쓰고, 카카오에서 바꿔도 자동으로 따라오지 않아요. 팀마다 다르게
           보일 이름과 색은 <b>팀 설정</b> 에서 바꿀 수 있어요.
+        </p>
+      </>
+    ),
+  },
+  {
+    q: "다른 캘린더 일정을 옮길 수 있나요?",
+    a: (
+      <>
+        <p>
+          구글, 애플, 네이버 캘린더처럼 .ics 파일로 내보낼 수 있는 캘린더라면 옮길 수 있어요. <b>팀 설정</b> 의{" "}
+          <b>일정 가져오기</b> 에서 파일을 고르면 넣을 일정 수를 먼저 보여 주고, 넣을 팀과 기간을 고를 수 있어요.
+        </p>
+        <p>
+          한 번 옮기는 기능이라 원래 캘린더와 계속 맞춰지지는 않아요. 같은 파일을 다시 올려도 이미 넣은 일정은 다시
+          들어가지 않아요. 알림 설정은 옮기지 않아요.
         </p>
       </>
     ),
@@ -110,6 +125,26 @@ export default function SupportPage() {
             </details>
           ))}
         </div>
+      </section>
+
+      <section id="timetree" aria-labelledby="timetree-title" className={`scroll-mt-4 ${legalCardClass}`}>
+        <h2 id="timetree-title">TimeTree 에서 옮기기</h2>
+        <p>
+          TimeTree 는 일정을 내보내는 공식 방법이 없어요. 공개 API 는 2023년 12월에 끝났고, TimeTree 고객센터도 일정을
+          내보낼 수 없다고 안내해요. 일정이 많지 않다면 언제볼까에 직접 옮겨 적는 방법이 가장 안전해요.
+        </p>
+        <p>
+          개인이 만든 비공식 도구{" "}
+          <a href="https://pypi.org/project/timetree-exporter/" target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">
+            timetree-exporter
+          </a>{" "}
+          로 .ics 파일을 만들 수도 있어요. 이 도구는 내 컴퓨터에서 직접 실행하며 TimeTree 이메일과 비밀번호를 도구에 입력해야
+          해요. 언제볼까와 관계없는 도구이고 TimeTree 화면이 바뀌면 동작하지 않을 수 있으니 본인 판단으로 써 주세요.
+          언제볼까는 TimeTree 계정 정보를 묻거나 받지 않아요.
+        </p>
+        <p>
+          만든 .ics 파일은 <b>팀 설정</b> 의 <b>일정 가져오기</b> 에서 넣을 수 있어요.
+        </p>
       </section>
 
       <section id="delete-account" aria-labelledby="delete-account-title" className={`scroll-mt-4 ${legalCardClass}`}>

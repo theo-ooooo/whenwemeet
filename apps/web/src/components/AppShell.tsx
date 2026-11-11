@@ -167,8 +167,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   const newHref = `/g/${groupId}/events/new?start=${encodeURIComponent(kstToIso(baseDay, "10:00"))}&end=${encodeURIComponent(kstToIso(baseDay, "11:00"))}`;
   const dots = teamDotColors(groups ?? []);
   const isCalendar = section === "calendar";
-  // 일정 작성/수정 화면(/events/new, /events/<id>)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137)
-  const isForm = section === "events";
+  // 일정 작성/수정 화면(/events/new, /events/<id>)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다
+  const isForm = section === "events" || section === "import";
 
   return (
     <Ctx.Provider value={value}>

@@ -53,6 +53,7 @@ const ACTIVITY_TYPES: readonly ActivityType[] = [
   "MEMBER_LEFT",
   "MEMBER_DELETED",
   "GROUP_RENAMED",
+  "EVENTS_IMPORTED",
 ];
 
 export const isActivity = (item: NewsEntry): item is ActivityNewsItem => item.kind === "ACTIVITY";
@@ -102,6 +103,8 @@ export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">)
       return "서비스를 떠났어요";
     case "GROUP_RENAMED":
       return `팀 이름을 ${quoted(p.from ?? "")}에서 ${withEuro(p.to ?? "")} 바꿨어요`;
+    case "EVENTS_IMPORTED":
+      return `일정 ${(p.count ?? 0).toLocaleString("en-US")}개를 가져왔어요`;
   }
 }
 
@@ -114,6 +117,8 @@ export function activityHref(groupId: number, item: Pick<ActivityNewsItem, "type
     case "MEMBER_JOINED":
     case "GROUP_RENAMED":
       return `/g/${groupId}/settings`;
+    case "EVENTS_IMPORTED":
+      return `/g/${groupId}/calendar`;
     default:
       return null;
   }
