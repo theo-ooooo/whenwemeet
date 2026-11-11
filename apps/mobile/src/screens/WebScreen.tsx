@@ -1,4 +1,4 @@
-// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄우고 브리지 메시지를 처리한다 (5종 + 푸시 3종, 푸시-알림.md 2-2)
+// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄우고 브리지 메시지를 처리한다 (5종 + 푸시 3종, 푸시-알림.md 2-2 + 카카오톡 공유, #195)
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
@@ -21,13 +21,15 @@ import { type BridgeMessage, parseBridgeMessage, shareContent } from "../bridge/
 import { type AppEventDetail, buildAppEventScript } from "../bridge/reply";
 import { buildUserAgentSuffix, decideNavigation, isWebOrigin } from "../links/urls";
 import { readPushStatus, requestPush } from "../push/notifications";
-import { clearNativeSessions } from "../auth/login";
+import { clearNativeSessions, kakaoAvailable } from "../auth/login";
+import { shareKakaoFeed } from "../share/kakao";
 import { OfflineScreen } from "./OfflineScreen";
 import { useTheme } from "../ui/theme";
 
 /** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81).
- *  (#245) 끝의 EmailLogin/1 은 네이티브 로그인 화면에 이메일 버튼이 있다는 표시 (D-116) */
-export const USER_AGENT_SUFFIX = buildUserAgentSuffix(env.version, Platform.OS);
+ *  (#245) 끝의 EmailLogin/1 은 네이티브 로그인 화면에 이메일 버튼이 있다는 표시 (D-116)
+ *  (#195) KakaoShare/1 은 kakaoShare 브리지를 처리한다는 표시. 카카오 키가 있는 빌드만 (D-169) */
+export const USER_AGENT_SUFFIX = buildUserAgentSuffix(env.version, Platform.OS, kakaoAvailable());
 
 type Props = {
   /** 열 주소. key 가 바뀌면 웹뷰를 새로 띄운다 (로그인 직후, 딥링크) */
@@ -111,6 +113,16 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
             console.warn("[share]", e),
           );
           return;
+        case "kakaoShare": {
+          // 카카오톡(없으면 SDK 의 웹 공유 창) → 실패하면 OS 공유 시트 (D-169)
+          const os = Platform.OS === "ios" ? "ios" : "android";
+          const fallback = { url: msg.template.content.link.webUrl, text: msg.text };
+          shareKakaoFeed(msg.template).catch((e: unknown) => {
+            console.warn("[kakao-share] OS 공유로", e);
+            Share.share(shareContent(fallback, os)).catch((err: unknown) => console.warn("[share]", err));
+          });
+          return;
+        }
         case "haptic":
           if (msg.kind === "light") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           else

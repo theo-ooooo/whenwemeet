@@ -1,12 +1,19 @@
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { GroupsRepository } from './groups.repository.js';
 import { GroupsService } from './groups.service.js';
 import { generateInviteCode, INVITE_CODE_PATTERN, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
+import { deriveKey } from '../email-login/email-crypto.js';
+import { INVITE_MARKER_KEY_INFO, inviteMarker } from './invite-marker.js';
 import { MembershipService } from './membership.service.js';
 
-const config = { getOrThrow: (key: string) => (key === 'WEB_ORIGIN' ? 'http://web' : '') } as never;
+const SECRET = 'unit-secret-0123456789abcdef0123456789abcdef';
+const ENV: Record<string, string> = { WEB_ORIGIN: 'http://web', JWT_SECRET: SECRET };
+const config = { getOrThrow: (key: string) => ENV[key] ?? '' } as never;
+/** (#196) 테스트가 기대하는 표식. 서비스와 같은 키 파생 */
+const markerOf = (groupId: number, userId: number) => inviteMarker(deriveKey(SECRET, INVITE_MARKER_KEY_INFO), groupId, userId);
 const GROUP = { id: 10, type: 'TEAM' as const, name: '팀', inviteCode: 'ABCDEF', createdAt: new Date('2026-11-01T00:00:00.000Z') };
 const INVITE_GROUP = { id: 10, name: '팀', memberCount: 1 };
 
@@ -57,8 +64,21 @@ describe('MembershipService', () => {
     membershipsRepo.listByGroup.mockResolvedValueOnce([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '별명', color: '#F2994A' })]);
     const detail = await service.groupDetail(10, 1);
     expect(detail).toMatchObject({ id: 10, type: 'TEAM', inviteCode: 'ABCDEF', inviteUrl: 'http://web/join/ABCDEF' });
+    expect(detail.inviteShareUrl).toBe(`http://web/join/ABCDEF?by=${markerOf(10, 1)}`);
     expect(detail.members.map((m) => m.displayName)).toEqual(['앨리스', '별명']);
     expect(detail.me.userId).toBe(1);
+  });
+
+  it('(#196) inviteShareUrl: 요청자마다 다르고 코드가 없으면(PERSONAL) null', async () => {
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2 })]);
+    const a = (await service.groupDetail(10, 1)).inviteShareUrl;
+    const b = (await service.groupDetail(10, 2)).inviteShareUrl;
+    expect(a).toMatch(/^http:\/\/web\/join\/ABCDEF\?by=[A-Za-z0-9_-]{10}$/);
+    expect(a).not.toBe(b);
+
+    groupsRepo.findById.mockResolvedValue({ ...GROUP, type: 'PERSONAL', inviteCode: null });
+    expect((await service.groupDetail(10, 1)).inviteShareUrl).toBeNull();
   });
 });
 
@@ -66,6 +86,7 @@ describe('GroupsService', () => {
   let groupsRepo: RepositoryMock<GroupsRepository>;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let eventLogs: RepositoryMock<EventLogsRepository>;
+  let activities: RepositoryMock<GroupActivitiesRepository>;
   let pushScheduler: { kick: ReturnType<typeof vi.fn> };
   let service: GroupsService;
 
@@ -73,9 +94,11 @@ describe('GroupsService', () => {
     groupsRepo = mockRepository(GroupsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     eventLogs = mockRepository(EventLogsRepository);
+    activities = mockRepository(GroupActivitiesRepository);
+    activities.countUnseenByOthers.mockResolvedValue(0);
     const memberships = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
     pushScheduler = { kick: vi.fn() };
-    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never);
+    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never, activities as never);
   });
 
   it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
@@ -89,6 +112,17 @@ describe('GroupsService', () => {
     expect(list[0]).toEqual({ id: 21, type: 'PERSONAL', name: '내 달력', memberCount: 1, me: { color: '#2', displayName: '나' }, unreadNewsCount: 0 });
     expect(list[1].unreadNewsCount).toBe(4);
     expect(eventLogs.countUnseenByOthers).toHaveBeenLastCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
+  });
+
+  it('list: unreadNewsCount 는 일정 기록 + 팀 활동 기록 (#191, D-154)', async () => {
+    membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
+    ]);
+    eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
+    activities.countUnseenByOthers.mockResolvedValueOnce(3);
+    const [team] = await service.list(1);
+    expect(team.unreadNewsCount).toBe(5);
+    expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
   });
 
   it('create: TEAM + 초대 코드 + 첫 멤버, 코드 충돌(P2002) 이면 재시도', async () => {
@@ -113,13 +147,14 @@ describe('GroupsService', () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(null);
     await expect(service.detail(1, 10)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.rename(1, 10, '새')).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(groupsRepo.rename).not.toHaveBeenCalled();
+    expect(groupsRepo.renameWithActivityTx).not.toHaveBeenCalled();
 
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     groupsRepo.findById.mockResolvedValue({ ...GROUP, name: '새' });
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     expect((await service.rename(1, 10, '새')).name).toBe('새');
-    expect(groupsRepo.rename).toHaveBeenCalledWith(10, '새');
+    // (#191) 기록할 사람 이름은 팀 표시 이름 ?? 닉네임 스냅샷. 같은 이름이면 기록 안 함은 Repository 가 판단 (e2e)
+    expect(groupsRepo.renameWithActivityTx).toHaveBeenCalledWith(10, '새', { id: 1, name: '앨리스' });
     expect((await service.detail(1, 10)).id).toBe(10);
   });
 
@@ -137,6 +172,7 @@ describe('GroupsService', () => {
     const result = await service.rotateInviteCode(1, 10);
     expect(result.inviteCode).toMatch(INVITE_CODE_PATTERN);
     expect(result.inviteUrl).toBe(`http://web/join/${result.inviteCode}`);
+    expect(result.inviteShareUrl).toBe(`http://web/join/${result.inviteCode}?by=${markerOf(10, 1)}`);
     expect(groupsRepo.setInviteCode).toHaveBeenCalledTimes(2);
     expect(groupsRepo.setInviteCode).toHaveBeenLastCalledWith(10, result.inviteCode);
 
@@ -147,13 +183,37 @@ describe('GroupsService', () => {
 
   it('invitePreview: 정규화해서 조회, 없거나 빈 코드는 INVITE_NOT_FOUND', async () => {
     groupsRepo.findByInviteCode.mockResolvedValueOnce({ id: 10, name: '팀', memberCount: 2 });
-    expect(await service.invitePreview(' abcdef ')).toEqual({ groupName: '팀', memberCount: 2 });
+    expect(await service.invitePreview(' abcdef ')).toEqual({ groupName: '팀', memberCount: 2, inviter: null, isMember: false, groupId: null });
     expect(groupsRepo.findByInviteCode).toHaveBeenCalledWith('ABCDEF');
+    // by 도 로그인도 없으면 멤버 목록을 읽지 않는다
+    expect(membershipsRepo.listByGroup).not.toHaveBeenCalled();
 
     groupsRepo.findByInviteCode.mockResolvedValueOnce(null);
     await expect(service.invitePreview('ZZZZZZ')).rejects.toMatchObject({ code: 'INVITE_NOT_FOUND' });
     await expect(service.invitePreview('   ')).rejects.toMatchObject({ code: 'INVITE_NOT_FOUND' });
     expect(groupsRepo.findByInviteCode).toHaveBeenCalledTimes(2);
+  });
+
+  it('(#196) invitePreview: by 가 현재 멤버 표식이면 팀 표시 이름, 틀림/나간 멤버/다른 팀/형식 오류는 inviter null', async () => {
+    groupsRepo.findByInviteCode.mockResolvedValue({ id: 10, name: '팀', memberCount: 2 });
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '별명' })]);
+
+    expect((await service.invitePreview('ABCDEF', markerOf(10, 1))).inviter).toEqual({ nickname: '앨리스' });
+    // 팀 표시 이름이 있으면 그것
+    expect((await service.invitePreview('ABCDEF', markerOf(10, 2))).inviter).toEqual({ nickname: '별명' });
+
+    const misses: unknown[] = [markerOf(10, 3), markerOf(11, 1), 'AAAAAAAAAA', 'short', `${markerOf(10, 1)}x`, '', ['a', 'b'], 42];
+    for (const by of misses) {
+      expect(await service.invitePreview('ABCDEF', by)).toEqual({ groupName: '팀', memberCount: 2, inviter: null, isMember: false, groupId: null });
+    }
+  });
+
+  it('(#196) invitePreview: 로그인한 사용자가 멤버면 isMember + groupId, 아니면 false + null', async () => {
+    groupsRepo.findByInviteCode.mockResolvedValue({ id: 10, name: '팀', memberCount: 1 });
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
+    expect(await service.invitePreview('ABCDEF', undefined, 1)).toMatchObject({ isMember: true, groupId: 10, inviter: null });
+    expect(await service.invitePreview('ABCDEF', undefined, 2)).toMatchObject({ isMember: false, groupId: null });
+    expect(await service.invitePreview('ABCDEF', markerOf(10, 1), 1)).toMatchObject({ isMember: true, groupId: 10, inviter: { nickname: '앨리스' } });
   });
 
   it('join: 가장 적게 쓰인 색을 고르는 규칙을 넘겨 멤버십을 만들고 상세를 돌려준다', async () => {

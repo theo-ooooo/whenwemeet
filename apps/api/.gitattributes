@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# (#279) ICS 표본은 CRLF 줄 끝을 그대로 둔다 (파서 테스트 대상)
+test/fixtures/ics/*.ics -text

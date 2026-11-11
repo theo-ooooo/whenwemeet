@@ -30,6 +30,9 @@ describe('date 변환', () => {
   });
 });
 
+/** (#191) 새 소식 기록용 사람: 요청자 id + 팀 표시 이름 ?? 닉네임 스냅샷 */
+const ACTOR = { id: 1, name: '앨리스' };
+
 describe('AnniversariesService', () => {
   let anniversaries: RepositoryMock<AnniversariesRepository>;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
@@ -62,9 +65,9 @@ describe('AnniversariesService', () => {
   });
 
   it('create: 문자열 날짜를 UTC 자정으로 저장, 종류를 안 보내면 COUNT_UP', async () => {
-    anniversaries.create.mockResolvedValue({ ...ROW, creatorId: 1, creator: { nickname: '앨리스', profileImageUrl: null } });
+    anniversaries.createWithActivityTx.mockResolvedValue({ ...ROW, creatorId: 1, creator: { nickname: '앨리스', profileImageUrl: null } });
     const created = await service.create(1, 10, { name: '기념일', date: '2024-03-15' });
-    expect(anniversaries.create).toHaveBeenCalledWith({
+    expect(anniversaries.createWithActivityTx).toHaveBeenCalledWith({
       groupId: 10,
       name: '기념일',
       date: new Date('2024-03-15T00:00:00.000Z'),
@@ -73,61 +76,69 @@ describe('AnniversariesService', () => {
       remindDayBefore: false,
       remindWeekBefore: false,
       creatorId: 1,
-    });
+    }, ACTOR);
     expect(created.creator.displayName).toBe('앨리스');
     expect(created.kind).toBe('COUNT_UP');
     expect(created.reminders).toEqual(['DAY_OF']);
   });
 
   it('create / update: 알림 시점 배열을 칸 3개로, 응답은 당일, 하루 전, 일주일 전 순 (#269)', async () => {
-    anniversaries.create.mockResolvedValue({ ...ROW, remindDayOf: false, remindDayBefore: true, remindWeekBefore: true });
+    anniversaries.createWithActivityTx.mockResolvedValue({ ...ROW, remindDayOf: false, remindDayBefore: true, remindWeekBefore: true });
     const created = await service.create(1, 10, { name: '생일', date: '2000-05-05', reminders: ['WEEK_BEFORE', 'DAY_BEFORE'] });
-    expect(anniversaries.create).toHaveBeenCalledWith(expect.objectContaining({ remindDayOf: false, remindDayBefore: true, remindWeekBefore: true }));
+    expect(anniversaries.createWithActivityTx).toHaveBeenCalledWith(expect.objectContaining({ remindDayOf: false, remindDayBefore: true, remindWeekBefore: true }), ACTOR);
     expect(created.reminders).toEqual(['DAY_BEFORE', 'WEEK_BEFORE']);
 
     anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
-    anniversaries.update.mockResolvedValue({ ...ROW, remindDayOf: false });
+    anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, remindDayOf: false });
     const none = await service.update(1, 10, 200, { reminders: [] });
-    expect(anniversaries.update).toHaveBeenCalledWith(200, { remindDayOf: false, remindDayBefore: false, remindWeekBefore: false });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { remindDayOf: false, remindDayBefore: false, remindWeekBefore: false }, ACTOR);
     expect(none.reminders).toEqual([]);
   });
 
   it('create: 지정한 종류를 그대로 저장하고 응답에 싣는다', async () => {
-    anniversaries.create.mockResolvedValue({ ...ROW, kind: 'YEARLY' });
+    anniversaries.createWithActivityTx.mockResolvedValue({ ...ROW, kind: 'YEARLY' });
     const created = await service.create(1, 10, { name: '생일', date: '2000-05-05', kind: 'YEARLY' });
-    expect(anniversaries.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'YEARLY' }));
+    expect(anniversaries.createWithActivityTx).toHaveBeenCalledWith(expect.objectContaining({ kind: 'YEARLY' }), ACTOR);
     expect(created.kind).toBe('YEARLY');
   });
 
   it('update: 종류만 바꾸면 kind 만 전달', async () => {
     anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
-    anniversaries.update.mockResolvedValue({ ...ROW, kind: 'ONCE' });
+    anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, kind: 'ONCE' });
     const updated = await service.update(1, 10, 200, { kind: 'ONCE' });
-    expect(anniversaries.update).toHaveBeenCalledWith(200, { kind: 'ONCE' });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { kind: 'ONCE' }, ACTOR);
     expect(updated).toMatchObject({ kind: 'ONCE', date: '2024-03-15' });
   });
 
   it('update / remove: 다른 팀 ID 는 NOT_FOUND, 부분 변경만 전달', async () => {
     anniversaries.findIdInGroup.mockResolvedValueOnce(null);
     await expect(service.update(1, 10, 999, { name: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(anniversaries.update).not.toHaveBeenCalled();
+    expect(anniversaries.updateWithActivityTx).not.toHaveBeenCalled();
 
     anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
-    anniversaries.update.mockResolvedValue({ ...ROW, date: new Date('2024-03-16T00:00:00.000Z') });
+    anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, date: new Date('2024-03-16T00:00:00.000Z') });
     const updated = await service.update(1, 10, 200, { date: '2024-03-16' });
-    expect(anniversaries.update).toHaveBeenCalledWith(200, { date: new Date('2024-03-16T00:00:00.000Z') });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { date: new Date('2024-03-16T00:00:00.000Z') }, ACTOR);
     expect(updated.date).toBe('2024-03-16');
 
     await service.update(1, 10, 200, { name: '새' });
-    expect(anniversaries.update).toHaveBeenLastCalledWith(200, { name: '새' });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenLastCalledWith(200, { name: '새' }, ACTOR);
 
-    anniversaries.delete.mockResolvedValue(undefined);
+    anniversaries.deleteWithActivityTx.mockResolvedValue(undefined);
     expect(await service.remove(1, 10, 200)).toEqual({ ok: true });
-    expect(anniversaries.delete).toHaveBeenCalledWith(200);
+    expect(anniversaries.deleteWithActivityTx).toHaveBeenCalledWith(200, ACTOR);
 
     anniversaries.findIdInGroup.mockResolvedValueOnce(null);
     await expect(service.remove(1, 10, 999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(anniversaries.delete).toHaveBeenCalledTimes(1);
+    expect(anniversaries.deleteWithActivityTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('새 소식 기록 이름은 팀 표시 이름이 있으면 그것 (#191, D-152)', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ displayName: '앨리' }));
+    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
+    anniversaries.deleteWithActivityTx.mockResolvedValue(undefined);
+    await service.remove(1, 10, 200);
+    expect(anniversaries.deleteWithActivityTx).toHaveBeenCalledWith(200, { id: 1, name: '앨리' });
   });
 });
 

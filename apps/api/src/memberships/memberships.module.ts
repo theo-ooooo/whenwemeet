@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
+import { GroupActivitiesModule } from '../group-activities/group-activities.module.js';
 import { PushModule } from '../push/push.module.js';
 import { MembershipsRepository } from './memberships.repository.js';
 
 @Module({
-  imports: [PushModule],
+  imports: [PushModule, GroupActivitiesModule],
   providers: [MembershipsRepository],
   exports: [MembershipsRepository],
 })

@@ -9,6 +9,7 @@ import { reminderError } from "@/lib/reminder";
 import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Repeat } from "@/lib/types";
 import {
   buildStore,
+  inviteMarkerOf,
   inviteUrlOf,
   ME_ID,
   memberOf,
@@ -59,6 +60,7 @@ function groupDetail(s: Store, groupId: number, userId: number) {
     name: grp.name,
     inviteCode: grp.inviteCode,
     inviteUrl: grp.inviteCode ? inviteUrlOf(grp.inviteCode) : null,
+    inviteShareUrl: grp.inviteCode ? `${inviteUrlOf(grp.inviteCode)}?by=${inviteMarkerOf(groupId, userId)}` : null,
     createdAt: grp.createdAt,
     members,
     me: myMember(s, groupId, userId),
@@ -198,9 +200,10 @@ function repeatOf(v: unknown): Repeat | null | "bad" {
 function unread(s: Store, groupId: number, userId: number) {
   const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
   const seen = ms?.lastSeenAt ?? "";
-  return s.logs.filter(
-    (l) => l.groupId === groupId && l.actorId !== userId && l.createdAt > seen,
-  ).length;
+  // (#191) 일정 기록 + 팀 활동 기록
+  const byOthers = (r: { groupId: number; actorId: number | null; createdAt: string }) =>
+    r.groupId === groupId && r.actorId !== userId && r.createdAt > seen;
+  return s.logs.filter(byOthers).length + (s.activities ?? []).filter(byOthers).length;
 }
 
 function validateEvent(input: Partial<EventRow>, partial: boolean): MockResult | null {
@@ -318,14 +321,21 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   if (method === "GET" && path === "/health") return ok({ ok: true });
 
-  // 공개: 초대 미리보기
+  // 공개(선택 인증): 초대 미리보기. (#196) by 가 현재 멤버 표식이면 inviter, 로그인한 내가 멤버면 isMember + groupId
   if (method === "GET" && seg[0] === "invites" && seg[1]) {
     const code = seg[1].toUpperCase();
     const grp = s.groups.find((x) => x.inviteCode === code);
     if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
+    const members = s.memberships.filter((m) => m.groupId === grp.id);
+    const by = query.get("by");
+    const inviter = by ? members.find((m) => inviteMarkerOf(grp.id, m.userId) === by) : undefined;
+    const isMember = ctx.userId !== null && members.some((m) => m.userId === ctx.userId);
     return ok({
       groupName: grp.name,
-      memberCount: s.memberships.filter((m) => m.groupId === grp.id).length,
+      memberCount: members.length,
+      inviter: inviter ? { nickname: memberOf(s, grp.id, inviter.userId).displayName } : null,
+      isMember,
+      groupId: isMember ? grp.id : null,
     });
   }
 
@@ -489,6 +499,32 @@ export function mockHandle(ctx: Ctx): MockResult {
     if (!ms) return err(403, "FORBIDDEN", "이 팀에 더 이상 속해 있지 않아요");
     const rest = seg.slice(2);
 
+    // (#279) 일정 가져오기. 목은 파일을 읽지 않고 고정된 미리보기와 결과만 준다 (화면 확인용)
+    if (rest[0] === "imports" && method === "POST") {
+      const at = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+      if (rest[1] === "preview") {
+        return ok({
+          total: 9,
+          toCreate: 14,
+          recurringKept: 2,
+          expanded: 11,
+          expandedSeries: 3,
+          skipped: [
+            { reason: "CANCELLED", count: 1 },
+            { reason: "TOO_OLD", count: 1 },
+          ],
+          firstStartsAt: at(1),
+          lastStartsAt: at(200),
+          warnings: [],
+          sample: [
+            { title: "영어 스터디", startsAt: at(2), endsAt: at(2.05), allDay: false, repeat: "WEEKLY" },
+            { title: "치과", startsAt: at(3), endsAt: at(3.05), allDay: false, repeat: null },
+          ],
+        });
+      }
+      return ok({ importId: 1, created: 14, skipped: [{ reason: "CANCELLED", count: 1 }] }, 201);
+    }
+
     if (rest.length === 0) {
       if (method === "GET") return ok(groupDetail(s, groupId, userId));
       if (method === "PATCH") {
@@ -509,7 +545,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
       ).join("");
       grp.inviteCode = code;
-      return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code) });
+      return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code), inviteShareUrl: `${inviteUrlOf(code)}?by=${inviteMarkerOf(grp.id, userId)}` });
     }
 
     if (rest[0] === "me" && rest.length === 1) {
@@ -865,7 +901,32 @@ export function mockHandle(ctx: Ctx): MockResult {
             createdAt: l.createdAt,
             isNew: l.createdAt > seen,
           }));
-        return ok({ items, lastSeenAt: ms.lastSeenAt });
+        if (query.get("v") !== "2") return ok({ items, lastSeenAt: ms.lastSeenAt });
+        // (#191) v=2: 팀 활동 기록을 섞는다. 시각 내림차순, 같은 시각은 일정 먼저, 50건
+        const activities = (s.activities ?? [])
+          .filter((a) => a.groupId === groupId && a.actorId !== userId && a.createdAt >= cutoff)
+          .map((a) => {
+            const member = a.actorId === null ? null : s.memberships.find((m) => m.groupId === groupId && m.userId === a.actorId);
+            const actor = member
+              ? memberOf(s, groupId, a.actorId)
+              : a.actorId === null && a.type !== "MEMBER_DELETED"
+                ? memberOf(s, groupId, null)
+                : { userId: a.actorId, displayName: a.actorName, color: "#9CA3AF", profileImageUrl: null };
+            return {
+              kind: "ACTIVITY" as const,
+              id: a.id,
+              type: a.type,
+              actor,
+              anniversaryId: a.anniversaryId,
+              payload: a.payload,
+              createdAt: a.createdAt,
+              isNew: a.createdAt > seen,
+            };
+          });
+        const merged = [...items.map((i) => ({ kind: "EVENT" as const, ...i })), ...activities]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (a.kind === b.kind ? 0 : a.kind === "EVENT" ? -1 : 1))
+          .slice(0, 50);
+        return ok({ items: merged, lastSeenAt: ms.lastSeenAt });
       }
       if (rest[1] === "seen" && method === "POST") {
         ms.lastSeenAt = nowIso();

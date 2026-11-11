@@ -6,3 +6,8 @@ import type { AuthenticatedRequest } from './jwt-auth.guard.js';
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthUser => {
   return ctx.switchToHttp().getRequest<AuthenticatedRequest>().user;
 });
+
+/** (#196) `@OptionalAuth()` 핸들러용. 익명이면 null */
+export const OptionalUser = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthUser | null => {
+  return ctx.switchToHttp().getRequest<Partial<AuthenticatedRequest>>().user ?? null;
+});

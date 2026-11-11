@@ -67,6 +67,11 @@ jobs:
             echo "apps/api/prisma/schema.prisma 없음 — prisma generate 건너뜀"
           fi
 
+      # (#204) 쓰지 않는 파일, 의존성은 실패. export, 타입은 경고만 (docs/운영/번들.md "knip")
+      # Prisma Client 를 만든 뒤에 돌려야 생성 코드 import 가 unresolved 로 잡히지 않는다
+      - name: knip (쓰지 않는 코드, 의존성)
+        run: pnpm knip
+
       # 앱 셸은 네이티브 빌드 없이 lint(eslint + tsc) 와 단위 테스트만 (#95). EAS 빌드는 CI 에서 하지 않는다
       - name: 모바일 lint, 타입, 테스트
         run: |

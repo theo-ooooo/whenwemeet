@@ -27,6 +27,8 @@ export type GroupDetail = {
   name: string;
   inviteCode: string | null;
   inviteUrl: string | null;
+  /** (#196) inviteUrl + `?by=<내 표식>`. 복사, 공유는 이 주소 (lib/invite-share.ts) */
+  inviteShareUrl: string | null;
   createdAt: string;
   members: Member[];
   me: Member;
@@ -115,7 +117,9 @@ export type FreeSlots = {
 
 export type NewsAction = "CREATED" | "UPDATED" | "DELETED";
 
+/** 일정 기록 한 줄. v=2 응답에서는 kind: "EVENT" 가 붙는다 (#191) */
 export type NewsItem = {
+  kind?: "EVENT";
   id: number;
   action: NewsAction;
   eventId: number | null;
@@ -134,7 +138,48 @@ export type NewsItem = {
   isNew: boolean;
 };
 
-export type News = { items: NewsItem[]; lastSeenAt: string | null };
+/** (#191) 팀 활동 기록 종류 (api.md 2.6). 모르는 종류는 화면에서 거른다 */
+export type ActivityType =
+  | "ANNIVERSARY_CREATED"
+  | "ANNIVERSARY_UPDATED"
+  | "ANNIVERSARY_DELETED"
+  | "MEMBER_JOINED"
+  | "MEMBER_LEFT"
+  | "MEMBER_DELETED"
+  | "GROUP_RENAMED"
+  /** (#279) ICS 파일로 일정을 가져옴. payload { count } */
+  | "EVENTS_IMPORTED";
+
+export type AnniversaryField = "name" | "date" | "kind";
+
+/** 기념일 3종: 바뀐 뒤 값(삭제는 삭제 전 값). 수정이면 바뀐 필드와 그 필드의 이전 값 */
+export type AnniversaryActivityPayload = {
+  name: string;
+  date: string;
+  kind: AnniversaryKind;
+  changed?: AnniversaryField[];
+  before?: Partial<{ name: string; date: string; kind: AnniversaryKind }>;
+};
+
+/** (#191) 팀 활동 한 줄 (기념일 변경, 멤버 합류와 나가기, 팀 이름 변경) */
+export type ActivityNewsItem = {
+  kind: "ACTIVITY";
+  id: number;
+  type: ActivityType;
+  /** 나간 사람, 탈퇴자는 기록 시점 이름 스냅샷 + 회색 */
+  actor: Member;
+  /** 기념일 3종의 대상. 삭제된 기념일이면 null */
+  anniversaryId: number | null;
+  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} */
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number };
+  createdAt: string;
+  isNew: boolean;
+};
+
+/** 새 소식 한 줄. 키는 `${kind}:${id}` (두 기록의 id 가 겹칠 수 있다) */
+export type NewsEntry = NewsItem | ActivityNewsItem;
+
+export type News = { items: NewsEntry[]; lastSeenAt: string | null };
 
 export type Me = {
   id: number;
@@ -143,9 +188,15 @@ export type Me = {
   createdAt: string;
 };
 
-export type InvitePreview = { groupName: string; memberCount: number };
-
-export type ApiErrorBody = { error: { code: string; message: string } };
+export type InvitePreview = {
+  groupName: string;
+  memberCount: number;
+  /** (#196) 링크의 by 가 이 팀 현재 멤버의 표식일 때 그 사람의 팀 표시 이름 */
+  inviter: { nickname: string } | null;
+  /** (#196) 로그인한 내가 이미 멤버. 그때만 groupId 가 있다 */
+  isMember: boolean;
+  groupId: number | null;
+};
 
 // api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
 export const MEMBER_COLORS = [
@@ -159,9 +210,31 @@ export const MEMBER_COLORS = [
   "#F279B5",
 ] as const;
 
-export const LEFT_MEMBER: Member = {
-  userId: null,
-  displayName: "탈퇴한 멤버",
-  color: "#9CA3AF",
-  profileImageUrl: null,
+// ── (#279) ICS 파일 가져오기 (api.md 2.9) ──
+
+export type ImportRange = "future" | "year";
+export type ImportParticipants = "ALL" | "ME";
+export type ImportSkipReason = "DUPLICATE" | "CANCELLED" | "TOO_OLD" | "TOO_LONG" | "INVALID" | "OVER_LIMIT";
+export type ImportWarning = "UNKNOWN_TZID" | "TRUNCATED_TITLE";
+
+export type ImportPreview = {
+  /** 파일 안 VEVENT 수 */
+  total: number;
+  /** 넣을 일정 수 (반복으로 옮긴 것은 1개, 펼친 회차는 각각) */
+  toCreate: number;
+  recurringKept: number;
+  /** 반복을 옮길 수 없어 펼친 회차 수와 그 원본 수 */
+  expanded: number;
+  expandedSeries: number;
+  skipped: { reason: ImportSkipReason; count: number }[];
+  firstStartsAt: string | null;
+  lastStartsAt: string | null;
+  warnings: ImportWarning[];
+  sample: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null }[];
+};
+
+export type ImportResult = {
+  importId: number | null;
+  created: number;
+  skipped: { reason: ImportSkipReason; count: number }[];
 };

@@ -36,6 +36,9 @@ describe("joinAutoNext", () => {
   it("초대 코드 + ?auto=1, safeNext 를 그대로 통과한다 (카카오, 애플 둘 다 같은 next)", () => {
     expect(joinAutoNext("ABC123")).toBe("/join/ABC123?auto=1");
     expect(safeNext(joinAutoNext("ABC123"))).toBe("/join/ABC123?auto=1");
+    // (#196) 보낸 사람 표식은 로그인하고 돌아와도 남는다
+    expect(joinAutoNext("ABC123", "AbC-_12345")).toBe("/join/ABC123?auto=1&by=AbC-_12345");
+    expect(safeNext(joinAutoNext("ABC123", "AbC-_12345"))).toBe("/join/ABC123?auto=1&by=AbC-_12345");
   });
 });
 

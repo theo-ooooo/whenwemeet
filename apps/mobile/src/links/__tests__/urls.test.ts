@@ -1,4 +1,4 @@
-import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
+import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseSchemeLink, safeNext } from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -138,20 +138,6 @@ describe("buildAuthAppUrl", () => {
   });
 });
 
-describe("parseAuthReturn", () => {
-  const h = "a".repeat(43);
-  it("handoff 성공", () => {
-    expect(parseAuthReturn(`whenwemeet://auth?h=${h}&next=/`)).toEqual({ ok: true, handoff: h });
-    expect(parseAuthReturn(`whenwemeet:///auth?h=${h}`)).toEqual({ ok: true, handoff: h });
-  });
-  it("오류와 형식 위반", () => {
-    expect(parseAuthReturn("whenwemeet://auth?error=APPLE_CANCELLED")).toEqual({ ok: false, error: "APPLE_CANCELLED" });
-    expect(parseAuthReturn("whenwemeet://auth?h=short")).toEqual({ ok: false, error: "HANDOFF_INVALID" });
-    expect(parseAuthReturn(`https://whenwemeet.day/auth?h=${h}`)).toBeNull();
-    expect(parseAuthReturn(`whenwemeet://other?h=${h}`)).toBeNull();
-  });
-});
-
 describe("RN URL 구현에서도 같은 결과 (#154)", () => {
   // RN 의 URL 은 http(s) 가 아니면 host, pathname 이 비어 커스텀 스킴을 못 읽는다. jest(Node URL) 만 믿지 않게 바꿔 끼워 본다
   const NodeURL = global.URL;
@@ -215,6 +201,14 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
     expect(decideNavigation(`${W}/login/email/nickname`, W)).toEqual({ kind: "allow" });
     expect(decideNavigation(`${W}/auth/email?token=${"a".repeat(43)}`, W)).toEqual({ kind: "allow" });
   });
+  it("(#195) 카카오 키가 있는 빌드만 UA 끝에 KakaoShare/1 (웹 appSupportsKakaoShare 와 같은 식)", () => {
+    expect(buildUserAgentSuffix("1.1.1", "ios", true)).toBe("WhenwemeetApp/1.1.1 (ios) EmailLogin/1 KakaoShare/1");
+    expect(buildUserAgentSuffix("1.1.1", "android", false)).toBe("WhenwemeetApp/1.1.1 (android) EmailLogin/1");
+    const re = /(?:^|\s)KakaoShare\/1(?:\s|$)/;
+    expect(re.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.1.1", "android", true)}`)).toBe(true);
+    expect(/(?:^|\s)EmailLogin\/1(?:\s|$)/.test(buildUserAgentSuffix("1.1.1", "ios", true))).toBe(true);
+  });
+
   it("UA 접미사 끝에 EmailLogin/1, 앞부분은 웹 APP_UA 정규식 그대로", () => {
     const ua = buildUserAgentSuffix("1.1.0", "ios");
     expect(ua).toBe("WhenwemeetApp/1.1.0 (ios) EmailLogin/1");

@@ -8,8 +8,16 @@ import type { AuthUser } from './auth.service.js';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 
-/** 인증 없이 열리는 엔드포인트 표시 (health, 카카오 OAuth, 초대 미리보기) */
+/** 인증 없이 열리는 엔드포인트 표시 (health, 카카오 OAuth). 토큰을 아예 읽지 않는다 */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC_KEY, true);
+
+export const IS_OPTIONAL_AUTH_KEY = 'isOptionalAuth';
+
+/**
+ * (#196) 선택 인증 (D-158). 토큰이 유효하면 request.user 를 채우고, 없거나 틀리거나 만료면 익명으로 통과 (401 없음).
+ * 핸들러는 `@OptionalUser()` 로 받는다
+ */
+export const OptionalAuth = (): MethodDecorator & ClassDecorator => SetMetadata(IS_OPTIONAL_AUTH_KEY, true);
 
 export type AuthenticatedRequest = Request & { user: AuthUser };
 
@@ -30,16 +38,26 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = await this.resolveUser(request);
+    if (user) {
+      request.user = user;
+      return true;
+    }
+    const isOptional = this.reflector.getAllAndOverride<boolean>(IS_OPTIONAL_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isOptional) return true;
+    throw new ApiException('UNAUTHORIZED');
+  }
+
+  /** Bearer → 서명, 만료 확인 → 사용자 조회. 어디서든 실패하면 null */
+  private async resolveUser(request: Request): Promise<AuthUser | null> {
     const token = extractBearer(request.headers.authorization);
-    if (!token) throw new ApiException('UNAUTHORIZED');
-
+    if (!token) return null;
     const sub = await verifySessionSub(this.jwt, token);
-    if (sub === null) throw new ApiException('UNAUTHORIZED');
-
-    const user = await this.users.findById(sub);
-    if (!user) throw new ApiException('UNAUTHORIZED');
-    request.user = user;
-    return true;
+    if (sub === null) return null;
+    return this.users.findById(sub);
   }
 }
 

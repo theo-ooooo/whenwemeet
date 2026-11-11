@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { ActivityActor } from '../group-activities/activity.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface GroupRow {
@@ -24,7 +26,10 @@ export interface CreateTeamInput {
 
 @Injectable()
 export class GroupsRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activities: GroupActivitiesRepository,
+  ) {}
 
   findById(groupId: number): Promise<GroupRow | null> {
     return this.prisma.group.findUnique({
@@ -58,8 +63,14 @@ export class GroupsRepository {
     });
   }
 
-  async rename(groupId: number, name: string): Promise<void> {
-    await this.prisma.group.update({ where: { id: groupId }, data: { name } });
+  /** 이름 변경. 실제로 바뀐 경우만 같은 트랜잭션에서 새 소식에 GROUP_RENAMED { from, to } 를 남긴다 (#191) */
+  async renameWithActivityTx(groupId: number, name: string, actor: ActivityActor): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const current = await tx.group.findUnique({ where: { id: groupId }, select: { name: true } });
+      if (!current || current.name === name) return;
+      await tx.group.update({ where: { id: groupId }, data: { name } });
+      await this.activities.recordTx(tx, { groupId, type: 'GROUP_RENAMED', actor, payload: { from: current.name, to: name } });
+    });
   }
 
   async setInviteCode(groupId: number, inviteCode: string): Promise<void> {

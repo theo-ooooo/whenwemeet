@@ -2,12 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
+import { snapshotName } from '../group-activities/activity.js';
+import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
 import { GroupsRepository, InviteGroupRow } from './groups.repository.js';
 import { generateInviteCode, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
 import { GroupDetail, MembershipService } from './membership.service.js';
+
+/** (#196) 초대 미리보기 (api.md 2.2 InvitePreview, D-157, D-158) */
+export interface InvitePreview {
+  groupName: string;
+  memberCount: number;
+  inviter: { nickname: string } | null;
+  isMember: boolean;
+  /** isMember 일 때만. 비멤버에게 팀 id 를 주지 않는다 */
+  groupId: number | null;
+}
 
 export interface GroupSummary {
   id: number;
@@ -29,16 +41,19 @@ export class GroupsService {
     private readonly eventLogs: EventLogsRepository,
     private readonly memberships: MembershipService,
     private readonly pushScheduler: PushScheduler,
+    private readonly activities: GroupActivitiesRepository,
   ) {}
 
-  /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 count (결정기록 D-23) */
+  /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 일정 기록 + 팀 활동 기록 count (결정기록 D-23, D-154) */
   async list(userId: number): Promise<GroupSummary[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
     rows.sort((a, b) => Number(b.group.type === 'PERSONAL') - Number(a.group.type === 'PERSONAL'));
 
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
-      const unreadNewsCount = await this.eventLogs.countUnseenByOthers(row.group.id, row.lastSeenAt, userId);
+      const unreadNewsCount =
+        (await this.eventLogs.countUnseenByOthers(row.group.id, row.lastSeenAt, userId)) +
+        (await this.activities.countUnseenByOthers(row.group.id, row.lastSeenAt, userId));
       summaries.push({
         id: row.group.id,
         type: row.group.type,
@@ -72,14 +87,18 @@ export class GroupsService {
     return this.memberships.groupDetail(groupId, userId);
   }
 
+  /** 이름 변경. 실제로 바뀌면 새 소식에 남는다 (#191) */
   async rename(userId: number, groupId: number, name: string): Promise<GroupDetail> {
-    await this.memberships.assertMember(userId, groupId);
-    await this.groupsRepo.rename(groupId, name);
+    const me = await this.memberships.assertMember(userId, groupId);
+    await this.groupsRepo.renameWithActivityTx(groupId, name, { id: userId, name: snapshotName(me.displayName, me.user.nickname) });
     return this.memberships.groupDetail(groupId, userId);
   }
 
   /** 새 코드로 교체. 이전 코드는 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE (결정기록 D-04) */
-  async rotateInviteCode(userId: number, groupId: number): Promise<{ inviteCode: string; inviteUrl: string }> {
+  async rotateInviteCode(
+    userId: number,
+    groupId: number,
+  ): Promise<{ inviteCode: string; inviteUrl: string; inviteShareUrl: string }> {
     await this.memberships.assertMember(userId, groupId);
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
@@ -89,17 +108,36 @@ export class GroupsService {
       const inviteCode = generateInviteCode();
       try {
         await this.groupsRepo.setInviteCode(groupId, inviteCode);
-        return { inviteCode, inviteUrl: this.memberships.inviteUrl(inviteCode)! };
+        return {
+          inviteCode,
+          inviteUrl: this.memberships.inviteUrl(inviteCode)!,
+          inviteShareUrl: this.memberships.inviteShareUrl(inviteCode, groupId, userId)!,
+        };
       } catch (error) {
         if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES) throw error;
       }
     }
   }
 
-  /** 로그인 전 미리보기 (결정기록 D-20). 팀 이름과 인원수만 */
-  async invitePreview(codeRaw: string): Promise<{ groupName: string; memberCount: number }> {
+  /**
+   * 로그인 전 미리보기 (결정기록 D-20). 팀 이름과 인원수.
+   * (#196) by 가 현재 멤버의 표식이면 그 사람의 팀 표시 이름(D-157), 로그인한 사용자가 이미 멤버면 isMember + groupId (D-158).
+   * 둘 다 없으면 멤버 목록을 읽지 않는다
+   */
+  async invitePreview(codeRaw: string, by?: unknown, viewerId: number | null = null): Promise<InvitePreview> {
     const group = await this.findByInviteCode(codeRaw);
-    return { groupName: group.name, memberCount: group.memberCount };
+    const preview: InvitePreview = { groupName: group.name, memberCount: group.memberCount, inviter: null, isMember: false, groupId: null };
+    if (by === undefined && viewerId === null) return preview;
+
+    const members = await this.memberships.listMembers(group.id);
+    const inviterId = by === undefined ? null : this.memberships.matchInviter(group.id, members.map((m) => m.userId), by);
+    const inviter = members.find((m) => m.userId === inviterId);
+    if (inviter) preview.inviter = { nickname: inviter.displayName ?? inviter.user.nickname };
+    if (viewerId !== null && members.some((m) => m.userId === viewerId)) {
+      preview.isMember = true;
+      preview.groupId = group.id;
+    }
+    return preview;
   }
 
   /** 코드로 참여. 이미 멤버면 같은 응답 (멱등, 결정기록 D-19). 색은 팀에서 가장 적게 쓰인 것 */

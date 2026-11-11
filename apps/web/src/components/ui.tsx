@@ -7,7 +7,7 @@ import type { Member } from "@/lib/types";
 /* ---------- 버튼 ---------- */
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill" | "outline" | "ink";
+  variant?: "primary" | "secondary" | "tile" | "ghost" | "danger" | "dangerFill" | "outline" | "ink" | "kakao";
   size?: "xl" | "lg" | "md" | "sm";
   loading?: boolean;
   full?: boolean;
@@ -26,6 +26,8 @@ const variantClass: Record<NonNullable<ButtonProps["variant"]>, string> = {
   outline: "border border-line bg-paper text-ink hover:brightness-95 disabled:text-ink-2",
   // 되돌릴 수 있지만 무게가 있는 확인(코드 재발급). 위험 빨강과 헷갈리지 않게 먹색 면 (#174 L10)
   ink: "bg-ink text-paper hover:brightness-110 disabled:bg-line disabled:text-ink-2",
+  // (#195) 카카오톡 공유. 카카오 디자인 가이드 색 그대로(#FEE500, 글자 #000 85%), 색 변경 금지
+  kakao: "bg-kakao text-kakao-ink hover:brightness-95 disabled:opacity-70",
 };
 const sizeClass: Record<NonNullable<ButtonProps["size"]>, string> = {
   // 카카오, 애플 버튼(SocialLoginButton)과 같은 줄에 쌓이는 버튼: 48, 모서리 12, 15/700 (#166)

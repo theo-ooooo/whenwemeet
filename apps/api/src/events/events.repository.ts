@@ -260,7 +260,7 @@ function toUpdateData({ participants, ...data }: EventUpdateInput) {
  * 멤버십 행을 공유 잠금으로 읽어(FOR SHARE) 확인과 저장 사이에 그 사람이 나가 고아 행이 생기지 않게 한다.
  * 나가기는 멤버십을 먼저 지우고 참여자 행을 지우므로(removeWithGroupPrune), 나가기가 먼저면 여기서 걸리고 이쪽이 먼저면 나가기가 행을 지운다
  */
-async function assertParticipantsTx(tx: Db, groupId: number, participants: ParticipantSet | undefined): Promise<void> {
+export async function assertParticipantsTx(tx: Db, groupId: number, participants: ParticipantSet | undefined): Promise<void> {
   if (!participants || participants.allMembers || participants.ids.length === 0) return;
   const rows = await tx.$queryRaw<{ userId: number }[]>`
     SELECT userId FROM Membership WHERE groupId = ${groupId} AND userId IN (${Prisma.join(participants.ids)}) FOR SHARE`;

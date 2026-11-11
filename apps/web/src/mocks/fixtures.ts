@@ -9,7 +9,17 @@ import {
   todayKey,
   toKst,
 } from "@/lib/date";
-import type { AnniversaryKind, AnniversaryReminder, EventReminder, GroupType, Member, NotificationSettings, Repeat } from "@/lib/types";
+import type {
+  ActivityNewsItem,
+  ActivityType,
+  AnniversaryKind,
+  AnniversaryReminder,
+  EventReminder,
+  GroupType,
+  Member,
+  NotificationSettings,
+  Repeat,
+} from "@/lib/types";
 import type { MockException } from "./recurrence";
 
 export type UserRow = {
@@ -91,6 +101,18 @@ export type EventLogRow = {
   createdAt: string;
 };
 
+/** (#191) 팀 활동 기록 (설계 GroupActivity). actorName 은 기록 시점 표시 이름 스냅샷 */
+export type ActivityRow = {
+  id: number;
+  groupId: number;
+  type: ActivityType;
+  actorId: number | null;
+  actorName: string;
+  anniversaryId: number | null;
+  payload: ActivityNewsItem["payload"];
+  createdAt: string;
+};
+
 export type Store = {
   users: UserRow[];
   groups: GroupRow[];
@@ -98,6 +120,8 @@ export type Store = {
   events: EventRow[];
   anniversaries: AnniversaryRow[];
   logs: EventLogRow[];
+  /** (#191) 없으면 빈 목록 */
+  activities?: ActivityRow[];
   /** (#188) 없으면 빈 목록 */
   pushDevices?: PushDeviceRow[];
   seq: number;
@@ -116,6 +140,22 @@ export const DAD_ID = 4;
 
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
+
+/**
+ * (#196) 목 보낸 사람 표식. 실제 API 는 HMAC(D-157), 목은 팀과 사용자로 정해지는 10자 (FNV-1a).
+ * 화면 확인용이라 비밀은 없다. 맞는 표식 예: inviteMarkerOf(2, 1) (우리 둘 + 나)
+ */
+export function inviteMarkerOf(groupId: number, userId: number): string {
+  const ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let h = 0x811c9dc5;
+  for (const ch of `wwm-mock:${groupId}:${userId}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  let out = "";
+  for (let i = 0; i < 10; i++) {
+    h = Math.imul(h ^ (i + 1), 0x01000193) >>> 0;
+    out += ALPHA[(h >>> 11) & 63];
+  }
+  return out;
+}
 
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 
@@ -324,7 +364,47 @@ export function buildStore(): Store {
     },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, seq: 100 };
+  // (#191) 팀 활동 3개: 하늘의 기념일 날짜 변경(새 소식), 팀 이름 변경, 하늘 합류(지난 것)
+  const activities: ActivityRow[] = [
+    {
+      id: 1,
+      groupId: TEAM_ID,
+      type: "ANNIVERSARY_UPDATED",
+      actorId: OTHER_ID,
+      actorName: "하늘",
+      anniversaryId: anniversaries[0]?.id ?? null,
+      payload: {
+        name: anniversaries[0]?.name ?? "처음 만난 날",
+        date: anniversaries[0]?.date ?? today,
+        kind: anniversaries[0]?.kind ?? "COUNT_UP",
+        changed: ["date"],
+        before: { date: addDays(anniversaries[0]?.date ?? today, -1) },
+      },
+      createdAt: hoursAgo(5),
+    },
+    {
+      id: 2,
+      groupId: TEAM_ID,
+      type: "GROUP_RENAMED",
+      actorId: OTHER_ID,
+      actorName: "하늘",
+      anniversaryId: null,
+      payload: { from: "우리", to: "우리 둘" },
+      createdAt: hoursAgo(24 * 2),
+    },
+    {
+      id: 3,
+      groupId: TEAM_ID,
+      type: "MEMBER_JOINED",
+      actorId: OTHER_ID,
+      actorName: "하늘",
+      anniversaryId: null,
+      payload: {},
+      createdAt: hoursAgo(24 * 20),
+    },
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

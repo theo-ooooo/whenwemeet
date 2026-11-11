@@ -47,6 +47,8 @@
 | EMAIL_CODE_EXPIRED | 400 | 그 이메일의 살아 있는 메일 없음 (만료, 사용, 새로 받음, 잠김) |
 | SIGNUP_TOKEN_INVALID | 401 | 이메일 가입 티켓 없음, 만료(30분), 사용됨 |
 | EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
+| IMPORT_TOO_LARGE | 400 | (#279) ICS 파일의 VEVENT 가 3,000개 초과 |
+| IMPORT_INCOMPLETE | 500 | (#279) 일정 가져오기가 중간에 실패. 넣은 묶음은 남는다. message "N개 중 M개 넣었어요. 같은 파일을 다시 올리면 나머지만 들어가요", `details: { created, total }`. 웹은 점검 화면으로 보내지 않는다(INTERNAL 아님) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 요청 제한 (#186, D-143)
@@ -59,6 +61,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 초대 미리보기 `GET /invites/:code` | IP | 30 / 1분 |
 | 초대 합류 `POST /groups/join` (6자리 코드 추측 방지) | 사용자 **그리고** IP | 사용자 10 / 10분, IP 30 / 10분 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
+| 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
+| 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
 | 그 밖의 모든 요청 (위 경로도 함께 센다) | 로그인(유효한 JWT)이면 사용자, 아니면 IP | 사용자 300 / 1분, IP 600 / 1분 |
 
 - 제외: `GET /health` (배포 healthcheck, 점검 화면). 푸시 스케줄러는 HTTP 가 아니라 대상 아님. 이메일 엔드포인트는 자체 제한(EMAIL_RATE_LIMITED)을 그대로 두고 기본 한도만 함께 센다
@@ -102,8 +106,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/kakao/callback` | 없음 | 쿼리 `code`, `state` | 302 → `${WEB_ORIGIN}/auth/callback?token=<JWT>&next=<경로+쿼리, URL 인코딩>`. 실패 시 302 → `${WEB_ORIGIN}/login?error=<code>` |
 | POST | `/auth/kakao/native` | 없음 | `{ accessToken, codeChallenge }` | `{ data: { handoff, expiresIn } }`. 앱 전용, 앱.md 3.1 |
 | POST | `/auth/apple/native` | 없음 | `{ identityToken, authorizationCode, nonce, nickname?, codeChallenge }` | `{ data: { handoff, expiresIn } }`. iOS 앱 전용, 앱.md 3.3 |
-| GET | `/auth/apple` | 없음 | 쿼리 `next?`, `client?`, `cc?` | 302 → Apple 인가 (앱.md 3.4) |
-| POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` 또는 `whenwemeet://auth?h=` (앱.md 3.4) |
+| GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
+| POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
 | GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt } }` |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
@@ -139,20 +143,26 @@ type AuthResult =
 | POST | `/groups` | 유저 | `{ name }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급 |
 | GET | `/groups/:groupId` | 멤버 | - | `{ data: GroupDetail }` |
 | PATCH | `/groups/:groupId` | 멤버 | `{ name }` | `{ data: GroupDetail }` |
-| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
-| GET | `/invites/:code` | 없음 | - | `{ data: { groupName, memberCount } }`. 로그인 전 미리보기 |
+| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
+| GET | `/invites/:code?by=` | 선택 | `by?`(보낸 사람 표식) | `{ data: InvitePreview }`. 로그인 전 미리보기. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명으로 답한다 (#196, D-157, D-158) |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
 | PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
 GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, memberCount, me: { color, displayName }, unreadNewsCount }
-GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, createdAt,
+GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, createdAt,
                  members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
+InvitePreview = { groupName, memberCount,
+                  inviter: { nickname: string } | null,   // (#196) by 가 이 팀 현재 멤버의 표식과 맞을 때만. 팀 표시 이름, 사진 없음
+                  isMember: boolean,                       // (#196) 유효한 토큰의 사용자가 이미 멤버
+                  groupId: number | null }                 // (#196) isMember 일 때만 값. 비멤버에게 팀 id 를 주지 않는다
 ```
 
 - `inviteUrl` = `${WEB_ORIGIN}/join/${inviteCode}`
+- `inviteShareUrl` = `inviteUrl + "?by=" + 표식`. 표식은 요청자 기준이라 같은 팀도 멤버마다 다르다. 코드가 없으면(PERSONAL) null. 표식은 `base64url(HMAC-SHA256(HKDF(JWT_SECRET, "wwm-invite-by"), "<groupId>:<userId>"))` 앞 10자 (D-157). 복사, 공유는 이 주소를 쓴다
+- `by` 가 10자 base64url 이 아니거나 어떤 현재 멤버와도 맞지 않으면(나간 멤버, 다른 팀 표식, 위조) `inviter: null`. 오류를 내지 않는다
 - `unreadNewsCount` = 그 팀 EventLog 중 `createdAt > me.lastSeenAt` 이고 `actorId != me` 인 건수. 팀 수만큼 count 쿼리 (사용자당 팀 수가 작아 허용)
 - 초대 코드: 알파벳 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (혼동 문자 제외) 6자. 충돌 시 재생성. 입력은 대문자로 정규화
 - 멤버 색: 합류 시 아래 팔레트 중 그 팀에서 가장 적게 쓰인 색을 자동 배정. 검증은 `^#[0-9A-Fa-f]{6}$` 만 (팔레트 밖 값도 허용)
@@ -311,7 +321,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/groups/:groupId/news` | 멤버 | - | `{ data: { items: NewsItem[], lastSeenAt } }` |
+| GET | `/groups/:groupId/news` | 멤버 | `?v=2` (#191, 선택) | `{ data: { items: NewsItem[], lastSeenAt } }`. `v=2` 면 `items: (EventNewsItem \| ActivityNewsItem)[]` |
 | POST | `/groups/:groupId/news/seen` | 멤버 | - | `{ data: { lastSeenAt } }`. `Membership.lastSeenAt = now` |
 
 ```ts
@@ -330,6 +340,43 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 - `isNew` = `createdAt > me.lastSeenAt`. 화면은 목록을 받은 뒤 `seen` 을 호출한다 (순서 고정: GET → POST)
 - `eventId` 가 null 이거나 action 이 DELETED 면 탭해도 일정으로 이동하지 않는다
 
+#### 팀 활동 기록 (#191, D-150 ~ D-156, 기획 `새-소식-확장.md`)
+
+`v=2` 일 때만 일정 기록(EventLog)과 팀 활동 기록(GroupActivity)을 합친다. `v` 가 없거나 다른 값이면 위 응답 그대로 (옛 웹 보호, D-155)
+
+```ts
+EventNewsItem    = { kind: 'EVENT' } & NewsItem          // 일정 항목 모양은 그대로
+ActivityNewsItem = { kind: 'ACTIVITY', id: number,
+  type: 'ANNIVERSARY_CREATED'|'ANNIVERSARY_UPDATED'|'ANNIVERSARY_DELETED'
+      | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED'
+      | 'EVENTS_IMPORTED',          // (#279)
+  actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
+  anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
+  payload: ActivityPayload, createdAt, isNew }
+ActivityPayload =
+  | { name, date: 'YYYY-MM-DD', kind: AnniversaryKind,          // 기념일 3종: 바뀐 뒤 값 (삭제는 삭제 전 값)
+      changed?: ('name'|'date'|'kind')[], before?: { name?, date?, kind? } }   // 수정만: 바뀐 필드와 그 이전 값
+  | { from: string, to: string }                                // GROUP_RENAMED
+  | { count: number }                                           // EVENTS_IMPORTED (#279)
+  | {}                                                           // 멤버 3종
+```
+
+| 종류 | 남기는 곳 (같은 트랜잭션) | 남기지 않는 경우 |
+|------|--------------------------|-----------------|
+| ANNIVERSARY_CREATED | `POST /groups/:id/anniversaries` | 같은 사람이 60초 안에 지운 기념일을 같은 이름, 날짜, 종류로 다시 추가 → 그 DELETED 기록을 지우고 CREATED 도 없음 (되돌리기, D-153) |
+| ANNIVERSARY_UPDATED | `PATCH .../anniversaries/:id` | 이름, 날짜, 종류가 하나도 안 바뀜 (알림 시점만 바꿈 포함, #62 규칙) |
+| ANNIVERSARY_DELETED | `DELETE .../anniversaries/:id` | - |
+| MEMBER_JOINED | `POST /groups/join` 이 새 멤버십을 만들 때 | 이미 멤버 (멱등 재호출) |
+| MEMBER_LEFT | `DELETE /groups/:id/me` (2.7) | 마지막 멤버라 팀이 지워짐 |
+| MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
+| GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
+| EVENTS_IMPORTED (#279) | `POST /groups/:id/imports` 끝 (2.9) | 넣은 일정 0개 |
+
+- 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
+- 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
+- `GroupSummary.unreadNewsCount` = EventLog 미확인 수 + GroupActivity 미확인 수 (`v` 와 무관, D-154)
+- 기록 생성은 서버만. 오류 코드 추가 없음, `POST /news/seen` 그대로. 푸시 변화 없음 (합류 푸시 D-91 은 따로)
+
 ### 2.7 나가기 / 탈퇴 처리 순서
 
 **DELETE /groups/:groupId/me (팀 나가기)** — 한 트랜잭션
@@ -337,6 +384,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 ```
 1. 멤버십 확인. group.type == PERSONAL 이면 GROUP_PERSONAL_LEAVE
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
+   (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -351,9 +399,10 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
    애플 계정이면 Apple /auth/revoke (앱.md 3.5). 실패 → 502 APPLE_ERROR, DB 그대로
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
-   b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제)
+   b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제).
+      (#191) 남는 팀에는 MEMBER_LEFT 대신 MEMBER_DELETED 한 줄. User 삭제 전에 넣고 d 에서 actorId 가 SetNull 이 된다
    c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
-   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId / GroupActivity.actorId 는 FK SetNull → "탈퇴한 멤버"
       (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
@@ -400,6 +449,30 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | `EXPO_ACCESS_TOKEN` | 아니오 (운영 권장) | Expo 액세스 토큰. 있으면 `Authorization: Bearer` (D-94) |
 | `EXPO_PUSH_URL` | 아니오 | 기본 `https://exp.host/--/api/v2/push`. e2e 가 가짜 서버 주소를 넣는다 |
 
+### 2.9 일정 가져오기 (#279, 설계 `일정-가져오기.md`, D-160 ~ D-167)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'` (기본 future) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
+| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
+
+```ts
+SkipReason   = 'DUPLICATE'|'CANCELLED'|'TOO_OLD'|'TOO_LONG'|'INVALID'|'OVER_LIMIT'
+SkipCount    = { reason: SkipReason, count: number }        // 0 인 이유는 뺀다, 위 순서
+ImportPreview = { total: number,          // 파일 안 VEVENT 수
+                  toCreate: number,       // 넣을 일정 (반복으로 옮긴 것 1개, 펼친 회차 각각). 최대 1,000
+                  recurringKept: number, expanded: number, expandedSeries: number,
+                  skipped: SkipCount[], firstStartsAt: ISO|null, lastStartsAt: ISO|null,
+                  warnings: ('UNKNOWN_TZID'|'TRUNCATED_TITLE')[],
+                  sample: { title, startsAt, endsAt, allDay, repeat }[] }   // 시작 순 앞 5개
+```
+
+- 파일은 저장하지 않는다. 미리보기와 넣기에서 두 번 올린다 (서버 상태 없음). 넣기는 같은 계산을 다시 한다
+- 오류: 파일 없음, 못 읽음, 2MB 초과, 다른 이름의 파일 필드 → 400 VALIDATION_FAILED `field: 'file'` ("캘린더 파일(.ics)을 읽지 못했어요" / "파일이 너무 커요. 2MB 까지 올릴 수 있어요"). VEVENT 3,000개 초과 → 400 IMPORT_TOO_LARGE. range, participants 형식, 모르는 필드 → 400. 멤버 아님 403. 중간 실패 500 IMPORT_INCOMPLETE
+- 1,000개를 넘으면 오류가 아니라 시작 순 1,000개만 넣고 나머지는 OVER_LIMIT (같은 파일을 다시 올리면 다음 묶음)
+- 중복: (팀, 원본 키 해시) 가 이미 있으면 DUPLICATE. 일정을 지워도 다시 들어가지 않고, 바뀐 내용으로 덮어쓰지 않는다
+- 넣은 일정: 등록자 = 요청자, 알림 NONE, EventLog 없음. 끝나면 GroupActivity `EVENTS_IMPORTED { count }` 한 줄 + TEAM 이면 팀원 변경 푸시 한 건 (dedupeKey `I:{importId}`)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -423,6 +496,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
+| ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 
 ## 4. 개발 전용
 

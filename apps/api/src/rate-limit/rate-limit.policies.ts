@@ -8,7 +8,7 @@ export interface RateLimitRule {
 }
 
 /** 경로별 한도 이름. 같은 이름의 경로끼리는 카운터를 함께 쓴다 (로그인 경로 7개가 한 묶음) */
-export type RateLimitPolicy = 'login' | 'invitePreview' | 'inviteJoin' | 'avatarUpload';
+export type RateLimitPolicy = 'login' | 'invitePreview' | 'inviteJoin' | 'avatarUpload' | 'icsPreview' | 'icsImport';
 
 export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule[]> = {
   login: [{ scope: 'ip', limit: 20, windowSec: 60 }],
@@ -19,6 +19,9 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule
     { scope: 'ip', limit: 30, windowSec: 600 },
   ],
   avatarUpload: [{ scope: 'user', limit: 20, windowSec: 3600 }],
+  // (#279) ICS 가져오기. 미리보기는 팀, 기간을 바꿀 때마다 다시 부르므로 넉넉히, 넣기는 시간당 10회 (기획 3장)
+  icsPreview: [{ scope: 'user', limit: 30, windowSec: 3600 }],
+  icsImport: [{ scope: 'user', limit: 10, windowSec: 3600 }],
 };
 
 /** 모든 요청의 기본 한도. 유효한 JWT 면 사용자 기준, 아니면 IP 기준 (같은 IP 의 여러 사용자가 한도를 나눠 쓰지 않게) */

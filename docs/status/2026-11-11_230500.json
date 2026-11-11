@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-11-11T23:05:00+09:00",
+  "session_topic": "#191 새 소식 확장 (기념일 변경, 멤버 합류와 나가기, 팀 이름 변경)",
+  "command": "기획 → 설계 → 백엔드 + 프론트 (이슈의 Q1 ~ Q4 추천안 승인 후 일괄)",
+  "agent": "agents/planning.md, agents/design.md, agents/backend.md, agents/frontend.md",
+  "status": "구현, 테스트 완료. PR → develop",
+  "tasks": [
+    {"id": 1, "subject": "기획 새-소식-확장.md, api.md 2.6/2.7, 화면흐름 8, D-150 ~ D-156", "status": "completed"},
+    {"id": 2, "subject": "API: 마이그레이션 group_activity, 기록 지점 7종, 병합 조회 v=2, 배지 합", "status": "completed"},
+    {"id": 3, "subject": "웹: 새 소식 활동 줄, activityPhrase, v=2 요청, 목", "status": "completed"},
+    {"id": 4, "subject": "PR, CI, 머지", "status": "in_progress"}
+  ],
+  "artifacts": ["apps/api/prisma/migrations/20261111134522_group_activity", "apps/api/src/group-activities/", "apps/api/src/news/news.service.ts", "apps/web/src/lib/news-copy.ts", "docs/기획/새-소식-확장.md"],
+  "key_findings": "EventLog 를 건드리지 않고 GroupActivity 새 테이블. 옛 웹은 ?v=2 없으면 예전 응답. 되돌리기는 60초 안 같은 값 재추가 시 삭제 기록 제거",
+  "recommended_actions": "릴리스 때 운영 DB 백업 후 migrate deploy. API 와 웹을 같은 릴리스로. 다음 릴리스에서 v=2 조건 걷기 검토",
+  "pending_user_input": null
+}

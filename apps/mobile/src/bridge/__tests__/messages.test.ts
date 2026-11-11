@@ -1,4 +1,4 @@
-import { parseBridgeMessage, shareContent } from "../messages";
+import { parseBridgeMessage, parseKakaoFeed, shareContent } from "../messages";
 
 const WEB = "https://whenwemeet.day";
 const SRC = "https://whenwemeet.day/login?next=/";
@@ -97,5 +97,86 @@ describe("parseBridgeMessage 푸시 (#188, 푸시-알림.md 2-2)", () => {
     expect(p({ v: 1, type: "pushStatus", id: "a" }, "https://evil.com/")).toBeNull();
     expect(p({ v: 1, type: "openSettings" }, "https://whenwemeet.day.evil.com/")).toBeNull();
     expect(p({ v: 2, type: "pushRequest", id: "a" })).toBeNull();
+  });
+});
+
+describe("kakaoShare (#195, D-169)", () => {
+  const url = "https://whenwemeet.day/join/ABC123?by=AbC-_12345";
+  const link = { webUrl: url, mobileWebUrl: url };
+  // 웹 lib/kakao-share.ts kakaoFeedTemplate 이 만드는 모양
+  const template = {
+    objectType: "feed",
+    content: {
+      title: "민지님이 우리 팀 팀에 초대했어요",
+      description: "합류하면 같은 달력을 함께 보고, 모두 비는 시간을 바로 찾아요",
+      imageUrl: "https://whenwemeet.day/og/join/ABC123?by=AbC-_12345",
+      imageWidth: 1200,
+      imageHeight: 630,
+      link,
+    },
+    buttons: [{ title: "초대 수락하기", link }],
+  };
+  const expected = {
+    content: { ...template.content },
+    buttons: template.buttons,
+  };
+
+  it("웹이 만든 템플릿을 그대로 받고 objectType 은 뗀다, text 는 OS 공유 폴백 본문", () => {
+    expect(p({ v: 1, type: "kakaoShare", template, text: "같이 써요" })).toEqual({
+      v: 1,
+      type: "kakaoShare",
+      template: expected,
+      text: "같이 써요",
+    });
+    expect(p({ v: 1, type: "kakaoShare", template })).toEqual({ v: 1, type: "kakaoShare", template: expected });
+  });
+
+  it("출처 밖 주소(카드 링크, 버튼 링크, 이미지)가 하나라도 있으면 버린다", () => {
+    const evil = "https://evil.com/join/ABC123";
+    const bad = [
+      { ...template, content: { ...template.content, imageUrl: "https://evil.com/a.png" } },
+      { ...template, content: { ...template.content, imageUrl: "http://whenwemeet.day/og" } },
+      { ...template, content: { ...template.content, link: { webUrl: url, mobileWebUrl: evil } } },
+      { ...template, buttons: [{ title: "초대 수락하기", link: { webUrl: evil, mobileWebUrl: evil } }] },
+      { ...template, buttons: [{ title: "초대 수락하기", link: { webUrl: "javascript:alert(1)" } }] },
+    ];
+    for (const t of bad) expect(p({ v: 1, type: "kakaoShare", template: t })).toBeNull();
+  });
+
+  it("실행 파라미터 같은 모르는 칸은 버리고, 한쪽 링크만 있으면 다른 쪽으로 채운다", () => {
+    const t = {
+      ...template,
+      content: { ...template.content, link: { webUrl: url, androidExecutionParams: { a: "1" } } },
+      buttons: [{ title: "초대 수락하기", link: { mobileWebUrl: url, iosExecutionParams: { a: "1" } } }],
+      social: { likeCount: 1 },
+    };
+    expect(parseKakaoFeed(t, WEB)).toEqual(expected);
+  });
+
+  it("모양이 틀리면 null: feed 아님, 제목 없음, 버튼 0개 또는 3개, 이미지 크기 이상, 제어문자", () => {
+    const bad: unknown[] = [
+      null,
+      [],
+      { ...template, objectType: "list" },
+      { ...template, content: { ...template.content, title: "" } },
+      { ...template, content: { ...template.content, title: "a\nb" } },
+      { ...template, content: { ...template.content, imageWidth: -1 } },
+      { ...template, content: { ...template.content, imageHeight: 1.5 } },
+      { ...template, content: { ...template.content, description: 3 } },
+      { ...template, buttons: [] },
+      { ...template, buttons: [template.buttons[0], template.buttons[0], template.buttons[0]] },
+      { ...template, buttons: [{ title: "가".repeat(21), link }] },
+    ];
+    for (const t of bad) expect(parseKakaoFeed(t, WEB)).toBeNull();
+    expect(p({ v: 1, type: "kakaoShare", template, text: 3 })).toBeNull();
+  });
+
+  it("다른 출처 페이지가 보낸 메시지는 버린다", () => {
+    expect(p({ v: 1, type: "kakaoShare", template }, "https://evil.com/")).toBeNull();
+  });
+
+  it("설명, 이미지 크기는 없어도 된다", () => {
+    const { description: _d, imageWidth: _w, imageHeight: _h, ...content } = template.content;
+    expect(parseKakaoFeed({ ...template, content }, WEB)).toEqual({ content, buttons: template.buttons });
   });
 });

@@ -183,7 +183,6 @@ export const ENTRY_ERRORS: Record<string, string> = {
 
 /* ---------- 링크 확인 화면 (6-4) ---------- */
 
-export type LinkState = "VALID" | "EXPIRED" | "USED" | "INVALID";
 export type LinkView = "valid" | "expired" | "used" | "unavailable" | "off";
 
 /** inspect 상태 또는 POST 실패 reason → 화면 */
@@ -213,7 +212,6 @@ export function readAuthResult(data: unknown): AuthResult | null {
   return null;
 }
 
-export const NICKNAME_PATH = "/login/email/nickname";
 export const EMAIL_LOGIN_PATH = "/login/email";
 
 /** 이메일 로그인 화면 주소 (next 가 / 면 생략) */

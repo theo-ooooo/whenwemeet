@@ -34,7 +34,7 @@ export const DELETED_MEMBER: Member = Object.freeze({
 });
 
 /** 팀을 나갔지만 탈퇴하지는 않은 사람의 색 (멤버십이 없어 팔레트 색이 없다) */
-const LEFT_MEMBER_COLOR = '#9CA3AF';
+export const LEFT_MEMBER_COLOR = '#9CA3AF';
 
 export interface MembershipRow {
   userId: number;
@@ -95,6 +95,11 @@ export class MemberResolver {
   /** (#248) 지금 멤버 전원. 생성자에 넘긴 순서 그대로 (resolverFor 는 가입순으로 읽는다) */
   all(): Member[] {
     return [...this.byUserId.values()];
+  }
+
+  /** (#191) 지금 멤버면 팀 안의 색/표시 이름, 아니면 undefined */
+  find(userId: number): Member | undefined {
+    return this.byUserId.get(userId);
   }
 
   /**

@@ -9,7 +9,9 @@ import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
 import { webEmailEnabled } from "@/lib/email-route";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
-import { SITE_NAME } from "@/lib/site";
+import { invitePreviewPath, parseInviteBy } from "@/lib/invite-share";
+import { clampTeamName, INVITER_NAME_MAX } from "@/lib/og";
+import { inviteOgImage, SITE_NAME } from "@/lib/site";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
@@ -18,18 +20,32 @@ import { JoinButton } from "@/screens/JoinButton";
 
 export const dynamic = "force-dynamic";
 
-// 초대 미리보기는 공개 API. generateMetadata 와 화면이 같은 요청을 한 번만 하게 묶는다
-const loadInvite = cache((code: string) =>
-  serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, { auth: false, from: `/join/${code}` }),
+// 초대 미리보기는 선택 인증 API (#196, D-158). 쿠키가 있으면 토큰을 같이 보내 이미 멤버인지도 받는다.
+// generateMetadata 와 화면이 같은 요청을 한 번만 하게 묶는다
+const loadInvite = cache((code: string, by: string | null) =>
+  serverApi<InvitePreview>(invitePreviewPath(code, by), { from: `/join/${code}` }),
 );
 
-// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 같은 폴더 opengraph-image.tsx 가 팀 이름을 넣어 그린다 (#159)
-export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
+const inviterName = (data: InvitePreview) => (data.inviter ? clampTeamName(data.inviter.nickname, INVITER_NAME_MAX) : null);
+
+// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 app/og/join/[code]/route.tsx 가 팀 이름을 넣어 그린다 (#159, #204)
+// (#196) 링크에 보낸 사람 표식(by)이 있으면 제목과 이미지에 그 사람 이름 (D-159)
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
   const code = (await params).code.toUpperCase();
-  const { data } = await loadInvite(code);
-  const title = data ? `${data.groupName} 팀에 초대받았어요` : "초대받았어요";
+  const by = parseInviteBy((await searchParams).by);
+  const { data } = await loadInvite(code, by);
+  const name = data && inviterName(data);
+  const title = !data ? "초대받았어요" : name ? `${name}님이 ${data.groupName} 팀에 초대했어요` : `${data.groupName} 팀에 초대받았어요`;
   const shareTitle = `${title} - ${SITE_NAME}`;
   const description = "링크를 열고 합류하면 같은 달력을 함께 보고, 모두 비는 시간을 바로 찾아요";
+  // 카드 이미지는 이름이 맞는 표식일 때만 by 를 넘긴다 (틀린 표식마다 이미지가 따로 생기지 않게)
+  const image = inviteOgImage(code, name ? by : null);
   return {
     title,
     description,
@@ -39,9 +55,10 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
       locale: "ko_KR",
       title: shareTitle,
       description,
-      url: `/join/${code}`,
+      url: `/join/${code}${by ? `?by=${by}` : ""}`,
+      images: [image],
     },
-    twitter: { card: "summary_large_image", title: shareTitle, description },
+    twitter: { card: "summary_large_image", title: shareTitle, description, images: [image] },
   };
 }
 
@@ -55,6 +72,7 @@ export default async function JoinPage({
   const { code: raw } = await params;
   const code = raw.toUpperCase();
   const sp = await searchParams;
+  const by = parseInviteBy(sp.by);
   const jar = await cookies();
   const session = jar.get(SESSION_COOKIE)?.value;
   const loggedIn = Boolean(session);
@@ -70,14 +88,16 @@ export default async function JoinPage({
   const appleEnabled = webAppleEnabled(process.env.APPLE_LOGIN_ENABLED, appUa?.os);
   // 모바일 브라우저(앱 셸 밖)면 "앱에서 열기". 카카오톡 인앱 브라우저는 열자마자 한 번 시도 (#154)
   const appOpen = planAppOpen(ua, storeLiveFromEnv(process.env.APP_STORE_LIVE));
-  const { data, error } = await loadInvite(code);
+  const { data, error } = await loadInvite(code, by);
+  const inviter = data && inviterName(data);
 
   return (
     <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
       {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24. 브랜드 크기 제목은 로그인만 (#174 L4) */}
       <Symbol size={32} />
 
-      {data ? (
+      {data?.isMember && data.groupId !== null ? (
+        // (#196) 이미 멤버 (1차 L9). 자동으로 보내지 않고 버튼으로, ?auto=1 자동 합류도 하지 않는다 (D-158)
         <>
           <div className="mt-auto pt-16">
             <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
@@ -85,6 +105,29 @@ export default async function JoinPage({
             </span>
           </div>
           <h1 className="mt-3 break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]">
+            {data.groupName}
+            <br />
+            이미 함께하는 팀이에요
+          </h1>
+          <p className="mt-3 text-[15px] leading-[22px] text-soft">달력에서 바로 이어서 볼 수 있어요</p>
+          <Link href={`/g/${data.groupId}/calendar`} className="mt-8 block">
+            <Button size="xl" full tabIndex={-1}>
+              달력 열기
+            </Button>
+          </Link>
+        </>
+      ) : data ? (
+        <>
+          <div className="mt-auto pt-16">
+            <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
+              멤버 {data.memberCount}명
+            </span>
+          </div>
+          {inviter && (
+            // (#196) 보낸 사람 (D-157). 13/500 --ink-2, 한 줄 말줄임
+            <p className="mt-3 truncate text-[13px] font-medium leading-5 text-ink-2">{inviter}님이 초대했어요</p>
+          )}
+          <h1 className={`${inviter ? "mt-1" : "mt-3"} break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]`}>
             {data.groupName}
             <br />
             팀에 초대받았어요
@@ -95,7 +138,7 @@ export default async function JoinPage({
               <JoinButton code={code} auto={autoJoin} />
             ) : (
               <JoinLoginActions
-                next={joinAutoNext(code)}
+                next={joinAutoNext(code, by)}
                 appleEnabled={appleEnabled}
                 appGuess={appGuess}
                 emailEnabled={webEmailEnabled()}

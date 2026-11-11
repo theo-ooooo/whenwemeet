@@ -65,8 +65,12 @@ model User {
   createdEvents Event[]       @relation("EventCreator")
   anniversaries Anniversary[] @relation("AnniversaryCreator")
   eventLogs     EventLog[]    @relation("EventLogActor")
+  /// (#191) 내가 한 팀 활동 기록
+  groupActivities GroupActivity[] @relation("GroupActivityActor")
   pushDevices    PushDevice[]
   pushDeliveries PushDelivery[]
+  /// (#279) 내가 한 ICS 가져오기
+  eventImports   EventImport[]
   /// (#248) 참여하는 일정
   eventParticipations EventParticipant[]
 }
@@ -192,6 +196,10 @@ model Group {
   anniversaries     Anniversary[]
   eventLogs         EventLog[]
   pushNotifications PushNotification[]
+  /// (#191) 새 소식의 일정 밖 기록
+  activities        GroupActivity[]
+  /// (#279) ICS 파일 가져오기 기록
+  eventImports      EventImport[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -253,6 +261,8 @@ model Event {
   logs         EventLog[]
   exceptions   EventException[]
   participants EventParticipant[]
+  /// (#279) ICS 가져오기로 들어온 일정이면 그 기록 (원본 UID 해시)
+  importItems  EventImportItem[]
 
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
@@ -317,6 +327,8 @@ model Anniversary {
 
   group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  /// (#191) 이 기념일의 새 소식 기록. 기념일이 지워지면 anniversaryId 만 null
+  activities GroupActivity[]
 
   @@index([groupId, date])
 }
@@ -352,6 +364,82 @@ model EventLog {
   actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
+}
+
+/// (#191) 새 소식의 일정 밖 기록 종류 (D-150). #190 EVENT_RSVP, #189 POLL_CREATED/POLL_CLOSED 등은 여기에 더한다
+enum GroupActivityType {
+  ANNIVERSARY_CREATED
+  ANNIVERSARY_UPDATED
+  ANNIVERSARY_DELETED
+  MEMBER_JOINED
+  MEMBER_LEFT
+  /// 탈퇴. 탈퇴자의 소속 TEAM 마다 한 줄, actorId 는 User 삭제로 null 이 된다
+  MEMBER_DELETED
+  GROUP_RENAMED
+  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-166)
+  EVENTS_IMPORTED
+}
+
+/// (#191) 팀에 생긴 일(기념일 변경, 멤버 합류와 나가기, 팀 이름 변경). 새 소식이 EventLog 와 합쳐 보여 준다 (D-150).
+/// 쓰기는 서버만, 바뀐 일과 한 트랜잭션. 일정 기록(EventLog)과 푸시 묶음은 건드리지 않는다
+model GroupActivity {
+  id            Int               @id @default(autoincrement())
+  groupId       Int
+  type          GroupActivityType
+  /// 한 사람. 탈퇴하면 null
+  actorId       Int?
+  /// 기록 시점의 표시 이름 스냅샷. 나간 사람, 탈퇴자 표시에 쓴다 (D-152)
+  actorName     String            @db.VarChar(50)
+  /// 기념일 3종의 대상. 기념일이 지워지면 null
+  anniversaryId Int?
+  /// 종류별 값. 기념일 { name, date, kind, changed?, before? }, 팀 이름 { from, to }, 멤버 3종 null
+  payload       Json?
+  createdAt     DateTime          @default(now())
+
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actor       User?        @relation("GroupActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+  anniversary Anniversary? @relation(fields: [anniversaryId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+}
+
+/// (#279) ICS 파일 가져오기 한 번 (D-165). 일정 200개마다 나눠 커밋하고 다 넣으면 doneAt.
+/// 나중에 "가져오기 되돌리기" 를 붙일 수 있게 남긴다 (기획 Q6). 파일 자체는 저장하지 않는다
+model EventImport {
+  id        Int       @id @default(autoincrement())
+  groupId   Int
+  /// 올린 사람. 탈퇴하면 null
+  userId    Int?
+  /// 실제로 넣은 일정 수 (배치마다 늘어난다)
+  created   Int       @default(0)
+  /// 끝까지 넣은 시각. null 이면 진행 중이거나 중간에 실패
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  group Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items EventImportItem[]
+
+  @@index([groupId])
+  @@index([userId])
+}
+
+/// (#279) 가져온 일정 하나의 원본 키. (팀, uidHash) 가 유일해 같은 파일을 다시 올려도 다시 들어가지 않는다 (D-165).
+/// 원본 UID 원문은 저장하지 않는다. 일정을 지워도 행은 남아(eventId null) 다시 들어가지 않는다 (기획 Q5)
+model EventImportItem {
+  importId Int
+  groupId  Int
+  /// SHA-256 hex. 한 번짜리와 옮긴 반복은 UID, 펼친 회차는 UID@회차 시작, 따로 넣은 바뀐 회차는 UID#RECURRENCE-ID,
+  /// UID 가 없으면 (제목, 시작, 끝)
+  uidHash  String  @db.Char(64)
+  eventId  Int?
+
+  import EventImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  event  Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@id([importId, uidHash])
+  @@unique([groupId, uidHash])
+  @@index([eventId])
 }
 
 /// (#105) 기념일 종류

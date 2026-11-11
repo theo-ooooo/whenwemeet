@@ -114,23 +114,21 @@ export class AuthController {
     return this.appleAuth.loginNative(dto);
   }
 
-  /** 웹과 Android 애플 로그인 시작 (앱.md 3.4). state 쿠키를 심고 Apple 인가 페이지로 302. 미설정이면 503 */
+  /** 웹 애플 로그인 시작 (앱.md 3.4). state 쿠키를 심고 Apple 인가 페이지로 302. 미설정이면 503 */
   @Public()
   @Get('apple')
   @RateLimit('login', { redirectToLogin: true })
   startApple(
     @Query('next') next: string | undefined,
-    @Query('client') client: string | undefined,
-    @Query('cc') cc: string | undefined,
     @Res() res: Response,
   ): void {
-    const { nonce, url } = this.appleAuth.start(next, client, cc);
+    const { nonce, url } = this.appleAuth.start(next);
     res.cookie(APPLE_STATE_COOKIE, nonce, APPLE_STATE_COOKIE_OPTIONS);
     res.redirect(302, url);
   }
 
   /**
-   * Apple form_post → 여기 (앱.md 3.4). web 은 웹 콜백으로 JWT, app(Android) 은 whenwemeet://auth?h= 로 handoff.
+   * Apple form_post → 여기 (앱.md 3.4). 웹 콜백으로 JWT.
    * 본문은 Apple 이 정하므로 DTO 로 거르지 않고 문자열 필드만 꺼낸다
    */
   @Public()

@@ -4,11 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
+import { JOIN_AUTO_PARAM } from "@/lib/auth";
 import { rememberGroup } from "@/lib/group-cookie";
 
-/** 자동 합류 표시(`?auto=1`)는 한 번만 쓴다. 주소에서 떼어 두면 실패 후 새로고침해도 확인 버튼이 나온다 (D-41) */
+/** 자동 합류 표시(`?auto=1`)는 한 번만 쓴다. 주소에서 떼어 두면 실패 후 새로고침해도 확인 버튼이 나온다 (D-41).
+ *  (#196) 보낸 사람 표식(`by`)은 남긴다 */
 function clearAutoJoin(code: string) {
-  window.history.replaceState(window.history.state, "", `/join/${encodeURIComponent(code)}`);
+  const q = new URLSearchParams(window.location.search);
+  q.delete(JOIN_AUTO_PARAM);
+  const qs = q.toString();
+  window.history.replaceState(window.history.state, "", `/join/${encodeURIComponent(code)}${qs ? `?${qs}` : ""}`);
 }
 
 /**

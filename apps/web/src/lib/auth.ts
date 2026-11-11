@@ -57,8 +57,9 @@ export const JOIN_AUTO_PARAM = "auto";
 export const JOIN_AUTO_FRESH_SEC = 300;
 
 /** 초대 화면에서 카카오 로그인 후 돌아올 next */
-export function joinAutoNext(code: string): string {
-  return `/join/${encodeURIComponent(code)}?${JOIN_AUTO_PARAM}=1`;
+export function joinAutoNext(code: string, by: string | null = null): string {
+  // (#196) 로그인하고 돌아와도 초대한 사람이 보이게 by 를 남긴다
+  return `/join/${encodeURIComponent(code)}?${JOIN_AUTO_PARAM}=1${by ? `&by=${by}` : ""}`;
 }
 
 /** 로그인 버튼 구성. 앱 셸 안이면 네이티브 로그인(카카오, 애플 둘 다 네이티브가 고른다) 하나,

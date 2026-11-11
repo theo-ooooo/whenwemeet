@@ -79,7 +79,7 @@ export function parseSchemeLink(raw: string): { path: string; search: string } |
  * - https://whenwemeet.day/join/<code>?.. , /g/.. → 같은 경로를 webOrigin 에서 (스테이징 빌드면 스테이징 웹)
  * - whenwemeet://join/<code>?.. , whenwemeet://g/.. → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
  *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다)
- * - whenwemeet://auth?... 는 openAuthSessionAsync 가 받으므로 null
+ * - whenwemeet://auth?... 는 null (옛 Android 애플 웹 로그인 복귀 주소. #145 로 접고 #204 로 API 경로도 지웠다)
  */
 export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whenwemeet.day"): string | null {
   let pathname: string;
@@ -110,30 +110,21 @@ export function buildEmailLoginUrl(webOrigin: string, next: string): string {
 /** (#245) 웹이 이메일 버튼 유무를 아는 UA 토큰. 버전 대신 능력 표시를 붙인다(OTA 는 네이티브 버전을 바꾸지 않음, D-116) */
 export const EMAIL_LOGIN_UA_TOKEN = "EmailLogin/1";
 
-/** 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다 */
-export function buildUserAgentSuffix(version: string, os: string): string {
-  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}`;
+/** (#195) 네이티브 카카오톡 공유(kakaoShare 브리지)를 처리한다는 표시 (D-169). 웹 lib/app-bridge.ts KAKAO_SHARE_UA_TOKEN 과 같은 값 */
+export const KAKAO_SHARE_UA_TOKEN = "KakaoShare/1";
+
+/**
+ * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
+ * KakaoShare/1 은 카카오 네이티브 앱 키가 있는 빌드만 (키 없는 빌드는 SDK 를 못 써서 웹이 지금 share 브리지를 쓰게 둔다)
+ */
+export function buildUserAgentSuffix(version: string, os: string, kakaoShare = false): string {
+  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}${kakaoShare ? ` ${KAKAO_SHARE_UA_TOKEN}` : ""}`;
 }
 
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */
 export function buildAuthAppUrl(webOrigin: string, handoff: string, verifier: string, next: string): string {
   const q = new URLSearchParams({ h: handoff, v: verifier, next: safeNext(next) });
   return `${webOrigin.replace(/\/+$/, "")}/auth/app?${q.toString()}`;
-}
-
-/** 애플 웹 로그인 복귀 주소 whenwemeet://auth?h=..|error=.. 해석 (3.4).
- *  #145 로 Android 앱의 애플 로그인을 접어 지금은 셸에서 부르지 않는다 (API 의 client=app 경로는 남아 있음) */
-export type AuthReturn = { ok: true; handoff: string } | { ok: false; error: string };
-export function parseAuthReturn(raw: string): AuthReturn | null {
-  const u = parseUrl(raw);
-  if (!u || u.protocol !== "whenwemeet:") return null;
-  // whenwemeet://auth 는 host=auth 로, whenwemeet:///auth 는 pathname 으로 들어온다
-  if (u.hostname !== "auth" && u.pathname.replace(/^\/+/, "") !== "auth") return null;
-  const error = u.searchParams.get("error");
-  if (error) return { ok: false, error };
-  const h = u.searchParams.get("h");
-  if (h && /^[A-Za-z0-9_-]{43}$/.test(h)) return { ok: true, handoff: h };
-  return { ok: false, error: "HANDOFF_INVALID" };
 }
 
 /**

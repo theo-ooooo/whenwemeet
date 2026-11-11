@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
+import { deriveKey } from '../email-login/email-crypto.js';
 import { MemberResolver, MemberWithJoin, toMember } from '../common/member.js';
 import { MembershipsRepository, MembershipWithUser } from '../memberships/memberships.repository.js';
 import { GroupsRepository } from './groups.repository.js';
+import { INVITE_MARKER_KEY_INFO, inviteMarker, matchInviteMarker } from './invite-marker.js';
 
 export interface GroupDetail {
   id: number;
@@ -11,6 +13,8 @@ export interface GroupDetail {
   name: string;
   inviteCode: string | null;
   inviteUrl: string | null;
+  /** (#196) inviteUrl + `?by=<요청자 표식>` (D-157). 코드가 없으면 null */
+  inviteShareUrl: string | null;
   createdAt: Date;
   members: MemberWithJoin[];
   /** notify: (#188) 나 자신의 "이 팀 알림 받기". 다른 멤버의 값은 싣지 않는다 */
@@ -20,6 +24,9 @@ export interface GroupDetail {
 /** 멤버십 확인과 멤버 목록. 모든 그룹 자원 서비스가 첫 줄에서 `assertMember` 를 부른다 */
 @Injectable()
 export class MembershipService {
+  /** (#196) 보낸 사람 표식 키. JWT_SECRET 에서 파생 (D-157), 처음 쓸 때 만든다 */
+  private markerKey: Buffer | null = null;
+
   constructor(
     private readonly membershipsRepo: MembershipsRepository,
     private readonly groupsRepo: GroupsRepository,
@@ -46,6 +53,22 @@ export class MembershipService {
     return `${this.config.getOrThrow<string>('WEB_ORIGIN')}/join/${inviteCode}`;
   }
 
+  /** (#196) 이 사용자가 보내는 초대 주소. 코드가 없으면 null */
+  inviteShareUrl(inviteCode: string | null, groupId: number, userId: number): string | null {
+    const url = this.inviteUrl(inviteCode);
+    return url && `${url}?by=${inviteMarker(this.key(), groupId, userId)}`;
+  }
+
+  /** (#196) by 와 맞는 멤버의 userId. 틀리면 null */
+  matchInviter(groupId: number, memberUserIds: readonly number[], by: unknown): number | null {
+    return matchInviteMarker(this.key(), groupId, memberUserIds, by);
+  }
+
+  private key(): Buffer {
+    this.markerKey ??= deriveKey(this.config.getOrThrow<string>('JWT_SECRET'), INVITE_MARKER_KEY_INFO);
+    return this.markerKey;
+  }
+
   /** GroupDetail 조립. 호출 전에 멤버십이 확인돼 있어야 한다 */
   async groupDetail(groupId: number, userId: number): Promise<GroupDetail> {
     const group = await this.groupsRepo.findById(groupId);
@@ -61,6 +84,7 @@ export class MembershipService {
       name: group.name,
       inviteCode: group.inviteCode,
       inviteUrl: this.inviteUrl(group.inviteCode),
+      inviteShareUrl: this.inviteShareUrl(group.inviteCode, group.id, userId),
       createdAt: group.createdAt,
       members,
       me: { ...me, notify: myRow.notify },

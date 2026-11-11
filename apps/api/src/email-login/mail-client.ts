@@ -3,8 +3,6 @@ import type { EmailLoginConfig } from './email-login.config.js';
 
 /** (#245) 메일 발송 주입 토큰 (이메일-로그인.md 5장). 구현은 Resend, 콘솔(개발), 테스트 가짜 */
 export const MAIL_CLIENT = Symbol('MAIL_CLIENT');
-/** 테스트가 가짜 fetch 를 넣는 토큰. 없으면 전역 fetch */
-export const MAIL_FETCH = Symbol('MAIL_FETCH');
 export type FetchFn = typeof fetch;
 
 /** Resend 요청 제한 시간. 재시도 없음 (D-117) */
