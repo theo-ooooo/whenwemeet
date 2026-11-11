@@ -109,7 +109,7 @@ export class PushDispatcher {
       return row.payload;
     }
     if (row.kind === 'ANNIVERSARY') return row.payload;
-    // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-163)
+    // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 
     const groupName = await this.push.findGroupName(row.groupId);

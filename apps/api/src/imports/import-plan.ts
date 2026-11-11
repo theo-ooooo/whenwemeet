@@ -1,5 +1,5 @@
 /**
- * (#279) 읽은 VEVENT → 넣을 일정 계획 (설계 `일정-가져오기.md` 3장, D-158 ~ D-163). 순수 함수 (단위 테스트 대상).
+ * (#279) 읽은 VEVENT → 넣을 일정 계획 (설계 `일정-가져오기.md` 3장, D-161 ~ D-166). 순수 함수 (단위 테스트 대상).
  * 1. UID 로 원본과 바뀐 회차(RECURRENCE-ID)를 묶는다
  * 2. 한 번짜리는 그대로, 반복은 우리 규칙(WEEKLY, BIWEEKLY, MONTHLY, YEARLY)으로 옮길 수 있으면 반복으로, 아니면 회차를 펼친다
  * 3. 기간 창(오늘 이후 또는 지난 1년부터) 밖, 취소, 너무 긴 것은 이유별로 건너뛴다
@@ -32,12 +32,12 @@ export const SKIP_REASONS: readonly SkipReason[] = ['DUPLICATE', 'CANCELLED', 'T
 export const IMPORT_MAX_EVENTS = 1000;
 /** "지난 1년" 의 날 수 */
 export const PAST_YEAR_DAYS = 365;
-/** 옮길 수 없는 반복을 펼치는 끝: 오늘부터 1년 (D-160) */
+/** 옮길 수 없는 반복을 펼치는 끝: 오늘부터 1년 (D-163) */
 export const EXPAND_HORIZON_DAYS = 366;
-/** 반복 하나를 펼치며 도는 횟수 상한, 파일 전체 상한. 넘으면 그 반복은 INVALID (D-160) */
+/** 반복 하나를 펼치며 도는 횟수 상한, 파일 전체 상한. 넘으면 그 반복은 INVALID (D-163) */
 export const STEP_LIMIT_PER_EVENT = 20_000;
 export const STEP_LIMIT_PER_FILE = 100_000;
-/** 끝이 없거나 시작과 같은 시간 일정의 기본 길이 (D-161) */
+/** 끝이 없거나 시작과 같은 시간 일정의 기본 길이 (D-164) */
 export const DEFAULT_TIMED_MS = 60 * 60 * 1000;
 export const TITLE_MAX = 50;
 export const MEMO_MAX = 500;
@@ -57,7 +57,7 @@ export interface PlannedException {
 
 /** 넣을 일정 하나 */
 export interface PlannedEvent {
-  /** SHA-256 hex. (팀, uidHash) 로 중복을 막는다 (D-162) */
+  /** SHA-256 hex. (팀, uidHash) 로 중복을 막는다 (D-165) */
   uidHash: string;
   title: string;
   memo: string | null;
@@ -164,7 +164,7 @@ export function toMemo(location: string, description: string): string | null {
 
 const isInvalidStart = (time: IcsTime) => time === INVALID_START;
 
-/** 시작, 끝, 종일. 끝이 없거나 시작 이하면 종일은 하루, 시간 일정은 1시간 (D-161) */
+/** 시작, 끝, 종일. 끝이 없거나 시작 이하면 종일은 하루, 시간 일정은 1시간 (D-164) */
 export function spanOf(event: IcsEvent): Span {
   const startsAt = instantOf(event.start);
   const allDay = event.start.allDay;
@@ -199,7 +199,7 @@ const sameList = (list: (string | number)[] | undefined, value: string | number)
   list === undefined || (list.length === 1 && String(list[0]).toUpperCase() === String(value));
 
 /**
- * RRULE 을 우리 반복으로 옮길 수 있으면 그 주기 (기획 3장 표, D-159). 아니면 null (펼친다).
+ * RRULE 을 우리 반복으로 옮길 수 있으면 그 주기 (기획 3장 표, D-162). 아니면 null (펼친다).
  * - 서머타임 있는 시간대는 옮기지 않는다 (우리 반복은 KST 벽시계 고정이라 한 시간 밀린다)
  * - 매월 29~31일, 매년 2/29 는 RFC 5545 가 없는 달을 건너뛰고 우리는 말일로 보정해서(D-64) 펼친다
  */
@@ -402,7 +402,7 @@ function addSeries(c: Collector, group: Group, window: Window, budget: StepBudge
   return expandSeries(c, group, span, window, budget);
 }
 
-/** 반복을 우리 규칙으로 옮긴다. 시작은 기간 창 안 첫 회차로 당긴다 (D-160) */
+/** 반복을 우리 규칙으로 옮긴다. 시작은 기간 창 안 첫 회차로 당긴다 (D-163) */
 function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, window: Window, budget: StepBudget): void {
   const master = group.master!;
   const rule = master.rule!;
@@ -489,7 +489,7 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
   });
 }
 
-/** 옮길 수 없는 반복: 기간 창 ~ 오늘부터 1년 안 회차를 한 번짜리로 (D-160) */
+/** 옮길 수 없는 반복: 기간 창 ~ 오늘부터 1년 안 회차를 한 번짜리로 (D-163) */
 function expandSeries(c: Collector, group: Group, span: Span, window: Window, budget: StepBudget): void {
   const master = group.master!;
   const allDay = span.allDay;

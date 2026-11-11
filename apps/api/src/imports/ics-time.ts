@@ -1,5 +1,5 @@
 /**
- * (#279) ICS 시각 → UTC 순간 (설계 `일정-가져오기.md` 3-2, D-158).
+ * (#279) ICS 시각 → UTC 순간 (설계 `일정-가져오기.md` 3-2, D-161).
  * IANA 이름은 `Intl` 로, 아니면 파일의 VTIMEZONE 으로, 둘 다 안 되면 KST 로 보고 UNKNOWN_TZID 경고.
  * 시간대 없는 떠 있는 시각은 KST (MVP 5장). 순수 함수 (ical.js 의 Timezone 만 받는다)
  */
@@ -106,7 +106,7 @@ export function toInstant(wall: Wall, zone: Zone): Date {
 }
 
 /**
- * 오프셋이 늘 같은 시간대인지 (서머타임 없음). 반복을 우리 규칙(KST 벽시계 고정)으로 옮겨도 되는지 판정한다 (D-159).
+ * 오프셋이 늘 같은 시간대인지 (서머타임 없음). 반복을 우리 규칙(KST 벽시계 고정)으로 옮겨도 되는지 판정한다 (D-162).
  * IANA 는 시작 해부터 3년의 1월, 7월 오프셋이 모두 같으면 고정으로 본다
  */
 export function isFixedOffset(zone: Zone, year: number): boolean {

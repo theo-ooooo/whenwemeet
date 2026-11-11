@@ -5,7 +5,7 @@
   "agent": "agents/planning.md, agents/design.md, agents/backend.md, agents/frontend.md",
   "status": "구현과 테스트 완료, PR 생성 단계",
   "tasks": [
-    { "id": 1, "subject": "기획/설계 문서, api.md, 결정기록 D-157~D-164", "status": "completed" },
+    { "id": 1, "subject": "기획/설계 문서, api.md, 결정기록 D-160~D-167", "status": "completed" },
     { "id": 2, "subject": "API imports 모듈, 마이그레이션 event_import, 단위/e2e 테스트", "status": "completed" },
     { "id": 3, "subject": "웹 /g/[groupId]/import 화면, 팀 설정 줄, 새 소식 EVENTS_IMPORTED, 지원 페이지 TimeTree, 처리방침", "status": "completed" },
     { "id": 4, "subject": "PR → develop, CI, 머지", "status": "in_progress" }

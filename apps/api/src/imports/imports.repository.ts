@@ -13,7 +13,7 @@ import type { PlannedEvent } from './import-plan.js';
 const HASH_CHUNK = 1000;
 
 /**
- * (#279) ICS 가져오기 (설계 `일정-가져오기.md` 4장, D-162, D-163). 일정은 EventLog 없이 넣고(새 소식, 2분 묶음 푸시를 거치지 않음)
+ * (#279) ICS 가져오기 (설계 `일정-가져오기.md` 4장, D-165, D-166). 일정은 EventLog 없이 넣고(새 소식, 2분 묶음 푸시를 거치지 않음)
  * 끝나면 GroupActivity 한 줄과 팀원 변경 푸시 한 건만 남긴다
  */
 @Injectable()
@@ -96,7 +96,7 @@ export class ImportsRepository {
   }
 
   /**
-   * 가져오기를 마친다: 넣은 게 있으면 새 소식 한 줄(EVENTS_IMPORTED) + 팀원 변경 푸시 한 건 (D-163).
+   * 가져오기를 마친다: 넣은 게 있으면 새 소식 한 줄(EVENTS_IMPORTED) + 팀원 변경 푸시 한 건 (D-166).
    * done 이면 doneAt 을 채운다 (중간 실패 후 넣은 만큼 알릴 때는 비워 둔다)
    */
   async finishTx(input: { importId: number; groupId: number; actor: ActivityActor; count: number; push: PushPayload | null; done: boolean }): Promise<void> {

@@ -230,7 +230,7 @@ model Anniversary {
   @@index([groupId, date])
 }
 
-/// (#279) ICS 파일 가져오기 한 번 (D-162). 200개마다 커밋, 다 넣으면 doneAt. 파일은 저장하지 않는다
+/// (#279) ICS 파일 가져오기 한 번 (D-165). 200개마다 커밋, 다 넣으면 doneAt. 파일은 저장하지 않는다
 model EventImport {
   id        Int       @id @default(autoincrement())
   groupId   Int
@@ -311,7 +311,7 @@ enum GroupActivityType {
   /// 탈퇴. 남는 TEAM 마다 한 줄, actorId 는 User 삭제로 null
   MEMBER_DELETED
   GROUP_RENAMED
-  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-163)
+  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-166)
   EVENTS_IMPORTED
 }
 

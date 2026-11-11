@@ -4,7 +4,7 @@ import type { Observable } from 'rxjs';
 import { ApiException } from '../common/errors.js';
 import { ICS_MAX_BYTES, ICS_READ_FAILED_MESSAGE } from './ics-parse.js';
 
-/** multipart 필드 `file` 하나, 2MB 까지 메모리로 (디스크에 남기지 않는다, D-162). 텍스트 필드는 range, participants 둘 */
+/** multipart 필드 `file` 하나, 2MB 까지 메모리로 (디스크에 남기지 않는다, D-165). 텍스트 필드는 range, participants 둘 */
 const BaseIcsFileInterceptor = FileInterceptor('file', {
   limits: { fileSize: ICS_MAX_BYTES, files: 1, fields: 5, fieldSize: 100 },
 });

@@ -10,7 +10,7 @@ export type GroupActivityType =
   | 'MEMBER_LEFT'
   | 'MEMBER_DELETED'
   | 'GROUP_RENAMED'
-  /** (#279) ICS 파일로 일정을 가져옴 (D-163) */
+  /** (#279) ICS 파일로 일정을 가져옴 (D-166) */
   | 'EVENTS_IMPORTED';
 
 export type AnniversaryField = 'name' | 'date' | 'kind';

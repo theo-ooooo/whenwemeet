@@ -449,7 +449,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | `EXPO_ACCESS_TOKEN` | 아니오 (운영 권장) | Expo 액세스 토큰. 있으면 `Authorization: Bearer` (D-94) |
 | `EXPO_PUSH_URL` | 아니오 | 기본 `https://exp.host/--/api/v2/push`. e2e 가 가짜 서버 주소를 넣는다 |
 
-### 2.9 일정 가져오기 (#279, 설계 `일정-가져오기.md`, D-157 ~ D-164)
+### 2.9 일정 가져오기 (#279, 설계 `일정-가져오기.md`, D-160 ~ D-167)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|

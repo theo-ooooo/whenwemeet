@@ -238,7 +238,7 @@ export function joinPayload(groupId: number, groupName: string, memberName: stri
 }
 
 /**
- * (#279) 일정 가져오기 한 번에 팀원 변경 알림 1건 (D-163). 제목은 새 소식 줄과 같은 문장, 누르면 그 팀 달력.
+ * (#279) 일정 가져오기 한 번에 팀원 변경 알림 1건 (D-166). 제목은 새 소식 줄과 같은 문장, 누르면 그 팀 달력.
  * 일정마다 보내지 않는다 (가져오기는 EventLog 와 2분 묶음을 거치지 않는다)
  */
 export function importPayload(groupId: number, groupName: string, actorName: string, count: number, now: Date): PushPayload {

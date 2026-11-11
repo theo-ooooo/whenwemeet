@@ -376,7 +376,7 @@ enum GroupActivityType {
   /// 탈퇴. 탈퇴자의 소속 TEAM 마다 한 줄, actorId 는 User 삭제로 null 이 된다
   MEMBER_DELETED
   GROUP_RENAMED
-  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-163)
+  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-166)
   EVENTS_IMPORTED
 }
 
@@ -403,7 +403,7 @@ model GroupActivity {
   @@index([groupId, createdAt])
 }
 
-/// (#279) ICS 파일 가져오기 한 번 (D-162). 일정 200개마다 나눠 커밋하고 다 넣으면 doneAt.
+/// (#279) ICS 파일 가져오기 한 번 (D-165). 일정 200개마다 나눠 커밋하고 다 넣으면 doneAt.
 /// 나중에 "가져오기 되돌리기" 를 붙일 수 있게 남긴다 (기획 Q6). 파일 자체는 저장하지 않는다
 model EventImport {
   id        Int       @id @default(autoincrement())
@@ -424,7 +424,7 @@ model EventImport {
   @@index([userId])
 }
 
-/// (#279) 가져온 일정 하나의 원본 키. (팀, uidHash) 가 유일해 같은 파일을 다시 올려도 다시 들어가지 않는다 (D-162).
+/// (#279) 가져온 일정 하나의 원본 키. (팀, uidHash) 가 유일해 같은 파일을 다시 올려도 다시 들어가지 않는다 (D-165).
 /// 원본 UID 원문은 저장하지 않는다. 일정을 지워도 행은 남아(eventId null) 다시 들어가지 않는다 (기획 Q5)
 model EventImportItem {
   importId Int
