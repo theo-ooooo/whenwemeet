@@ -143,7 +143,7 @@ export class UsersRepository {
   }
 
   /**
-   * 팀 삭제 → 멤버십마다 나가기 → 파일 행 삭제 → 이메일 로그인 발송 기록 삭제(#245, 이메일-로그인.md 8-1) → 연결 계정 삭제 → User 삭제
+   * 팀 삭제 → 멤버십마다 나가기(남는 팀에는 탈퇴 기록 MEMBER_DELETED, #191) → 파일 행 삭제 → 이메일 로그인 발송 기록 삭제(#245, 이메일-로그인.md 8-1) → 연결 계정 삭제 → User 삭제
    * (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로.
    * 파일 객체는 Service 가 이 호출 전에 저장소에서 지운다
    */
@@ -153,7 +153,7 @@ export class UsersRepository {
         await tx.group.delete({ where: { id: groupId } });
       }
       for (const { membershipId, groupId } of plan.leave) {
-        await this.memberships.removeWithGroupPrune(tx, membershipId, groupId);
+        await this.memberships.removeWithGroupPrune(tx, membershipId, groupId, 'MEMBER_DELETED');
       }
       await tx.file.deleteMany({ where: { ownerId: userId } });
       const emailAccounts = await tx.authAccount.findMany({ where: { userId, provider: 'EMAIL' }, select: { providerUserId: true } });

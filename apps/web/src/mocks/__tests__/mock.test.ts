@@ -335,3 +335,14 @@ describe("목 기념일 알림 시점 (#269)", () => {
     }
   });
 });
+
+describe("목 새 소식 v=2 (#191)", () => {
+  it("v 없으면 일정만(kind 없음), v=2 면 활동을 시각순으로 섞는다", () => {
+    const old = call("GET", `/groups/${TEAM_ID}/news`).body.data.items as Record<string, unknown>[];
+    expect(old.every((i) => !("kind" in i))).toBe(true);
+    const merged = call("GET", `/groups/${TEAM_ID}/news`, null, "v=2").body.data.items as { kind: string; createdAt: string }[];
+    expect(merged.some((i) => i.kind === "ACTIVITY")).toBe(true);
+    expect(merged.length).toBe(old.length + merged.filter((i) => i.kind === "ACTIVITY").length);
+    for (let i = 1; i < merged.length; i += 1) expect(merged[i - 1].createdAt >= merged[i].createdAt).toBe(true);
+  });
+});

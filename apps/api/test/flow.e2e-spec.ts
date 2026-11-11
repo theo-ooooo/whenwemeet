@@ -230,9 +230,14 @@ describe('핵심 흐름 (e2e)', () => {
       isNew: true,
     });
 
+    // (#191) 배지는 일정 기록 + 팀 활동 기록(밥 합류 등). v=2 새 소식의 새 항목 수와 같다
     const summary = await api(app).get('/v1/groups').set(auth(alice)).expect(200);
     const team = summary.body.data.find((g: { id: number }) => g.id === groupId);
-    expect(team.unreadNewsCount).toBe(1);
+    const merged = await api(app).get(`/v1/groups/${groupId}/news`).query({ v: '2' }).set(auth(alice)).expect(200);
+    const fresh = merged.body.data.items.filter((i: { isNew: boolean }) => i.isNew);
+    expect(fresh.filter((i: { kind: string }) => i.kind === 'EVENT')).toHaveLength(1);
+    expect(team.unreadNewsCount).toBe(fresh.length);
+    expect(team.unreadNewsCount).toBeGreaterThan(1);
   });
 
   it('news/seen 뒤에는 isNew=false, 배지 0', async () => {

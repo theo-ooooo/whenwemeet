@@ -115,7 +115,9 @@ export type FreeSlots = {
 
 export type NewsAction = "CREATED" | "UPDATED" | "DELETED";
 
+/** 일정 기록 한 줄. v=2 응답에서는 kind: "EVENT" 가 붙는다 (#191) */
 export type NewsItem = {
+  kind?: "EVENT";
   id: number;
   action: NewsAction;
   eventId: number | null;
@@ -134,7 +136,46 @@ export type NewsItem = {
   isNew: boolean;
 };
 
-export type News = { items: NewsItem[]; lastSeenAt: string | null };
+/** (#191) 팀 활동 기록 종류 (api.md 2.6). 모르는 종류는 화면에서 거른다 */
+export type ActivityType =
+  | "ANNIVERSARY_CREATED"
+  | "ANNIVERSARY_UPDATED"
+  | "ANNIVERSARY_DELETED"
+  | "MEMBER_JOINED"
+  | "MEMBER_LEFT"
+  | "MEMBER_DELETED"
+  | "GROUP_RENAMED";
+
+export type AnniversaryField = "name" | "date" | "kind";
+
+/** 기념일 3종: 바뀐 뒤 값(삭제는 삭제 전 값). 수정이면 바뀐 필드와 그 필드의 이전 값 */
+export type AnniversaryActivityPayload = {
+  name: string;
+  date: string;
+  kind: AnniversaryKind;
+  changed?: AnniversaryField[];
+  before?: Partial<{ name: string; date: string; kind: AnniversaryKind }>;
+};
+
+/** (#191) 팀 활동 한 줄 (기념일 변경, 멤버 합류와 나가기, 팀 이름 변경) */
+export type ActivityNewsItem = {
+  kind: "ACTIVITY";
+  id: number;
+  type: ActivityType;
+  /** 나간 사람, 탈퇴자는 기록 시점 이름 스냅샷 + 회색 */
+  actor: Member;
+  /** 기념일 3종의 대상. 삭제된 기념일이면 null */
+  anniversaryId: number | null;
+  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 멤버 3종 {} */
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string };
+  createdAt: string;
+  isNew: boolean;
+};
+
+/** 새 소식 한 줄. 키는 `${kind}:${id}` (두 기록의 id 가 겹칠 수 있다) */
+export type NewsEntry = NewsItem | ActivityNewsItem;
+
+export type News = { items: NewsEntry[]; lastSeenAt: string | null };
 
 export type Me = {
   id: number;

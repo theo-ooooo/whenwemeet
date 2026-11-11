@@ -44,6 +44,8 @@ model User {
   createdEvents Event[]        @relation("EventCreator")
   anniversaries Anniversary[]  @relation("AnniversaryCreator")
   eventLogs     EventLog[]     @relation("EventLogActor")
+  /// (#191) 내가 한 팀 활동 기록
+  groupActivities GroupActivity[] @relation("GroupActivityActor")
 }
 
 /// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
@@ -112,6 +114,8 @@ model Group {
   events        Event[]
   anniversaries Anniversary[]
   eventLogs     EventLog[]
+  /// (#191) 새 소식의 일정 밖 기록
+  activities    GroupActivity[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -220,6 +224,8 @@ model Anniversary {
 
   group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  /// (#191) 이 기념일의 새 소식 기록. 기념일이 지워지면 anniversaryId 만 null
+  activities GroupActivity[]
 
   @@index([groupId, date])
 }
@@ -259,6 +265,40 @@ model EventLog {
   group Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([groupId, createdAt])
+}
+
+/// (#191) 새 소식의 일정 밖 기록 종류 (D-150). #190, #189 는 여기에 종류를 더한다
+enum GroupActivityType {
+  ANNIVERSARY_CREATED
+  ANNIVERSARY_UPDATED
+  ANNIVERSARY_DELETED
+  MEMBER_JOINED
+  MEMBER_LEFT
+  /// 탈퇴. 남는 TEAM 마다 한 줄, actorId 는 User 삭제로 null
+  MEMBER_DELETED
+  GROUP_RENAMED
+}
+
+/// (#191) 팀에 생긴 일. 새 소식이 EventLog 와 합쳐 보여 준다 (api.md 2.6, D-150 ~ D-155)
+model GroupActivity {
+  id            Int               @id @default(autoincrement())
+  groupId       Int
+  type          GroupActivityType
+  /// 한 사람. 탈퇴하면 null
+  actorId       Int?
+  /// 기록 시점의 표시 이름 스냅샷 (D-152)
+  actorName     String            @db.VarChar(50)
+  /// 기념일 3종의 대상. 기념일이 지워지면 null
+  anniversaryId Int?
+  /// 기념일 { name, date, kind, changed?, before? }, 팀 이름 { from, to }, 멤버 3종 null
+  payload       Json?
+  createdAt     DateTime          @default(now())
+
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actor       User?        @relation("GroupActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+  anniversary Anniversary? @relation(fields: [anniversaryId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
 }
