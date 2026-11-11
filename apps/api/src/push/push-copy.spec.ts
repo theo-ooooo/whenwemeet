@@ -149,7 +149,7 @@ describe('기념일, 합류 문구', () => {
     expect(anniversaryPayload({ groupId: 10, groupName: '우리', name: '엄마 생신', label: null, date: '2026-11-12', offsetDays: 0 }).title).toBe('엄마 생신');
   });
 
-  it('기념일 하루 전, 일주일 전 (#269, D-146): 제목은 그대로, 본문만 다르고 만료는 보내는 날 KST 24:00', () => {
+  it('기념일 하루 전, 일주일 전 (#269, D-147): 제목은 그대로, 본문만 다르고 만료는 보내는 날 KST 24:00', () => {
     const base = { groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12' };
     expect(anniversaryPayload({ ...base, offsetDays: 1 })).toMatchObject({
       title: '처음 만난 날 300일',

@@ -7,7 +7,7 @@ import { fromReminderFlags, toReminderFlags } from '../anniversary-reminders.js'
 const fields = async (cls: typeof CreateAnniversaryDto | typeof UpdateAnniversaryDto, body: object) =>
   (await validate(plainToInstance(cls, body), { whitelist: true, forbidNonWhitelisted: true })).map((e) => e.property);
 
-describe('기념일 알림 시점 DTO (#269, D-143)', () => {
+describe('기념일 알림 시점 DTO (#269, D-144)', () => {
   const base = { name: '생일', date: '2000-05-05' };
 
   it.each([

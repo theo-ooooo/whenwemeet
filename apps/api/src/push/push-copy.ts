@@ -205,7 +205,7 @@ export interface AnniversaryTarget {
 }
 
 /**
- * 기념일 (설계 6장 ANNIVERSARY, #269 D-146). 제목은 시점과 관계없이 `{이름} {라벨}`.
+ * 기념일 (설계 6장 ANNIVERSARY, #269 D-147). 제목은 시점과 관계없이 `{이름} {라벨}`.
  * 만료는 보내는 날 KST 24:00 (다음 날 받으면 "내일은" 이 틀린 말이 된다)
  */
 export function anniversaryPayload(target: AnniversaryTarget): PushPayload {

@@ -98,7 +98,7 @@ describe('기념일 예약 (설계 5-5)', () => {
   });
 });
 
-describe('기념일 알림 시점 (#269, 설계 5-5, D-143 ~ D-146)', () => {
+describe('기념일 알림 시점 (#269, 설계 5-5, D-144 ~ D-147)', () => {
   const ALL = { remindDayOf: true, remindDayBefore: true, remindWeekBefore: true };
   const row = (overrides: Partial<AnniversaryPlanRow> = {}): AnniversaryPlanRow => ({
     id: 7,

@@ -24,7 +24,7 @@ const OFFSETS: readonly { flag: keyof AnniversaryReminderFlags; days: ReminderOf
 ];
 
 /**
- * 알림 시점별 그날 항목. 일주일 전은 100일 단위(DAYS) 를 뺀다 (#269, D-144). 우선순위 순
+ * 알림 시점별 그날 항목. 일주일 전은 100일 단위(DAYS) 를 뺀다 (#269, D-145). 우선순위 순
  */
 export function itemsForOffset(a: AnniversaryLike, target: string, offsetDays: ReminderOffsetDays): AnniversaryItem[] {
   const items = anniversaryItemsOn(a, target);
@@ -32,7 +32,7 @@ export function itemsForOffset(a: AnniversaryLike, target: string, offsetDays: R
 }
 
 /**
- * 보내는 날 `day` 09:00 의 기념일 알림 (D-92, #269 D-143 ~ D-146). 기념일마다 켜진 시점마다 그날 = day + 앞당김 일수 의
+ * 보내는 날 `day` 09:00 의 기념일 알림 (D-92, #269 D-144 ~ D-147). 기념일마다 켜진 시점마다 그날 = day + 앞당김 일수 의
  * 항목이 있으면 1건, 첫 항목(우선순위)으로 문구. 보내는 날 09:00 뒤에 등록, 수정한 기념일은 보내지 않는다.
  * 당일 키는 #269 전과 같고 하루 전, 일주일 전은 `:D1`, `:D7` 을 붙인다
  */

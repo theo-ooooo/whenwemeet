@@ -5,7 +5,7 @@
   "agent": "agents/planning.md, agents/design.md, agents/backend.md, agents/frontend.md",
   "status": "구현, 테스트 완료. PR → develop",
   "tasks": [
-    {"id": 1, "subject": "기획 3-7, 설계 5-5/6장, api.md 2.4, D-143 ~ D-147", "status": "completed"},
+    {"id": 1, "subject": "기획 3-7, 설계 5-5/6장, api.md 2.4, D-144 ~ D-148", "status": "completed"},
     {"id": 2, "subject": "API: 마이그레이션 anniversary_reminders, DTO, 플래너, 문구", "status": "completed"},
     {"id": 3, "subject": "웹: 기념일 시트 알림 칩, 알림 설정 이름, 목", "status": "completed"},
     {"id": 4, "subject": "PR, CI, 머지", "status": "in_progress"}

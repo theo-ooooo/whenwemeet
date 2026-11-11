@@ -37,7 +37,7 @@ describe("기념일 알림 칩 (#269, 기획 푸시-알림.md 3-7)", () => {
     expect(isChoiceOn(["DAY_OF"], "WEEK_BEFORE")).toBe(false);
   });
 
-  it("함께한 날 세기 + 일주일 전이면 100일 단위 안내 (D-144)", () => {
+  it("함께한 날 세기 + 일주일 전이면 100일 단위 안내 (D-145)", () => {
     expect(reminderHint("COUNT_UP", ["DAY_OF", "WEEK_BEFORE"])).toBe("100일 단위는 하루 전까지만 알려 드려요");
     expect(reminderHint("COUNT_UP", ["DAY_OF", "DAY_BEFORE"])).toBeNull();
     expect(reminderHint("YEARLY", ["WEEK_BEFORE"])).toBeNull();

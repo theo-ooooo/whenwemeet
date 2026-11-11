@@ -1,4 +1,4 @@
-// (#269) 기념일 알림 시점 (기획 푸시-알림.md 3-7, 설계 api.md 2.4, 결정 D-143, D-144).
+// (#269) 기념일 알림 시점 (기획 푸시-알림.md 3-7, 설계 api.md 2.4, 결정 D-144, D-145).
 // 칩 4개: 당일 / 하루 전 / 일주일 전 / 없음. 앞 셋은 여러 개, "없음" 은 셋을 끈다. 순수 함수 (단위 테스트 대상)
 import type { Anniversary, AnniversaryKind, AnniversaryReminder } from "./types";
 
@@ -38,7 +38,7 @@ export function toggleReminder(list: readonly AnniversaryReminder[], choice: Rem
   return list.includes(choice) ? normalizeReminders(list.filter((r) => r !== choice)) : normalizeReminders([...list, choice]);
 }
 
-/** 함께한 날 세기에서 일주일 전을 켜면 100일 단위는 하루 전까지만 온다 (D-144) */
+/** 함께한 날 세기에서 일주일 전을 켜면 100일 단위는 하루 전까지만 온다 (D-145) */
 export function reminderHint(kind: AnniversaryKind, list: readonly AnniversaryReminder[]): string | null {
   return kind === "COUNT_UP" && list.includes("WEEK_BEFORE") ? "100일 단위는 하루 전까지만 알려 드려요" : null;
 }
