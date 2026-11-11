@@ -399,159 +399,166 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          {/* 제목은 빠른 추가와 같은 44 상자 + 16/600 (#174 L3) */}
-          <div className="rounded-xl bg-paper px-3.5 py-3">
-            <label htmlFor="ev-title" className="sr-only">
-              제목
-            </label>
-            <input
-              id="ev-title"
-              className={titleInputClass}
-              placeholder="무슨 일정인가요?"
-              value={title}
-              onChange={(e) => {
-                setTitle(clampChars(e.target.value, TITLE_MAX));
-                setTitleEdited(true);
-              }}
-              // 자동 포커스된 빈 제목에서 그냥 벗어나는 것(모바일 키보드 닫기, 날짜 칸 탭)은 오류로 보지 않는다 (#80).
-              // 예전에는 blur 마다 touched 를 켜서 제목 아래 오류 줄(약 26px)이 끼어들며 아래 칸이 한 번에 밀렸다
-              onBlur={() => {
-                if (titleEdited) setTouched(true);
-              }}
-              autoFocus={!editing}
-              aria-invalid={Boolean(titleError)}
-              aria-describedby={titleError ? "ev-title-err" : undefined}
-            />
-            {titleError && (
-              <p id="ev-title-err" role="alert" className="mt-1.5 text-[12px] text-danger">
-                {titleError}
-              </p>
-            )}
-          </div>
+          {/* lg(≥1024): 왼쪽 제목, 날짜와 시각 | 오른쪽 알림, 반복, 메모. 저장 줄은 두 칸 아래 전체 폭 (#244) */}
+          <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+            <div className="space-y-2">
+              {/* 제목은 빠른 추가와 같은 44 상자 + 16/600 (#174 L3) */}
+              <div className="rounded-xl bg-paper px-3.5 py-3">
+                <label htmlFor="ev-title" className="sr-only">
+                  제목
+                </label>
+                <input
+                  id="ev-title"
+                  className={titleInputClass}
+                  placeholder="무슨 일정인가요?"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(clampChars(e.target.value, TITLE_MAX));
+                    setTitleEdited(true);
+                  }}
+                  // 자동 포커스된 빈 제목에서 그냥 벗어나는 것(모바일 키보드 닫기, 날짜 칸 탭)은 오류로 보지 않는다 (#80).
+                  // 예전에는 blur 마다 touched 를 켜서 제목 아래 오류 줄(약 26px)이 끼어들며 아래 칸이 한 번에 밀렸다
+                  onBlur={() => {
+                    if (titleEdited) setTouched(true);
+                  }}
+                  autoFocus={!editing}
+                  aria-invalid={Boolean(titleError)}
+                  aria-describedby={titleError ? "ev-title-err" : undefined}
+                />
+                {titleError && (
+                  <p id="ev-title-err" role="alert" className="mt-1.5 text-[12px] text-danger">
+                    {titleError}
+                  </p>
+                )}
+              </div>
 
-          <div className="rounded-xl bg-paper px-3.5 py-2">
-            <Toggle checked={allDay} onChange={toggleAllDay} label="종일" />
-            <div className="mt-2 space-y-3 border-t border-line pb-1 pt-3">
-              {(
-                [
-                  { key: "start", label: "시작", date: startDate, time: startTime },
-                  { key: "end", label: "종료", date: endDate, time: endTime },
-                ] as const
-              ).map((row) => (
-                <div key={row.key}>
-                  <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">{row.label}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <DatePicker
-                        label={`${row.label} 날짜`}
-                        value={row.date}
-                        min={row.key === "end" ? startDate : undefined}
-                        onChange={(v) => (row.key === "start" ? changeStart(v, startTime) : changeEnd(v, endTime, "date"))}
-                      />
-                    </div>
-                    {!allDay && (
-                      <div className="shrink-0 grow-0 basis-[148px]">
-                        <TimePicker
-                          label={`${row.label} 시각`}
-                          value={row.time}
-                          onChange={(v) => (row.key === "start" ? changeStart(startDate, v) : changeEnd(endDate, v, "time"))}
-                        />
+              <div className="rounded-xl bg-paper px-3.5 py-2">
+                <Toggle checked={allDay} onChange={toggleAllDay} label="종일" />
+                <div className="mt-2 space-y-3 border-t border-line pb-1 pt-3">
+                  {(
+                    [
+                      { key: "start", label: "시작", date: startDate, time: startTime },
+                      { key: "end", label: "종료", date: endDate, time: endTime },
+                    ] as const
+                  ).map((row) => (
+                    <div key={row.key}>
+                      <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">{row.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <DatePicker
+                            label={`${row.label} 날짜`}
+                            value={row.date}
+                            min={row.key === "end" ? startDate : undefined}
+                            onChange={(v) => (row.key === "start" ? changeStart(v, startTime) : changeEnd(v, endTime, "date"))}
+                          />
+                        </div>
+                        {!allDay && (
+                          <div className="shrink-0 grow-0 basis-[148px]">
+                            <TimePicker
+                              label={`${row.label} 시각`}
+                              value={row.time}
+                              onChange={(v) => (row.key === "start" ? changeStart(startDate, v) : changeEnd(endDate, v, "time"))}
+                            />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {rangeError && touched && (
-              <p role="alert" className="mb-1 mt-2 text-[12px] text-danger">
-                {rangeError}
-              </p>
-            )}
-            {rangeError && !touched && <p className="t-sub mb-1 mt-2">{rangeError}</p>}
-          </div>
-
-          {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
-          <div className="rounded-xl bg-paper px-3.5 py-1">
-            <button
-              type="button"
-              onClick={() => setReminderOpen(true)}
-              aria-haspopup="dialog"
-              className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
-            >
-              <span className="shrink-0 text-[14px] font-semibold">알림</span>
-              <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{REMINDER_LABEL[reminder]}</span>
-              <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
-            </button>
-            <ReminderNote className="-mt-1 pb-2" />
-            {remindError && (
-              <p role="alert" className="mb-2 text-[12px] text-danger">
-                {remindError}
-              </p>
-            )}
-          </div>
-
-          {showRepeat && (
-            <div className="rounded-xl bg-paper px-3.5 py-1">
-              <button
-                type="button"
-                onClick={() => setRepeatOpen(true)}
-                aria-haspopup="dialog"
-                className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
-              >
-                <span className="shrink-0 text-[14px] font-semibold">반복</span>
-                <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{repeat ? repeatLabel(repeat, ruleDateFor(repeat)) : "반복 안 함"}</span>
-                <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
-              </button>
-              {repeat && (
-                <div role="group" aria-label="반복 종료" className="space-y-2 border-t border-line pb-2 pt-2">
-                  <div className="flex min-h-9 items-center gap-3">
-                    <span id={`${untilLabelId}`} className="shrink-0 text-[14px] font-semibold">
-                      종료
-                    </span>
-                    <div className="ml-auto w-[176px]">
-                      <Segmented
-                        labelledBy={untilLabelId}
-                        value={untilOn ? "date" : "forever"}
-                        options={UNTIL_OPTIONS}
-                        onChange={(v) => chooseUntil(v === "date")}
-                      />
                     </div>
-                  </div>
-                  {untilOn && <DatePicker label="반복 종료 날짜" value={untilDate} min={startDate} onChange={setUntilDate} />}
+                  ))}
+                </div>
+                {rangeError && touched && (
+                  <p role="alert" className="mb-1 mt-2 text-[12px] text-danger">
+                    {rangeError}
+                  </p>
+                )}
+                {rangeError && !touched && <p className="t-sub mb-1 mt-2">{rangeError}</p>}
+              </div>
+
+            </div>
+            <div className="space-y-2">
+              {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
+              <div className="rounded-xl bg-paper px-3.5 py-1">
+                <button
+                  type="button"
+                  onClick={() => setReminderOpen(true)}
+                  aria-haspopup="dialog"
+                  className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
+                >
+                  <span className="shrink-0 text-[14px] font-semibold">알림</span>
+                  <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{REMINDER_LABEL[reminder]}</span>
+                  <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+                </button>
+                <ReminderNote className="-mt-1 pb-2" />
+                {remindError && (
+                  <p role="alert" className="mb-2 text-[12px] text-danger">
+                    {remindError}
+                  </p>
+                )}
+              </div>
+
+              {showRepeat && (
+                <div className="rounded-xl bg-paper px-3.5 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setRepeatOpen(true)}
+                    aria-haspopup="dialog"
+                    className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
+                  >
+                    <span className="shrink-0 text-[14px] font-semibold">반복</span>
+                    <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{repeat ? repeatLabel(repeat, ruleDateFor(repeat)) : "반복 안 함"}</span>
+                    <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+                  </button>
+                  {repeat && (
+                    <div role="group" aria-label="반복 종료" className="space-y-2 border-t border-line pb-2 pt-2">
+                      <div className="flex min-h-9 items-center gap-3">
+                        <span id={`${untilLabelId}`} className="shrink-0 text-[14px] font-semibold">
+                          종료
+                        </span>
+                        <div className="ml-auto w-[176px]">
+                          <Segmented
+                            labelledBy={untilLabelId}
+                            value={untilOn ? "date" : "forever"}
+                            options={UNTIL_OPTIONS}
+                            onChange={(v) => chooseUntil(v === "date")}
+                          />
+                        </div>
+                      </div>
+                      {untilOn && <DatePicker label="반복 종료 날짜" value={untilDate} min={startDate} onChange={setUntilDate} />}
+                    </div>
+                  )}
+                  {repeatError && (
+                    <p role="alert" className="mb-2 text-[12px] text-danger">
+                      {repeatError}
+                    </p>
+                  )}
                 </div>
               )}
-              {repeatError && (
-                <p role="alert" className="mb-2 text-[12px] text-danger">
-                  {repeatError}
+
+              <div className="rounded-xl bg-paper px-3.5 py-3">
+                <Field label="메모" hint={`${charCount(memo)}/${MEMO_MAX}`}>
+                  {(id, describedBy) => (
+                    <textarea
+                      ref={memoRef}
+                      id={id}
+                      rows={4}
+                      aria-describedby={describedBy}
+                      className={`${inputClass} max-h-[50dvh] min-h-[96px] resize-none overflow-y-auto`}
+                      placeholder="장소, 준비물, 링크 등"
+                      value={memo}
+                      onChange={(e) => setMemo(clampChars(e.target.value, MEMO_MAX))}
+                    />
+                  )}
+                </Field>
+              </div>
+
+              {editing && creator && (
+                <p className="flex items-center gap-1.5 px-1 pt-1 text-[12px] text-ink-2">
+                  <MemberDot color={creator.color} size={8} />
+                  {creator.displayName}님이 등록한 일정
                 </p>
               )}
+
             </div>
-          )}
-
-          <div className="rounded-xl bg-paper px-3.5 py-3">
-            <Field label="메모" hint={`${charCount(memo)}/${MEMO_MAX}`}>
-              {(id, describedBy) => (
-                <textarea
-                  ref={memoRef}
-                  id={id}
-                  rows={4}
-                  aria-describedby={describedBy}
-                  className={`${inputClass} max-h-[50dvh] min-h-[96px] resize-none overflow-y-auto`}
-                  placeholder="장소, 준비물, 링크 등"
-                  value={memo}
-                  onChange={(e) => setMemo(clampChars(e.target.value, MEMO_MAX))}
-                />
-              )}
-            </Field>
           </div>
-
-          {editing && creator && (
-            <p className="flex items-center gap-1.5 px-1 pt-1 text-[12px] text-ink-2">
-              <MemberDot color={creator.color} size={8} />
-              {creator.displayName}님이 등록한 일정
-            </p>
-          )}
-
           {/* 폰은 독을 숨긴 자리에 저장 줄을 바닥에 붙인다 (#137) */}
           <div className="sticky bottom-0 z-10 -mx-5 flex gap-2 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0">
             <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">

@@ -100,134 +100,138 @@ export function FreeScreen({ groupId }: { groupId: number }) {
       </div>
       <p className="t-sub mt-0.5">모두 비는 시간을 골라 바로 일정으로 만들어요</p>
 
-      <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5">
-        <div>
-          {/* 하나만 고르는 것은 세그먼트 하나로 (기념일 종류, 테마와 같은 모양, #174 L2) */}
-          <h2 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
-          <Segmented labelledBy="free-period" value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
-          {period === "custom" && (
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <DatePicker
-                label="시작일"
-                value={customFrom}
-                min={today}
-                onChange={(v) => {
-                  // 시작일을 종료일 뒤로 옮기면 기간 길이를 유지하게 종료일도 민다 (#67)
-                  const len = Math.max(0, daysBetween(customFrom, customTo));
-                  setCustomFrom(v);
-                  if (v > customTo) setCustomTo(addDays(v, len));
-                }}
-              />
-              <DatePicker label="종료일" value={customTo} min={customFrom || today} onChange={setCustomTo} />
-            </div>
-          )}
-        </div>
+      {/* lg(≥1024): 왼쪽 조건 카드(340, xl 400 고정, 스크롤해도 따라옴) + 오른쪽 결과. 그 아래는 위아래 1단 (#244, 디자인규칙.md 2-2) */}
+      <div className="lg:mt-3 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-5">
+        <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5 lg:sticky lg:top-7 lg:mt-0">
+          <div>
+            {/* 하나만 고르는 것은 세그먼트 하나로 (기념일 종류, 테마와 같은 모양, #174 L2) */}
+            <h2 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
+            <Segmented labelledBy="free-period" value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
+            {period === "custom" && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <DatePicker
+                  label="시작일"
+                  value={customFrom}
+                  min={today}
+                  onChange={(v) => {
+                    // 시작일을 종료일 뒤로 옮기면 기간 길이를 유지하게 종료일도 민다 (#67)
+                    const len = Math.max(0, daysBetween(customFrom, customTo));
+                    setCustomFrom(v);
+                    if (v > customTo) setCustomTo(addDays(v, len));
+                  }}
+                />
+                <DatePicker label="종료일" value={customTo} min={customFrom || today} onChange={setCustomTo} />
+              </div>
+            )}
+          </div>
 
-        <div>
-          <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">시간대</h2>
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <TimePicker label="시작 시각" value={dayStart} onChange={setDayStart} to={DAY_END_MAX - 30} />
-            </div>
-            {/* 가운데 '~' (#174 L12). 스크린리더는 피커 라벨(시작 시각, 끝나는 시각)로 읽는다 */}
-            <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">~</span>
-            <div className="min-w-0 flex-1">
-              <TimePicker label="끝나는 시각" value={dayEnd} onChange={setDayEnd} from={30} allow24 />
+          <div>
+            <h2 className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">시간대</h2>
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <TimePicker label="시작 시각" value={dayStart} onChange={setDayStart} to={DAY_END_MAX - 30} />
+              </div>
+              {/* 가운데 '~' (#174 L12). 스크린리더는 피커 라벨(시작 시각, 끝나는 시각)로 읽는다 */}
+              <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">~</span>
+              <div className="min-w-0 flex-1">
+                <TimePicker label="끝나는 시각" value={dayEnd} onChange={setDayEnd} from={30} allow24 />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div>
-          <h2 id="free-min" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h2>
-          <Segmented
-            labelledBy="free-min"
-            value={String(minMinutes)}
-            options={MIN_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
-            onChange={(v) => setMinMinutes(Number(v))}
-          />
-        </div>
-
-        <div className="border-t border-line pt-3">
-          <Toggle
-            checked={includeAllDay}
-            onChange={setIncludeAllDay}
-            label="종일 일정도 바쁜 시간으로"
-            description="여행, 휴가처럼 하루를 비우는 일정이 있을 때 켜 주세요"
-          />
-        </div>
-      </section>
-
-      <section className="mt-3" aria-live="polite">
-        {conditionError ? (
-          <p role="alert" className="px-1 text-[14px] text-danger">
-            {conditionError}
-          </p>
-        ) : error ? (
-          <ErrorState message={error} onRetry={freeQ.refetch} />
-        ) : loading && !result ? (
-          <div className="space-y-2 rounded-xl bg-paper px-3.5 py-3" aria-busy="true" aria-label="계산 중">
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
+          <div>
+            <h2 id="free-min" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h2>
+            <Segmented
+              labelledBy="free-min"
+              value={String(minMinutes)}
+              options={MIN_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              onChange={(v) => setMinMinutes(Number(v))}
+            />
           </div>
-        ) : result && result.slots.length === 0 ? (
-          <EmptyState icon={<IconClock size={20} />} title="이 조건에 모두 비는 시간이 없어요">
-            기간을 늘리거나 최소 길이를 줄여 보세요
-          </EmptyState>
-        ) : result ? (
-          <div className={loading ? "opacity-60 transition-opacity" : ""}>
-            <p className="px-1 text-[12px] leading-4 text-ink-2">
-              {result.memberCount > 1 ? (
-                <>
-                  <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
-                  일정도 반영됐어요
-                </>
-              ) : (
-                // 개인 달력은 "1명 모두" 대신 (#140 L10)
-                <>내 일정 기준으로 비는 시간이에요. 다른 팀 일정도 반영됐어요</>
-              )}
+
+          <div className="border-t border-line pt-3">
+            <Toggle
+              checked={includeAllDay}
+              onChange={setIncludeAllDay}
+              label="종일 일정도 바쁜 시간으로"
+              description="여행, 휴가처럼 하루를 비우는 일정이 있을 때 켜 주세요"
+            />
+          </div>
+        </section>
+
+        <section className="mt-3 lg:mt-0" aria-live="polite">
+          {conditionError ? (
+            <p role="alert" className="px-1 text-[14px] text-danger">
+              {conditionError}
             </p>
-            <div className="mt-2 space-y-2">
-              {grouped.map(([key, slots]) => {
-                const p = parseKey(key);
-                return (
-                  <div key={key} className="rounded-xl bg-paper px-3.5 pb-1.5 pt-1">
-                    <h3 className="t-sec">
-                      {WEEKDAYS[dowOf(key)]} {p.m}/{p.d}
-                      {key === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}
-                    </h3>
-                    <ul>
-                      {slots.map((s) => {
-                        const mins = Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000);
-                        return (
-                          <li key={s.startsAt}>
-                            <Link
-                              href={`/g/${groupId}/events/new?start=${encodeURIComponent(s.startsAt)}&end=${encodeURIComponent(s.endsAt)}`}
-                              className="-mx-1.5 flex min-h-10 items-center justify-between rounded-sm px-1.5 hover:bg-hover"
-                            >
-                              <span className="text-[14px] tabular-nums">
-                                <b className="font-bold text-acc-ink">
-                                  {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
-                                </b>
-                                <span className="ml-2 text-[12px] text-ink-2">{formatMinutes(mins)}</span>
-                              </span>
-                              <span className="flex items-center gap-1 text-[12px] font-medium text-ink-2">
-                                일정 만들기
-                                <IconArrowRight size={14} />
-                              </span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
+          ) : error ? (
+            <ErrorState message={error} onRetry={freeQ.refetch} />
+          ) : loading && !result ? (
+            <div className="space-y-2 rounded-xl bg-paper px-3.5 py-3" aria-busy="true" aria-label="계산 중">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-9 w-full" />
             </div>
-          </div>
-        ) : null}
-      </section>
+          ) : result && result.slots.length === 0 ? (
+            <EmptyState icon={<IconClock size={20} />} title="이 조건에 모두 비는 시간이 없어요">
+              기간을 늘리거나 최소 길이를 줄여 보세요
+            </EmptyState>
+          ) : result ? (
+            <div className={loading ? "opacity-60 transition-opacity" : ""}>
+              <p className="px-1 text-[12px] leading-4 text-ink-2">
+                {result.memberCount > 1 ? (
+                  <>
+                    <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
+                    일정도 반영됐어요
+                  </>
+                ) : (
+                  // 개인 달력은 "1명 모두" 대신 (#140 L10)
+                  <>내 일정 기준으로 비는 시간이에요. 다른 팀 일정도 반영됐어요</>
+                )}
+              </p>
+              {/* 결과 칸이 넓으면(2xl) 날짜 카드를 2단으로. 날짜 순서는 위에서 아래, 왼쪽 단 다음 오른쪽 단 (카드 높이가 달라도 빈틈 없이) */}
+              <div className="mt-2 space-y-2 2xl:columns-2 2xl:gap-2 2xl:space-y-0">
+                {grouped.map(([key, slots]) => {
+                  const p = parseKey(key);
+                  return (
+                    <div key={key} className="rounded-xl bg-paper px-3.5 pb-1.5 pt-1 2xl:mb-2 2xl:break-inside-avoid">
+                      <h3 className="t-sec">
+                        {WEEKDAYS[dowOf(key)]} {p.m}/{p.d}
+                        {key === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}
+                      </h3>
+                      <ul>
+                        {slots.map((s) => {
+                          const mins = Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000);
+                          return (
+                            <li key={s.startsAt}>
+                              <Link
+                                href={`/g/${groupId}/events/new?start=${encodeURIComponent(s.startsAt)}&end=${encodeURIComponent(s.endsAt)}`}
+                                className="-mx-1.5 flex min-h-10 items-center justify-between rounded-sm px-1.5 hover:bg-hover"
+                              >
+                                <span className="text-[14px] tabular-nums">
+                                  <b className="font-bold text-acc-ink">
+                                    {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
+                                  </b>
+                                  <span className="ml-2 text-[12px] text-ink-2">{formatMinutes(mins)}</span>
+                                </span>
+                                <span className="flex items-center gap-1 text-[12px] font-medium text-ink-2">
+                                  일정 만들기
+                                  <IconArrowRight size={14} />
+                                </span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </div>
     </div>
   );
 }
