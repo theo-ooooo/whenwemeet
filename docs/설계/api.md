@@ -251,18 +251,21 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/groups/:groupId/anniversaries` | 멤버 | - | `{ data: Anniversary[] }` date 오름차순 |
-| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD', kind? }` (kind 생략 시 `COUNT_UP`) | 201 `{ data: Anniversary }` |
-| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date?, kind? }` | `{ data: Anniversary }` |
+| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD', kind?, reminders? }` (kind 생략 시 `COUNT_UP`, reminders 생략 시 `['DAY_OF']`) | 201 `{ data: Anniversary }` |
+| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date?, kind?, reminders? }` | `{ data: Anniversary }` |
 | DELETE | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | - | `{ data: { ok: true } }` |
 
 ```ts
-Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, creator: Member|탈퇴자, createdAt }
+Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, reminders: AnniversaryReminder[], creator: Member|탈퇴자, createdAt }
 AnniversaryKind = 'COUNT_UP' | 'YEARLY' | 'ONCE'   // 함께한 날 세기(기본) / 매년 반복 / 그날만
+AnniversaryReminder = 'DAY_OF' | 'DAY_BEFORE' | 'WEEK_BEFORE'   // (#269) 당일 / 하루 전 / 일주일 전, 모두 오전 9시 KST
 ```
 
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
+
+기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
 
 ### 2.5 빈 시간 찾기
 
@@ -389,7 +392,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
-**발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일 당일, 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
+**발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일(당일, 하루 전, 일주일 전), 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
 
 | 환경 변수 | 필수 | 용도 |
 |-----------|------|------|

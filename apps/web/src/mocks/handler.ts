@@ -767,13 +767,24 @@ export function mockHandle(ctx: Ctx): MockResult {
         name: a.name,
         date: a.date,
         kind: a.kind,
+        reminders: a.reminders ?? ["DAY_OF"],
         creator: memberOf(s, groupId, a.creatorId),
         createdAt: a.createdAt,
       });
       const KINDS = ["COUNT_UP", "YEARLY", "ONCE"] as const;
-      const validate = (name: unknown, date: unknown, partial: boolean, kind?: unknown): MockResult | null => {
+      // (#269) 알림 시점: API 와 같은 규칙 (배열, 셋 중, 중복 없음). 응답은 당일, 하루 전, 일주일 전 순
+      const REMINDERS = ["DAY_OF", "DAY_BEFORE", "WEEK_BEFORE"] as const;
+      type Reminder = (typeof REMINDERS)[number];
+      const remindersOk = (v: unknown) =>
+        v === undefined ||
+        (Array.isArray(v) && v.every((r) => REMINDERS.includes(r as Reminder)) && new Set(v).size === v.length);
+      const orderReminders = (v: unknown) => REMINDERS.filter((r) => (v as Reminder[]).includes(r));
+      const validate = (name: unknown, date: unknown, partial: boolean, kind?: unknown, reminders?: unknown): MockResult | null => {
         if (kind !== undefined && !KINDS.includes(kind as (typeof KINDS)[number])) {
           return err(400, "VALIDATION_FAILED", `종류는 ${KINDS.join(", ")} 중 하나여야 해요`);
+        }
+        if (!remindersOk(reminders)) {
+          return err(400, "VALIDATION_FAILED", `알림은 ${REMINDERS.join(", ")} 중에서 골라야 해요`);
         }
         if (!partial || name !== undefined) {
           const n = typeof name === "string" ? name.trim() : "";
@@ -795,7 +806,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         );
       }
       if (rest.length === 1 && method === "POST") {
-        const v = validate(body?.name, body?.date, false, body?.kind);
+        const v = validate(body?.name, body?.date, false, body?.kind, body?.reminders);
         if (v) return v;
         const row = {
           id: nextId(),
@@ -803,6 +814,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           name: String(body!.name).trim(),
           date: String(body!.date),
           kind: (body?.kind ?? "COUNT_UP") as (typeof KINDS)[number],
+          reminders: body?.reminders === undefined ? (["DAY_OF"] as Reminder[]) : orderReminders(body.reminders),
           creatorId: userId,
           createdAt: nowIso(),
         };
@@ -814,11 +826,12 @@ export function mockHandle(ctx: Ctx): MockResult {
       const a = s.anniversaries.find((x) => x.id === anniversaryId && x.groupId === groupId);
       if (!a) return err(404, "NOT_FOUND", "기념일을 찾을 수 없어요");
       if (method === "PATCH") {
-        const v = validate(body?.name, body?.date, true, body?.kind);
+        const v = validate(body?.name, body?.date, true, body?.kind, body?.reminders);
         if (v) return v;
         if (body?.name !== undefined) a.name = String(body.name).trim();
         if (body?.date !== undefined) a.date = String(body.date);
         if (body?.kind !== undefined) a.kind = body.kind as (typeof KINDS)[number];
+        if (body?.reminders !== undefined) a.reminders = orderReminders(body.reminders);
         return ok(out(a));
       }
       if (method === "DELETE") {

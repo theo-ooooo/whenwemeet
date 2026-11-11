@@ -16,7 +16,8 @@ import type { NotificationSettings } from "@/lib/types";
 const KINDS: { key: keyof NotificationSettings; label: string; description: string }[] = [
   { key: "reminder", label: "일정 알림", description: "일정에 고른 시각에 알려 드려요" },
   { key: "change", label: "팀원 변경", description: "팀원이 일정을 추가, 수정, 삭제하면 알려 드려요" },
-  { key: "anniversary", label: "기념일 당일", description: "기념일 아침 9시에 알려 드려요" },
+  // (#269, D-148) 기념일마다 고른 시점(당일, 하루 전, 일주일 전) 전체의 사람별 스위치
+  { key: "anniversary", label: "기념일", description: "기념일마다 고른 날 아침 9시에 알려 드려요" },
   { key: "join", label: "새 멤버 합류", description: "초대한 사람이 팀에 들어오면 알려 드려요" },
 ];
 

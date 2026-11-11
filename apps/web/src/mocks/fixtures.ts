@@ -9,7 +9,7 @@ import {
   todayKey,
   toKst,
 } from "@/lib/date";
-import type { AnniversaryKind, EventReminder, GroupType, Member, NotificationSettings, Repeat } from "@/lib/types";
+import type { AnniversaryKind, AnniversaryReminder, EventReminder, GroupType, Member, NotificationSettings, Repeat } from "@/lib/types";
 import type { MockException } from "./recurrence";
 
 export type UserRow = {
@@ -70,6 +70,8 @@ export type AnniversaryRow = {
   name: string;
   date: string;
   kind: AnniversaryKind;
+  /** (#269) 알림 시점. 없으면 DB 기본값처럼 당일만 */
+  reminders?: AnniversaryReminder[];
   creatorId: number | null;
   createdAt: string;
 };
@@ -230,6 +232,7 @@ export function buildStore(): Store {
       name: "하늘 생일",
       date: yearsAgo(addDays(today, 3), 29),
       kind: "YEARLY",
+      reminders: ["DAY_OF", "DAY_BEFORE"],
       creatorId: ME_ID,
       createdAt: hoursAgo(24 * 20),
     },
@@ -250,6 +253,7 @@ export function buildStore(): Store {
       name: "자격증 시험",
       date: addDays(today, 12),
       kind: "ONCE",
+      reminders: [],
       creatorId: ME_ID,
       createdAt: hoursAgo(24 * 10),
     },

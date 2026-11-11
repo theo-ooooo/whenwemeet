@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AnniversaryKind } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
+import type { AnniversaryReminderFlags } from './anniversary-reminders.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -10,12 +11,15 @@ export const ANNIVERSARY_SELECT = {
   name: true,
   date: true,
   kind: true,
+  remindDayOf: true,
+  remindDayBefore: true,
+  remindWeekBefore: true,
   creatorId: true,
   createdAt: true,
   creator: USER_PUBLIC_SELECT,
 } as const;
 
-export interface AnniversaryRow {
+export interface AnniversaryRow extends AnniversaryReminderFlags {
   id: number;
   groupId: number;
   name: string;
@@ -32,7 +36,7 @@ function toAnniversaryRow(record: AnniversaryRecord, urls: FileUrlBuilder): Anni
   return { ...record, creator: toUserRowOrNull(record.creator, urls) };
 }
 
-export interface AnniversaryCreateInput {
+export interface AnniversaryCreateInput extends AnniversaryReminderFlags {
   groupId: number;
   name: string;
   date: Date;
@@ -40,7 +44,7 @@ export interface AnniversaryCreateInput {
   creatorId: number;
 }
 
-export interface AnniversaryUpdateInput {
+export interface AnniversaryUpdateInput extends Partial<AnniversaryReminderFlags> {
   name?: string;
   date?: Date;
   kind?: AnniversaryKind;

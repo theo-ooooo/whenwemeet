@@ -182,6 +182,16 @@ export function changePayload(target: ChangeTarget, now: Date): PushPayload {
   };
 }
 
+/** (#269) 기념일 알림 시점의 앞당김 일수 */
+export type ReminderOffsetDays = 0 | 1 | 7;
+
+/** 끝 글자 받침 유무로 '이/가' (copula 와 같은 판정) */
+export function subjectParticle(word: string): string {
+  const code = word.trim().slice(-1).charCodeAt(0) - 0xac00;
+  const batchim = code >= 0 && code <= 11171 && code % 28 !== 0;
+  return `${word}${batchim ? '이' : '가'}`;
+}
+
 export interface AnniversaryTarget {
   groupId: number;
   groupName: string;
@@ -190,17 +200,29 @@ export interface AnniversaryTarget {
   label: string | null;
   /** 그날 'YYYY-MM-DD' (KST) */
   date: string;
+  /** (#269) 그날보다 며칠 앞서 보내는가: 0 당일, 1 하루 전, 7 일주일 전 */
+  offsetDays: ReminderOffsetDays;
 }
 
-/** 기념일 당일 (설계 6장 ANNIVERSARY). 만료는 그날 KST 24:00 */
+/**
+ * 기념일 (설계 6장 ANNIVERSARY, #269 D-147). 제목은 시점과 관계없이 `{이름} {라벨}`.
+ * 만료는 보내는 날 KST 24:00 (다음 날 받으면 "내일은" 이 틀린 말이 된다)
+ */
 export function anniversaryPayload(target: AnniversaryTarget): PushPayload {
   const title = target.label ? `${target.name} ${target.label}` : target.name;
+  const body =
+    target.offsetDays === 0
+      ? `오늘은 ${copula(title)}`
+      : target.offsetDays === 1
+        ? `내일은 ${copula(title)}`
+        : `${subjectParticle(title)} 일주일 남았어요`;
+  const sendDay = addDays(target.date, -target.offsetDays);
   return {
     title,
     subtitle: target.groupName,
-    body: `오늘은 ${copula(title)}`,
+    body,
     url: anniversariesUrl(target.groupId),
-    expiration: epochSeconds(kstMidnight(addDays(target.date, 1)).getTime()),
+    expiration: epochSeconds(kstMidnight(addDays(sendDay, 1)).getTime()),
   };
 }
 
