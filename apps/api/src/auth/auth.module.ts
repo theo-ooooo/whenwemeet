@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { APPLE_JWKS, AppleProvider, createAppleJwks } from './providers/apple.provider.js';
 import { AuthProviders } from './providers/auth-providers.js';
 import { DevProvider } from './providers/dev.provider.js';
+import { EmailProvider } from './providers/email.provider.js';
 import { KakaoProvider } from './providers/kakao.provider.js';
 
 @Module({
@@ -40,6 +41,7 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     KakaoProvider,
     DevProvider,
     AppleProvider,
+    EmailProvider,
     { provide: APPLE_JWKS, useFactory: createAppleJwks },
     AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
   exports: [AuthService, AuthProviders, JwtModule],

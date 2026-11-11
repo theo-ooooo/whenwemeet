@@ -26,6 +26,14 @@ export function apiUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
+/** (#245) 서버 전용 헤더. 키 값은 서버 환경 변수에서만 읽고 브라우저로 가는 응답에 싣지 않는다.
+ *  키가 비어 있으면 헤더를 빼고 보낸다 (API 가 개발에서만 통과, 운영은 503) */
+export function internalHeaders(clientIp: string, key = process.env.INTERNAL_API_KEY): Record<string, string> {
+  const h: Record<string, string> = { "X-Client-IP": clientIp };
+  if (key) h["X-Internal-Key"] = key;
+  return h;
+}
+
 export async function upstream(opts: {
   method: string;
   path: string; // '/groups' (prefix /v1 제외)
@@ -35,8 +43,10 @@ export async function upstream(opts: {
   token: string | null;
   /** 기다리는 최대 시간(ms). 기본 15초. 로그아웃 기기 해제처럼 실패해도 되는 호출은 짧게 (#188 D-83) */
   timeoutMs?: number;
+  /** (#245) 웹 서버 전용 API(이메일 로그인, D-115). X-Internal-Key(INTERNAL_API_KEY)와 사용자 IP 를 싣는다 */
+  internal?: { clientIp: string };
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS } = opts;
+  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
@@ -69,6 +79,7 @@ export async function upstream(opts: {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers["Content-Type"] = contentType ?? "application/json";
+  if (internal) Object.assign(headers, internalHeaders(internal.clientIp));
   try {
     const res = await fetch(`${apiUrl()}/v1${path}${search}`, {
       method,

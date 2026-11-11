@@ -1,6 +1,8 @@
 // 네이티브 로그인 화면 (docs/설계/앱.md 1장, 3.6). 웹뷰가 아닌 화면 (심사 4.2, 4.8)
 // 모양은 웹 /login (apps/web/src/app/login/page.tsx, SocialLoginButton) 과 같게 그린다 (#145): 왼쪽 위 심볼, 칩,
-// "언제 / 볼까?" 제목, 설명, 버튼(높이 48, 모서리 12, 15/700, 아이콘 20 칸, 간격 8), 약관 안내. 값을 바꾸면 웹도 같이 바꾼다
+// "언제 / 볼까?" 제목, 설명, 버튼(높이 48, 모서리 12, 15/700, 아이콘 20 칸, 간격 8), 약관 안내. 값을 바꾸면 웹도 같이 바꾼다.
+// (#245) 맨 아래 [이메일로 계속하기](테두리 보조 버튼). 누르면 이 화면을 닫고 웹뷰가 웹 이메일 로그인 화면을 연다
+// (이메일-로그인.md 7장, D-116). JS 와 PNG 만 바뀌어 eas update 로 1.1.0 에 간다
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -27,14 +29,17 @@ type Props = {
   reason?: "expired";
   /** 로그인 성공 — 웹뷰에 열 /auth/app 주소 */
   onSuccess: (authAppUrl: string) => void;
+  /** (#245) [이메일로 계속하기] — 웹뷰에서 /login/email 을 연다 */
+  onEmail: () => void;
 };
 
 const PURPOSES = ["커플", "가족", "친구 모임", "스터디"];
 
 const KAKAO_ICON = require("../../assets/login/kakao.png") as ImageSourcePropType;
 const APPLE_ICON = require("../../assets/login/apple.png") as ImageSourcePropType;
+const MAIL_ICON = require("../../assets/login/mail.png") as ImageSourcePropType;
 
-export function LoginScreen({ next, reason, onSuccess }: Props) {
+export function LoginScreen({ next, reason, onSuccess, onEmail }: Props) {
   const t = useTheme();
   const c = t.login;
   const fonts = usePretendard();
@@ -136,6 +141,20 @@ export function LoginScreen({ next, reason, onSuccess }: Props) {
                 onPress={() => run("apple")}
               />
             ) : null}
+            <SocialButton
+              label="이메일로 계속하기"
+              icon={MAIL_ICON}
+              iconSize={{ width: 20, height: 20 }}
+              // 웹 EmailLoginButton 과 같은 보조 모양: 타일 면 + 1px 선 + 먹 글자
+              bg={c.tile}
+              fg={c.ink}
+              iconColor={c.ink}
+              borderColor={c.line}
+              busy={false}
+              disabled={busy !== null}
+              fontFamily={f(700)}
+              onPress={onEmail}
+            />
           </View>
 
           <Text style={[styles.terms, f(400), { color: c.mute }]}>
@@ -163,12 +182,14 @@ function SocialButton(props: {
   bg: string;
   fg: string;
   iconColor: string;
+  /** 테두리 보조 버튼만 */
+  borderColor?: string;
   busy: boolean;
   disabled: boolean;
   fontFamily: TextStyle;
   onPress: () => void;
 }) {
-  const { label, icon, iconSize, bg, fg, iconColor, busy, disabled, fontFamily, onPress } = props;
+  const { label, icon, iconSize, bg, fg, iconColor, borderColor, busy, disabled, fontFamily, onPress } = props;
   return (
     <Pressable
       accessibilityRole="button"
@@ -176,7 +197,13 @@ function SocialButton(props: {
       accessibilityState={{ disabled, busy }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.btn, { backgroundColor: bg }, (disabled || busy) && styles.dim, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.btn,
+        { backgroundColor: bg },
+        borderColor ? { borderWidth: 1, borderColor } : null,
+        (disabled || busy) && styles.dim,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.iconBox}>
         {busy ? (

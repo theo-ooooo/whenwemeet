@@ -99,6 +99,22 @@ export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whe
   return `${webOrigin.replace(/\/+$/, "")}${pathname}${search}`;
 }
 
+/** (#245) 네이티브 로그인 화면의 [이메일로 계속하기] → 웹뷰가 여는 웹 이메일 로그인 화면 (이메일-로그인.md 7장, D-116).
+ *  쿠키는 웹뷰가 직접 받으므로 handoff 가 필요 없다 */
+export function buildEmailLoginUrl(webOrigin: string, next: string): string {
+  const n = safeNext(next);
+  const base = `${webOrigin.replace(/\/+$/, "")}/login/email`;
+  return n === "/" ? base : `${base}?${new URLSearchParams({ next: n }).toString()}`;
+}
+
+/** (#245) 웹이 이메일 버튼 유무를 아는 UA 토큰. 버전 대신 능력 표시를 붙인다(OTA 는 네이티브 버전을 바꾸지 않음, D-116) */
+export const EMAIL_LOGIN_UA_TOKEN = "EmailLogin/1";
+
+/** 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다 */
+export function buildUserAgentSuffix(version: string, os: string): string {
+  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}`;
+}
+
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */
 export function buildAuthAppUrl(webOrigin: string, handoff: string, verifier: string, next: string): string {
   const q = new URLSearchParams({ h: handoff, v: verifier, next: safeNext(next) });

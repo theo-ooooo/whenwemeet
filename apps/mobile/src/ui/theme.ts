@@ -11,6 +11,8 @@ const LOGIN_LIGHT = {
   surface: "#F4F3F1",
   accInk: "#C2402A",
   danger: "#D1242F",
+  /** (#245) 테두리 보조 버튼 면 (웹 --tile) */
+  tile: "#FFFFFF",
 };
 const LOGIN_DARK: typeof LOGIN_LIGHT = {
   loginBg: "#121214",
@@ -21,6 +23,7 @@ const LOGIN_DARK: typeof LOGIN_LIGHT = {
   surface: "#121214",
   accInk: "#FF8670",
   danger: "#FF6B6B",
+  tile: "#1D1D21",
 };
 
 export function useTheme() {

@@ -49,6 +49,17 @@ export function isInApp(): boolean {
   return bridgeTarget() !== null;
 }
 
+/* ---------- (#245) 이메일 로그인 버튼을 아는 셸 (이메일-로그인.md 7장, D-116) ---------- */
+
+/** 셸이 UA 끝에 붙이는 능력 표시. OTA(eas update)는 네이티브 버전을 바꾸지 않아 버전 대신 토큰으로 본다 */
+export const EMAIL_LOGIN_UA_TOKEN = "EmailLogin/1";
+const EMAIL_LOGIN_UA = /(?:^|\s)EmailLogin\/1(?:\s|$)/;
+
+/** 앱 셸이고 네이티브 로그인 화면에 이메일 버튼이 있는지. 앱이 아니면 false */
+export function appSupportsEmailLogin(ua: string | null | undefined): boolean {
+  return isAppUserAgent(ua) && EMAIL_LOGIN_UA.test(ua ?? "");
+}
+
 /* ---------- (#188) 푸시 지원 판정 (푸시-알림.md 2-1, D-81) ---------- */
 
 /** 푸시를 아는 첫 셸 버전 */
