@@ -1,8 +1,10 @@
 // 새 소식 문구 (#187, 설계 4-3, 기획 3-6). React 를 import 하지 않는다 (단위 테스트 대상)
 // 화면은 "{이름}님이 '{제목}' " 뒤에 newsPhrase 를 붙인다
+import { KIND_OPTIONS } from "./anniversary";
 import { dateKeyOf, formatDateKo, parseKey, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
-import type { NewsItem } from "./types";
+import { euroJosa, hasBatchim } from "./text";
+import type { ActivityNewsItem, ActivityType, AnniversaryField, NewsEntry, NewsItem } from "./types";
 
 type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventId">;
 
@@ -39,4 +41,89 @@ export function newsHref(groupId: number, item: Item): string | null {
 export function newsDateLabel(startsAt: string, today: DateKey): string {
   const key = dateKeyOf(startsAt);
   return formatDateKo(key, parseKey(key).y !== parseKey(today).y);
+}
+
+// ── 팀 활동 기록 (#191, api.md 2.6). 화면은 "{이름}님이 " 뒤에 activityPhrase 를 붙인다 ──
+
+const ACTIVITY_TYPES: readonly ActivityType[] = [
+  "ANNIVERSARY_CREATED",
+  "ANNIVERSARY_UPDATED",
+  "ANNIVERSARY_DELETED",
+  "MEMBER_JOINED",
+  "MEMBER_LEFT",
+  "MEMBER_DELETED",
+  "GROUP_RENAMED",
+];
+
+export const isActivity = (item: NewsEntry): item is ActivityNewsItem => item.kind === "ACTIVITY";
+
+/** 목록 키. 일정 기록과 활동 기록의 id 가 겹칠 수 있어 종류를 붙인다 */
+export const newsKey = (item: NewsEntry): string => `${item.kind ?? "EVENT"}:${item.id}`;
+
+/**
+ * 그릴 줄만 남긴다. kind 가 없거나 EVENT 면 일정 줄, ACTIVITY 는 아는 종류만.
+ * 뒤에 생길 종류(#190 참석 여부, #189 투표 등)나 모르는 kind 는 이 웹에서 건너뛴다
+ */
+export function knownNewsItems(items: readonly NewsEntry[]): NewsEntry[] {
+  return items.filter((item) => {
+    const kind = (item as { kind?: string }).kind;
+    if (kind === undefined || kind === "EVENT") return true;
+    return kind === "ACTIVITY" && ACTIVITY_TYPES.includes((item as ActivityNewsItem).type);
+  });
+}
+
+const quoted = (name: string) => `'${name}'`;
+const withEulReul = (name: string) => `${quoted(name)}${hasBatchim(name) ? "을" : "를"}`;
+const withEuro = (name: string) => `${quoted(name)}${euroJosa(name)}`;
+
+const FIELD_NAME: Record<AnniversaryField, string> = { name: "이름", date: "날짜", kind: "종류" };
+
+/** "{이름}님이" 뒤 문장 */
+export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">): string {
+  const p = item.payload ?? {};
+  const name = p.name ?? "";
+  switch (item.type) {
+    case "ANNIVERSARY_CREATED":
+      return `기념일 ${withEulReul(name)} 추가했어요`;
+    case "ANNIVERSARY_DELETED":
+      return `기념일 ${withEulReul(name)} 삭제했어요`;
+    case "ANNIVERSARY_UPDATED": {
+      const changed = p.changed ?? [];
+      if (changed.length !== 1) return `기념일 ${withEulReul(name)} 수정했어요`;
+      const [field] = changed;
+      if (field === "name") return `기념일 ${quoted(p.before?.name ?? name)}의 이름을 ${withEuro(name)} 바꿨어요`;
+      return `기념일 ${quoted(name)}의 ${FIELD_NAME[field]}를 바꿨어요`;
+    }
+    case "MEMBER_JOINED":
+      return "팀에 들어왔어요";
+    case "MEMBER_LEFT":
+      return "팀을 나갔어요";
+    case "MEMBER_DELETED":
+      return "서비스를 떠났어요";
+    case "GROUP_RENAMED":
+      return `팀 이름을 ${quoted(p.from ?? "")}에서 ${withEuro(p.to ?? "")} 바꿨어요`;
+  }
+}
+
+/** 누르면 갈 곳. 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름 변경은 팀 설정. 삭제, 나가기, 탈퇴는 없음 */
+export function activityHref(groupId: number, item: Pick<ActivityNewsItem, "type">): string | null {
+  switch (item.type) {
+    case "ANNIVERSARY_CREATED":
+    case "ANNIVERSARY_UPDATED":
+      return `/g/${groupId}/anniversaries`;
+    case "MEMBER_JOINED":
+    case "GROUP_RENAMED":
+      return `/g/${groupId}/settings`;
+    default:
+      return null;
+  }
+}
+
+/** 둘째 줄. 기념일은 "11월 22일, 함께한 날 세기" (올해가 아니면 연도), 그 밖은 null */
+export function activitySubline(item: Pick<ActivityNewsItem, "type" | "payload">, today: DateKey): string | null {
+  if (!item.type.startsWith("ANNIVERSARY_") || !item.payload?.date) return null;
+  const { y, m, d } = parseKey(item.payload.date);
+  const day = y === parseKey(today).y ? `${m}월 ${d}일` : `${y}년 ${m}월 ${d}일`;
+  const kind = KIND_OPTIONS.find((option) => option.value === (item.payload.kind ?? "COUNT_UP"));
+  return kind ? `${day}, ${kind.label}` : day;
 }

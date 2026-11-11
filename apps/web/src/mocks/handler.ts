@@ -198,9 +198,10 @@ function repeatOf(v: unknown): Repeat | null | "bad" {
 function unread(s: Store, groupId: number, userId: number) {
   const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
   const seen = ms?.lastSeenAt ?? "";
-  return s.logs.filter(
-    (l) => l.groupId === groupId && l.actorId !== userId && l.createdAt > seen,
-  ).length;
+  // (#191) 일정 기록 + 팀 활동 기록
+  const byOthers = (r: { groupId: number; actorId: number | null; createdAt: string }) =>
+    r.groupId === groupId && r.actorId !== userId && r.createdAt > seen;
+  return s.logs.filter(byOthers).length + (s.activities ?? []).filter(byOthers).length;
 }
 
 function validateEvent(input: Partial<EventRow>, partial: boolean): MockResult | null {
@@ -865,7 +866,32 @@ export function mockHandle(ctx: Ctx): MockResult {
             createdAt: l.createdAt,
             isNew: l.createdAt > seen,
           }));
-        return ok({ items, lastSeenAt: ms.lastSeenAt });
+        if (query.get("v") !== "2") return ok({ items, lastSeenAt: ms.lastSeenAt });
+        // (#191) v=2: 팀 활동 기록을 섞는다. 시각 내림차순, 같은 시각은 일정 먼저, 50건
+        const activities = (s.activities ?? [])
+          .filter((a) => a.groupId === groupId && a.actorId !== userId && a.createdAt >= cutoff)
+          .map((a) => {
+            const member = a.actorId === null ? null : s.memberships.find((m) => m.groupId === groupId && m.userId === a.actorId);
+            const actor = member
+              ? memberOf(s, groupId, a.actorId)
+              : a.actorId === null && a.type !== "MEMBER_DELETED"
+                ? memberOf(s, groupId, null)
+                : { userId: a.actorId, displayName: a.actorName, color: "#9CA3AF", profileImageUrl: null };
+            return {
+              kind: "ACTIVITY" as const,
+              id: a.id,
+              type: a.type,
+              actor,
+              anniversaryId: a.anniversaryId,
+              payload: a.payload,
+              createdAt: a.createdAt,
+              isNew: a.createdAt > seen,
+            };
+          });
+        const merged = [...items.map((i) => ({ kind: "EVENT" as const, ...i })), ...activities]
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (a.kind === b.kind ? 0 : a.kind === "EVENT" ? -1 : 1))
+          .slice(0, 50);
+        return ok({ items: merged, lastSeenAt: ms.lastSeenAt });
       }
       if (rest[1] === "seen" && method === "POST") {
         ms.lastSeenAt = nowIso();
