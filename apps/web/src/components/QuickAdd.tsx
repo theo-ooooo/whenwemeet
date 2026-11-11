@@ -6,13 +6,16 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { IconChevronLeft, IconClose } from "./icons";
 import { TimeList, TimePicker } from "./pickers";
+import { ReminderInline, ReminderNote } from "./ReminderPicker";
 import { minutesOf, timeOfMinutes } from "./pickers/time";
 import { Button, Toggle, titleInputClass } from "./ui";
 import { messageOf, useCreateEvent } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
+import { maybeOpenPushPrompt } from "@/lib/push";
+import { REMINDER_LABEL, reminderAfterAllDayChange, reminderToSend } from "@/lib/reminder";
 import { clampChars } from "@/lib/chars";
 import { addDays, dowOf, kstToIso, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
-import type { Event } from "@/lib/types";
+import type { Event, EventReminder } from "@/lib/types";
 
 type GroupId = Event["groupId"];
 
@@ -37,6 +40,9 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("11:00");
   const [timeOpen, setTimeOpen] = useState<"start" | "end" | null>(null);
+  // 알림 (#188, 8장 "빠른 추가 시트 포함"). 시트 안이라 줄 아래로 펼친다
+  const [reminder, setReminder] = useState<EventReminder>("NONE");
+  const [reminderOpen, setReminderOpen] = useState(false);
   // 펼친 시각 목록을 닫으면 포커스를 그 시각 버튼으로 돌린다
   function closeTime() {
     if (timeOpen) document.getElementById(`${ids}-${timeOpen}`)?.focus({ preventScroll: true });
@@ -78,9 +84,12 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
     e.preventDefault();
     setTouched(true);
     if (title.trim().length === 0 || rangeError || create.isPending) return;
-    const r = await create.mutate({ title: title.trim(), startsAt, endsAt, allDay });
+    const sent = reminderToSend(reminder, null);
+    const r = await create.mutate({ title: title.trim(), startsAt, endsAt, allDay, ...(sent ? { reminder: sent } : {}) });
     if (r.ok) {
       haptic("success");
+      // 권한 안내 시트 계기 ① 일정 저장 성공 직후 (8-1)
+      void maybeOpenPushPrompt();
       onSaved(r.data);
     }
   }
@@ -90,6 +99,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
     const q = new URLSearchParams({ start: kstToIso(date, start || "10:00"), end: kstToIso(date, end || "11:00") });
     if (title.trim()) q.set("title", title.trim());
     if (allDay) q.set("allDay", "1");
+    if (reminder !== "NONE") q.set("reminder", reminder);
     router.push(`/g/${groupId}/events/new?${q.toString()}`);
   }
 
@@ -129,7 +139,14 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
       )}
 
       <div className="mt-2">
-        <Toggle checked={allDay} onChange={setAllDay} label="종일" />
+        <Toggle
+          checked={allDay}
+          onChange={(v) => {
+            setAllDay(v);
+            setReminder((r) => reminderAfterAllDayChange(r, v));
+          }}
+          label="종일"
+        />
         {!allDay && (
           <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-2.5">
             <div>
@@ -179,6 +196,30 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
             />
           </div>
         )}
+      </div>
+      <div className="mt-2 border-t border-line pt-1">
+        <button
+          type="button"
+          onClick={() => setReminderOpen((o) => !o)}
+          aria-expanded={reminderOpen}
+          className="flex min-h-11 w-full items-center gap-3 rounded-sm py-1 text-left"
+        >
+          <span className="shrink-0 text-[14px] font-semibold">알림</span>
+          <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{REMINDER_LABEL[reminder]}</span>
+        </button>
+        {reminderOpen && (
+          <ReminderInline
+            allDay={allDay}
+            value={reminder}
+            onPick={(v) => {
+              setReminder(v);
+              setReminderOpen(false);
+              // 권한 안내 시트 계기 ② (8-1)
+              if (v !== "NONE") void maybeOpenPushPrompt();
+            }}
+          />
+        )}
+        <ReminderNote className="-mt-1" />
       </div>
       {rangeError && (
         <p id={`${ids}-range-err`} role="alert" className="mt-1.5 text-[12px] text-danger">

@@ -176,3 +176,75 @@ describe("목 반복 일정 (#187)", () => {
     expect(mine("2027-05-10T00:00:00+09:00", "2027-05-25T00:00:00+09:00", "요일테스트2").map((e) => e.occurrence)).toEqual(["2027-05-12", "2027-05-19"]);
   });
 });
+
+describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
+  type Ev = { id: number; reminder: string; occurrence: string | null; allDay: boolean };
+  const TOKEN = "ExponentPushToken[mockDevice1]";
+
+  it("일정 reminder: 생략은 NONE, 종일과 맞지 않으면 400 field=reminder", () => {
+    const base = { title: "알림테스트", startsAt: "2027-05-03T18:00:00+09:00", endsAt: "2027-05-03T19:00:00+09:00", allDay: false };
+    const none = call("POST", "/groups/2/events", base);
+    expect((none.body.data as unknown as Ev).reminder).toBe("NONE");
+    const bad = call("POST", "/groups/2/events", { ...base, reminder: "DAY_OF_0900" }) as unknown as { status: number; body: { message: string; error: { details: { field: string }[] } } };
+    expect(bad.status).toBe(400);
+    expect(bad.body.message).toBe("시간 일정에는 고를 수 없는 알림이에요");
+    expect(bad.body.error.details[0].field).toBe("reminder");
+    const created = call("POST", "/groups/2/events", { ...base, reminder: "HOUR_1" });
+    const ev = created.body.data as unknown as Ev;
+    expect(ev.reminder).toBe("HOUR_1");
+    // 본문에 reminder 없이 종일로 바꾸면 맞지 않으니 NONE
+    const toAllDay = call("PATCH", `/groups/2/events/${ev.id}`, { allDay: true, startsAt: "2027-05-03T00:00:00+09:00", endsAt: "2027-05-04T00:00:00+09:00" });
+    expect((toAllDay.body.data as unknown as Ev).reminder).toBe("NONE");
+    const pick = call("PATCH", `/groups/2/events/${ev.id}`, { reminder: "DAY_BEFORE_0900" });
+    expect((pick.body.data as unknown as Ev).reminder).toBe("DAY_BEFORE_0900");
+    expect((call("GET", `/groups/2/events/${ev.id}`).body.data as unknown as Ev).reminder).toBe("DAY_BEFORE_0900");
+  });
+
+  it("반복: 이 일정만은 그 회차만, 이후 모두는 새 원본에", () => {
+    const created = call("POST", "/groups/2/events", {
+      title: "반복알림",
+      startsAt: "2027-06-02T19:00:00+09:00",
+      endsAt: "2027-06-02T20:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+      reminder: "MIN_10",
+    });
+    const id = (created.body.data as unknown as Ev).id;
+    const get = (occ: string) => call("GET", `/groups/2/events/${id}`, null, `occurrence=${occ}`).body.data as unknown as Ev;
+    call("PATCH", `/groups/2/events/${id}`, { reminder: "AT_START" }, "occurrence=2027-06-09&scope=this");
+    expect(get("2027-06-09").reminder).toBe("AT_START");
+    expect(get("2027-06-16").reminder).toBe("MIN_10");
+    const following = call("PATCH", `/groups/2/events/${id}`, { reminder: "HOUR_1" }, "occurrence=2027-06-16&scope=following");
+    const next = following.body.data as unknown as Ev;
+    expect(next.id).not.toBe(id);
+    expect(next.reminder).toBe("HOUR_1");
+    expect(get("2027-06-02").reminder).toBe("MIN_10");
+  });
+
+  it("기기 등록/해제와 토큰 검증", () => {
+    expect(call("PUT", "/me/push-devices", { token: TOKEN, platform: "IOS", appVersion: "1.1.0" }).status).toBe(200);
+    expect(call("PUT", "/me/push-devices", { token: "fcm-raw", platform: "IOS", appVersion: "1.1.0" }).status).toBe(400);
+    expect(call("PUT", "/me/push-devices", { token: TOKEN, platform: "WEB", appVersion: "1.1.0" }).status).toBe(400);
+    expect(call("DELETE", "/me/push-devices", { token: TOKEN }).status).toBe(200);
+    // 멱등
+    expect(call("DELETE", "/me/push-devices", { token: TOKEN }).status).toBe(200);
+  });
+
+  it("알림 설정: 기본 모두 켬, 바꾼 키만, 불리언 아니면 400", () => {
+    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true });
+    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true });
+    expect(call("PATCH", "/me/notification-settings", {}).body.data.change).toBe(false);
+    expect(call("PATCH", "/me/notification-settings", { join: "no" }).status).toBe(400);
+  });
+
+  it("팀 알림: GroupDetail.me.notify, PATCH /groups/:id/me { notify }", () => {
+    expect((call("GET", "/groups/2").body.data.me as { notify: boolean }).notify).toBe(true);
+    const r = call("PATCH", "/groups/2/me", { notify: false });
+    expect(r.body.data.notify).toBe(false);
+    expect((call("GET", "/groups/2").body.data.me as { notify: boolean }).notify).toBe(false);
+    // 다른 멤버에는 싣지 않는다
+    expect((call("GET", "/groups/2").body.data.members as { notify?: boolean }[]).every((m) => m.notify === undefined)).toBe(true);
+    expect(call("PATCH", "/groups/2/me", { notify: "off" }).status).toBe(400);
+    call("PATCH", "/groups/2/me", { notify: true });
+  });
+});

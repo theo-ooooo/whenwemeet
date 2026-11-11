@@ -28,7 +28,7 @@ function currentPath(): string {
 export async function api<T>(
   path: string,
   init: {
-    method?: "GET" | "POST" | "PATCH" | "DELETE";
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     body?: unknown;
     form?: FormData;
     signal?: AbortSignal;

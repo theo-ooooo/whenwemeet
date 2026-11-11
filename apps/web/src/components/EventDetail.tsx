@@ -2,11 +2,12 @@
 // 일정 상세. 날짜 상세(DayPanel) 안에서 일정 행이나 칩을 누르면 같은 표면이 이것으로 바뀐다 (폴더블.md 5-2)
 // 내용은 기존 상세와 같다: 등록자, 제목, 시간, 메모, 등록/수정 시각, 수정/복제/삭제
 import { useRouter } from "next/navigation";
-import { IconArrowRight, IconChevronLeft, IconClose } from "./icons";
+import { IconArrowRight, IconBell, IconChevronLeft, IconClose } from "./icons";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { eventCopyHref, eventEditHref } from "@/lib/recurrence";
 import { recurrenceLines } from "@/lib/recurrence-label";
+import { reminderDetail } from "@/lib/reminder";
 import { iGa } from "@/lib/text";
 import type { Event } from "@/lib/types";
 
@@ -45,6 +46,8 @@ export function EventDetail({
   const edited = ev.updatedAt && ev.updatedAt !== ev.createdAt;
   // 반복 일정이면 시각 아래 "매주 목요일" + (종료가 있으면) "12월 31일까지" (기획 3-5)
   const rec = recurrenceLines(ev, todayKey());
+  // 알림 (#188). 없음이면 줄을 두지 않는다
+  const remind = reminderDetail(ev.reminder);
 
   return (
     <div>
@@ -105,6 +108,12 @@ export function EventDetail({
         <p className="mt-2 px-0.5 text-[13px] leading-[18px] text-soft">
           <span className="block font-semibold">{rec.rule}</span>
           {rec.until && <span className="block text-ink-2">{rec.until}</span>}
+        </p>
+      )}
+      {remind && (
+        <p className="mt-2 flex items-center gap-1.5 px-0.5 text-[13px] leading-[18px] text-soft">
+          <IconBell size={16} className="shrink-0 text-ink-2" />
+          {remind}
         </p>
       )}
       {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
