@@ -49,15 +49,15 @@ describe("planAppOpen", () => {
       expect(planAppOpen(ua, OFF)).toEqual({ show: false });
     }
   });
-  it("카카오톡 인앱 브라우저는 자동 시도, 일반 모바일 브라우저는 버튼만", () => {
-    expect(planAppOpen(KAKAO_IOS, OFF)).toEqual({ show: true, os: "ios", kakao: true, auto: true, storeUrl: null });
-    expect(planAppOpen(KAKAO_ANDROID, OFF)).toEqual({ show: true, os: "android", kakao: true, auto: true, storeUrl: null });
-    expect(planAppOpen(SAFARI_IOS, OFF)).toMatchObject({ show: true, auto: false });
-    expect(planAppOpen(CHROME_ANDROID, OFF)).toMatchObject({ show: true, auto: false });
+  it("카카오톡 인앱 브라우저에서, 그 OS 앱이 스토어에 공개됐을 때만 자동 시도", () => {
+    expect(planAppOpen(KAKAO_IOS, ON)).toEqual({ show: true, os: "ios", kakao: true, auto: true, storeUrl: APP_STORE_URL });
+    expect(planAppOpen(KAKAO_ANDROID, ON)).toEqual({ show: true, os: "android", kakao: true, auto: true, storeUrl: PLAY_STORE_URL });
+    expect(planAppOpen(KAKAO_IOS, OFF)).toEqual({ show: false });
+    expect(planAppOpen(KAKAO_ANDROID, OFF)).toEqual({ show: false });
   });
-  it("APP_STORE_LIVE 가 켜져야 스토어 주소가 생긴다", () => {
-    expect(planAppOpen(KAKAO_IOS, ON)).toMatchObject({ storeUrl: APP_STORE_URL });
-    expect(planAppOpen(CHROME_ANDROID, ON)).toMatchObject({ storeUrl: PLAY_STORE_URL });
+  it("일반 모바일 브라우저는 아무것도 하지 않는다 (버튼 없음)", () => {
+    expect(planAppOpen(SAFARI_IOS, ON)).toEqual({ show: false });
+    expect(planAppOpen(CHROME_ANDROID, ON)).toEqual({ show: false });
   });
 });
 
@@ -78,7 +78,7 @@ describe("storeLiveFromEnv", () => {
 describe("OS 별 스토어 공개", () => {
   it("Play 만 열려 있으면 iOS 는 웹에 남는다", () => {
     const androidOnly = { ios: false, android: true };
-    expect(planAppOpen(KAKAO_IOS, androidOnly)).toMatchObject({ storeUrl: null });
+    expect(planAppOpen(KAKAO_IOS, androidOnly)).toEqual({ show: false });
     expect(planAppOpen(KAKAO_ANDROID, androidOnly)).toMatchObject({ storeUrl: PLAY_STORE_URL });
   });
 });
@@ -132,7 +132,7 @@ describe("앱 열기 주소", () => {
 });
 
 describe("shouldAutoAttempt", () => {
-  const kakao = planAppOpen(KAKAO_ANDROID, OFF);
+  const kakao = planAppOpen(KAKAO_ANDROID, ON);
   it("카카오톡에서 처음 열 때만", () => {
     expect(shouldAutoAttempt(kakao, "", false)).toBe(true);
     expect(shouldAutoAttempt(kakao, "?auto=1", false)).toBe(true);
