@@ -110,9 +110,15 @@ export function buildEmailLoginUrl(webOrigin: string, next: string): string {
 /** (#245) 웹이 이메일 버튼 유무를 아는 UA 토큰. 버전 대신 능력 표시를 붙인다(OTA 는 네이티브 버전을 바꾸지 않음, D-116) */
 export const EMAIL_LOGIN_UA_TOKEN = "EmailLogin/1";
 
-/** 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다 */
-export function buildUserAgentSuffix(version: string, os: string): string {
-  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}`;
+/** (#195) 네이티브 카카오톡 공유(kakaoShare 브리지)를 처리한다는 표시 (D-169). 웹 lib/app-bridge.ts KAKAO_SHARE_UA_TOKEN 과 같은 값 */
+export const KAKAO_SHARE_UA_TOKEN = "KakaoShare/1";
+
+/**
+ * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
+ * KakaoShare/1 은 카카오 네이티브 앱 키가 있는 빌드만 (키 없는 빌드는 SDK 를 못 써서 웹이 지금 share 브리지를 쓰게 둔다)
+ */
+export function buildUserAgentSuffix(version: string, os: string, kakaoShare = false): string {
+  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}${kakaoShare ? ` ${KAKAO_SHARE_UA_TOKEN}` : ""}`;
 }
 
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */
