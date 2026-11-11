@@ -85,3 +85,30 @@ export async function api<T>(
   }
   return env.data as T;
 }
+
+/**
+ * (#245) 이메일 로그인 route handler(`/auth/email/<name>`) 호출. /api 프록시를 거치지 않는 웹 자신의 엔드포인트라
+ * 401(가입 티켓 만료), 403, 5xx 에서 세션 만료나 점검 화면으로 보내지 않고 오류를 그대로 던진다 (이메일-로그인.md 6-6)
+ */
+export async function authEmailPost<T>(name: "request" | "code" | "signup", body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`/auth/email/${name}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK", "");
+  }
+  let json: unknown = {};
+  try {
+    json = await res.json();
+  } catch {
+    json = {};
+  }
+  const env = readEnvelope<T>(res.status, json);
+  if (!env.ok) throw new ApiError(res.status, env.error?.code ?? "INTERNAL", env.error?.message ?? "", env.error?.details);
+  return env.data as T;
+}

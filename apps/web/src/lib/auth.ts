@@ -62,17 +62,28 @@ export function joinAutoNext(code: string): string {
 }
 
 /** 로그인 버튼 구성. 앱 셸 안이면 네이티브 로그인(카카오, 애플 둘 다 네이티브가 고른다) 하나,
- *  웹이면 카카오 + (APPLE_LOGIN_ENABLED=1 일 때) 애플. /login 과 초대 화면(/join/<코드>, #129)이 같이 쓴다 */
-export type LoginChoice = "native" | "kakao" | "apple";
+ *  웹이면 카카오 + (APPLE_LOGIN_ENABLED=1 일 때) 애플. /login 과 초대 화면(/join/<코드>, #129)이 같이 쓴다.
+ *  (#245) EMAIL_LOGIN_ENABLED=1 이면 맨 끝에 이메일 (웹뷰 이동이라 앱 안에서도 같은 버튼, 이메일-로그인.md 6-2) */
+export type LoginChoice = "native" | "kakao" | "apple" | "email";
 
 /** 웹 애플 버튼을 보일지. APPLE_LOGIN_ENABLED=1 이어도 Android 앱 셸(UA `WhenwemeetApp/<버전> (android)`)
  *  안에서는 숨긴다 (#145, Android 앱은 애플 로그인을 쓰지 않는다). iOS 앱과 일반 웹은 그대로 */
 export function webAppleEnabled(flag: string | undefined, appOs: "ios" | "android" | null | undefined): boolean {
   return flag === "1" && appOs !== "android";
 }
-export function loginChoices(inApp: boolean, appleEnabled: boolean): LoginChoice[] {
-  if (inApp) return ["native"];
-  return appleEnabled ? ["kakao", "apple"] : ["kakao"];
+export function loginChoices(inApp: boolean, appleEnabled: boolean, emailEnabled = false): LoginChoice[] {
+  const base: LoginChoice[] = inApp ? ["native"] : appleEnabled ? ["kakao", "apple"] : ["kakao"];
+  return emailEnabled ? [...base, "email"] : base;
+}
+
+/**
+ * (#245) 앱 안 /login 동작 (이메일-로그인.md 7장, D-116).
+ * - "native": 지금처럼 마운트 때 네이티브 로그인 화면을 연다 (스위치 꺼짐, 또는 셸 네이티브 화면에 이메일 버튼이 있음)
+ * - "chooser": 이메일 버튼을 모르는 셸. 자동으로 열지 않고 [카카오(또는 Apple)로 계속하기] + [이메일로 계속하기]
+ */
+export type AppLoginMode = "native" | "chooser";
+export function appLoginMode(emailEnabled: boolean, shellHasEmail: boolean): AppLoginMode {
+  return emailEnabled && !shellHasEmail ? "chooser" : "native";
 }
 
 /** JWT 모양(점으로 나뉜 3조각) 만 확인. 서명 검증은 API 가 한다 */
