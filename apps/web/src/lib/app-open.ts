@@ -60,14 +60,15 @@ export function storeLiveFromEnv(v: string | undefined): StoreLive {
 
 export function planAppOpen(ua: string | null | undefined, storeLive: StoreLive): AppOpenPlan {
   const b = detectBrowser(ua);
-  // 데스크톱은 늘 웹. 스토어로도 보내지 않는다
-  if (b.inApp || !b.os) return { show: false };
+  // 화면에 보이는 버튼은 두지 않는다(2026-11-11 사용자 결정). 카카오톡 인앱 브라우저에서,
+  // 그 OS 의 앱이 스토어에 공개된 뒤에만 조용히 한 번 앱으로 넘겨 본다. 앱이 없으면 웹 합류 화면 그대로
+  if (b.inApp || !b.os || !b.kakao || !storeLive[b.os]) return { show: false };
   return {
     show: true,
     os: b.os,
-    kakao: b.kakao,
-    auto: b.kakao,
-    storeUrl: storeLive[b.os] ? (b.os === "ios" ? APP_STORE_URL : PLAY_STORE_URL) : null,
+    kakao: true,
+    auto: true,
+    storeUrl: b.os === "ios" ? APP_STORE_URL : PLAY_STORE_URL,
   };
 }
 
