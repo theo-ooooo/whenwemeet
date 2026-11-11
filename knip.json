@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "exports": "warn",
+    "types": "warn",
+    "nsExports": "warn",
+    "nsTypes": "warn",
+    "enumMembers": "warn",
+    "classMembers": "off",
+    "duplicates": "warn"
+  },
+  "workspaces": {
+    "apps/web": {
+      "ignoreDependencies": [
+        "@tailwindcss/turbopack"
+      ]
+    },
+    "apps/api": {
+      "ignoreDependencies": [
+        "@prisma/client"
+      ]
+    },
+    "apps/mobile": {}
+  }
+}

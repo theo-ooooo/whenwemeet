@@ -5,9 +5,6 @@
 export const ANNIVERSARY_REMINDERS = ['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE'] as const;
 export type AnniversaryReminder = (typeof ANNIVERSARY_REMINDERS)[number];
 
-/** 그날보다 며칠 앞서 보내는가 */
-export const REMINDER_OFFSET_DAYS: Record<AnniversaryReminder, number> = { DAY_OF: 0, DAY_BEFORE: 1, WEEK_BEFORE: 7 };
-
 /** 생략했을 때와 #269 전 행 (지금 동작 그대로) */
 export const DEFAULT_ANNIVERSARY_REMINDERS: readonly AnniversaryReminder[] = ['DAY_OF'];
 

@@ -186,8 +186,6 @@ export type Me = {
 
 export type InvitePreview = { groupName: string; memberCount: number };
 
-export type ApiErrorBody = { error: { code: string; message: string } };
-
 // api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
 export const MEMBER_COLORS = [
   "#F26D6D",
@@ -199,10 +197,3 @@ export const MEMBER_COLORS = [
   "#A66CF4",
   "#F279B5",
 ] as const;
-
-export const LEFT_MEMBER: Member = {
-  userId: null,
-  displayName: "탈퇴한 멤버",
-  color: "#9CA3AF",
-  profileImageUrl: null,
-};

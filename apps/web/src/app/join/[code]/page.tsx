@@ -9,7 +9,7 @@ import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
 import { webEmailEnabled } from "@/lib/email-route";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
-import { SITE_NAME } from "@/lib/site";
+import { inviteOgImage, SITE_NAME } from "@/lib/site";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 import type { InvitePreview } from "@/lib/types";
 import { serverApi } from "@/lib/server-api";
@@ -23,13 +23,14 @@ const loadInvite = cache((code: string) =>
   serverApi<InvitePreview>(`/invites/${encodeURIComponent(code)}`, { auth: false, from: `/join/${code}` }),
 );
 
-// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 같은 폴더 opengraph-image.tsx 가 팀 이름을 넣어 그린다 (#159)
+// 카카오톡 공유 카드(#154): 팀 이름을 넣은 제목. 실패하면 일반 문구. og:image 는 app/og/join/[code]/route.tsx 가 팀 이름을 넣어 그린다 (#159, #204)
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
   const code = (await params).code.toUpperCase();
   const { data } = await loadInvite(code);
   const title = data ? `${data.groupName} 팀에 초대받았어요` : "초대받았어요";
   const shareTitle = `${title} - ${SITE_NAME}`;
   const description = "링크를 열고 합류하면 같은 달력을 함께 보고, 모두 비는 시간을 바로 찾아요";
+  const image = inviteOgImage(code);
   return {
     title,
     description,
@@ -40,8 +41,9 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
       title: shareTitle,
       description,
       url: `/join/${code}`,
+      images: [image],
     },
-    twitter: { card: "summary_large_image", title: shareTitle, description },
+    twitter: { card: "summary_large_image", title: shareTitle, description, images: [image] },
   };
 }
 

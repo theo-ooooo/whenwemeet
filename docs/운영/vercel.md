@@ -56,8 +56,9 @@ Project > Settings
 - Hobby 는 **비상업 용도만** 허용. 수익 모델이 생기면 Pro 로 옮긴다 ([배포.md](./배포.md) "비용")
 
 ## 5. 공유 미리보기 (Open Graph, #154)
-- 이미지는 Next 서버가 그린다 (#159, `next/og` ImageResponse, nodejs 런타임). 사이트 기본은 `apps/web/src/app/opengraph-image.tsx` (`https://whenwemeet.day/opengraph-image?<해시>`, 하루 캐시), 초대 화면 `/join/<코드>` 는 `app/join/[code]/opengraph-image.tsx` 가 팀 이름, 멤버 수를 넣어 그린다 (공개 API `GET /v1/invites/<코드>` 를 2.5초 안에 못 받거나 코드가 없으면 일반 초대 카드). 초대 이미지 응답은 `Cache-Control: s-maxage=300`(일반 카드는 60)
+- 이미지는 Next 서버가 그린다 (#159, `next/og` ImageResponse, nodejs 런타임). 사이트 기본은 route handler `apps/web/src/app/og/route.tsx` (`https://whenwemeet.day/og`, 하루 캐시), 초대 화면 `/join/<코드>` 는 `app/og/join/[code]/route.tsx` (`https://whenwemeet.day/og/join/<코드>`) 가 팀 이름, 멤버 수를 넣어 그린다 (공개 API `GET /v1/invites/<코드>` 를 2.5초 안에 못 받거나 코드가 없으면 일반 초대 카드). 초대 이미지 응답은 `Cache-Control: s-maxage=300`(일반 카드는 60)
 - 초대 화면 `og:title` 은 "<팀 이름> 팀에 초대받았어요 - 언제볼까" (실패하면 "초대받았어요")
 - 그림은 `app/_og/card.tsx`, 글꼴은 `app/_og/fonts/Pretendard-*.otf` (SIL OFL, `next.config.ts outputFileTracingIncludes` 로 함수에 포함). 팀 이름에 이모지가 있으면 next/og 가 Twemoji 를 CDN 에서 받아 그린다
+- (#204) 메타데이터 파일 규칙(`app/opengraph-image.tsx`)을 쓰지 않는다. 그 규칙은 하위 모든 페이지 함수에 글꼴과 `@vercel/og` 를 끌어들여 페이지 함수가 약 24MB 커졌다. og:image 주소는 `lib/site.ts` 의 `SITE_OG_IMAGE`, `inviteOgImage(code)` 로 `layout.tsx`, `join/[code]/page.tsx` 의 metadata 에 직접 단다. 옛 주소 `/opengraph-image`, `/twitter-image`, `/join/<코드>/opengraph-image`, `/join/<코드>/twitter-image` 는 `next.config.ts redirects` 가 새 주소로 308. 함수 크기 기준선은 [번들.md](./번들.md)
 - 확인: `curl -s -A 'facebookexternalhit/1.1; kakaotalk-scrap/1.0' https://whenwemeet.day/join/<코드> | grep -o '<meta property="og:[^>]*>'`
 - **카카오는 미리보기를 캐시한다.** 이미지나 문구를 바꾼 뒤, 또는 배포 전에 한 번 공유해 빈 카드가 캐시된 주소는 [카카오 공유 디버거](https://developers.kakao.com/tool/debugger/sharing) 에 주소를 넣고 "캐시 초기화" 를 누른다 (카카오 개발자 계정 로그인 필요). 초대 링크는 코드마다 주소가 달라 새 코드는 바로 새로 읽는다

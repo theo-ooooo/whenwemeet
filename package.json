@@ -5,11 +5,15 @@
   "scripts": {
     "dev": "pnpm -r --parallel --filter ./apps/* dev",
     "build": "pnpm -r --filter ./apps/* build",
-    "lint": "pnpm -r --filter ./apps/* lint"
+    "lint": "pnpm -r --filter ./apps/* lint",
+    "knip": "knip"
   },
   "pnpm": {
     "patchedDependencies": {
       "expo-modules-jsi@58.0.22": "patches/expo-modules-jsi@58.0.22.patch"
     }
+  },
+  "devDependencies": {
+    "knip": "^5"
   }
 }
