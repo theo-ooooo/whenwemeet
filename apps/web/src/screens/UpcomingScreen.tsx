@@ -7,14 +7,15 @@
 import Link from "next/link";
 import { useState } from "react";
 import { IconChevronLeft, IconHeart, IconPlus } from "@/components/icons";
+import { useWho } from "@/components/Participants";
 import { ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useEvents } from "@/hooks";
 import { occurrenceTitle } from "@/lib/anniversary";
 import { calendarEventHref } from "@/lib/calendar-url";
-import { memberColor } from "@/lib/colors";
 import { dayBadge } from "@/lib/day-detail";
 import { formatDateKo, kstToIso, todayKey, type DateKey } from "@/lib/date";
 import { eventKey } from "@/lib/recurrence";
+import { barColors, splitBackground, withWho } from "@/lib/participants";
 import type { Anniversary } from "@/lib/types";
 import {
   groupUpcoming,
@@ -158,6 +159,7 @@ function DayGroups({
   today: DateKey;
   first: boolean;
 }) {
+  const who = useWho();
   return (
     <>
       {days.map((d, i) => {
@@ -198,14 +200,14 @@ function DayGroups({
                     <Row key={eventKey(ev)} divider={j > 0 || d.anniversaries.length > 0}>
                       <Link
                         href={calendarEventHref(groupId, d.date, ev, today)}
-                        aria-label={`${ev.title}, ${time}, ${ev.creator.displayName}`}
+                        aria-label={withWho(`${ev.title}, ${time}`, ev, who)}
                         className={rowCls}
                       >
-                        <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
+                        <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                         <span aria-hidden="true" className={metaCls}>
                           <b className="block truncate text-[15px] font-semibold leading-5 lg:min-w-0 lg:flex-1">{ev.title}</b>
                           <span className="block truncate text-[12px] leading-4 text-ink-2 lg:max-w-[50%] lg:shrink-0 lg:text-[13px]">
-                            {time}, {ev.creator.displayName}
+                            {withWho(time, ev, who)}
                           </span>
                         </span>
                       </Link>

@@ -98,6 +98,54 @@ function mergedReminder(input: EventReminder | undefined, current: EventReminder
   return reminderError(current, allDay) ? "NONE" : current;
 }
 
+/* ---------- (#248) 참여자 (설계 3-2, 4장, 6장) ---------- */
+
+/** 그 팀 지금 멤버 userId (가입순) */
+function memberIdsOf(s: Store, groupId: number): number[] {
+  return s.memberships
+    .filter((m) => m.groupId === groupId)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .map((m) => m.userId);
+}
+
+/** 응답 participants: all 이면 지금 멤버 전원, 아니면 참여자 (가입순, 지금 멤버만) */
+function participantsOut(s: Store, e: EventRow) {
+  const ids = memberIdsOf(s, e.groupId);
+  const all = e.allMembers !== false;
+  const picked = new Set(e.participantIds ?? []);
+  return { all, members: ids.filter((id) => all || picked.has(id)).map((id) => memberOf(s, e.groupId, id)) };
+}
+
+const participantErr = (message: string): MockResult => ({
+  status: 400,
+  body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "participants", message }]),
+});
+
+/** 본문 participants 읽기 (3-2 표). 생략 = undefined */
+function participantsIn(s: Store, groupId: number, v: unknown): { all: boolean; ids: number[] } | undefined | MockResult {
+  if (v === undefined) return undefined;
+  if (v === "ALL") return { all: true, ids: [] };
+  if (!Array.isArray(v) || v.some((x) => typeof x !== "number" || !Number.isInteger(x) || x <= 0) || v.length > 50) {
+    return participantErr("participants 는 'ALL' 또는 멤버 id 배열이어야 해요");
+  }
+  if (v.length === 0) return participantErr("참여자를 한 명 이상 골라 주세요");
+  const ids = [...new Set(v as number[])].sort((a, b) => a - b);
+  const members = new Set(memberIdsOf(s, groupId));
+  if (!ids.every((id) => members.has(id))) return participantErr("이 팀 멤버만 참여자로 고를 수 있어요");
+  return { all: false, ids };
+}
+
+function applyParticipants(e: EventRow, p: { all: boolean; ids: number[] }) {
+  e.allMembers = p.all;
+  e.participantIds = p.all ? [] : [...p.ids];
+}
+
+/** 빈 시간 (4장 isBusyForAny): 모두면 바쁨, 아니면 참여자 중 요청 팀 멤버가 있으면. 참여자 없음은 안 바쁨 */
+function isBusyForAny(e: EventRow, memberIds: ReadonlySet<number>): boolean {
+  if (e.allMembers !== false) return true;
+  return (e.participantIds ?? []).some((id) => memberIds.has(id));
+}
+
 /** 한 번짜리면 그대로, 반복이면 첫 회차 (o 를 주면 그 회차) */
 function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
   const occ = e.repeat ? (o ?? originalOccurrence(e as RepeatRow, dateKeyOf(e.startsAt))) : null;
@@ -119,6 +167,7 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     seriesStartsAt: e.repeat ? e.startsAt : null,
     repeatAnchor: e.repeat ? (e.repeatAnchor ?? null) : null,
     reminder: occ?.reminder ?? e.reminder ?? "NONE",
+    participants: participantsOut(s, e),
   };
 }
 
@@ -224,8 +273,9 @@ function freeSlots(s: Store, groupId: number, q: URLSearchParams): MockResult {
   const allGroupIds = new Set(
     s.memberships.filter((m) => memberIds.includes(m.userId)).map((m) => m.groupId),
   );
+  const memberSet = new Set(memberIds);
   const busy = s.events
-    .filter((e) => allGroupIds.has(e.groupId))
+    .filter((e) => allGroupIds.has(e.groupId) && isBusyForAny(e, memberSet))
     .flatMap((e): { startsAt: string; endsAt: string; allDay: boolean }[] => (e.repeat ? expand(e as RepeatRow, e.exceptions, from, to) : [e]))
     .filter((e) => Date.parse(e.startsAt) < to && Date.parse(e.endsAt) > from && (includeAllDay || !e.allDay))
     .map((e) => [Date.parse(e.startsAt), Date.parse(e.endsAt)] as [number, number])
@@ -489,6 +539,10 @@ export function mockHandle(ctx: Ctx): MockResult {
           return err(400, "GROUP_PERSONAL_LEAVE", "개인 달력은 나갈 수 없어요");
         }
         s.memberships = s.memberships.filter((m) => !(m.groupId === groupId && m.userId === userId));
+        // (#248 6장) 그 팀 일정의 내 참여자 행을 지운다. 0 이 되면 "참여자 없음". 로그, 새 소식 없음 (D-139)
+        for (const e of s.events) {
+          if (e.groupId === groupId && e.participantIds) e.participantIds = e.participantIds.filter((id) => id !== userId);
+        }
         const remain = s.memberships.filter((m) => m.groupId === groupId).length;
         if (remain === 0) {
           s.groups = s.groups.filter((x) => x.id !== groupId);
@@ -531,6 +585,9 @@ export function mockHandle(ctx: Ctx): MockResult {
         const until = input.repeatUntil ? String(input.repeatUntil) : null;
         const reminder = reminderIn((body ?? {}).reminder) ?? "NONE";
         if (isResult(reminder)) return reminder;
+        // (#248) 생략 = [요청자]
+        const pIn = participantsIn(s, groupId, (body ?? {}).participants) ?? { all: false, ids: [userId] };
+        if (isResult(pIn)) return pIn;
         const v =
           reminderFit(reminder, Boolean(input.allDay)) ??
           validateEvent(input, false) ??
@@ -553,6 +610,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           exceptions: [],
           reminder,
         };
+        applyParticipants(row, pIn);
         s.events.push(row);
         log(row, { action: "CREATED", eventId: row.id, repeat, scope: null, occurrence: null });
         return ok(eventOut(s, row), 201);
@@ -578,7 +636,11 @@ export function mockHandle(ctx: Ctx): MockResult {
           if (isResult(rIn)) return rIn;
           const reminder = mergedReminder(rIn, e.reminder ?? "NONE", input.allDay !== undefined ? Boolean(input.allDay) : e.allDay);
           if (isResult(reminder)) return reminder;
+          // (#248) 생략 = 그대로
+          const pIn = participantsIn(s, groupId, (body ?? {}).participants);
+          if (isResult(pIn)) return pIn;
           applyInput(e, input);
+          if (pIn) applyParticipants(e, pIn);
           e.reminder = reminder;
           // 반복을 켜면 이 일정이 첫 회차 (기획 3-4)
           if (repeat) {
@@ -637,6 +699,8 @@ export function mockHandle(ctx: Ctx): MockResult {
         if (isResult(reminder)) return reminder;
         if (scope === "this") {
           if ("repeat" in input || "repeatUntil" in input) return err(400, "VALIDATION_FAILED", "이 일정만 수정할 때는 반복을 바꿀 수 없어요");
+          // (#248 D-135) 같은 값이어도 400
+          if (body && "participants" in body) return participantErr("이 일정만 수정할 때는 참여자를 바꿀 수 없어요");
           // 예외는 바꾼 최종 값을 통째로 저장 (목은 "원래 값과 다른 필드만" 을 생략한다)
           series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
           // 원래 회차 값(원본 알림)과 같으면 null (4-1)
@@ -654,6 +718,9 @@ export function mockHandle(ctx: Ctx): MockResult {
         const until = input.repeatUntil !== undefined ? (input.repeatUntil ? String(input.repeatUntil) : null) : repeat ? inherited : null;
         const rv = repeatCheck(repeat, until, next.startsAt, next.endsAt);
         if (rv) return rv;
+        // (#248) 생략이면 원본 참여자를 이어받는다 (새 원본은 아래 복사)
+        const pIn = participantsIn(s, groupId, (body ?? {}).participants);
+        if (isResult(pIn)) return pIn;
         // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
         const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
         const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
@@ -663,11 +730,13 @@ export function mockHandle(ctx: Ctx): MockResult {
           // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)
           Object.assign(series, fields, { exceptions: [] });
           target = series;
+          if (pIn) applyParticipants(target, pIn);
         } else {
           // 원본을 전날에서 끊고 새 원본 (등록자는 원본 등록자, D-66)
           series.repeatUntil = addDays(date, -1);
           series.exceptions = series.exceptions.filter((x) => x.occurrence < date);
-          target = { ...series, ...fields, id: nextId(), createdAt: nowIso(), exceptions: [] };
+          target = { ...series, ...fields, id: nextId(), createdAt: nowIso(), exceptions: [], participantIds: [...(series.participantIds ?? [])] };
+          if (pIn) applyParticipants(target, pIn);
           s.events.push(target);
         }
         log(eventOut(s, target), { action: "UPDATED", eventId: target.id, repeat: series.repeat, scope: logScope, occurrence: date });
