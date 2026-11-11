@@ -1,12 +1,13 @@
 "use client";
 // "앱에서 열기" (#154). 카카오톡 인앱 브라우저는 유니버설 링크/앱 링크를 타지 않아 초대 링크가 웹으로 열린다.
+// 2026-11-11: 보이는 버튼과 안내 문구는 뺐다(앱이 없는 사람에게도 보여 혼란). 지금은 카카오톡 + 스토어 공개 OS 에서
+// 자동 시도 한 번만 하고 화면에는 아무것도 그리지 않는다. 앱이 없으면 그대로 웹 합류 화면에 남는다
 // 판정(plan)은 서버가 UA 와 APP_STORE_LIVE 로 정하고(lib/app-open.ts planAppOpen), 여기서는 주소를 만들어 이동만 한다.
 // 웹 합류 화면은 절대 막지 않는다: 이 블록은 기존 버튼 아래에 붙는 보조 동작이다.
 // - 카카오톡: 화면을 열면 한 번 자동으로 앱을 부른다 (sessionStorage + 폴백 주소의 app=0 으로 반복 방지)
 // - iOS: 앱이 없으면 아무 일도 없다. 1.5초 뒤에도 화면이 보이면 "못 열었음" 으로 보고, 스토어가 열려 있으면 설치 버튼
 // - Android: intent 폴백이 웹(app=0)으로 돌아오면 같은 판정. 직접 누른 경우 스토어가 열려 있으면 폴백이 Play 스토어
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "./ui";
 import { appOpenUrl, appPathOf, autoAttemptKey, NO_APP_PARAM, NO_APP_VALUE, shouldAutoAttempt, type AppOpenPlan } from "@/lib/app-open";
 
 const OPEN_TIMEOUT_MS = 1500;
@@ -82,33 +83,7 @@ export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
     };
   }, [plan, attempt]);
 
-  if (!plan.show || phase === "dismissed") return null;
-
-  const showInstall = phase === "failed" && plan.storeUrl;
-  return (
-    // 위 로그인/합류 버튼과 같은 간격 8, 같은 크기 48 (#166)
-    <div className="mt-2 flex flex-col gap-2" data-testid="open-in-app">
-      {showInstall ? (
-        <>
-          <a href={plan.storeUrl!} className="block">
-            <Button size="xl" full tabIndex={-1}>
-              앱 설치하기
-            </Button>
-          </a>
-          <Button variant="ghost" size="xl" full onClick={() => setPhase("dismissed")}>
-            웹에서 계속하기
-          </Button>
-        </>
-      ) : (
-        <>
-          <Button variant="outline" size="xl" full loading={phase === "opening"} onClick={() => attempt(true)}>
-            앱에서 열기
-          </Button>
-          <p className="text-center text-[12px] leading-4 text-ink-2">
-            {phase === "failed" ? "앱을 열지 못했어요. 위 버튼으로 웹에서 계속할 수 있어요" : "언제볼까 앱이 있으면 앱에서 열려요"}
-          </p>
-        </>
-      )}
-    </div>
-  );
+  // 화면에 그리는 것은 없다 (자동 시도만)
+  void phase;
+  return null;
 }
