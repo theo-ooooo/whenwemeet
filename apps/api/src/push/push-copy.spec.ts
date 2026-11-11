@@ -1,5 +1,6 @@
 import {
   anniversaryPayload,
+  subjectParticle,
   changePayload,
   changePhrase,
   copula,
@@ -137,7 +138,7 @@ describe('팀원 변경 문구', () => {
 
 describe('기념일, 합류 문구', () => {
   it('기념일: 이름 + 라벨, "오늘은 …이에요", 만료는 그날 KST 24:00', () => {
-    const payload = anniversaryPayload({ groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12' });
+    const payload = anniversaryPayload({ groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12', offsetDays: 0 });
     expect(payload).toEqual({
       title: '처음 만난 날 300일',
       subtitle: '우리',
@@ -145,7 +146,30 @@ describe('기념일, 합류 문구', () => {
       url: '/g/10/anniversaries',
       expiration: kst('2026-11-13T00:00:00').getTime() / 1000,
     });
-    expect(anniversaryPayload({ groupId: 10, groupName: '우리', name: '엄마 생신', label: null, date: '2026-11-12' }).title).toBe('엄마 생신');
+    expect(anniversaryPayload({ groupId: 10, groupName: '우리', name: '엄마 생신', label: null, date: '2026-11-12', offsetDays: 0 }).title).toBe('엄마 생신');
+  });
+
+  it('기념일 하루 전, 일주일 전 (#269, D-146): 제목은 그대로, 본문만 다르고 만료는 보내는 날 KST 24:00', () => {
+    const base = { groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12' };
+    expect(anniversaryPayload({ ...base, offsetDays: 1 })).toMatchObject({
+      title: '처음 만난 날 300일',
+      body: '내일은 처음 만난 날 300일이에요',
+      expiration: kst('2026-11-12T00:00:00').getTime() / 1000,
+    });
+    expect(anniversaryPayload({ ...base, offsetDays: 7 })).toMatchObject({
+      title: '처음 만난 날 300일',
+      body: '처음 만난 날 300일이 일주일 남았어요',
+      expiration: kst('2026-11-06T00:00:00').getTime() / 1000,
+    });
+    expect(anniversaryPayload({ ...base, name: '하늘 생일', label: null, offsetDays: 1 }).body).toBe('내일은 하늘 생일이에요');
+    expect(anniversaryPayload({ ...base, name: '엄마 생신', label: null, offsetDays: 7 }).body).toBe('엄마 생신이 일주일 남았어요');
+    expect(anniversaryPayload({ ...base, name: '우리 데이트', label: null, offsetDays: 7 }).body).toBe('우리 데이트가 일주일 남았어요');
+  });
+
+  it('이/가: 받침 있으면 이, 없거나 한글이 아니면 가', () => {
+    expect(subjectParticle('1주년')).toBe('1주년이');
+    expect(subjectParticle('하루')).toBe('하루가');
+    expect(subjectParticle('BTS')).toBe('BTS가');
   });
 
   it("합류: '{이름}님이 '{팀}' 에 들어왔어요', 팀 이름을 따로 붙이지 않는다", () => {

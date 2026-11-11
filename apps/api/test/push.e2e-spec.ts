@@ -367,5 +367,32 @@ describe('푸시 알림 (e2e)', () => {
       expect(fake.messages.map((m) => m.body)).toEqual(['오늘은 처음 만난 날 100일이에요', '오늘은 처음 만난 날 100일이에요']);
       expect(fake.messages[0].data).toMatchObject({ kind: 'ANNIVERSARY', url: `/g/${groupId}/anniversaries` });
     });
+
+    it('기념일 알림 시점 (#269): 하루 전, 일주일 전은 그날 앞서 09:00, 100일 단위는 일주일 전 없음, 알림 없음은 0건', async () => {
+      const today = kstDate(at('12:00:00'));
+      const yearsAgo = (offsetDays: number) => {
+        const d = new Date(`${today}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + offsetDays);
+        d.setUTCFullYear(d.getUTCFullYear() - 3);
+        return d.toISOString().slice(0, 10);
+      };
+      const send = (body: object) => api(app).post(`/v1/groups/${groupId}/anniversaries`).set(auth(minji)).send(body).expect(201);
+      // 내일이 하늘 생일 (YEARLY, 하루 전)
+      await send({ name: '하늘 생일', date: yearsAgo(1), kind: 'YEARLY', reminders: ['DAY_BEFORE'] });
+      // 일주일 뒤가 3주년 (COUNT_UP, 일주일 전)
+      await send({ name: '결혼기념일', date: yearsAgo(7), kind: 'COUNT_UP', reminders: ['WEEK_BEFORE'] });
+      // 일주일 뒤가 100일이지만 100일 단위는 일주일 전이 없다
+      await send({ name: '처음 만난 날', date: kstDate(new Date(at('12:00:00').getTime() - 92 * DAY_MS)), reminders: ['DAY_OF', 'WEEK_BEFORE'] });
+      // 오늘이 100일이지만 알림 없음
+      await send({ name: '조용한 날', date: kstDate(new Date(at('12:00:00').getTime() - 99 * DAY_MS)), reminders: [] });
+      await prisma.anniversary.updateMany({ data: { updatedAt: new Date(Date.now() - DAY_MS) } });
+
+      await scheduler.tick(at('09:00:20'));
+      const bodies = [...new Set(fake.messages.map((m) => m.body ?? ''))].sort((a, b) => a.localeCompare(b));
+      expect(bodies).toEqual(['결혼기념일 3주년이 일주일 남았어요', '내일은 하늘 생일이에요']);
+      const keys = (await prisma.pushNotification.findMany({ where: { kind: 'ANNIVERSARY' }, select: { dedupeKey: true } })).map((n) => n.dedupeKey);
+      expect(keys.every((k) => /^A:\d+:\d{4}-\d{2}-\d{2}:D(1|7)$/.test(k))).toBe(true);
+      expect(keys).toHaveLength(2);
+    });
   });
 });

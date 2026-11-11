@@ -367,6 +367,66 @@ describe('핵심 흐름 (e2e)', () => {
     expect(unchanged.body.data.find((a: { id: number }) => a.id === birthday.body.data.id).kind).toBe('YEARLY');
   });
 
+  it('기념일 알림 시점(reminders): 생략하면 당일만, [] 는 알림 없음, 수정은 보낸 것만, 잘못된 값은 400 (#269)', async () => {
+    const prisma = app.get(PrismaService);
+    const created = await api(app).post(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).send({ name: '알림 기본', date: '2025-01-01' }).expect(201);
+    expect(created.body.data.reminders).toEqual(['DAY_OF']);
+    const id = created.body.data.id;
+
+    // 순서 무관하게 받아 당일, 하루 전, 일주일 전 순으로 돌려준다
+    const many = await api(app)
+      .patch(`/v1/groups/${groupId}/anniversaries/${id}`)
+      .set(auth(bob))
+      .send({ reminders: ['WEEK_BEFORE', 'DAY_OF', 'DAY_BEFORE'] })
+      .expect(200);
+    expect(many.body.data.reminders).toEqual(['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE']);
+    expect(await prisma.anniversary.findUniqueOrThrow({ where: { id } })).toMatchObject({ remindDayOf: true, remindDayBefore: true, remindWeekBefore: true });
+
+    // 다른 칸만 바꾸면 알림은 그대로
+    const renamed = await api(app).patch(`/v1/groups/${groupId}/anniversaries/${id}`).set(auth(bob)).send({ name: '이름만' }).expect(200);
+    expect(renamed.body.data.reminders).toEqual(['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE']);
+
+    const none = await api(app).patch(`/v1/groups/${groupId}/anniversaries/${id}`).set(auth(bob)).send({ reminders: [] }).expect(200);
+    expect(none.body.data.reminders).toEqual([]);
+
+    const dayBefore = await api(app)
+      .post(`/v1/groups/${groupId}/anniversaries`)
+      .set(auth(alice))
+      .send({ name: '하루 전만', date: '2000-05-05', kind: 'YEARLY', reminders: ['DAY_BEFORE'] })
+      .expect(201);
+    expect(dayBefore.body.data.reminders).toEqual(['DAY_BEFORE']);
+
+    const list = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
+    const byId = Object.fromEntries(list.body.data.map((a: { id: number; reminders: string[] }) => [a.id, a.reminders]));
+    expect(byId[id]).toEqual([]);
+    expect(byId[dayBefore.body.data.id]).toEqual(['DAY_BEFORE']);
+
+    for (const [method, path, body] of [
+      ['post', `/v1/groups/${groupId}/anniversaries`, { name: 'x', date: '2024-01-01', reminders: null }],
+      ['post', `/v1/groups/${groupId}/anniversaries`, { name: 'x', date: '2024-01-01', reminders: 'DAY_OF' }],
+      ['post', `/v1/groups/${groupId}/anniversaries`, { name: 'x', date: '2024-01-01', reminders: ['MONTH_BEFORE'] }],
+      ['patch', `/v1/groups/${groupId}/anniversaries/${id}`, { reminders: ['DAY_OF', 'DAY_OF'] }],
+      ['patch', `/v1/groups/${groupId}/anniversaries/${id}`, { reminders: ['day_of'] }],
+      ['patch', `/v1/groups/${groupId}/anniversaries/${id}`, { reminders: null }],
+    ] as const) {
+      const res = await api(app)[method](path).set(auth(alice)).send(body).expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_FAILED');
+      expect(res.body.error.details[0].field).toBe('reminders');
+    }
+    const unchanged = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
+    expect(unchanged.body.data.find((a: { id: number }) => a.id === id).reminders).toEqual([]);
+  });
+
+  it('마이그레이션 기본값: 알림 칸 없이 넣은 행(#269 전 행)은 당일만 (#269)', async () => {
+    const prisma = app.get(PrismaService);
+    await prisma.$executeRaw`INSERT INTO Anniversary (groupId, name, date, kind, updatedAt) VALUES (${groupId}, '옛 행', '2024-02-02', 'COUNT_UP', NOW(3))`;
+    const row = await prisma.anniversary.findFirstOrThrow({ where: { groupId, name: '옛 행' } });
+    expect(row).toMatchObject({ remindDayOf: true, remindDayBefore: false, remindWeekBefore: false });
+    const list = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
+    expect(list.body.data.find((a: { id: number }) => a.id === row.id).reminders).toEqual(['DAY_OF']);
+    await prisma.anniversary.delete({ where: { id: row.id } });
+  });
+
   it('일정 삭제는 DELETED 스냅샷을 남기고 eventId 는 null 이 된다', async () => {
     const res = await api(app).delete(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(200);
     expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });

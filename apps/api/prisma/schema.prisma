@@ -307,6 +307,10 @@ model Anniversary {
   date      DateTime        @db.Date
   /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
   kind      AnniversaryKind @default(COUNT_UP)
+  /// (#269) 알림 시점, 모두 오전 9시 KST. 기존 행은 당일만. 일주일 전은 100일 단위 항목에 쓰지 않음 (D-143, D-144)
+  remindDayOf      Boolean @default(true)
+  remindDayBefore  Boolean @default(false)
+  remindWeekBefore Boolean @default(false)
   creatorId Int?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
