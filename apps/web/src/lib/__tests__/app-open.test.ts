@@ -49,15 +49,11 @@ describe("planAppOpen", () => {
       expect(planAppOpen(ua, OFF)).toEqual({ show: false });
     }
   });
-  it("카카오톡 인앱 브라우저에서, 그 OS 앱이 스토어에 공개됐을 때만 자동 시도", () => {
+  it("모바일 브라우저(카카오톡 포함)에서 그 OS 앱이 스토어에 공개됐을 때만 묻는다", () => {
     expect(planAppOpen(KAKAO_IOS, ON)).toEqual({ show: true, os: "ios", kakao: true, auto: true, storeUrl: APP_STORE_URL });
-    expect(planAppOpen(KAKAO_ANDROID, ON)).toEqual({ show: true, os: "android", kakao: true, auto: true, storeUrl: PLAY_STORE_URL });
-    expect(planAppOpen(KAKAO_IOS, OFF)).toEqual({ show: false });
-    expect(planAppOpen(KAKAO_ANDROID, OFF)).toEqual({ show: false });
-  });
-  it("일반 모바일 브라우저는 아무것도 하지 않는다 (버튼 없음)", () => {
-    expect(planAppOpen(SAFARI_IOS, ON)).toEqual({ show: false });
-    expect(planAppOpen(CHROME_ANDROID, ON)).toEqual({ show: false });
+    expect(planAppOpen(CHROME_ANDROID, ON)).toEqual({ show: true, os: "android", kakao: false, auto: true, storeUrl: PLAY_STORE_URL });
+    expect(planAppOpen(SAFARI_IOS, ON)).toMatchObject({ show: true, os: "ios" });
+    for (const ua of [KAKAO_IOS, KAKAO_ANDROID, SAFARI_IOS, CHROME_ANDROID]) expect(planAppOpen(ua, OFF)).toEqual({ show: false });
   });
 });
 
@@ -141,9 +137,9 @@ describe("shouldAutoAttempt", () => {
     expect(shouldAutoAttempt(kakao, "", true)).toBe(false);
     expect(shouldAutoAttempt(kakao, "?app=0", false)).toBe(false);
   });
-  it("일반 브라우저와 표시 안 함은 자동 시도 없음", () => {
-    expect(shouldAutoAttempt(planAppOpen(SAFARI_IOS, ON), "", false)).toBe(false);
+  it("표시 안 함(데스크톱, 스토어 미공개)은 묻지 않는다", () => {
     expect(shouldAutoAttempt(planAppOpen(DESKTOP, ON), "", false)).toBe(false);
+    expect(shouldAutoAttempt(planAppOpen(SAFARI_IOS, OFF), "", false)).toBe(false);
   });
   it("키는 쿼리를 뺀 경로 기준", () => {
     expect(autoAttemptKey("/join/AB?auto=1")).toBe(autoAttemptKey("/join/AB"));
