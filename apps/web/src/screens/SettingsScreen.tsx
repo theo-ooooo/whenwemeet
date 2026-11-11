@@ -30,28 +30,33 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
         <h1 className="t-title">팀 설정</h1>
       </div>
       {group ? (
-        <>
-          <NameSection group={group} onSaved={setGroup} />
-          {group.type === "TEAM" ? (
-            <InviteSection group={group} onSaved={setGroup} open={openInvite} />
-          ) : (
-            <section className="rounded-xl bg-paper px-3.5 py-3.5">
-              <p className="text-[14px] leading-5 text-soft">
-                개인 달력은 나만 볼 수 있어요. 여럿이 쓰려면 새 팀을 만들어 보세요
-              </p>
-              <Link href="/groups/new" className="mt-3 block">
-                <Button full tabIndex={-1}>
-                  새 팀 만들기
-                </Button>
-              </Link>
-            </section>
-          )}
-          <MembersSection group={group} />
-          <MeSection group={group} onSaved={setGroup} />
-          {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
-          {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
-          {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
-        </>
+        // lg(≥1024): 왼쪽 팀(이름, 초대, 멤버) | 오른쪽 이 팀에서 나(내 표시, 알림, 나가기). 그 아래는 1단 (#244)
+        <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+          <div className="space-y-2">
+            <NameSection group={group} onSaved={setGroup} />
+            {group.type === "TEAM" ? (
+              <InviteSection group={group} onSaved={setGroup} open={openInvite} />
+            ) : (
+              <section className="rounded-xl bg-paper px-3.5 py-3.5">
+                <p className="text-[14px] leading-5 text-soft">
+                  개인 달력은 나만 볼 수 있어요. 여럿이 쓰려면 새 팀을 만들어 보세요
+                </p>
+                <Link href="/groups/new" className="mt-3 block">
+                  <Button full tabIndex={-1}>
+                    새 팀 만들기
+                  </Button>
+                </Link>
+              </section>
+            )}
+            <MembersSection group={group} />
+          </div>
+          <div className="space-y-2">
+            <MeSection group={group} onSaved={setGroup} />
+            {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
+            {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
+            {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
+          </div>
+        </div>
       ) : (
         <div className="space-y-2" aria-busy="true" aria-label="불러오는 중">
           <Skeleton className="h-20 w-full rounded-xl" />
