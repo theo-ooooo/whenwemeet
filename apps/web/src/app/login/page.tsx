@@ -4,7 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginActions } from "@/components/LoginActions";
 import { Symbol } from "@/components/Logo";
-import { parseAppUserAgent } from "@/lib/app-bridge";
+import { appSupportsEmailLogin, parseAppUserAgent } from "@/lib/app-bridge";
+import { webEmailEnabled } from "@/lib/email-route";
 import { EXPIRED_REASON, safeNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "로그인" };
@@ -34,7 +35,8 @@ export default async function LoginPage({
   const error = sp.error && !SILENT_ERRORS.has(sp.error) ? (ERROR_MESSAGES[sp.error] ?? DEFAULT_ERROR) : null;
   // 앱 셸 판정(UA)과 웹 애플 버튼 노출(P3 배포 전 숨김, 앱.md 7장)은 요청마다 서버에서 읽는다
   // Android 앱 셸 안에서는 애플 버튼을 숨긴다 (#145)
-  const appUa = parseAppUserAgent((await headers()).get("user-agent"));
+  const ua = (await headers()).get("user-agent");
+  const appUa = parseAppUserAgent(ua);
   const appGuess = appUa !== null;
   const appleEnabled = webAppleEnabled(process.env.APPLE_LOGIN_ENABLED, appUa?.os);
 
@@ -65,7 +67,15 @@ export default async function LoginPage({
               {error}
             </p>
           )}
-          <LoginActions next={next} appleEnabled={appleEnabled} appGuess={appGuess} expired={sp.reason === EXPIRED_REASON} />
+          <LoginActions
+            next={next}
+            appleEnabled={appleEnabled}
+            appGuess={appGuess}
+            expired={sp.reason === EXPIRED_REASON}
+            emailEnabled={webEmailEnabled()}
+            shellHasEmail={appSupportsEmailLogin(ua)}
+            appOs={appUa?.os ?? null}
+          />
           <p className="mt-3 text-center text-[12px] text-ink-2">
             계속하면{" "}
             <Link href="/terms" className="hit inline-block underline underline-offset-2">

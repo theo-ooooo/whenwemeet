@@ -32,7 +32,15 @@ const ICONS = {
   },
 };
 
+// (#245) 이메일: 웹 components/icons.tsx IconMail 과 같은 선 아이콘(24 격자, 선 1.8, 조각 하나)
+const MAIL_SVG = (w, h) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">` +
+  `<rect x="3" y="5" width="18" height="14" rx="4"/><path d="M6.5 8.5 12 12.5l5.5-4"/>` +
+  `<rect x="10.3" y="11.3" width="3.4" height="3.4" rx="1" transform="rotate(45 12 13)" fill="#FFFFFF" stroke="none"/></svg>`;
+
 mkdirSync(OUT, { recursive: true });
+await sharp(Buffer.from(MAIL_SVG(20 * SCALE, 20 * SCALE))).png().toFile(path.join(OUT, "mail@3x.png"));
+console.log(`mail@3x.png ${20 * SCALE}x${20 * SCALE}`);
 for (const [name, i] of Object.entries(ICONS)) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${i.w * SCALE}" height="${i.h * SCALE}" viewBox="${i.viewBox}"><path fill="#FFFFFF" d="${i.d}"/></svg>`;
   await sharp(Buffer.from(svg)).png().toFile(path.join(OUT, `${name}@3x.png`));
