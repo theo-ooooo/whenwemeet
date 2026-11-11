@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
+import { reportError, shouldReport } from '../monitoring/sentry.js';
 import { ApiException, DEFAULT_MESSAGE, ErrorBody, ErrorCode, RateLimitedException } from './errors.js';
 
 /** Nest 기본 예외(라우터 404, 파이프 400 등) 를 api.md 오류 코드로 옮기는 표 */
@@ -28,6 +29,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(exception instanceof Error ? (exception.stack ?? exception.message) : String(exception));
     }
+    // (#185) 처리 못 한 5xx 만 Sentry 로. 우리가 던지는 4xx ApiException 과 설정 없음(503) 은 보내지 않는다
+    if (shouldReport(exception, status)) reportError(exception);
     if (exception instanceof RateLimitedException) {
       // (#186) 요청 제한은 다시 보낼 때까지의 초를 헤더로도 알린다
       res.setHeader('Retry-After', String(exception.retryAfterSec));
