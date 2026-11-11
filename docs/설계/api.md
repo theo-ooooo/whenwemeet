@@ -277,6 +277,10 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
+### 2.8 푸시
+
+기기 등록(`/me/push-devices`), 알림 설정(`/me/notification-settings`), 일정 `reminder`, 팀 `notify` 는 `푸시-알림.md` 7장 (#188).
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
