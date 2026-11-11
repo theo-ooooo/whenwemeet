@@ -1,8 +1,10 @@
 "use client";
 // 일정 상세. 날짜 상세(DayPanel) 안에서 일정 행이나 칩을 누르면 같은 표면이 이것으로 바뀐다 (폴더블.md 5-2)
-// 내용은 기존 상세와 같다: 등록자, 제목, 시간, 메모, 등록/수정 시각, 수정/복제/삭제
+// 내용: 제목, 시간, 반복, 알림, 참여자(#248), 메모, "○○님이 추가", 등록/수정 시각, 수정/복제/삭제.
+// 개인 팀은 사람 표시가 없던 그대로 등록자 한 줄만 둔다 (7-2)
 import { useRouter } from "next/navigation";
 import { IconArrowRight, IconBell, IconChevronLeft, IconClose } from "./icons";
+import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { eventCopyHref, eventEditHref } from "@/lib/recurrence";
@@ -41,6 +43,7 @@ export function EventDetail({
   onDelete: () => void;
 }) {
   const router = useRouter();
+  const who = useWho();
   const startKey = dateKeyOf(ev.startsAt);
   const endKey = ev.allDay ? addDays(dateKeyOf(ev.endsAt), -1) : dateKeyOf(ev.endsAt);
   const edited = ev.updatedAt && ev.updatedAt !== ev.createdAt;
@@ -67,10 +70,12 @@ export function EventDetail({
           <IconClose size={18} />
         </button>
       </div>
-      <span className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
-        <i aria-hidden="true" className="block size-2 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
-        {iGa(ev.creator.displayName)} 등록
-      </span>
+      {who.personal && (
+        <span className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+          <i aria-hidden="true" className="block size-2 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
+          {iGa(ev.creator.displayName)} 등록
+        </span>
+      )}
       <h2 id={titleId} tabIndex={-1} data-autofocus className="mt-1 text-[20px] font-bold leading-7 tracking-[-0.02em] break-words outline-none">
         {ev.title}
       </h2>
@@ -116,8 +121,11 @@ export function EventDetail({
           {remind}
         </p>
       )}
+      {!who.personal && <ParticipantList event={ev} meId={who.meId} />}
       {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
-      <p className="mt-2.5 text-[12px] leading-4 text-ink-2">
+      {/* 참여자와 등록자는 다를 수 있다. 등록자는 여기 한 줄 (#248 D-140) */}
+      {!who.personal && <p className="mt-2.5 text-[12px] leading-4 text-ink-2">{ev.creator.displayName}님이 추가</p>}
+      <p className={`${who.personal ? "mt-2.5" : "mt-0.5"} text-[12px] leading-4 text-ink-2`}>
         {stamp(ev.createdAt)} 등록{edited ? ` · ${stamp(ev.updatedAt)} 수정` : ""}
       </p>
       {/* 세 버튼 같은 폭 (#167). 위계는 색으로: 수정 주 버튼, 복제 보조 면, 삭제 보조 면 + 위험 글자. 시트와 팝오버가 같다 */}

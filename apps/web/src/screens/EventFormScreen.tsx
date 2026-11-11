@@ -1,7 +1,9 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useGroupContext } from "@/components/AppShell";
 import { IconChevronRight } from "@/components/icons";
+import { ParticipantSheet, ParticipantValue } from "@/components/Participants";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
 import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
 import { useToast } from "@/components/Toast";
@@ -17,6 +19,17 @@ import { followingUntil, formRepeatOf, keepsLoadedTimes, repeatRuleError } from 
 import { formRuleDate, repeatLabel } from "@/lib/recurrence-label";
 import { maybeOpenPushPrompt } from "@/lib/push";
 import { REMINDER_LABEL, reminderAfterAllDayChange, reminderError, reminderOf, reminderToSend } from "@/lib/reminder";
+import {
+  copyPick,
+  normalizePick,
+  participantsBody,
+  participantsChanged,
+  participantsFromPick,
+  pickOf,
+  samePick,
+  showParticipantRow,
+  type ParticipantPick,
+} from "@/lib/participants";
 import type { Event, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "@/lib/types";
 
 type Props = {
@@ -53,6 +66,11 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   // 빠른 추가에서 고른 알림 (#188). 종일 여부와 맞지 않으면 없음
   const draftReminder = sourceId ? "NONE" : reminderAfterAllDayChange(reminderOf(query.get("reminder")), draftAllDay);
 
+  // (#248) 참여자: 팀 멤버, 내 id, 개인 팀 여부는 AppShell 이 받은 팀 정보에서
+  const { group } = useGroupContext();
+  const meId = group?.me.userId ?? null;
+  const personal = group?.type === "PERSONAL";
+
   const [loaded, setLoaded] = useState(!sourceId);
   const [creator, setCreator] = useState<Event["creator"] | null>(null);
   const [title, setTitle] = useState(draftTitle);
@@ -70,6 +88,10 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   // 알림 시각 (#188, 푸시-알림.md 4-1). 기본 없음, 종일을 바꾸면 맞지 않는 값은 없음으로
   const [reminder, setReminder] = useState<EventReminder>(draftReminder);
   const [reminderOpen, setReminderOpen] = useState(false);
+  // 참여자 (#248, 7-3). null = 새 일정 기본값 "나". 수정은 응답 값, 복제는 원본 값(지금 멤버로 거른다)
+  const [pick, setPick] = useState<ParticipantPick | null>(null);
+  const [initialPick, setInitialPick] = useState<ParticipantPick | null>(null);
+  const [participantOpen, setParticipantOpen] = useState(false);
   // 범위 시트 (저장/삭제), 고른 범위의 요청 중 표시, "이후 모두" 확인 창
   const [scopeSheet, setScopeSheet] = useState<"save" | "delete" | null>(null);
   const [scopePending, setScopePending] = useState<EventScope | null>(null);
@@ -78,10 +100,11 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   // 제목을 한 번이라도 고쳤는지. 빈 제목 오류는 고친 뒤 벗어나거나 저장을 눌렀을 때만 띄운다 (#80)
   const [titleEdited, setTitleEdited] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [participantError, setParticipantError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // 처음 채운 값. 지금 값과 다르면 작성 중으로 보고 이탈 전에 묻는다 (#137)
   const [baseline, setBaseline] = useState<string | null>(() =>
-    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null, draftReminder),
+    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null, draftReminder, null),
   );
 
   // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
@@ -118,6 +141,9 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
       setUntilDate(formRepeat.until ?? "");
       // 수정은 그 회차의 값(예외 반영), 복제도 같은 값으로 시작한다 (#188)
       setReminder(reminderOf(ev.reminder));
+      const evPick = pickOf(ev);
+      setPick(evPick);
+      if (eventId) setInitialPick(evPick);
       setBaseline(
         formSnapshot(
           ev.title,
@@ -130,6 +156,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
           formRepeat.repeat,
           formRepeat.until,
           reminderOf(ev.reminder),
+          evPick,
         ),
       );
       if (eventId) setCreator(ev.creator);
@@ -207,12 +234,20 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
       : null;
   // 종일 전환에서 "없음" 으로 되돌리므로 정상 흐름에선 생기지 않는다. 서버와 같은 문장으로 막아 둔다
   const remindError = reminderError(reminder, allDay);
+  // 참여자 줄 (#248, 7-3). "이 일정만" 으로 들어온 반복 수정과 개인 팀은 숨긴다
+  const showParticipants = Boolean(group) && showParticipantRow({ personal, thisOnly: Boolean(series && presetScope === "this") });
+  const memberIds = useMemo(() => (group?.members ?? []).flatMap((m) => (m.userId === null ? [] : [m.userId])), [group]);
+  // 지금 값. 새 일정 기본은 [나], 복제는 원본 참여자를 지금 멤버로 거르고 비면 [나] (D-142)
+  const currentPick: ParticipantPick | null =
+    pick === null ? (meId !== null ? [meId] : null) : copyFrom && !eventId && meId !== null ? copyPick(pick, memberIds, meId) : pick;
+  const pickChanged = participantsChanged({ editing, current: currentPick, initial: initialPick });
+  const participantsShown = group && currentPick ? participantsFromPick(currentPick, group.members) : null;
   const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !remindError && !saving && scopePending === null;
 
   // 저장, 삭제가 끝나 화면을 떠나는 중이면 확인하지 않는다
   const [done, setDone] = useState(false);
   const dirty =
-    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until, reminder) !== baseline;
+    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until, reminder, pick) !== baseline;
   const leave = useLeaveGuard(dirty);
   const untilLabelId = useId();
   const cancel = useCallback(() => leave.request(() => router.back()), [leave, router]);
@@ -290,8 +325,13 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   /** 보낼 본문. 반복 필드는 새 일정/한 번짜리 수정에서 켰을 때, 반복 일정은 "이후 모두" 일 때만 싣는다 (api.md 2.3) */
   function bodyFor(scope: EventScope | null): EventPatchInput | null {
     if (!payload) return null;
+    // 참여자 (#248, D-142): 생성은 팀이면 늘, 수정은 바꿨을 때만. "이 일정만" 은 싣지 않는다 (서버 400)
+    const sentParticipants = showParticipants
+      ? participantsBody({ editing, personal, scope: series ? scope : null, current: currentPick, initial: initialPick })
+      : undefined;
+    const withParticipants = sentParticipants === undefined ? payload : { ...payload, participants: sentParticipants };
     if (series && scope === "following") {
-      const { startsAt, endsAt, ...rest } = payload;
+      const { startsAt, endsAt, ...rest } = withParticipants;
       return {
         ...rest,
         ...(timesKept ? {} : { startsAt, endsAt }),
@@ -300,7 +340,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
       };
     }
     if (series) return payload;
-    return repeat ? { ...payload, repeat, repeatUntil: until } : payload;
+    return repeat ? { ...withParticipants, repeat, repeatUntil: until } : withParticipants;
   }
 
   async function save(e: React.FormEvent) {
@@ -308,6 +348,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     setTouched(true);
     if (!canSave || !payload) return;
     setSaveError(null);
+    setParticipantError(null);
     // 반복 일정은 범위를 먼저 묻는다 (주소로 정해 왔으면 그 범위로 바로)
     if (series && !presetScope) {
       setScopeSheet("save");
@@ -349,6 +390,12 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (r.error.status === 404) {
       toast.show("이미 삭제된 일정이에요");
       router.replace(`/g/${groupId}/calendar`);
+      return;
+    }
+    // 참여자 검증 실패(멤버가 방금 나감 등)는 참여자 줄 아래에 (#248 7-3)
+    const participantDetail = r.error.details?.find((d) => d.field === "participants");
+    if (participantDetail) {
+      setParticipantError(participantDetail.message || r.error.message);
       return;
     }
     setSaveError(messageOf(r.error, "저장하지 못했어요. 입력 내용은 그대로 있으니 다시 저장해 주세요"));
@@ -475,6 +522,28 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
 
             </div>
             <div className="space-y-2">
+              {/* 참여자 (#248, 7-3). 폰은 시각 블록 바로 아래, PC 2단이면 오른쪽 단 맨 위. 모양은 알림 줄과 같다 */}
+              {showParticipants && participantsShown && (
+                <div className="rounded-xl bg-paper px-3.5 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setParticipantOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-describedby={participantError ? "ev-participants-err" : undefined}
+                    className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
+                  >
+                    <span className="shrink-0 text-[14px] font-semibold">참여자</span>
+                    <ParticipantValue value={participantsShown} meId={meId} />
+                    <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+                  </button>
+                  {participantError && (
+                    <p id="ev-participants-err" role="alert" className="mb-2 text-[13px] text-danger">
+                      {participantError}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
               <div className="rounded-xl bg-paper px-3.5 py-1">
                 <button
@@ -594,6 +663,21 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
         }}
         onClose={() => setRepeatOpen(false)}
       />
+      {group && (
+        <ParticipantSheet
+          open={participantOpen}
+          members={group.members}
+          meId={meId}
+          value={currentPick ?? []}
+          onDone={(v) => {
+            // 새 일정에서 기본값([나]) 그대로 고르면 작성 중으로 보지 않는다 (이탈 확인)
+            setPick((prev) => (prev === null && meId !== null && samePick(v, [meId]) ? null : normalizePick(v)));
+            setParticipantError(null);
+            setParticipantOpen(false);
+          }}
+          onClose={() => setParticipantOpen(false)}
+        />
+      )}
       <ReminderSheet
         open={reminderOpen}
         allDay={allDay}
@@ -611,7 +695,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
           open={scopeSheet !== null}
           mode={scopeSheet ?? "save"}
           occurrence={series.occurrence ?? startDate}
-          onlyFollowing={scopeSheet === "save" && ruleChanged}
+          onlyFollowing={scopeSheet === "save" && (ruleChanged || pickChanged)}
           pending={scopePending}
           onPick={pickScope}
           onClose={() => setScopeSheet(null)}
@@ -658,6 +742,19 @@ function formSnapshot(
   repeat: Repeat | null,
   until: string | null,
   reminder: EventReminder,
+  participants: ParticipantPick | null,
 ): string {
-  return JSON.stringify([title.trim(), allDay, startDate, allDay ? "" : startTime, endDate, allDay ? "" : endTime, memo.trim(), repeat, until, reminder]);
+  return JSON.stringify([
+    title.trim(),
+    allDay,
+    startDate,
+    allDay ? "" : startTime,
+    endDate,
+    allDay ? "" : endTime,
+    memo.trim(),
+    repeat,
+    until,
+    reminder,
+    participants === null ? null : normalizePick(participants),
+  ]);
 }

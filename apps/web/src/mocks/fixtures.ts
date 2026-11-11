@@ -57,6 +57,10 @@ export type EventRow = {
   exceptions: MockException[];
   /** (#188) 알림. 없으면 NONE */
   reminder?: EventReminder;
+  /** (#248) true(또는 없음) = "모두". 기존 시드는 DB 기본값처럼 모두 (설계 2-1) */
+  allMembers?: boolean;
+  /** (#248) allMembers 가 false 일 때 참여자 userId. 비면 "참여자 없음" */
+  participantIds?: number[];
 };
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
 export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string };
@@ -103,6 +107,10 @@ export const PERSONAL_ID = 1;
 export const TEAM_ID = 2;
 const OTHER_PERSONAL_ID = 3;
 export const TEAM_INVITE_CODE = "WM7K2Q";
+/** (#248) 참여자 화면 확인용 4인 팀 (엄마, 아빠 포함) */
+export const FAMILY_ID = 4;
+export const MOM_ID = 3;
+export const DAD_ID = 4;
 
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
@@ -117,12 +125,15 @@ export function buildStore(): Store {
   const users: UserRow[] = [
     { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40) },
     { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38) },
+    { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
+    { id: DAD_ID, nickname: "아빠", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
   ];
 
   const groups: GroupRow[] = [
     { id: PERSONAL_ID, type: "PERSONAL", name: "내 달력", inviteCode: null, createdAt: hoursAgo(24 * 40) },
     { id: TEAM_ID, type: "TEAM", name: "우리 둘", inviteCode: TEAM_INVITE_CODE, createdAt: hoursAgo(24 * 38) },
     { id: OTHER_PERSONAL_ID, type: "PERSONAL", name: "내 달력", inviteCode: null, createdAt: hoursAgo(24 * 38) },
+    { id: FAMILY_ID, type: "TEAM", name: "우리 가족", inviteCode: "FAM4ZK", createdAt: hoursAgo(24 * 30) },
   ];
 
   const memberships: MembershipRow[] = [
@@ -130,6 +141,10 @@ export function buildStore(): Store {
     { userId: ME_ID, groupId: TEAM_ID, color: "#F26D6D", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: hoursAgo(20) },
     { userId: OTHER_ID, groupId: TEAM_ID, color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 37), lastSeenAt: hoursAgo(1) },
     { userId: OTHER_ID, groupId: OTHER_PERSONAL_ID, color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 38), lastSeenAt: null },
+    { userId: ME_ID, groupId: FAMILY_ID, color: "#F26D6D", displayName: null, joinedAt: hoursAgo(24 * 30), lastSeenAt: hoursAgo(2) },
+    { userId: MOM_ID, groupId: FAMILY_ID, color: "#6FCF97", displayName: null, joinedAt: hoursAgo(24 * 29), lastSeenAt: null },
+    { userId: DAD_ID, groupId: FAMILY_ID, color: "#56CCF2", displayName: null, joinedAt: hoursAgo(24 * 29), lastSeenAt: null },
+    { userId: OTHER_ID, groupId: FAMILY_ID, color: "#F2994A", displayName: null, joinedAt: hoursAgo(24 * 28), lastSeenAt: null },
   ];
 
   // 반복 픽스처 첫 회차: 내일 요일, 2주 전
@@ -182,6 +197,17 @@ export function buildStore(): Store {
     },
     // 매월 반복, 올해 12월 31일까지
     { ...ev(11, TEAM_ID, "관리비 내기", d(25), "09:00", d(25), "09:30", ME_ID), repeat: "MONTHLY", repeatUntil: keyOf(y, 12, 31) },
+    // (#248) 우리 가족: 참여자 표시 확인용. 없으면 모두, 배열이면 그 사람들, 빈 배열이면 참여자 없음
+    { ...ev(20, FAMILY_ID, "아이 병원", today, "10:00", today, "11:00", MOM_ID), allMembers: false, participantIds: [DAD_ID] },
+    ev(21, FAMILY_ID, "가족 저녁", today, "19:00", today, "21:00", ME_ID, false, "외식, 7시 집 앞"),
+    { ...ev(22, FAMILY_ID, "엄마 회식", addDays(today, 1), "19:00", addDays(today, 1), "22:00", MOM_ID), allMembers: false, participantIds: [MOM_ID] },
+    { ...ev(23, FAMILY_ID, "장보기", addDays(today, 1), "11:00", addDays(today, 1), "12:00", OTHER_ID), allMembers: false, participantIds: [] },
+    { ...ev(24, FAMILY_ID, "피아노 학원", addDays(today, 1), "16:00", addDays(today, 1), "17:00", DAD_ID), allMembers: false, participantIds: [OTHER_ID] },
+    { ...ev(25, FAMILY_ID, "헬스", addDays(today, 1), "07:00", addDays(today, 1), "08:00", DAD_ID), allMembers: false, participantIds: [DAD_ID] },
+    { ...ev(26, FAMILY_ID, "이사 준비", addDays(today, 2), "00:00", addDays(today, 4), "00:00", ME_ID, true), allMembers: false, participantIds: [ME_ID, OTHER_ID] },
+    { ...ev(27, FAMILY_ID, "할머니 댁", addDays(today, 4), "13:00", addDays(today, 4), "18:00", MOM_ID), allMembers: false, participantIds: [MOM_ID, DAD_ID, OTHER_ID] },
+    ev(28, FAMILY_ID, "주말 캠핑", addDays(today, 5), "00:00", addDays(today, 8), "00:00", DAD_ID, true, "텐트는 아빠가"),
+    { ...ev(29, FAMILY_ID, "엄마 아빠 여행", addDays(today, 9), "00:00", addDays(today, 11), "00:00", DAD_ID, true), allMembers: false, participantIds: [MOM_ID, DAD_ID] },
   ];
 
   // 기념일 (#107 자동 표시 확인용). n 년 전 같은 월일

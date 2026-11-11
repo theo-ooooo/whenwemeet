@@ -7,15 +7,16 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
 import { IconCalendar, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
+import { useWho } from "./Participants";
 import { QuickAddForm } from "./QuickAdd";
 import { EmptyState, ErrorState, Skeleton } from "./ui";
-import { memberColor } from "@/lib/colors";
 import { dayBadge } from "@/lib/day-detail";
 import { dowOf, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import type { Event } from "@/lib/types";
 import { eventKey } from "@/lib/recurrence";
+import { barColors, splitBackground, whoOf, withWho } from "@/lib/participants";
 
 /** 비는 시간 한 줄. null 이면 줄을 숨긴다 (멤버 1명, 지난 날, 계산 실패) */
 export type FreeHint = { label: string; slot: { startsAt: string; endsAt: string } | null | "loading" } | null;
@@ -99,6 +100,7 @@ export function DayPanel(props: Props) {
 }
 
 function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onOpenEvent }: Props) {
+  const who = useWho();
   const holiday = holidayOf(date);
   const empty = events !== null && !eventsError && events.length === 0 && anniversaries.length === 0;
 
@@ -176,15 +178,21 @@ function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, 
               <button
                 type="button"
                 onClick={() => onOpenEvent(ev)}
+                aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
                 className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
               >
-                <i aria-hidden="true" className="my-1 block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
+                <i aria-hidden="true" className="my-1 block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                 <span className="min-w-0 flex-1 self-center">
                   <b className="block truncate text-[15px] font-semibold leading-5">{ev.title}</b>
                   <span className="block text-[12px] leading-4 text-ink-2">{formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}</span>
                 </span>
-                {/* 행의 주인공은 제목: 이름은 행 폭의 30% 까지만, 넘치면 말줄임 (#169). 전체 이름은 상세에 있다 */}
-                <span className="ml-auto min-w-0 max-w-[30%] shrink-0 self-center truncate text-[12px] text-ink-2">{ev.creator.displayName}</span>
+                {/* 행의 주인공은 제목: 이름은 행 폭의 30% 까지만, 넘치면 말줄임 (#169). 전체 이름은 상세에 있다.
+                    등록자 대신 참여자 (색과 이름이 같은 사람을 가리키게, #248 D-140). 개인 팀은 사람 표시 없음 */}
+                {whoOf(ev, who) && (
+                  <span aria-hidden="true" className="ml-auto min-w-0 max-w-[30%] shrink-0 self-center truncate text-[12px] text-ink-2">
+                    {whoOf(ev, who)}
+                  </span>
+                )}
               </button>
             </li>
           ))}

@@ -6,16 +6,17 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { IconCalendar, IconFree, IconHeart, IconPlus } from "./icons";
 import type { FreeHint } from "./DayPanel";
+import { useWho } from "./Participants";
 import { ErrorState, Skeleton } from "./ui";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import { cellDensity } from "@/lib/calendar-cell";
-import { memberColor } from "@/lib/colors";
 import { dayBadge } from "@/lib/day-detail";
 import { timeColumn, weekStrip } from "@/lib/day-view";
 import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 import type { Event } from "@/lib/types";
 import { eventKey } from "@/lib/recurrence";
+import { barColors, splitBackground, withWho } from "@/lib/participants";
 
 type Props = {
   groupId: number;
@@ -56,6 +57,7 @@ export function DayView({
   onAdd,
   newEventHref,
 }: Props) {
+  const who = useWho();
   const heading = useRef<HTMLHeadingElement>(null);
   // 열면 맨 위로, 닫으면 달력을 보던 자리로 (본문 흐름 안에 그리므로 스크롤을 직접 맞춘다)
   useEffect(() => {
@@ -97,7 +99,7 @@ export function DayView({
           const dow = dowOf(k);
           const red = dow === 0 || dow === 6 || Boolean(holidayOf(k));
           const dayEvents = byDay?.get(k) ?? [];
-          const dots = cellDensity(dayEvents).dots;
+          const density = cellDensity(dayEvents);
           const tone = sel ? "text-on-strip-sel" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
           return (
             <li key={k}>
@@ -115,9 +117,13 @@ export function DayView({
                   {p.d}
                 </span>
                 <span aria-hidden="true" className="flex h-[5px] items-center gap-[3px]">
-                  {dots.map((c, i) => (
-                    <i key={i} className="block size-[5px] rounded-full" style={{ background: memberColor(c) }} />
+                  {density.dots.map((c, i) => (
+                    <i key={i} className="block size-[5px] rounded-full" style={{ background: c }} />
                   ))}
+                  {/* 달력 칸과 같은 규칙: +N = 점을 못 그린 일정 수, + = 참여자 점만 잘림 (#248 D-140) */}
+                  {(density.more > 0 || density.cut) && (
+                    <b className={`text-[9px] font-bold leading-[5px] ${sel ? "text-on-strip-sel" : "text-ink-2"}`}>+{density.more || ""}</b>
+                  )}
                 </span>
               </button>
             </li>
@@ -207,14 +213,14 @@ export function DayView({
                       type="button"
                       onClick={() => onOpenEvent(ev)}
                       aria-haspopup="dialog"
-                      aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
+                      aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
                       className="flex min-h-[60px] min-w-0 flex-1 items-stretch gap-2.5 rounded-xl bg-paper px-3.5 py-2.5 text-left hover:bg-hover"
                     >
-                      <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
+                      <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                       <span aria-hidden="true" className="min-w-0 flex-1 self-center">
                         <b className="block truncate text-[15px] font-semibold leading-5">{ev.title}</b>
                         <span className="block truncate text-[12px] leading-4 text-ink-2">
-                          {formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, {ev.creator.displayName}
+                          {withWho(formatEventTime(ev.startsAt, ev.endsAt, ev.allDay), ev, who)}
                         </span>
                       </span>
                     </button>

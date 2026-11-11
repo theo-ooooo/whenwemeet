@@ -18,6 +18,7 @@ import { DayPopover } from "@/components/DayPopover";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
+import { DotCluster, useWho } from "@/components/Participants";
 import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
@@ -32,7 +33,6 @@ import {
   withSelection,
   type StepTarget,
 } from "@/lib/calendar-url";
-import { memberColor } from "@/lib/colors";
 import {
   occurrenceCellText,
   occurrencesByDay,
@@ -61,6 +61,7 @@ import { fitWeek, packWeek, phoneDayLanes, type BarPiece, type DayFit, type Pack
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
+import { barColors, chipColor, participantColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
@@ -91,6 +92,7 @@ export function CalendarScreen({ groupId }: Props) {
   const wide = layout !== "phone";
   const { group, groups, eventsChanged } = useGroupContext();
   const together = togetherHintOf(group, groups);
+  const who = useWho();
   const today = todayKey();
   // 처음 값은 서버 props 가 아니라 지금 주소에서 읽는다 (#81). 뒤로가기는 Next 가 캐시해 둔 처음 렌더(쿼리 없는 주소)를
   // 다시 쓰므로 서버가 넘긴 날짜는 오늘로 돌아가지만, useSearchParams 는 replaceState 로 바꿔 둔 주소를 돌려준다
@@ -504,14 +506,15 @@ export function CalendarScreen({ groupId }: Props) {
                 <button
                   type="button"
                   onClick={() => openDay(k, ev)}
-                  aria-label={`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
+                  aria-label={withWho(`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
                   className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
                 >
                   <span aria-hidden="true" className="flex h-4 w-full items-center">
                     <small className={`text-[12px] font-semibold leading-4 ${isToday ? "text-today-ink" : "text-ink-2"}`}>
                       {isToday ? "오늘" : formatDateKo(k)}
                     </small>
-                    <i className="ml-auto block size-2 shrink-0 rounded-full" style={{ background: memberColor(ev.creator.color) }} />
+                    {/* 참여자 점 최대 3 (간격 3) + 넘치면 "+". 참여자 없음은 회색 점 1 (#248 7-2) */}
+                    <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
                   </span>
                   <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
                     {ev.title}
@@ -881,6 +884,9 @@ const FIRST_ROW_TOP = 30;
  */
 function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; className: string; onOpen: () => void }) {
   const ev = piece.event;
+  const who = useWho();
+  // 글자가 있는 막대라 칩 규칙 (#248 D-141): 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음
+  const cluster = participantColors(ev).length >= 2;
   const l = piece.roundStart ? 4 : 0;
   const r = piece.roundEnd ? 4 : 0;
   return (
@@ -888,17 +894,18 @@ function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; classNa
       type="button"
       onClick={onOpen}
       aria-haspopup="dialog"
-      aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
-      className={`pointer-events-auto absolute h-[18px] items-center overflow-hidden px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
+      aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+      className={`pointer-events-auto absolute h-[18px] items-center gap-1 overflow-hidden px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
         piece.roundStart ? "rounded-l-[5px]" : ""
       } ${piece.roundEnd ? "rounded-r-[5px]" : ""} ${className}`}
       style={{
         top: FIRST_ROW_TOP + piece.lane * ROW_PX,
         left: `calc(${piece.col} * 100% / 7 + ${l}px)`,
         width: `calc(${piece.span} * 100% / 7 - ${l + r}px)`,
-        background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 18%, transparent)`,
+        background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)`,
       }}
     >
+      {cluster && <DotCluster event={ev} />}
       <span className="truncate">
         {ev.title}
         {!ev.allDay && piece.roundStart ? ` ${timeOf(ev.startsAt)}` : ""}
@@ -946,6 +953,7 @@ function DayCell({
   onPick: () => void;
   onOpen: (ev: Event) => void;
 }) {
+  const who = useWho();
   const p = parseKey(dateKey);
   const dow = dowOf(dateKey);
   const holiday = holidayOf(dateKey);
@@ -1049,7 +1057,8 @@ function DayCell({
                   <span
                     key={s.key}
                     className={`${gap} block h-1 opacity-85 ${start ? "ml-1 rounded-l-[2px]" : "-ml-[3px]"} ${end ? "mr-1 rounded-r-[2px]" : "-mr-[3px]"}`}
-                    style={{ background: memberColor(s.event.creator.color) }}
+                    // 참여자 색을 칸마다 왼쪽에서 오른쪽으로 나눈다 (4px 두께 방향은 안 보인다, D-141)
+                    style={{ background: splitBackground(barColors(s.event), "to right") }}
                   />
                 );
               })}
@@ -1060,9 +1069,10 @@ function DayCell({
                   className={`${!hasBar ? "mt-0.5" : crowded ? "absolute inset-x-0 top-[3px] h-1" : "mt-px"} flex ${crowded ? "" : "h-[7px]"} items-center justify-center gap-[3px]`}
                 >
                   {density.dots.map((c, i) => (
-                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: memberColor(c) }} />
+                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: c }} />
                   ))}
-                  {density.more > 0 && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more}</b>}
+                  {/* +N = 점을 못 그린 일정 수, 숫자 없는 + = 참여자 점만 잘림 (#248 D-140) */}
+                  {(density.more > 0 || density.cut) && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more || ""}</b>}
                 </span>
               )}
               {/* 기념일, 공휴일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지).
@@ -1082,12 +1092,14 @@ function DayCell({
               type="button"
               onClick={() => onOpen(ev)}
               aria-haspopup="dialog"
-              aria-label={`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}, ${ev.creator.displayName}`}
-              className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
+              aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+              className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center gap-1 overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
                 i < shown2 ? "flex" : "hidden taller:flex"
               }`}
-              style={{ background: `color-mix(in srgb, ${memberColor(ev.creator.color)} 18%, transparent)` }}
+              style={{ background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)` }}
             >
+              {/* 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음 (#248 7-2) */}
+              {participantColors(ev).length >= 2 && <DotCluster event={ev} />}
               <span className="truncate">
                 {ev.title}
                 {!ev.allDay && dateKeyOf(ev.startsAt) === dateKey ? ` ${timeOf(ev.startsAt)}` : ""}

@@ -10,6 +10,7 @@ import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, formatDateKo, formatEventTime, kstToIso, todayKey } from "@/lib/date";
 import { dayBadge, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences } from "@/lib/day-view";
+import { barColors, splitBackground, withWho } from "@/lib/participants";
 import { eventEditHref, eventKey } from "@/lib/recurrence";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
@@ -63,6 +64,8 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
   const today = todayKey();
   const upcomingQ = useEvents(groupId, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
   const annQ = useAnniversaries(groupId, { enabled });
+  const meId = group?.me.userId ?? null;
+  const personal = group?.type === "PERSONAL";
 
   // 화면을 옮기거나 달력에서 일정을 바꾸면 다시 받는다. 처음 한 번은 훅이 이미 받는다
   const refetchUp = upcomingQ.refetch;
@@ -182,10 +185,10 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
                 <li key={eventKey(ev)}>
                   <Link
                     href={eventEditHref(groupId, ev)}
-                    aria-label={`${day} ${ev.title}, ${time}, ${ev.creator.displayName}`}
+                    aria-label={withWho(`${day} ${ev.title}, ${time}`, ev, { meId, personal })}
                     className="flex h-12 items-stretch gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
                   >
-                    <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: memberColor(ev.creator.color) }} />
+                    <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                     <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
                       <b className="block truncate text-[14px] font-semibold leading-[18px]">{ev.title}</b>
                       <span className="block truncate text-[12px] leading-4 text-ink-2">
