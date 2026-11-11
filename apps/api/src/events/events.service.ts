@@ -3,6 +3,7 @@ import { ApiException } from '../common/errors.js';
 import { Member, MemberResolver } from '../common/member.js';
 import { isCalendarDate, parseIsoDate } from '../common/validation.js';
 import { MembershipService } from '../groups/membership.service.js';
+import { type EventReminder, remindAt, reminderFits, reminderMismatchMessage } from '../push/remind-at.js';
 import type { EventInputDto, EventPatchDto } from './dto/event.dto.js';
 import {
   EventCreateInput,
@@ -55,6 +56,8 @@ export interface EventView {
   seriesStartsAt: Date | null;
   /** (#228) 반복 기준 날짜 'YYYY-MM-DD'. null 이면 seriesStartsAt 의 KST 날짜 (D-71) */
   repeatAnchor: string | null;
+  /** (#188) 그 회차의 실제 알림 (예외 반영) */
+  reminder: EventReminder;
 }
 
 /** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67) */
@@ -71,7 +74,7 @@ export interface ScopeQuery {
 type Scope = 'this' | 'following';
 
 /** 비교와 저장에 쓰는 일정 값 */
-type EventValues = Pick<EventUpdateInput, 'title' | 'startsAt' | 'endsAt' | 'allDay' | 'memo'>;
+type EventValues = Pick<EventUpdateInput, 'title' | 'startsAt' | 'endsAt' | 'allDay' | 'memo' | 'reminder'>;
 
 /** `endsAt > startsAt`, 길이 30일 이하. 아니면 EVENT_RANGE_INVALID */
 export function assertEventRange(startsAt: Date, endsAt: Date): void {
@@ -126,15 +129,43 @@ export function parseRange(fromRaw: string, toRaw: string, maxDays: number): { f
   return { from, to };
 }
 
-/** 저장하려는 값이 현재 값과 모두 같은지. 시각은 같은 순간이면 같다 (`+09:00` 표기 차이 무시) */
-export function isUnchanged(current: EventUpdateInput, next: EventUpdateInput): boolean {
+/** 저장하려는 값이 현재 값과 모두 같은지. 시각은 같은 순간이면 같다 (`+09:00` 표기 차이 무시). 알림 포함 (#188) */
+export function isUnchanged(current: EventValues, next: EventValues): boolean {
   return (
     current.title === next.title &&
     current.startsAt.getTime() === next.startsAt.getTime() &&
     current.endsAt.getTime() === next.endsAt.getTime() &&
     current.allDay === next.allDay &&
-    current.memo === next.memo
+    current.memo === next.memo &&
+    current.reminder === next.reminder
   );
+}
+
+/** (#188) 알림 시각을 정하는 회차 값(시작, 끝, 종일, 알림)이 바뀌었는지 (D-86) */
+export function reminderTimingChanged(current: EventValues, next: EventValues): boolean {
+  return (
+    current.startsAt.getTime() !== next.startsAt.getTime() ||
+    current.endsAt.getTime() !== next.endsAt.getTime() ||
+    current.allDay !== next.allDay ||
+    current.reminder !== next.reminder
+  );
+}
+
+/**
+ * (#188) 저장할 알림 (설계 4-1, D-84). 본문 값이 종일 여부와 안 맞으면 VALIDATION_FAILED,
+ * 본문에 없는데 종일이 바뀌어 지금 값이 안 맞게 되면 NONE
+ */
+export function resolveReminder(input: EventReminder | null | undefined, current: EventReminder, allDay: boolean): EventReminder {
+  if (input !== undefined && input !== null) {
+    if (!reminderFits(allDay, input)) throw validationFailed('reminder', reminderMismatchMessage(allDay));
+    return input;
+  }
+  return reminderFits(allDay, current) ? current : 'NONE';
+}
+
+/** (#188) 한 번짜리만 알림 시각을 저장한다. 반복 원본은 null (D-85) */
+function storedRemindAt(values: EventValues, repeat: Repeat | null | undefined): Date | null {
+  return repeat ? null : remindAt(values.startsAt, values.allDay, values.reminder);
 }
 
 /** 회차 값 비교. 메모는 null 과 '' 를 같은 "메모 없음" 으로 본다 (예외의 메모 지움은 '', D-65) */
@@ -160,6 +191,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     occurrence: row.repeat ? kstDate(row.startsAt) : null,
     seriesStartsAt: row.repeat ? row.startsAt : null,
     repeatAnchor: row.repeat ? row.repeatAnchor : null,
+    reminder: row.reminder,
   };
 }
 
@@ -173,6 +205,7 @@ export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver
     allDay: occurrence.allDay,
     memo: occurrence.memo ?? row.memo,
     occurrence: occurrence.occurrence,
+    reminder: occurrence.reminder ?? row.reminder,
   };
 }
 
@@ -204,18 +237,21 @@ function occurrenceValues(row: EventRow, occurrence: Occurrence): EventValues {
     endsAt: occurrence.endsAt,
     allDay: occurrence.allDay,
     memo: occurrence.memo ?? row.memo,
+    reminder: occurrence.reminder ?? row.reminder,
   };
 }
 
-/** 부분 변경을 기준 값과 합친다. 시각 형식 오류는 VALIDATION_FAILED */
+/** 부분 변경을 기준 값과 합친다. 시각 형식 오류는 VALIDATION_FAILED. 알림은 합친 종일 여부로 검사 (#188) */
 function mergeValues(base: EventValues, dto: EventPatchDto): EventValues {
+  const allDay = dto.allDay ?? base.allDay;
   return {
     title: dto.title ?? base.title,
     startsAt: dto.startsAt !== undefined ? parseIsoDate(dto.startsAt, 'startsAt') : base.startsAt,
     endsAt: dto.endsAt !== undefined ? parseIsoDate(dto.endsAt, 'endsAt') : base.endsAt,
-    allDay: dto.allDay ?? base.allDay,
+    allDay,
     // 빈 메모('')는 메모 지우기 = null. 회차 예외에서는 아래에서 '' 로 다시 바꿔 저장한다 (D-65)
     memo: dto.memo !== undefined ? (dto.memo === '' ? null : dto.memo) : base.memo,
+    reminder: resolveReminder(dto.reminder, base.reminder, allDay),
   };
 }
 
@@ -290,6 +326,7 @@ export class EventsService {
     const repeat = dto.repeat ?? null;
     const repeatUntil = dto.repeatUntil ?? null;
     assertRepeatRule(repeat, repeatUntil, startsAt, endsAt);
+    const reminder = resolveReminder(dto.reminder, 'NONE', dto.allDay);
 
     const row = await this.events.createWithLogTx(
       {
@@ -301,6 +338,9 @@ export class EventsService {
         memo: dto.memo ?? null,
         creatorId: userId,
         ...(repeat ? { repeat, repeatUntil } : {}),
+        reminder,
+        remindAt: repeat ? null : remindAt(startsAt, dto.allDay, reminder),
+        reminderSetAt: new Date(),
       },
       userId,
     );
@@ -364,6 +404,11 @@ export class EventsService {
     if (repeat) Object.assign(next, { repeat, repeatUntil });
 
     const unchanged = !repeat && isUnchanged(current, next);
+    if (!unchanged) {
+      // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
+      next.remindAt = storedRemindAt(next, repeat);
+      if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();
+    }
     const row = unchanged ? current : await this.events.updateWithLogTx(current.id, next, userId);
     const resolver = await this.memberships.resolverFor(current.groupId);
     return toEventView(row, resolver);
@@ -390,6 +435,8 @@ export class EventsService {
       endsAt: next.endsAt.getTime() !== original.endsAt.getTime() ? next.endsAt : null,
       allDay: next.allDay !== series.allDay ? next.allDay : null,
       memo: (next.memo ?? '') !== (series.memo ?? '') ? (next.memo ?? '') : null,
+      // (#188) 원래 회차 값(원본 알림)과 같으면 null
+      reminder: next.reminder !== series.reminder ? next.reminder : null,
     };
     const isEmpty = Object.values(fields).every((value) => value === null);
     await this.events.saveExceptionWithLogTx(
@@ -398,6 +445,7 @@ export class EventsService {
       isEmpty ? null : fields,
       { actorId: userId, scope: 'THIS', occurrence: occurrence.occurrence },
       { ...next, repeat: series.repeat },
+      reminderTimingChanged(current, next) ? new Date() : null,
     );
     const saved = applyException(original, { occurrence: occurrence.occurrence, cancelled: false, ...fields }) as Occurrence;
     return toOccurrenceView(series, saved, resolver);
@@ -434,7 +482,13 @@ export class EventsService {
 
     if (isFirst) {
       if (sameRule && exceptions.length === 0 && isUnchanged(series, next)) return toOccurrenceView(series, occurrence, resolver);
-      const row = await this.events.updateSeriesFromStartTx(series.id, { ...next, repeat, repeatUntil, repeatAnchor }, log);
+      // (#188) 예외를 모두 지우면 옮긴 회차의 시각도 바뀌므로 반복 규칙, 예외 유무까지 기준 시각 대상 (D-86)
+      const timing = !sameRule || exceptions.length > 0 || reminderTimingChanged(series, next);
+      const row = await this.events.updateSeriesFromStartTx(
+        series.id,
+        { ...next, repeat, repeatUntil, repeatAnchor, remindAt: storedRemindAt(next, repeat), ...(timing ? { reminderSetAt: new Date() } : {}) },
+        log,
+      );
       return toEventView(row, resolver);
     }
 
@@ -442,7 +496,17 @@ export class EventsService {
     const hasFollowingExceptions = exceptions.some((exception) => exception.occurrence >= occurrence.occurrence);
     if (sameRule && !hasFollowingExceptions && isUnchanged(original, next)) return toOccurrenceView(series, occurrence, resolver);
 
-    const created: EventCreateInput = { groupId: series.groupId, ...next, creatorId: series.creatorId, repeat, repeatUntil, repeatAnchor };
+    const created: EventCreateInput = {
+      groupId: series.groupId,
+      ...next,
+      creatorId: series.creatorId,
+      repeat,
+      repeatUntil,
+      repeatAnchor,
+      // (#188) 새 원본은 기준 시각이 지금 (D-86)
+      remindAt: storedRemindAt(next, repeat),
+      reminderSetAt: new Date(),
+    };
     const row = await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
     return toEventView(row, resolver);
   }

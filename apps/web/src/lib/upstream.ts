@@ -33,8 +33,10 @@ export async function upstream(opts: {
   body?: string | ArrayBuffer | null; // JSON 문자열, multipart 면 원본 바이트
   contentType?: string | null; // multipart 일 때만. 없으면 JSON
   token: string | null;
+  /** 기다리는 최대 시간(ms). 기본 15초. 로그아웃 기기 해제처럼 실패해도 되는 호출은 짧게 (#188 D-83) */
+  timeoutMs?: number;
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, contentType = null, token } = opts;
+  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
@@ -73,7 +75,7 @@ export async function upstream(opts: {
       headers,
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();
     let json: unknown = null;

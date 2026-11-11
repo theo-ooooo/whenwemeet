@@ -1,7 +1,7 @@
 // API_MOCK 전용 반복 회차 펼치기 (#187). 서버 apps/api/src/events/recurrence.ts 의 규칙을 ISO 문자열로 옮긴 것.
 // 화면을 눌러 보는 데 필요한 만큼만: 주기 4종, 말일 보정, 반복 기준 날짜(D-71), repeatUntil, 예외(취소, 값 덮기)
 import { addDays, dateKeyOf, daysBetween, daysInMonth, kstToIso, parseKey, keyOf } from "@/lib/date";
-import type { Repeat } from "@/lib/types";
+import type { EventReminder, Repeat } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
 const MARGIN_DAYS = 31;
@@ -14,6 +14,8 @@ export type MockException = {
   endsAt?: string | null;
   allDay?: boolean | null;
   memo?: string | null;
+  /** (#188) 이 회차의 알림. null/없음 이면 원본 값 */
+  reminder?: EventReminder | null;
 };
 
 export type MockSeries = {
@@ -33,6 +35,7 @@ export type MockOccurrence = {
   allDay: boolean;
   title?: string;
   memo?: string;
+  reminder?: EventReminder;
 };
 
 /** k 번째 회차의 원래 날짜 (첫 회차 d0 의 연월에서 k, 날짜는 기준 anchor 의 일/월일, 없는 날은 말일) */
@@ -94,6 +97,7 @@ export function applyException(o: MockOccurrence, x: MockException | undefined):
   };
   if (x.title != null) r.title = x.title;
   if (x.memo != null) r.memo = x.memo;
+  if (x.reminder != null) r.reminder = x.reminder;
   return r;
 }
 

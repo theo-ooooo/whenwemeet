@@ -9,7 +9,7 @@ import {
   todayKey,
   toKst,
 } from "@/lib/date";
-import type { AnniversaryKind, GroupType, Member, Repeat } from "@/lib/types";
+import type { AnniversaryKind, EventReminder, GroupType, Member, NotificationSettings, Repeat } from "@/lib/types";
 import type { MockException } from "./recurrence";
 
 export type UserRow = {
@@ -17,6 +17,8 @@ export type UserRow = {
   nickname: string;
   profileImageUrl: string | null;
   createdAt: string;
+  /** (#188) 알림 종류 설정. 없으면 모두 켬 */
+  notify?: NotificationSettings;
 };
 export type GroupRow = {
   id: number;
@@ -32,6 +34,8 @@ export type MembershipRow = {
   displayName: string | null;
   joinedAt: string;
   lastSeenAt: string | null;
+  /** (#188) 이 팀 알림 받기. 없으면 켬 */
+  notify?: boolean;
 };
 export type EventRow = {
   id: number;
@@ -51,7 +55,11 @@ export type EventRow = {
   repeatAnchor?: string | null;
   /** (#187) "이 일정만" 예외. 원래 회차 날짜 기준 */
   exceptions: MockException[];
+  /** (#188) 알림. 없으면 NONE */
+  reminder?: EventReminder;
 };
+/** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
+export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string };
 export type AnniversaryRow = {
   id: number;
   groupId: number;
@@ -84,6 +92,8 @@ export type Store = {
   events: EventRow[];
   anniversaries: AnniversaryRow[];
   logs: EventLogRow[];
+  /** (#188) 없으면 빈 목록 */
+  pushDevices?: PushDeviceRow[];
   seq: number;
 };
 

@@ -14,6 +14,7 @@ import { HealthController } from './health/health.controller.js';
 import { MeModule } from './me/me.module.js';
 import { NewsModule } from './news/news.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { PushModule } from './push/push.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     FreeSlotsModule,
     NewsModule,
     MeModule,
+    PushModule,
   ],
   controllers: [HealthController],
   providers: [

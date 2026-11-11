@@ -111,3 +111,11 @@ describe("missingEventTarget — 일정 404 일 때 (QA3-L7)", () => {
     expect(missingEventTarget(5, undefined, false, today)).toEqual({ href: "/g/5/calendar", deleted: true });
   });
 });
+
+describe("알림을 누르면 여는 주소 (#188, 푸시-알림.md 6장)", () => {
+  it("일정 상세 경로는 기존 달력 주소로 그 회차 상세를 연다", () => {
+    const q = new URLSearchParams("date=2026-11-12&day=1&event=42&occurrence=2026-11-12");
+    expect(parseDayStep(q, "2026-11-11")).toEqual({ open: true, date: "2026-11-12", step: "event", eventId: 42, occurrence: "2026-11-12" });
+    expect(parseDayStep(new URLSearchParams("date=2026-11-11&day=1&event=7"), "2026-11-11")).toEqual({ open: true, date: "2026-11-11", step: "event", eventId: 7, occurrence: null });
+  });
+});

@@ -3,6 +3,7 @@ import { ApiException } from '../common/errors.js';
 import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
 import { GroupsRepository, InviteGroupRow } from './groups.repository.js';
 import { generateInviteCode, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
@@ -27,6 +28,7 @@ export class GroupsService {
     private readonly membershipsRepo: MembershipsRepository,
     private readonly eventLogs: EventLogsRepository,
     private readonly memberships: MembershipService,
+    private readonly pushScheduler: PushScheduler,
   ) {}
 
   /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 count (결정기록 D-23) */
@@ -103,23 +105,27 @@ export class GroupsService {
   /** 코드로 참여. 이미 멤버면 같은 응답 (멱등, 결정기록 D-19). 색은 팀에서 가장 적게 쓰인 것 */
   async join(userId: number, codeRaw: string): Promise<GroupDetail> {
     const group = await this.findByInviteCode(codeRaw);
+    let joined = false;
     try {
-      await this.membershipsRepo.addMemberIfAbsentTx(userId, group.id, pickLeastUsedColor);
+      joined = await this.membershipsRepo.addMemberIfAbsentTx(userId, group.id, pickLeastUsedColor);
     } catch (error) {
       // 같은 링크를 동시에 두 번 눌러 멤버십이 먼저 생긴 경우도 멱등하게 성공
       if (!isUniqueViolation(error)) throw error;
     }
+    // (#188) 합류 알림은 트랜잭션에서 예약됐다. 커밋 뒤 틱을 바로 한 번 깨운다 (D-91)
+    if (joined) this.pushScheduler.kick();
     return this.memberships.groupDetail(group.id, userId);
   }
 
-  /** 내 색/표시 이름. displayName null 은 닉네임으로 되돌림 */
-  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin> {
+  /** 내 색/표시 이름, 이 팀 알림 받기(#188). displayName null 은 닉네임으로 되돌림. 응답에 내 notify 포함 */
+  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin & { notify: boolean }> {
     const membership = await this.memberships.assertMember(userId, groupId);
-    const data: { color?: string; displayName?: string | null } = {};
+    const data: { color?: string; displayName?: string | null; notify?: boolean } = {};
     if (dto.color !== undefined) data.color = dto.color.toUpperCase();
     if (dto.displayName !== undefined) data.displayName = dto.displayName;
+    if (dto.notify !== undefined) data.notify = dto.notify;
     const updated = await this.membershipsRepo.updateMe(membership.id, data);
-    return toMember(updated);
+    return { ...toMember(updated), notify: updated.notify };
   }
 
   /** 팀 나가기 (api.md 2.7). 멤버십 확인 → PERSONAL 거부 → 삭제와 빈 팀 정리는 한 트랜잭션 */

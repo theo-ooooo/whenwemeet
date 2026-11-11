@@ -3,6 +3,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { IconChevronRight } from "@/components/icons";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
+import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
 import { useToast } from "@/components/Toast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
@@ -14,7 +15,9 @@ import { charCount, clampChars } from "@/lib/chars";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import { followingUntil, formRepeatOf, keepsLoadedTimes, repeatRuleError } from "@/lib/recurrence";
 import { formRuleDate, repeatLabel } from "@/lib/recurrence-label";
-import type { Event, EventInput, EventPatchInput, EventScope, Repeat } from "@/lib/types";
+import { maybeOpenPushPrompt } from "@/lib/push";
+import { REMINDER_LABEL, reminderAfterAllDayChange, reminderError, reminderOf, reminderToSend } from "@/lib/reminder";
+import type { Event, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "@/lib/types";
 
 type Props = {
   groupId: number;
@@ -47,6 +50,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   const query = useSearchParams();
   const draftTitle = sourceId ? "" : clampChars(query.get("title") ?? "", TITLE_MAX);
   const draftAllDay = !sourceId && query.get("allDay") === "1";
+  // 빠른 추가에서 고른 알림 (#188). 종일 여부와 맞지 않으면 없음
+  const draftReminder = sourceId ? "NONE" : reminderAfterAllDayChange(reminderOf(query.get("reminder")), draftAllDay);
 
   const [loaded, setLoaded] = useState(!sourceId);
   const [creator, setCreator] = useState<Event["creator"] | null>(null);
@@ -62,6 +67,9 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   const [untilOn, setUntilOn] = useState(false);
   const [untilDate, setUntilDate] = useState("");
   const [repeatOpen, setRepeatOpen] = useState(false);
+  // 알림 시각 (#188, 푸시-알림.md 4-1). 기본 없음, 종일을 바꾸면 맞지 않는 값은 없음으로
+  const [reminder, setReminder] = useState<EventReminder>(draftReminder);
+  const [reminderOpen, setReminderOpen] = useState(false);
   // 범위 시트 (저장/삭제), 고른 범위의 요청 중 표시, "이후 모두" 확인 창
   const [scopeSheet, setScopeSheet] = useState<"save" | "delete" | null>(null);
   const [scopePending, setScopePending] = useState<EventScope | null>(null);
@@ -73,7 +81,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   const [confirmDelete, setConfirmDelete] = useState(false);
   // 처음 채운 값. 지금 값과 다르면 작성 중으로 보고 이탈 전에 묻는다 (#137)
   const [baseline, setBaseline] = useState<string | null>(() =>
-    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null),
+    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null, draftReminder),
   );
 
   // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
@@ -108,6 +116,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
       setRepeat(formRepeat.repeat);
       setUntilOn(Boolean(formRepeat.until));
       setUntilDate(formRepeat.until ?? "");
+      // 수정은 그 회차의 값(예외 반영), 복제도 같은 값으로 시작한다 (#188)
+      setReminder(reminderOf(ev.reminder));
       setBaseline(
         formSnapshot(
           ev.title,
@@ -119,6 +129,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
           ev.memo ?? "",
           formRepeat.repeat,
           formRepeat.until,
+          reminderOf(ev.reminder),
         ),
       );
       if (eventId) setCreator(ev.creator);
@@ -154,8 +165,17 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     const startsAt = allDay ? kstToIso(startDate) : kstToIso(startDate, startTime || "00:00");
     const endsAt = allDay ? kstToIso(addDays(endDate, 1)) : kstToIso(endDate, endTime || "00:00");
     // 수정에서 메모를 비우면 "" 를 보내 지운다 (생략하면 서버가 기존 메모를 유지한다)
-    return { title: title.trim(), startsAt, endsAt, allDay, memo: memo.trim() || (eventId ? "" : undefined) };
-  }, [title, allDay, startDate, startTime, endDate, endTime, memo, eventId]);
+    // 알림은 생성에서 "없음" 이면 생략, 수정은 API 가 아는 필드면 늘 싣는다 (lib/reminder reminderToSend). "이 일정만" 은 그 회차에, "이후 모두" 는 (새) 원본에 저장된다
+    const sentReminder = reminderToSend(reminder, eventId ? (loadedEvent ?? null) : null);
+    return {
+      title: title.trim(),
+      startsAt,
+      endsAt,
+      allDay,
+      memo: memo.trim() || (eventId ? "" : undefined),
+      ...(sentReminder === undefined ? {} : { reminder: sentReminder }),
+    };
+  }, [title, allDay, startDate, startTime, endDate, endTime, memo, eventId, reminder, loadedEvent]);
 
   // 수정 중인 일정이 반복 일정인지 (범위를 묻는다). 복제는 새 일정이라 해당 없음
   const series = eventId && loadedEvent?.repeat ? loadedEvent : null;
@@ -185,12 +205,14 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     payload && showRepeat
       ? repeatRuleError(repeat, Date.parse(payload.startsAt), Date.parse(payload.endsAt), startDate, sentUntil === undefined ? null : sentUntil)
       : null;
-  const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !saving && scopePending === null;
+  // 종일 전환에서 "없음" 으로 되돌리므로 정상 흐름에선 생기지 않는다. 서버와 같은 문장으로 막아 둔다
+  const remindError = reminderError(reminder, allDay);
+  const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !remindError && !saving && scopePending === null;
 
   // 저장, 삭제가 끝나 화면을 떠나는 중이면 확인하지 않는다
   const [done, setDone] = useState(false);
   const dirty =
-    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until) !== baseline;
+    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until, reminder) !== baseline;
   const leave = useLeaveGuard(dirty);
   const untilLabelId = useId();
   const cancel = useCallback(() => leave.request(() => router.back()), [leave, router]);
@@ -207,6 +229,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   // 종일을 켜면 종료일이 시작일보다 앞서지 않게 맞춘다
   function toggleAllDay(v: boolean) {
     setAllDay(v);
+    setReminder((r) => reminderAfterAllDayChange(r, v));
     if (v && endDate < startDate) setEndDate(startDate);
     if (!v && endDate === startDate && endTime <= startTime) {
       const [h] = startTime.split(":").map(Number);
@@ -318,6 +341,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (r.ok) {
       setDone(true);
       haptic("success");
+      // 권한 안내 시트 계기 ① 일정 저장 성공 직후 (푸시 지원 앱에서 한 번만, 8-1). 시트는 루트에 있어 화면이 바뀌어도 남는다
+      void maybeOpenPushPrompt();
       router.push(`/g/${groupId}/calendar?date=${dateKeyOf(payload.startsAt)}`);
       return;
     }
@@ -445,6 +470,26 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
             {rangeError && !touched && <p className="t-sub mb-1 mt-2">{rangeError}</p>}
           </div>
 
+          {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
+          <div className="rounded-xl bg-paper px-3.5 py-1">
+            <button
+              type="button"
+              onClick={() => setReminderOpen(true)}
+              aria-haspopup="dialog"
+              className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
+            >
+              <span className="shrink-0 text-[14px] font-semibold">알림</span>
+              <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{REMINDER_LABEL[reminder]}</span>
+              <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+            </button>
+            <ReminderNote className="-mt-1 pb-2" />
+            {remindError && (
+              <p role="alert" className="mb-2 text-[12px] text-danger">
+                {remindError}
+              </p>
+            )}
+          </div>
+
           {showRepeat && (
             <div className="rounded-xl bg-paper px-3.5 py-1">
               <button
@@ -542,6 +587,18 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
         }}
         onClose={() => setRepeatOpen(false)}
       />
+      <ReminderSheet
+        open={reminderOpen}
+        allDay={allDay}
+        value={reminder}
+        onPick={(v) => {
+          setReminder(v);
+          setReminderOpen(false);
+          // 권한 안내 시트 계기 ② "없음" 이 아닌 값을 처음 고를 때 (8-1)
+          if (v !== "NONE") void maybeOpenPushPrompt();
+        }}
+        onClose={() => setReminderOpen(false)}
+      />
       {series && (
         <ScopeSheet
           open={scopeSheet !== null}
@@ -593,6 +650,7 @@ function formSnapshot(
   memo: string,
   repeat: Repeat | null,
   until: string | null,
+  reminder: EventReminder,
 ): string {
-  return JSON.stringify([title.trim(), allDay, startDate, allDay ? "" : startTime, endDate, allDay ? "" : endTime, memo.trim(), repeat, until]);
+  return JSON.stringify([title.trim(), allDay, startDate, allDay ? "" : startTime, endDate, allDay ? "" : endTime, memo.trim(), repeat, until, reminder]);
 }
