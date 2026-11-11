@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-11-11T13:01:23+09:00",
+  "session_topic": "#245 이메일 로그인 설계 (매직 링크 + 6자리 코드, Resend)",
+  "command": "/설계",
+  "agent": "agents/design.md",
+  "status": "설계 초안 PR 작성, 설계 승인(GATE 2) 대기",
+  "tasks": [
+    {"id": 1, "subject": "docs/설계/이메일-로그인.md 작성", "status": "completed"},
+    {"id": 2, "subject": "결정기록 D-110 ~ D-120", "status": "completed"},
+    {"id": 3, "subject": "api.md 이메일 로그인 안내 단락", "status": "completed"},
+    {"id": 4, "subject": "설계 승인", "status": "pending"}
+  ],
+  "artifacts": ["docs/설계/이메일-로그인.md", "docs/설계/결정기록.md", "docs/설계/api.md"],
+  "key_findings": "앱 로그인 화면이 네이티브라 웹 변경만으로는 이메일 버튼이 안 보인다. UA 토큰 EmailLogin/1 이 없는 셸은 웹 /login 선택 화면, 셸 JS 는 eas update 로 이메일 버튼(D-116). 링크 GET 은 소비하지 않는 확인 화면(D-113). 처음 가입은 30분 가입 티켓(D-114). 이메일 API 는 웹 서버 전용 INTERNAL_API_KEY(D-115)",
+  "recommended_actions": "설계 승인 후 인프라(마이그레이션, GATE 3) → 백엔드 + 프론트 병렬 → 모바일 OTA. 사용자 준비물은 설계 13장",
+  "pending_user_input": "설계 승인"
+}

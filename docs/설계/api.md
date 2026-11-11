@@ -76,6 +76,8 @@
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
+**이메일 로그인 (#245)**: `POST /auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup`. 웹 서버 전용(`X-Internal-Key`), 오류 코드 `EMAIL_*`, `SIGNUP_TOKEN_INVALID`, 환경 변수 `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `INTERNAL_API_KEY`, `REVIEW_*` 와 탈퇴 시 발송 기록 삭제(2.7 확장)는 `이메일-로그인.md` 4장, 8-1.
+
 로그아웃은 웹이 쿠키를 지운다. 앱이면 그 전에 웹 route handler 가 `DELETE /me/push-devices { token }` 으로 이 기기 푸시 토큰을 지운다 (2.8, D-83).
 
 ### 2.2 팀
