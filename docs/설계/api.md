@@ -134,6 +134,7 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
+- (#248) 참여자: `EventInput.participants?: 'ALL'|number[]`, `Event.participants: { all, members: Member[] }`. 검증, 반복 범위, 빈 시간(2.5), 일정 알림 받는 사람, 나가기(2.7) 변경은 `일정-참여자.md` 3~6장
 - 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
