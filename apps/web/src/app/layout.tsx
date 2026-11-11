@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { PushPrompt } from "@/components/PushPrompt";
 import { ToastProvider } from "@/components/Toast";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/theme";
@@ -53,7 +54,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href={PRETENDARD_CSS} />
       </head>
       <body className="min-h-dvh">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          {children}
+          {/* (#188) 알림 권한 안내 시트. 푸시 지원 앱에서 계기가 올 때만 열린다 (푸시-알림.md 8-1) */}
+          <PushPrompt />
+        </ToastProvider>
       </body>
     </html>
   );

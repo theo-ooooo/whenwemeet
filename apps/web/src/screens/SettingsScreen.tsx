@@ -6,7 +6,7 @@ import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { IconCheck } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
-import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton } from "@/components/ui";
+import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -48,6 +48,8 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
           )}
           <MembersSection group={group} />
           <MeSection group={group} onSaved={setGroup} />
+          {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
+          {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
           {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
         </>
       ) : (
@@ -263,6 +265,32 @@ function MeSection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupD
           onSave={(next) => update({ color, displayName: next === "" ? null : next }, "name")}
         />
       </div>
+    </section>
+  );
+}
+
+/* (#188) 이 팀 알림 받기 (푸시-알림.md 8장). 누르면 바로 저장, 실패하면 되돌리고 토스트 */
+function NotifySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupDetail) => void }) {
+  const toast = useToast();
+  const { mutate, isPending } = useUpdateMembership(group.id);
+  const on = group.me.notify !== false;
+
+  async function change(next: boolean) {
+    if (isPending) return;
+    const before = group;
+    onSaved({ ...group, me: { ...group.me, notify: next } });
+    const r = await mutate({ notify: next });
+    if (!r.ok) {
+      onSaved(before);
+      toast.show(messageOf(r.error, "알림 설정을 바꾸지 못했어요. 다시 시도해 주세요"));
+      return;
+    }
+    onSaved({ ...before, me: { ...before.me, ...r.data } });
+  }
+
+  return (
+    <section className="rounded-xl bg-paper px-3.5 py-2">
+      <Toggle checked={on} onChange={(v) => void change(v)} label="이 팀 알림 받기" description="끄면 이 팀의 알림이 모두 오지 않아요" />
     </section>
   );
 }

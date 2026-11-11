@@ -103,6 +103,8 @@ describe('앱 로그인 (e2e)', () => {
     const groups = await api(app).get('/v1/groups').set({ Authorization: `Bearer ${token}` }).expect(200);
     expect(groups.body.data.map((g: { type: string }) => g.type)).toEqual(['PERSONAL']);
     expect((await prisma.authHandoff.findFirstOrThrow()).usedAt).not.toBeNull();
+    // (#188) handoff 교환 성공 = 앱 로그인 시각 (D-97)
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: row.userId } })).lastAppLoginAt).toBeInstanceOf(Date);
 
     // 두 번째 교환은 401
     const again = await api(app).post('/v1/auth/handoff').send({ handoff, verifier }).expect(401);

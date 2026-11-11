@@ -1,4 +1,4 @@
-// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄우고 브리지 메시지 5종을 처리한다
+// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄우고 브리지 메시지를 처리한다 (5종 + 푸시 3종, 푸시-알림.md 2-2)
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
@@ -18,12 +18,14 @@ import * as Network from "expo-network";
 import { flushCookies } from "../../modules/cookie-flush/src";
 import { env } from "../config/env";
 import { type BridgeMessage, parseBridgeMessage, shareContent } from "../bridge/messages";
-import { decideNavigation } from "../links/urls";
+import { type AppEventDetail, buildAppEventScript } from "../bridge/reply";
+import { decideNavigation, isWebOrigin } from "../links/urls";
+import { readPushStatus, requestPush } from "../push/notifications";
 import { clearNativeSessions } from "../auth/login";
 import { OfflineScreen } from "./OfflineScreen";
 import { useTheme } from "../ui/theme";
 
-/** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다 */
+/** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81) */
 export const USER_AGENT_SUFFIX = `WhenwemeetApp/${env.version} (${Platform.OS})`;
 
 type Props = {
@@ -38,6 +40,11 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
   const t = useTheme();
   const ref = useRef<WebView<object>>(null);
   const canGoBack = useRef(false);
+  // 지금 웹뷰 주소. 셸 → 웹 응답은 이 주소가 웹 오리진일 때만 보낸다 (2-2)
+  const currentUrl = useRef(url);
+  useEffect(() => {
+    currentUrl.current = url;
+  }, [url, navKey]);
   // 실패한 navKey. 새 주소(navKey 증가)로 바뀌면 자동으로 실패 상태가 풀린다
   const [failedAt, setFailedAt] = useState<number | null>(null);
   const failed = failedAt === navKey;
@@ -79,6 +86,12 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
     return () => sub.remove();
   }, []);
 
+  /** 셸 → 웹 응답 (wwm:app 이벤트). 권한 창을 기다리는 사이 다른 사이트로 갔으면 버린다 */
+  const sendToWeb = useCallback((detail: AppEventDetail) => {
+    if (!isWebOrigin(currentUrl.current, env.webOrigin)) return;
+    ref.current?.injectJavaScript(buildAppEventScript(detail));
+  }, []);
+
   const handleMessage = useCallback(
     (msg: BridgeMessage) => {
       switch (msg.type) {
@@ -104,9 +117,19 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
               msg.kind === "success" ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
             );
           return;
+        case "pushStatus":
+        case "pushRequest":
+          // 실패해도 답하지 않는다. 웹은 시간 초과(5초, 권한 창 60초)로 null 처리 (2-2)
+          (msg.type === "pushStatus" ? readPushStatus(msg.id) : requestPush(msg.id))
+            .then(sendToWeb)
+            .catch((e: unknown) => console.warn("[push]", msg.type, e));
+          return;
+        case "openSettings":
+          Linking.openSettings().catch((e: unknown) => console.warn("[push] 설정 열기 실패", e));
+          return;
       }
     },
-    [onLoginRequested],
+    [onLoginRequested, sendToWeb],
   );
 
   const onMessage = useCallback(
@@ -140,6 +163,7 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
 
   const onNav = useCallback((s: WebViewNavigation) => {
     canGoBack.current = s.canGoBack;
+    if (s.url) currentUrl.current = s.url;
   }, []);
 
   const retry = useCallback(() => {

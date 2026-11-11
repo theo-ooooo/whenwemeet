@@ -53,6 +53,7 @@
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | HS256 비밀키, `30d` |
 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI`, `KAKAO_ADMIN_KEY` | 인증흐름.md |
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
+| `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
 ## 2. 엔드포인트
@@ -68,14 +69,14 @@
 | POST | `/auth/apple/native` | 없음 | `{ identityToken, authorizationCode, nonce, nickname?, codeChallenge }` | `{ data: { handoff, expiresIn } }`. iOS 앱 전용, 앱.md 3.3 |
 | GET | `/auth/apple` | 없음 | 쿼리 `next?`, `client?`, `cc?` | 302 → Apple 인가 (앱.md 3.4) |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` 또는 `whenwemeet://auth?h=` (앱.md 3.4) |
-| POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2 |
+| POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
 | GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt } }` |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
-로그아웃은 API 호출 없이 웹이 쿠키를 지운다.
+로그아웃은 웹이 쿠키를 지운다. 앱이면 그 전에 웹 route handler 가 `DELETE /me/push-devices { token }` 으로 이 기기 푸시 토큰을 지운다 (2.8, D-83).
 
 ### 2.2 팀
 
@@ -88,13 +89,13 @@
 | POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
 | GET | `/invites/:code` | 없음 | - | `{ data: { groupName, memberCount } }`. 로그인 전 미리보기 |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
-| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName? }` | `{ data: Member }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림 |
+| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
 GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, memberCount, me: { color, displayName }, unreadNewsCount }
 GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, createdAt,
-                 members: Member[], me: Member }
+                 members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
 ```
 
@@ -120,12 +121,14 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 ```ts
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
                repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
-               repeatUntil?: 'YYYY-MM-DD'|null }                       // KST, 그날 시작하는 회차 포함. 생략/null = 계속
+               repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
+               reminder?: EventReminder }                              // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
 Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
                seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
-               repeatAnchor: 'YYYY-MM-DD'|null } // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
+               repeatAnchor: 'YYYY-MM-DD'|null,  // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
+               reminder: EventReminder }         // (#188) 그 회차의 실제 알림 (예외 반영)
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
@@ -277,6 +280,46 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
+### 2.8 푸시 (#188)
+
+설계 근거는 `푸시-알림.md` (D-80 ~ D-99). 그 문서가 원본이고 이 절은 구현된 엔드포인트와 필드만 적는다.
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| PUT | `/me/push-devices` | 유저 | `{ token, platform: 'IOS'\|'ANDROID', appVersion: string(1~20) }` | `{ data: { ok: true } }`. token 으로 upsert (`userId = 나`, `lastSeenAt = now`). 다른 사용자 행이면 나로 옮긴다 (한 기기는 한 사용자). 내 기기가 10대를 넘으면 `lastSeenAt` 이 가장 오래된 것부터 삭제 |
+| DELETE | `/me/push-devices` | 유저 | `{ token }` (본문) | `{ data: { ok: true } }`. `token` 이고 `userId = 나` 인 행만 삭제. 없어도 200 (멱등). 웹 로그아웃 route handler, OS 에서 알림을 끈 기기 정리가 부른다 |
+| GET | `/me/notification-settings` | 유저 | - | `{ data: NotificationSettings }` |
+| PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로 |
+
+```ts
+NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean }   // 기본 모두 true
+EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_BEFORE_0900'
+```
+
+- `token` 은 `^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,180}\]$`. 아니면 400 VALIDATION_FAILED (`field: 'token'`). `platform` 이 둘 외, `appVersion` 이 1~20자가 아니면 400. 설정 값이 불리언이 아니면 400 (`field` = 그 키). 새 오류 코드 없음
+- 탈퇴(`DELETE /me`) 는 User Cascade 로 기기와 발송 기록을 함께 지운다 (D-99)
+
+**일정 `reminder`** (2.3 `EventInput`, `Event`):
+
+| 값 | 쓸 수 있는 일정 | 알림 시각 (회차 시작 `s`) |
+|----|----------------|------|
+| `NONE` | 모두 | - |
+| `AT_START`, `MIN_10`, `HOUR_1`, `DAY_1` | 시간 일정 | `s`, `s - 10분`, `s - 1시간`, `s - 24시간` |
+| `DAY_OF_0900`, `DAY_BEFORE_0900` | 종일 일정 | `s` 의 KST 날짜 09:00, 그 전날 09:00 |
+
+- 종일 여부와 안 맞는 값을 보내면 400 VALIDATION_FAILED (`field: 'reminder'`, "종일 일정에는 고를 수 없는 알림이에요" / "시간 일정에는 고를 수 없는 알림이에요"). 수정은 합친 결과로 검사하고, 본문에 `reminder` 없이 `allDay` 가 바뀌어 지금 값이 안 맞게 되면 `NONE` 으로 바꾼다
+- 반복 "이 일정만" 은 그 회차 예외에 저장 (원본 값과 같으면 예외에 두지 않음). "이후 모두" 는 원본(새 원본) 값. 응답 `reminder` 는 그 회차의 실제 값
+- 같은 값이면 저장하지 않는 규칙(#62) 에 `reminder` 도 들어간다. 알림만 바꿔도 UPDATED 로그가 남는다
+- 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
+
+**발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일 당일, 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
+
+| 환경 변수 | 필수 | 용도 |
+|-----------|------|------|
+| `PUSH_ENABLED` | 아니오 | `1` 이면 틱을 돈다. 없으면 예약 행만 쌓이고 보내지 않는다 (켜면 10분 넘게 지난 것은 SKIPPED) |
+| `EXPO_ACCESS_TOKEN` | 아니오 (운영 권장) | Expo 액세스 토큰. 있으면 `Authorization: Bearer` (D-94) |
+| `EXPO_PUSH_URL` | 아니오 | 기본 `https://exp.host/--/api/v2/push`. e2e 가 가짜 서버 주소를 넣는다 |
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -295,6 +338,9 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 | 멤버 색/닉네임 | `PATCH /groups/:id/me` |
 | 팀 나가기 / 삭제 | `DELETE /groups/:id/me` |
 | 회원 탈퇴 | `DELETE /me` |
+| 앱 푸시 기기 등록, 해제 (#188) | `PUT /me/push-devices`, `DELETE /me/push-devices` |
+| 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
+| 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 
 ## 4. 개발 전용
 

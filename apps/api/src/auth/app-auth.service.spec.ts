@@ -1,5 +1,6 @@
 import { AuthHandoffsRepository } from '../auth-handoffs/auth-handoffs.repository.js';
 import { ApiException } from '../common/errors.js';
+import { UsersRepository } from '../users/users.repository.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { AppAuthService, HANDOFF_TTL_SECONDS } from './app-auth.service.js';
 import { s256Challenge, sha256hex } from './pkce.js';
@@ -9,6 +10,7 @@ const CHALLENGE = s256Challenge(VERIFIER);
 
 describe('AppAuthService', () => {
   let handoffs: RepositoryMock<AuthHandoffsRepository>;
+  let users: RepositoryMock<UsersRepository>;
   let service: AppAuthService;
   const auth = { login: vi.fn(), signToken: vi.fn(async (id: number) => `jwt-for-${id}`) };
   const kakao = { provider: 'KAKAO' as const, verifyAppToken: vi.fn(), fetchProfile: vi.fn() };
@@ -23,7 +25,9 @@ describe('AppAuthService', () => {
     auth.login.mockReset().mockResolvedValue({ id: 3, nickname: '앱유저', profileImageUrl: null, createdAt: new Date() });
     kakao.verifyAppToken.mockReset().mockResolvedValue(undefined);
     kakao.fetchProfile.mockReset().mockResolvedValue(profile);
-    service = new AppAuthService(handoffs as never, auth as never, kakao as never);
+    users = mockRepository(UsersRepository);
+    users.markAppLogin.mockResolvedValue(undefined);
+    service = new AppAuthService(handoffs as never, auth as never, kakao as never, users as never);
   });
 
   afterEach(() => {
@@ -51,6 +55,8 @@ describe('AppAuthService', () => {
       handoffs.consume.mockResolvedValue(3);
       expect(await service.exchangeHandoff('h'.repeat(43), VERIFIER)).toEqual({ token: 'jwt-for-3' });
       expect(handoffs.consume).toHaveBeenCalledWith(sha256hex('h'.repeat(43)), CHALLENGE, new Date('2026-11-10T00:00:00.000Z'));
+      // (#188) 앱 로그인 시각 기록 (D-97)
+      expect(users.markAppLogin).toHaveBeenCalledWith(3, new Date('2026-11-10T00:00:00.000Z'));
     });
 
     it('발급 후 교환 성공, 두 번째 교환은 401 (Repository 가 이미 쓴 행을 거절)', async () => {
@@ -80,6 +86,7 @@ describe('AppAuthService', () => {
       await expect(expired).rejects.toBeInstanceOf(ApiException);
       await expect(expired).rejects.toMatchObject({ code: 'HANDOFF_INVALID', status: 401 });
       expect(auth.signToken).not.toHaveBeenCalled();
+      expect(users.markAppLogin).not.toHaveBeenCalled();
     });
   });
 

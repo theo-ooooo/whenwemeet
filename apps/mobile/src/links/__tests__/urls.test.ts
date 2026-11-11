@@ -1,4 +1,4 @@
-import { buildAuthAppUrl, decideNavigation, deepLinkToWebUrl, isWebOrigin, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
+import { buildAuthAppUrl, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -169,5 +169,34 @@ describe("RN URL 구현에서도 같은 결과 (#154)", () => {
       "https://whenwemeet.day/join/ABC123?auto=1",
     );
     expect(deepLinkToWebUrl("whenwemeet://auth?h=x", WEB)).toBeNull();
+  });
+});
+
+describe("notificationTarget (#188, 푸시-알림.md 9장)", () => {
+  const W = "https://whenwemeet.day";
+  it("웹 경로만 받아 webOrigin 을 붙인다", () => {
+    expect(notificationTarget({ url: "/g/3/calendar?date=2026-11-12&day=1&event=9", kind: "REMINDER" }, W)).toEqual({
+      path: "/g/3/calendar?date=2026-11-12&day=1&event=9",
+      url: "https://whenwemeet.day/g/3/calendar?date=2026-11-12&day=1&event=9",
+    });
+    expect(notificationTarget({ url: "/g/3/news" }, `${W}/`)?.url).toBe("https://whenwemeet.day/g/3/news");
+  });
+
+  it("절대 주소, //, 백슬래시, 제어문자, 없음은 null", () => {
+    for (const url of [
+      "https://whenwemeet.day/g/3/news",
+      "https://evil.com/",
+      "//evil.com/x",
+      "/\\evil.com",
+      "/g/3\n",
+      "javascript:alert(1)",
+      "",
+      3,
+      undefined,
+    ]) {
+      expect(notificationTarget({ url }, W)).toBeNull();
+    }
+    expect(notificationTarget(null, W)).toBeNull();
+    expect(notificationTarget("x", W)).toBeNull();
   });
 });

@@ -25,5 +25,10 @@ export function applyTestEnv(): string {
   // 실제 R2 로 올라가지 않도록 저장소는 항상 미설정. 업로드 검증은 MemoryStorage 를 주입한다.
   // delete 하면 ConfigModule 이 로컬 .env 의 R2 키를 다시 채우므로 빈 문자열로 덮는다 (dotenv 는 이미 있는 변수를 덮지 않음)
   for (const key of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL']) process.env[key] = '';
+  // (#188) 푸시 틱 인터벌은 끄고(테스트가 tick(now) 를 직접 부른다), 실제 Expo 로 나가지 않게 닫힌 로컬 포트를 기본값으로.
+  // 푸시 e2e 는 가짜 Expo 서버 주소를 EXPO_PUSH_URL 에 넣고 앱을 만든다
+  process.env.PUSH_ENABLED = '';
+  process.env.EXPO_ACCESS_TOKEN = '';
+  process.env.EXPO_PUSH_URL = 'http://127.0.0.1:9/--/api/v2/push';
   return url;
 }
