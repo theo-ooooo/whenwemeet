@@ -2,13 +2,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
 import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
 import { shrinkImage } from "@/lib/image";
+import { forgetPushToken, storedPushToken } from "@/lib/push";
+import { usePushSync } from "@/lib/usePushSync";
 import { readTheme, setTheme, subscribeTheme, type ThemeChoice } from "@/lib/theme";
 import type { Me } from "@/lib/types";
 
@@ -152,6 +154,8 @@ function ThemePicker() {
 
 export function MeScreen() {
   const router = useRouter();
+  // (#188) 푸시 지원 앱이면 이 기기 토큰을 등록, 정리
+  usePushSync();
   const meQ = useMe();
   const groupsQ = useGroups();
   const me = meQ.data;
@@ -179,6 +183,8 @@ export function MeScreen() {
     const r = await deleteMe();
     if (!r.ok) return;
     forgetGroup();
+    // 기기 행은 서버가 User Cascade 로 지웠다. 이 기기 기록만 지운다 (#188, 2-3)
+    forgetPushToken({ leave: true });
     // 앱 셸에 알려 카카오 SDK 토큰을 정리하게 한다 (앱 밖에서는 아무것도 안 함)
     postToApp({ type: "accountDeleted" });
     // 세션 쿠키는 httpOnly 라 로그아웃 라우트로 지운다
@@ -266,6 +272,13 @@ export function MeScreen() {
 
           <ThemePicker />
 
+          {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
+          <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">
+            <IconBell size={18} className="shrink-0 text-ink-2" />
+            <span className="min-w-0 flex-1 text-[15px] font-semibold">알림</span>
+            <IconChevronRight size={14} className="shrink-0 text-ink-2" />
+          </Link>
+
           <section className="mt-2 rounded-xl bg-paper px-3.5 py-3">
             <h2 className="text-[13px] font-bold leading-5">내 팀 {groups ? `${groups.length}개` : ""}</h2>
             <ul className="mt-1">
@@ -292,7 +305,21 @@ export function MeScreen() {
             </ul>
           </section>
 
-          <form method="POST" action="/auth/logout" className="mt-2" onSubmit={() => postToApp({ type: "logout" })}>
+          <form
+            method="POST"
+            action="/auth/logout"
+            className="mt-2"
+            onSubmit={(e) => {
+              // 제출 순간의 값을 싣는다 (화면을 그린 뒤 등록됐을 수 있다)
+              const field = e.currentTarget.elements.namedItem("pushToken");
+              if (field instanceof HTMLInputElement) field.value = storedPushToken() ?? "";
+              postToApp({ type: "logout" });
+              // 서버 기기 해제는 route handler 가 쿠키를 지우기 전에 한다 (D-83). 이 기기 기록은 여기서 지운다
+              forgetPushToken({ leave: true });
+            }}
+          >
+            {/* (#188) 이 기기 푸시 토큰. 없으면 빈 값이라 route handler 가 건너뛴다 */}
+            <input type="hidden" name="pushToken" defaultValue="" />
             <Button type="submit" variant="tile" size="lg" full>
               로그아웃
             </Button>

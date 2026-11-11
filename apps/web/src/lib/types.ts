@@ -8,6 +8,8 @@ export type Member = {
   color: string;
   profileImageUrl: string | null;
   joinedAt?: string;
+  /** (#188) "이 팀 알림 받기". GroupDetail.me 와 PATCH /groups/:id/me 응답에만 (다른 멤버는 싣지 않는다) */
+  notify?: boolean;
 };
 
 export type GroupSummary = {
@@ -33,6 +35,12 @@ export type GroupDetail = {
 /** 반복 주기 (#187, api.md 2.3). null 이면 한 번짜리 */
 export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
 
+/** (#188) 일정 알림 시각 (푸시-알림.md 4-1, 7-2). 기본 NONE */
+export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" | "DAY_OF_0900" | "DAY_BEFORE_0900";
+
+/** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean };
+
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
 
@@ -46,9 +54,11 @@ export type EventInput = {
   repeat?: Repeat | null;
   /** 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null = 계속 */
   repeatUntil?: string | null;
+  /** (#188) 생략 = NONE. "이 일정만" 이면 그 회차에, "이후 모두" 면 (새) 원본에 저장 */
+  reminder?: EventReminder;
 };
 
-export type Event = Omit<EventInput, "repeat" | "repeatUntil"> & {
+export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder"> & {
   id: number;
   groupId: number;
   creator: Member;
@@ -62,6 +72,8 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil"> & {
   seriesStartsAt: string | null;
   /** (#228) 반복 기준 날짜 'YYYY-MM-DD'. 매월은 일, 매년은 월일. null 이면 seriesStartsAt 의 날짜 (D-71) */
   repeatAnchor: string | null;
+  /** (#188) 그 회차의 실제 알림 (예외 반영). 옛 API 는 없음 */
+  reminder?: EventReminder;
 };
 
 /** PATCH 본문. "이후 모두" 에서 날짜를 그대로 두면 startsAt, endsAt 을 빼고 보낸다 (QA3-M3) */

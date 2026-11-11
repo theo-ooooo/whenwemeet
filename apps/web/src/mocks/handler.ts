@@ -4,7 +4,9 @@ import { errorBody, okBody } from "@/lib/envelope";
 import { ceilToStep } from "@/lib/free-time";
 import { parseId } from "@/lib/id";
 import { REPEAT_PERIOD_DAYS, REPEATS } from "@/lib/recurrence";
-import { MEMBER_COLORS, type Repeat } from "@/lib/types";
+import { PUSH_TOKEN_RE } from "@/lib/app-bridge";
+import { reminderError } from "@/lib/reminder";
+import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Repeat } from "@/lib/types";
 import {
   buildStore,
   inviteUrlOf,
@@ -58,8 +60,41 @@ function groupDetail(s: Store, groupId: number, userId: number) {
     inviteUrl: grp.inviteCode ? inviteUrlOf(grp.inviteCode) : null,
     createdAt: grp.createdAt,
     members,
-    me: memberOf(s, groupId, userId),
+    me: myMember(s, groupId, userId),
   };
+}
+
+/** 나 자신의 멤버 정보. (#188) notify 는 내 행에만 싣는다 (7-2) */
+function myMember(s: Store, groupId: number, userId: number) {
+  const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
+  return { ...memberOf(s, groupId, userId), notify: ms?.notify ?? true };
+}
+
+/* ---------- (#188) 알림 (푸시-알림.md 4-1, 7-1) ---------- */
+
+const REMINDERS: readonly EventReminder[] = ["NONE", "AT_START", "MIN_10", "HOUR_1", "DAY_1", "DAY_OF_0900", "DAY_BEFORE_0900"];
+const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true };
+const NOTIFY_KEYS = Object.keys(DEFAULT_NOTIFY) as (keyof NotificationSettings)[];
+
+/** 본문의 reminder 를 읽는다. 없으면 undefined, 모르는 값이면 오류 */
+function reminderIn(v: unknown): EventReminder | undefined | MockResult {
+  if (v === undefined) return undefined;
+  if (!REMINDERS.includes(v as EventReminder)) return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "알림 값을 확인해 주세요", [{ field: "reminder", message: "알림 값을 확인해 주세요" }]) };
+  return v as EventReminder;
+}
+
+/** 종일 여부와 맞지 않는 알림 (서버 4-1 과 같은 문장, details[0].field = 'reminder') */
+function reminderFit(r: EventReminder, allDay: boolean): MockResult | null {
+  const message = reminderError(r, allDay);
+  return message ? { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "reminder", message }]) } : null;
+}
+
+const isResult = (v: unknown): v is MockResult => typeof v === "object" && v !== null && "status" in v && "body" in v;
+
+/** 수정 결과의 알림: 본문에 있으면 그 값, 없으면 지금 값. 종일이 바뀌어 맞지 않게 되면 NONE (4-1) */
+function mergedReminder(input: EventReminder | undefined, current: EventReminder, allDay: boolean): EventReminder | MockResult {
+  if (input !== undefined) return reminderFit(input, allDay) ?? input;
+  return reminderError(current, allDay) ? "NONE" : current;
 }
 
 /** 한 번짜리면 그대로, 반복이면 첫 회차 (o 를 주면 그 회차) */
@@ -82,6 +117,7 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     occurrence: occ?.occurrence ?? null,
     seriesStartsAt: e.repeat ? e.startsAt : null,
     repeatAnchor: e.repeat ? (e.repeatAnchor ?? null) : null,
+    reminder: occ?.reminder ?? e.reminder ?? "NONE",
   };
 }
 
@@ -285,6 +321,50 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
   }
 
+  // (#188) /me/push-devices (7-1). 토큰으로 upsert, 다른 사용자 행이면 나로 옮긴다. 한 사용자 10대
+  if (seg[0] === "me" && seg[1] === "push-devices" && seg.length === 2) {
+    const devices = (s.pushDevices ??= []);
+    const token = body?.token;
+    if (typeof token !== "string" || !PUSH_TOKEN_RE.test(token)) {
+      return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "푸시 토큰 형식이 올바르지 않아요", [{ field: "token", message: "푸시 토큰 형식이 올바르지 않아요" }]) };
+    }
+    if (method === "PUT") {
+      const platform = body?.platform;
+      const appVersion = body?.appVersion;
+      if (platform !== "IOS" && platform !== "ANDROID") return err(400, "VALIDATION_FAILED", "platform 은 IOS 또는 ANDROID 여야 해요");
+      if (typeof appVersion !== "string" || appVersion.length < 1 || appVersion.length > 20) return err(400, "VALIDATION_FAILED", "appVersion 은 1~20자여야 해요");
+      s.pushDevices = devices.filter((d) => d.token !== token);
+      s.pushDevices.push({ token, userId, platform, appVersion, lastSeenAt: nowIso() });
+      const mine = s.pushDevices.filter((d) => d.userId === userId).sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
+      if (mine.length > 10) {
+        const drop = new Set(mine.slice(0, mine.length - 10).map((d) => d.token));
+        s.pushDevices = s.pushDevices.filter((d) => !drop.has(d.token));
+      }
+      return ok({ ok: true });
+    }
+    if (method === "DELETE") {
+      s.pushDevices = devices.filter((d) => !(d.token === token && d.userId === userId));
+      return ok({ ok: true });
+    }
+  }
+
+  // (#188) /me/notification-settings (7-1). 불리언만, 빈 본문은 그대로
+  if (seg[0] === "me" && seg[1] === "notification-settings" && seg.length === 2) {
+    const u = s.users.find((x) => x.id === userId)!;
+    const current = { ...DEFAULT_NOTIFY, ...u.notify };
+    if (method === "GET") return ok(current);
+    if (method === "PATCH") {
+      const next = { ...current };
+      for (const [k, v] of Object.entries(body ?? {})) {
+        if (!NOTIFY_KEYS.includes(k as keyof NotificationSettings)) return err(400, "VALIDATION_FAILED", `${k} 은(는) 허용되지 않는 항목이에요`);
+        if (typeof v !== "boolean") return { status: 400, body: errorBody(400, "VALIDATION_FAILED", `${k} 은(는) 참/거짓이어야 해요`, [{ field: k, message: `${k} 은(는) 참/거짓이어야 해요` }]) };
+        next[k as keyof NotificationSettings] = v;
+      }
+      u.notify = next;
+      return ok(next);
+    }
+  }
+
   // /groups
   if (seg[0] === "groups" && seg.length === 1) {
     if (method === "GET") {
@@ -392,7 +472,12 @@ export function mockHandle(ctx: Ctx): MockResult {
           else if (typeof dn === "string" && dn.trim().length <= 20) ms.displayName = dn.trim();
           else return err(400, "VALIDATION_FAILED", "표시 이름은 20자까지 쓸 수 있어요");
         }
-        return ok(memberOf(s, groupId, userId));
+        // (#188) 이 팀 알림 받기
+        if (body && "notify" in body) {
+          if (typeof body.notify !== "boolean") return err(400, "VALIDATION_FAILED", "notify 는 참/거짓이어야 해요");
+          ms.notify = body.notify;
+        }
+        return ok(myMember(s, groupId, userId));
       }
       if (method === "DELETE") {
         if (grp.type === "PERSONAL") {
@@ -439,7 +524,10 @@ export function mockHandle(ctx: Ctx): MockResult {
         const repeat = repeatOf(input.repeat);
         if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
         const until = input.repeatUntil ? String(input.repeatUntil) : null;
+        const reminder = reminderIn((body ?? {}).reminder) ?? "NONE";
+        if (isResult(reminder)) return reminder;
         const v =
+          reminderFit(reminder, Boolean(input.allDay)) ??
           validateEvent(input, false) ??
           rangeCheck(String(input.startsAt), String(input.endsAt)) ??
           repeatCheck(repeat, until, String(input.startsAt), String(input.endsAt));
@@ -458,6 +546,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           repeat,
           repeatUntil: repeat ? until : null,
           exceptions: [],
+          reminder,
         };
         s.events.push(row);
         log(row, { action: "CREATED", eventId: row.id, repeat, scope: null, occurrence: null });
@@ -480,7 +569,12 @@ export function mockHandle(ctx: Ctx): MockResult {
           const endsAt = String(input.endsAt ?? e.endsAt);
           const v = validateEvent(input, true) ?? rangeCheck(startsAt, endsAt) ?? repeatCheck(repeat, until, startsAt, endsAt);
           if (v) return v;
+          const rIn = reminderIn((body ?? {}).reminder);
+          if (isResult(rIn)) return rIn;
+          const reminder = mergedReminder(rIn, e.reminder ?? "NONE", input.allDay !== undefined ? Boolean(input.allDay) : e.allDay);
+          if (isResult(reminder)) return reminder;
           applyInput(e, input);
+          e.reminder = reminder;
           // 반복을 켜면 이 일정이 첫 회차 (기획 3-4)
           if (repeat) {
             e.repeat = repeat;
@@ -524,6 +618,8 @@ export function mockHandle(ctx: Ctx): MockResult {
         const endsAt = String(input.endsAt ?? base.endsAt);
         const v = validateEvent(input, true) ?? rangeCheck(startsAt, endsAt);
         if (v) return v;
+        const rIn = reminderIn((body ?? {}).reminder);
+        if (isResult(rIn)) return rIn;
         const next = {
           title: input.title !== undefined ? String(input.title).trim() : base.title,
           startsAt: new Date(startsAt).toISOString(),
@@ -531,14 +627,19 @@ export function mockHandle(ctx: Ctx): MockResult {
           allDay: input.allDay !== undefined ? Boolean(input.allDay) : base.allDay,
           memo: input.memo !== undefined ? String(input.memo ?? "") : base.memo,
         };
+        // (#188) 알림: "이 일정만" 은 그 회차의 현재 값, "이후 모두" 는 원본 값에서 합친다 (4-1)
+        const reminder = mergedReminder(rIn, scope === "this" ? (current.reminder ?? series.reminder ?? "NONE") : (series.reminder ?? "NONE"), next.allDay);
+        if (isResult(reminder)) return reminder;
         if (scope === "this") {
           if ("repeat" in input || "repeatUntil" in input) return err(400, "VALIDATION_FAILED", "이 일정만 수정할 때는 반복을 바꿀 수 없어요");
           // 예외는 바꾼 최종 값을 통째로 저장 (목은 "원래 값과 다른 필드만" 을 생략한다)
           series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
-          series.exceptions.push({ occurrence: date, cancelled: false, ...next });
+          // 원래 회차 값(원본 알림)과 같으면 null (4-1)
+          const xReminder = reminder === (series.reminder ?? "NONE") ? null : reminder;
+          series.exceptions.push({ occurrence: date, cancelled: false, ...next, reminder: xReminder });
           series.updatedAt = nowIso();
           log(next, { action: "UPDATED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
-          return ok(eventOut(s, series, { occurrence: date, ...next }));
+          return ok(eventOut(s, series, { occurrence: date, ...next, reminder }));
         }
         const repeat = input.repeat === undefined ? series.repeat : repeatOf(input.repeat);
         if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
@@ -551,7 +652,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
         const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
         const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
-        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, updatedAt: nowIso() };
+        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, updatedAt: nowIso() };
         let target: EventRow;
         if (date === first) {
           // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)

@@ -13,6 +13,7 @@ export { useAnniversaries } from "./useAnniversaries";
 export { useFreeSlots, type FreeSlotsParams } from "./useFreeSlots";
 export { useNews } from "./useNews";
 export { useHealth, type Health } from "./useHealth";
+export { useNotificationSettings, useUpdateNotificationSettings } from "./useNotificationSettings";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
@@ -32,6 +33,7 @@ export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
+export { useRegisterPushDevice, useRemovePushDevice, type PushDeviceInput } from "./usePushDevice";
 
 // 공통 이벤트
 export { useGroupGone } from "./useGroupGone";
