@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { reportError } from '../monitoring/sentry.js';
 import { kstDate, KST_OFFSET_MS, DAY_MS } from '../events/recurrence.js';
 import { AnniversaryPlanner } from './anniversary-planner.js';
 import { CATCH_UP_MS, type ExpandStats, PushDispatcher, type SendStats } from './push-dispatcher.js';
@@ -100,6 +101,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
       await this.tick();
     } catch (error) {
       this.logger.error(`push.tick 실패 ${(error as Error)?.message ?? error}`);
+      reportError(error, 'push.tick');
     }
   }
 
