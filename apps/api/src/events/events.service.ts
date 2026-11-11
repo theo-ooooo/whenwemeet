@@ -16,6 +16,17 @@ import {
   type ScopeLog,
 } from './events.repository.js';
 import {
+  type ParticipantSet,
+  type ParticipantsInput,
+  type ParticipantsView,
+  parseParticipants,
+  participantsFailed,
+  PARTICIPANTS_THIS_SCOPE_MESSAGE,
+  resolveParticipants,
+  sameParticipants,
+  toParticipantsView,
+} from './participants.js';
+import {
   anchorMatchesStart,
   applyException,
   expand,
@@ -58,6 +69,8 @@ export interface EventView {
   repeatAnchor: string | null;
   /** (#188) 그 회차의 실제 알림 (예외 반영) */
   reminder: EventReminder;
+  /** (#248) 참여자 (D-134). 반복 회차는 원본 값 */
+  participants: ParticipantsView;
 }
 
 /** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67) */
@@ -192,7 +205,13 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     seriesStartsAt: row.repeat ? row.startsAt : null,
     repeatAnchor: row.repeat ? row.repeatAnchor : null,
     reminder: row.reminder,
+    participants: toParticipantsView(row, resolver),
   };
+}
+
+/** (#248) 저장된 참여자 */
+export function participantsOf(row: Pick<EventRow, 'allMembers' | 'participantIds'>): ParticipantSet {
+  return { allMembers: row.allMembers, ids: row.allMembers ? [] : row.participantIds };
 }
 
 /** 반복 원본의 회차 하나로 본 응답. 예외로 바꾼 제목/메모가 있으면 그 값 */
@@ -327,6 +346,8 @@ export class EventsService {
     const repeatUntil = dto.repeatUntil ?? null;
     assertRepeatRule(repeat, repeatUntil, startsAt, endsAt);
     const reminder = resolveReminder(dto.reminder, 'NONE', dto.allDay);
+    // (#248) 생략하면 [요청자] (D-131, D-133). 멤버 검사는 저장 트랜잭션 안에서
+    const participants = resolveParticipants(parseParticipants(dto.participants), null, userId, true);
 
     const row = await this.events.createWithLogTx(
       {
@@ -341,6 +362,7 @@ export class EventsService {
         reminder,
         remindAt: repeat ? null : remindAt(startsAt, dto.allDay, reminder),
         reminderSetAt: new Date(),
+        participants,
       },
       userId,
     );
@@ -356,18 +378,21 @@ export class EventsService {
   async update(userId: number, groupId: number, eventId: number, dto: EventPatchDto, query: ScopeQuery = {}): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
-    if (!current.repeat) return this.updateOnce(userId, current, dto);
+    const participants = parseParticipants(dto.participants);
+    if (!current.repeat) return this.updateOnce(userId, current, dto, participants);
 
     const { scope, occurrence: date } = parseScopeQuery(query);
     if (scope === 'this' && (dto.repeat !== undefined || dto.repeatUntil !== undefined)) {
       const field = dto.repeat !== undefined ? 'repeat' : 'repeatUntil';
       throw validationFailed(field, '이 일정만 수정할 때는 반복을 바꿀 수 없어요');
     }
+    // (#248) 참여자는 원본에만 붙는다 (기획 3-5, D-135)
+    if (scope === 'this' && participants !== undefined) throw participantsFailed(PARTICIPANTS_THIS_SCOPE_MESSAGE);
     const exceptions = await this.events.listExceptions(current.id);
     const occurrence = this.resolveOccurrence(current, exceptions, date);
     return scope === 'this'
       ? this.updateThis(userId, current, occurrence, dto)
-      : this.updateFollowing(userId, current, exceptions, occurrence, dto);
+      : this.updateFollowing(userId, current, exceptions, occurrence, dto, participants);
   }
 
   /** 삭제 전 스냅샷으로 DELETED 로그를 남긴다. 반복 일정은 `occurrence` + `scope` 필수 (설계 4장 표) */
@@ -395,21 +420,25 @@ export class EventsService {
   }
 
   /** 한 번짜리 일정 수정. 반복을 켜면 이 일정이 첫 회차가 된다 (기획 3-4) */
-  private async updateOnce(userId: number, current: EventRow, dto: EventPatchDto): Promise<EventView> {
+  private async updateOnce(userId: number, current: EventRow, dto: EventPatchDto, input: ParticipantsInput | undefined): Promise<EventView> {
     const next: EventUpdateInput = mergeValues(current, dto);
     assertEventRange(next.startsAt, next.endsAt);
     const repeat = dto.repeat ?? null;
     const repeatUntil = dto.repeatUntil ?? null;
     assertRepeatRule(repeat, repeatUntil, next.startsAt, next.endsAt);
     if (repeat) Object.assign(next, { repeat, repeatUntil });
+    // (#248) 참여자만 바꿔도 수정이다 (D-136). 바뀐 경우만 행을 다시 쓴다. 반복을 켜도 같은 행이라 참여자는 유지
+    const participants = resolveParticipants(input, participantsOf(current), userId, false);
+    const participantsChanged = !sameParticipants(participantsOf(current), participants);
+    if (participantsChanged) next.participants = participants;
 
-    const unchanged = !repeat && isUnchanged(current, next);
+    const unchanged = !repeat && !participantsChanged && isUnchanged(current, next);
     if (!unchanged) {
       // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
       next.remindAt = storedRemindAt(next, repeat);
       if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();
     }
-    const row = unchanged ? current : await this.events.updateWithLogTx(current.id, next, userId);
+    const row = unchanged ? current : await this.events.updateWithLogTx(current, next, userId);
     const resolver = await this.memberships.resolverFor(current.groupId);
     return toEventView(row, resolver);
   }
@@ -444,7 +473,8 @@ export class EventsService {
       occurrence.occurrence,
       isEmpty ? null : fields,
       { actorId: userId, scope: 'THIS', occurrence: occurrence.occurrence },
-      { ...next, repeat: series.repeat },
+      // (#248) 로그 참여자는 원본 값 (D-136)
+      { ...next, repeat: series.repeat, participants: participantsOf(series) },
       reminderTimingChanged(current, next) ? new Date() : null,
     );
     const saved = applyException(original, { occurrence: occurrence.occurrence, cancelled: false, ...fields }) as Occurrence;
@@ -462,6 +492,7 @@ export class EventsService {
     exceptions: EventExceptionRow[],
     occurrence: Occurrence,
     dto: EventPatchDto,
+    input: ParticipantsInput | undefined,
   ): Promise<EventView> {
     const slot = originalOccurrence(seriesRule(series), occurrence.occurrence);
     const original = occurrenceValues(series, slot);
@@ -477,16 +508,27 @@ export class EventsService {
     }
     // 기준 날짜는 비교하지 않는다. 그 뒤 회차에서 잇는 기준은 원본과 같은 규칙이다
     const sameRule = repeat === series.repeat && repeatUntil === series.repeatUntil;
+    // (#248) 본문에 없으면 원본 참여자 (첫 회차는 그대로, 그 뒤 회차는 새 원본에 복사, D-135)
+    const participants = resolveParticipants(input, participantsOf(series), userId, false);
+    const sameMembers = sameParticipants(participantsOf(series), participants);
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };
     const resolver = await this.memberships.resolverFor(series.groupId);
 
     if (isFirst) {
-      if (sameRule && exceptions.length === 0 && isUnchanged(series, next)) return toOccurrenceView(series, occurrence, resolver);
+      if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) return toOccurrenceView(series, occurrence, resolver);
       // (#188) 예외를 모두 지우면 옮긴 회차의 시각도 바뀌므로 반복 규칙, 예외 유무까지 기준 시각 대상 (D-86)
       const timing = !sameRule || exceptions.length > 0 || reminderTimingChanged(series, next);
       const row = await this.events.updateSeriesFromStartTx(
-        series.id,
-        { ...next, repeat, repeatUntil, repeatAnchor, remindAt: storedRemindAt(next, repeat), ...(timing ? { reminderSetAt: new Date() } : {}) },
+        series,
+        {
+          ...next,
+          repeat,
+          repeatUntil,
+          repeatAnchor,
+          remindAt: storedRemindAt(next, repeat),
+          ...(timing ? { reminderSetAt: new Date() } : {}),
+          ...(sameMembers ? {} : { participants }),
+        },
         log,
       );
       return toEventView(row, resolver);
@@ -494,7 +536,7 @@ export class EventsService {
 
     // 원래 회차 값과 같고 이 회차부터 예외가 없으면 나눠도 펼친 결과가 같다 (#62)
     const hasFollowingExceptions = exceptions.some((exception) => exception.occurrence >= occurrence.occurrence);
-    if (sameRule && !hasFollowingExceptions && isUnchanged(original, next)) return toOccurrenceView(series, occurrence, resolver);
+    if (sameRule && sameMembers && !hasFollowingExceptions && isUnchanged(original, next)) return toOccurrenceView(series, occurrence, resolver);
 
     const created: EventCreateInput = {
       groupId: series.groupId,
@@ -506,6 +548,7 @@ export class EventsService {
       // (#188) 새 원본은 기준 시각이 지금 (D-86)
       remindAt: storedRemindAt(next, repeat),
       reminderSetAt: new Date(),
+      participants,
     };
     const row = await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
     return toEventView(row, resolver);

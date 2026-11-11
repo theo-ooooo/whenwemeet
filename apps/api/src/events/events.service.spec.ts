@@ -5,6 +5,7 @@ import { MembershipsRepository } from '../memberships/memberships.repository.js'
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventsRepository } from './events.repository.js';
 import { assertEventRange, EventsService, isUnchanged, parseRange } from './events.service.js';
+import { participantsFailed } from './participants.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
 const ROW = {
@@ -24,6 +25,8 @@ const ROW = {
   reminder: 'NONE' as const,
   reminderSetAt: new Date('2026-11-01T00:00:00.000Z'),
   creator: { nickname: '앨리스', profileImageUrl: null },
+  allMembers: true,
+  participantIds: [] as number[],
 };
 
 describe('assertEventRange / parseRange', () => {
@@ -97,7 +100,7 @@ describe('EventsService', () => {
     const created = await service.create(1, 10, { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe(100);
     expect(events.createWithLogTx).toHaveBeenCalledWith(
-      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date) },
+      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] } },
       1,
     );
   });
@@ -111,7 +114,7 @@ describe('EventsService', () => {
     const updated = await service.update(1, 10, 100, { title: '변경', memo: '메모' });
     expect(updated.title).toBe('변경');
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
-      100,
+      expect.objectContaining({ id: 100 }),
       { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모', reminder: 'NONE', remindAt: null },
       1,
     );
@@ -125,7 +128,7 @@ describe('EventsService', () => {
     events.updateWithLogTx.mockResolvedValue({ ...ROW, memo: null });
     await service.update(1, 10, 100, { memo: '' });
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
-      100,
+      expect.objectContaining({ id: 100 }),
       { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null },
       1,
     );
@@ -165,7 +168,7 @@ describe('EventsService', () => {
     const updated = await service.update(1, 10, 100, { startsAt: '2026-12-01T11:00:00.000Z' });
     expect(updated.startsAt).toEqual(new Date('2026-12-01T11:00:00.000Z'));
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
-      100,
+      expect.objectContaining({ id: 100 }),
       { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date) },
       1,
     );
@@ -180,5 +183,107 @@ describe('EventsService', () => {
     events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.remove(1, 10, 999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(events.deleteWithLogTx).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** (#248) 참여자 입력, 저장, 변경 판정, 응답 (설계 3장) */
+describe('EventsService 참여자', () => {
+  let events: RepositoryMock<EventsRepository>;
+  let membershipsRepo: RepositoryMock<MembershipsRepository>;
+  let service: EventsService;
+  const input = { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false };
+  const PICKED = { ...ROW, allMembers: false, participantIds: [2] };
+
+  beforeEach(() => {
+    events = mockRepository(EventsRepository);
+    membershipsRepo = mockRepository(MembershipsRepository);
+    const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
+    service = new EventsService(events as never, memberships);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.listByGroup.mockResolvedValue([
+      membershipRow(),
+      membershipRow({ id: 1002, userId: 2, color: '#F2994A', displayName: '밥', joinedAt: new Date('2026-11-02T00:00:00.000Z') }),
+    ]);
+    events.createWithLogTx.mockResolvedValue(ROW);
+    events.updateWithLogTx.mockResolvedValue(ROW);
+  });
+
+  const createdParticipants = () => events.createWithLogTx.mock.calls[0][0].participants;
+
+  it('생성: 생략하면 [요청자], ALL 은 모두, 배열은 오름차순 중복 없이', async () => {
+    await service.create(1, 10, input);
+    expect(createdParticipants()).toEqual({ allMembers: false, ids: [1] });
+    events.createWithLogTx.mockClear();
+    await service.create(1, 10, { ...input, participants: 'ALL' });
+    expect(createdParticipants()).toEqual({ allMembers: true, ids: [] });
+    events.createWithLogTx.mockClear();
+    await service.create(1, 10, { ...input, participants: [2, 1, 2] });
+    expect(createdParticipants()).toEqual({ allMembers: false, ids: [1, 2] });
+  });
+
+  it('생성: [] 와 형식 오류는 VALIDATION_FAILED (participants), 저장하지 않는다', async () => {
+    await expect(service.create(1, 10, { ...input, participants: [] })).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'participants', message: '참여자를 한 명 이상 골라 주세요' }],
+    });
+    await expect(service.create(1, 10, { ...input, participants: null as never })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(events.createWithLogTx).not.toHaveBeenCalled();
+  });
+
+  it('생성: 멤버 아닌 id 는 저장 트랜잭션의 VALIDATION_FAILED 를 그대로 낸다', async () => {
+    events.createWithLogTx.mockRejectedValue(participantsFailed('이 팀 멤버만 참여자로 고를 수 있어요'));
+    await expect(service.create(1, 10, { ...input, participants: [99] })).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+      details: [{ field: 'participants', message: '이 팀 멤버만 참여자로 고를 수 있어요' }],
+    });
+  });
+
+  it('응답: 모두면 지금 멤버 전원(가입순), 골라 담기면 참여자, 참여자 없음은 빈 목록', async () => {
+    events.findInGroup.mockResolvedValueOnce(ROW);
+    expect((await service.get(1, 10, 100)).participants).toEqual({
+      all: true,
+      members: [
+        { userId: 1, displayName: '앨리스', color: '#F26D6D', profileImageUrl: null },
+        { userId: 2, displayName: '밥', color: '#F2994A', profileImageUrl: null },
+      ],
+    });
+    events.findInGroup.mockResolvedValueOnce(PICKED);
+    expect((await service.get(1, 10, 100)).participants).toEqual({ all: false, members: [{ userId: 2, displayName: '밥', color: '#F2994A', profileImageUrl: null }] });
+    events.findInGroup.mockResolvedValueOnce({ ...ROW, allMembers: false, participantIds: [] });
+    expect((await service.get(1, 10, 100)).participants).toEqual({ all: false, members: [] });
+  });
+
+  it('수정: 참여자만 바꿔도 UPDATED 저장 (행을 다시 쓰도록 participants 를 넘긴다)', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    await service.update(1, 10, 100, { participants: [2] });
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(ROW, expect.objectContaining({ participants: { allMembers: false, ids: [2] }, title: ROW.title }), 1);
+  });
+
+  it('수정: 같은 참여자(순서 달라도)면 저장도 로그도 없다', async () => {
+    events.findInGroup.mockResolvedValue({ ...ROW, allMembers: false, participantIds: [1, 2] });
+    await service.update(1, 10, 100, { participants: [2, 1] });
+    events.findInGroup.mockResolvedValue(ROW);
+    await service.update(1, 10, 100, { participants: 'ALL' });
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+  });
+
+  it('수정: 생략하면 참여자는 그대로 (참여자 없음 일정도 다른 필드는 고칠 수 있다)', async () => {
+    events.findInGroup.mockResolvedValue({ ...ROW, allMembers: false, participantIds: [] });
+    await service.update(1, 10, 100, { title: '새 제목' });
+    const data = events.updateWithLogTx.mock.calls[0][1];
+    expect(data).not.toHaveProperty('participants');
+    expect(data.title).toBe('새 제목');
+  });
+
+  it('수정: [] 는 VALIDATION_FAILED', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    await expect(service.update(1, 10, 100, { participants: [] })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+  });
+
+  it('한 번짜리 → 반복 켜기: 같은 행이라 참여자는 넘기지 않는다(유지)', async () => {
+    events.findInGroup.mockResolvedValue(PICKED);
+    await service.update(1, 10, 100, { repeat: 'WEEKLY' });
+    expect(events.updateWithLogTx.mock.calls[0][1]).not.toHaveProperty('participants');
   });
 });

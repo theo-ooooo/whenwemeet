@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { type CreatedLog, PushRepository } from '../push/push.repository.js';
+import { type ParticipantSet, participantsFailed, PARTICIPANTS_NOT_MEMBER_MESSAGE, participantsSnapshot } from './participants.js';
 import { addDays, type EventReminderValue, type ExceptionRule, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
 
 export const EVENT_SELECT = {
@@ -22,7 +24,13 @@ export const EVENT_SELECT = {
   reminder: true,
   reminderSetAt: true,
   creator: USER_PUBLIC_SELECT,
+  /** (#248) 참여자 (D-130). 행은 PK (eventId, userId) 로 읽는다 */
+  allMembers: true,
+  participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
 } as const;
+
+/** (#248) 빈 시간 판정용 참여자 필드 (D-137) */
+const BUSY_PARTICIPANTS_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
 
 /** 회차 예외 (D-65). 바꾼 필드만 값이 있다 */
 export const EVENT_EXCEPTION_SELECT = {
@@ -59,6 +67,10 @@ export interface EventRow {
   /** (#188) 알림 시각을 정하는 값을 마지막으로 바꾼 시각 (D-86) */
   reminderSetAt: Date;
   creator: UserRow | null;
+  /** (#248) true 면 "모두" (D-130) */
+  allMembers: boolean;
+  /** (#248) allMembers = false 일 때의 참여자 userId, 오름차순. 비면 "참여자 없음" */
+  participantIds: number[];
 }
 
 /** 반복 원본 + 예외 (일정 목록 펼치기용) */
@@ -77,10 +89,11 @@ export type EventExceptionRow = ExceptionRule & {
   reminderSetAt: Date | null;
 };
 
-type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor'> & {
+type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor' | 'participantIds'> & {
   repeatUntil: Date | null;
   repeatAnchor: Date | null;
   creator: UserPublicRecord | null;
+  participants: { userId: number }[];
 };
 type ExceptionRecord = Omit<EventExceptionRow, 'occurrence'> & { occurrence: Date };
 
@@ -93,27 +106,44 @@ export function dbToDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function toEventRow(record: EventRecord, urls: FileUrlBuilder): EventRow {
+function toEventRow({ participants, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
   return {
     ...record,
     repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
     repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
+    participantIds: participantIdsOf(participants),
   };
+}
+
+/** (#248) 참여자 행 → 오름차순 userId */
+function participantIdsOf(rows: { userId: number }[]): number[] {
+  return rows.map((row) => row.userId).sort((a, b) => a - b);
+}
+
+/** (#248) 읽은 일정 행의 참여자 */
+function participantSetOf(record: { allMembers: boolean; participants: { userId: number }[] }): ParticipantSet {
+  return { allMembers: record.allMembers, ids: record.allMembers ? [] : participantIdsOf(record.participants) };
 }
 
 function toExceptionRow(record: ExceptionRecord): EventExceptionRow {
   return { ...record, occurrence: dbToDate(record.occurrence) };
 }
 
-/** 빈 시간 계산용. 일정 내용은 담지 않는다 (결정기록 D-14) */
-export interface BusyRange {
+/** (#248) 빈 시간에서 그 일정이 누구를 바쁘게 하는지 (D-137) */
+export interface BusyParticipants {
+  allMembers: boolean;
+  participantIds: number[];
+}
+
+/** 빈 시간 계산용. 일정 내용은 담지 않는다 (결정기록 D-14). 참여자로 거른다 (#248) */
+export interface BusyRange extends BusyParticipants {
   startsAt: Date;
   endsAt: Date;
 }
 
-/** 빈 시간 계산용 반복 원본. 시각과 반복 필드, 예외의 시각/취소만 (D-14, 설계 4-2) */
-export interface BusySeries extends SeriesRule {
+/** 빈 시간 계산용 반복 원본. 시각과 반복 필드, 예외의 시각/취소, 참여자만 (D-14, 설계 4-2, D-137) */
+export interface BusySeries extends SeriesRule, BusyParticipants {
   exceptions: ExceptionRule[];
 }
 
@@ -136,6 +166,8 @@ export interface EventCreateInput {
   remindAt?: Date | null;
   /** (#188) 생략하면 지금 (D-86) */
   reminderSetAt?: Date;
+  /** (#248) 참여자. 멤버 검사는 저장 트랜잭션 안에서 (D-133) */
+  participants: ParticipantSet;
 }
 
 export interface EventUpdateInput {
@@ -153,6 +185,8 @@ export interface EventUpdateInput {
   /** (#188) 생략하면 바꾸지 않는다 */
   remindAt?: Date | null;
   reminderSetAt?: Date;
+  /** (#248) 생략하면 바꾸지 않는다. 주면 행을 모두 바꾸고 멤버를 검사한다 */
+  participants?: ParticipantSet;
 }
 
 /** 회차 예외로 저장할 값. null 은 원본 값 */
@@ -181,9 +215,12 @@ export interface LogSnapshot {
   endsAt: Date;
   allDay: boolean;
   repeat: Repeat | null;
+  /** (#248) 참여자 스냅샷 (D-136). "이 일정만" 수정은 원본 참여자, 삭제는 생략(null) */
+  participants?: ParticipantSet;
 }
 
 type EventSnapshot = Pick<EventRow, 'id' | 'groupId' | 'title' | 'startsAt' | 'endsAt' | 'allDay'> & { repeat?: Repeat | null };
+type SavedEvent = EventSnapshot & { allMembers: boolean; participants: { userId: number }[] };
 type SeriesRef = Pick<EventRow, 'id' | 'groupId'>;
 
 /** KST 날짜 필드(repeatUntil, repeatAnchor) 를 @db.Date 값으로. 생략한 필드는 그대로 생략 */
@@ -197,6 +234,37 @@ function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: str
     ...(repeatUntil === undefined ? {} : { repeatUntil: toDb(repeatUntil) }),
     ...(repeatAnchor === undefined ? {} : { repeatAnchor: toDb(repeatAnchor) }),
   };
+}
+
+/** (#248) 새 일정의 allMembers + 참여자 행 */
+function toCreateData({ participants, ...data }: EventCreateInput) {
+  return {
+    ...toEventData(data),
+    allMembers: participants.allMembers,
+    participants: { create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
+  };
+}
+
+/** (#248) 수정. 참여자를 주면 행을 지우고 다시 만든다 (설계 3-5) */
+function toUpdateData({ participants, ...data }: EventUpdateInput) {
+  if (!participants) return toEventData(data);
+  return {
+    ...toEventData(data),
+    allMembers: participants.allMembers,
+    participants: { deleteMany: {}, create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
+  };
+}
+
+/**
+ * (#248) 참여자가 모두 이 팀의 지금 멤버인지 쓰기 트랜잭션 안에서 확인한다 (D-133). 아니면 VALIDATION_FAILED.
+ * 멤버십 행을 공유 잠금으로 읽어(FOR SHARE) 확인과 저장 사이에 그 사람이 나가 고아 행이 생기지 않게 한다.
+ * 나가기는 멤버십을 먼저 지우고 참여자 행을 지우므로(removeWithGroupPrune), 나가기가 먼저면 여기서 걸리고 이쪽이 먼저면 나가기가 행을 지운다
+ */
+async function assertParticipantsTx(tx: Db, groupId: number, participants: ParticipantSet | undefined): Promise<void> {
+  if (!participants || participants.allMembers || participants.ids.length === 0) return;
+  const rows = await tx.$queryRaw<{ userId: number }[]>`
+    SELECT userId FROM Membership WHERE groupId = ${groupId} AND userId IN (${Prisma.join(participants.ids)}) FOR SHARE`;
+  if (rows.length !== new Set(participants.ids).size) throw participantsFailed(PARTICIPANTS_NOT_MEMBER_MESSAGE);
 }
 
 @Injectable()
@@ -254,8 +322,8 @@ export class EventsRepository {
   }
 
   /** 여러 팀의 한 번짜리 바쁜 구간만, startsAt 오름차순. includeAllDay 가 아니면 종일 일정 제외 */
-  listBusyRanges(groupIds: number[], from: Date, to: Date, includeAllDay: boolean): Promise<BusyRange[]> {
-    return this.prisma.event.findMany({
+  async listBusyRanges(groupIds: number[], from: Date, to: Date, includeAllDay: boolean): Promise<BusyRange[]> {
+    const rows = await this.prisma.event.findMany({
       where: {
         groupId: { in: groupIds },
         repeat: null,
@@ -263,9 +331,10 @@ export class EventsRepository {
         endsAt: { gt: from },
         ...(includeAllDay ? {} : { allDay: false }),
       },
-      select: { startsAt: true, endsAt: true },
+      select: { startsAt: true, endsAt: true, ...BUSY_PARTICIPANTS_SELECT },
       orderBy: { startsAt: 'asc' },
     });
+    return rows.map(({ participants, ...row }) => ({ ...row, participantIds: participantIdsOf(participants) }));
   }
 
   /**
@@ -289,9 +358,12 @@ export class EventsRepository {
         repeatUntil: true,
         repeatAnchor: true,
         exceptions: { select: { occurrence: true, cancelled: true, startsAt: true, endsAt: true, allDay: true } },
+        ...BUSY_PARTICIPANTS_SELECT,
       },
     });
     return rows.map((row) => ({
+      allMembers: row.allMembers,
+      participantIds: participantIdsOf(row.participants),
       startsAt: row.startsAt,
       endsAt: row.endsAt,
       allDay: row.allDay,
@@ -305,17 +377,19 @@ export class EventsRepository {
   /** 일정 생성 + CREATED 로그를 한 트랜잭션으로 */
   createWithLogTx(data: EventCreateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
-      const created = await tx.event.create({ data: toEventData(data), select: EVENT_SELECT });
+      await assertParticipantsTx(tx, data.groupId, data.participants);
+      const created = await tx.event.create({ data: toCreateData(data), select: EVENT_SELECT });
       const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(created, this.urls);
     });
   }
 
-  /** 일정 수정 + UPDATED 로그를 한 트랜잭션으로 */
-  updateWithLogTx(eventId: number, data: EventUpdateInput, actorId: number): Promise<EventRow> {
+  /** 일정 수정 + UPDATED 로그를 한 트랜잭션으로. 참여자를 바꾸면 그 팀 멤버인지 같이 확인한다 (#248) */
+  updateWithLogTx(event: SeriesRef, data: EventUpdateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.event.update({ where: { id: eventId }, data: toEventData(data), select: EVENT_SELECT });
+      await assertParticipantsTx(tx, event.groupId, data.participants);
+      const updated = await tx.event.update({ where: { id: event.id }, data: toUpdateData(data), select: EVENT_SELECT });
       const log = await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED'), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(updated, this.urls);
@@ -375,11 +449,13 @@ export class EventsRepository {
   }
 
   /** 첫 회차 "이후 모두" 수정: 원본의 예외 전부 삭제 (D-67) + 원본 수정 + UPDATED FOLLOWING 로그 (스냅샷은 수정된 첫 회차) */
-  updateSeriesFromStartTx(eventId: number, data: EventUpdateInput, log: ScopeLog): Promise<EventRow> {
+  updateSeriesFromStartTx(event: SeriesRef, data: EventUpdateInput, log: ScopeLog): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.eventException.deleteMany({ where: { eventId } });
-      const updated = await tx.event.update({ where: { id: eventId }, data: toEventData(data), select: EVENT_SELECT });
-      const created = await tx.eventLog.create({ data: scopeLog(updated.groupId, updated.id, 'UPDATED', log, updated), select: LOG_REF_SELECT });
+      await assertParticipantsTx(tx, event.groupId, data.participants);
+      await tx.eventException.deleteMany({ where: { eventId: event.id } });
+      const updated = await tx.event.update({ where: { id: event.id }, data: toUpdateData(data), select: EVENT_SELECT });
+      const snapshot = { ...updated, participants: participantSetOf(updated) };
+      const created = await tx.eventLog.create({ data: scopeLog(updated.groupId, updated.id, 'UPDATED', log, snapshot), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, created, false, new Date());
       return toEventRow(updated, this.urls);
     });
@@ -403,6 +479,7 @@ export class EventsRepository {
   splitSeriesTx(event: SeriesRef, occurrence: string, log: ScopeLog, next: null, snapshot: LogSnapshot): Promise<null>;
   splitSeriesTx(event: SeriesRef, occurrence: string, log: ScopeLog, next: EventCreateInput | null, snapshot?: LogSnapshot): Promise<EventRow | null> {
     return this.prisma.$transaction(async (tx) => {
+      if (next) await assertParticipantsTx(tx, next.groupId, next.participants);
       await tx.event.update({ where: { id: event.id }, data: { repeatUntil: dateToDb(addDays(occurrence, -1)) } });
       await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: { gte: dateToDb(occurrence) } } });
       if (!next) {
@@ -410,8 +487,9 @@ export class EventsRepository {
         await this.push.recordChangeTx(tx, deleted, false, new Date());
         return null;
       }
-      const created = await tx.event.create({ data: toEventData(next), select: EVENT_SELECT });
-      const updated = await tx.eventLog.create({ data: scopeLog(created.groupId, created.id, 'UPDATED', log, created), select: LOG_REF_SELECT });
+      const created = await tx.event.create({ data: toCreateData(next), select: EVENT_SELECT });
+      const firstSnapshot = { ...created, participants: participantSetOf(created) };
+      const updated = await tx.eventLog.create({ data: scopeLog(created.groupId, created.id, 'UPDATED', log, firstSnapshot), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, updated, false, new Date());
       return toEventRow(created, this.urls);
     });
@@ -421,8 +499,16 @@ export class EventsRepository {
 /** (#188) 팀원 변경 묶기에 넘기는 로그 필드 */
 const LOG_REF_SELECT = { id: true, groupId: true, eventId: true, actorId: true, action: true } as const satisfies Record<keyof CreatedLog, true>;
 
-function snapshotLog(event: EventSnapshot, actorId: number, action: 'CREATED' | 'UPDATED' | 'DELETED') {
+/** (#248) 로그의 참여자 스냅샷 컬럼 (D-136). "모두" 면 participantIds 는 넣지 않는다(DB null) */
+function logParticipants(set: ParticipantSet): { participantsAll: boolean; participantIds?: number[] } {
+  const { participantsAll, participantIds } = participantsSnapshot(set);
+  return participantIds === null ? { participantsAll } : { participantsAll, participantIds };
+}
+
+/** 로그 스냅샷. CREATED, UPDATED 는 저장 후 참여자를 함께 (D-136), DELETED 는 참여자 null */
+function snapshotLog(event: EventSnapshot | SavedEvent, actorId: number, action: 'CREATED' | 'UPDATED' | 'DELETED') {
   return {
+    ...(action !== 'DELETED' && 'participants' in event ? logParticipants(participantSetOf(event)) : {}),
     groupId: event.groupId,
     eventId: event.id,
     actorId,
@@ -448,5 +534,6 @@ function scopeLog(groupId: number, eventId: number, action: 'UPDATED' | 'DELETED
     repeat: snapshot.repeat,
     scope: log.scope,
     occurrence: dateToDb(log.occurrence),
+    ...(action === 'UPDATED' && snapshot.participants ? logParticipants(snapshot.participants) : {}),
   };
 }

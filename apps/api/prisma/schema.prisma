@@ -67,6 +67,8 @@ model User {
   eventLogs     EventLog[]    @relation("EventLogActor")
   pushDevices    PushDevice[]
   pushDeliveries PushDelivery[]
+  /// (#248) 참여하는 일정
+  eventParticipations EventParticipant[]
 }
 
 /// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
@@ -242,11 +244,15 @@ model Event {
   remindAt      DateTime?
   /// (#188) 알림 시각을 정하는 값(시작, 끝, 종일, 알림, 반복, 반복 종료일)을 마지막으로 바꾼 시각 (D-86)
   reminderSetAt DateTime      @default(now())
+  /// (#248) true 면 "모두": 그 팀 멤버 전체 (동적). false 면 participants 행, 0 이면 "참여자 없음" (D-130)
+  /// DB 기본값 true 는 기존 행 이전과 배포 겹침용. 새 일정의 기본 "나" 는 서비스가 정한다 (D-131)
+  allMembers    Boolean       @default(true)
 
-  group      Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  creator    User?            @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
-  logs       EventLog[]
-  exceptions EventException[]
+  group        Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator      User?              @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  logs         EventLog[]
+  exceptions   EventException[]
+  participants EventParticipant[]
 
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
@@ -278,6 +284,18 @@ model EventException {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, occurrence])
+}
+
+/// (#248) 일정 참여자 (allMembers = false 일 때만 행이 있다). 반복이면 원본에만 붙는다 (기획 3-5)
+model EventParticipant {
+  eventId Int
+  userId  Int
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
 }
 
 /// 기념일. 날짜만 가지며 D-day 계산은 클라이언트가 한다
@@ -320,6 +338,10 @@ model EventLog {
   scope      EventLogScope?
   /// (#187) 범위를 고른 회차 날짜 (KST)
   occurrence DateTime?      @db.Date
+  /// (#248) 변경 시점의 참여자 스냅샷 (지표용, D-136). 이 기능 전 로그와 DELETED 는 null
+  participantsAll Boolean?
+  /// (#248) allMembers = false 일 때의 userId 배열 (오름차순). "모두" 면 null
+  participantIds  Json?
 
   group Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)

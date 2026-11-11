@@ -148,17 +148,33 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
                repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
-               reminder?: EventReminder }                              // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
+               reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
+               participants?: 'ALL'|number[] }                         // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
 Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
                seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
                repeatAnchor: 'YYYY-MM-DD'|null,  // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
-               reminder: EventReminder }         // (#188) 그 회차의 실제 알림 (예외 반영)
+               reminder: EventReminder,          // (#188) 그 회차의 실제 알림 (예외 반영)
+               participants: { all: boolean, members: Member[] } }   // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
-- (#248) 참여자: `EventInput.participants?: 'ALL'|number[]`, `Event.participants: { all, members: Member[] }`. 검증, 반복 범위, 빈 시간(2.5), 일정 알림 받는 사람, 나가기(2.7) 변경은 `일정-참여자.md` 3~6장
+- (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙
+  - 응답 `participants` 는 목록, 단건, 생성/수정 모두 같은 모양. `members` 는 지금 멤버만(나가면 행이 지워진다), 순서는 `Membership.joinedAt`. `creator` 는 그대로 ("○○님이 추가")
+  - 검증 (400 VALIDATION_FAILED, `field: 'participants'`):
+
+    | 입력 | 결과 / message |
+    |------|------|
+    | 생략 | 생성: `[요청자]`. 수정: 그대로 (참여자 없음 일정도 다른 필드는 고칠 수 있다) |
+    | `'ALL'` | 모두, 참여자 행 없음 |
+    | 양의 정수 1~50개 | 중복은 합친다. 전원을 하나씩 골라도 `'ALL'` 로 바꾸지 않는다 |
+    | `[]` | 참여자를 한 명 이상 골라 주세요 |
+    | 50명 초과 | 참여자는 최대 50명까지 고를 수 있어요 |
+    | 이 팀 지금 멤버가 아닌 id 포함 | 이 팀 멤버만 참여자로 고를 수 있어요 (저장 트랜잭션 안에서 멤버십을 `FOR SHARE` 로 읽어 확인) |
+    | `null`, 다른 문자열, 숫자 아닌 원소 | participants 는 'ALL' 또는 멤버 id 배열이어야 해요 |
+  - 참여자만 바꿔도 수정: UPDATED 로그 + 팀원 변경 알림. 같은 참여자(순서 무관)면 #62 규칙대로 저장 안 함
+  - `EventLog.participantsAll`, `participantIds`(오름차순, 모두면 null): CREATED, UPDATED 는 저장 후 값, "이 일정만" 은 원본 값, DELETED 는 null. 새 소식 응답과 문구는 그대로
 - 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
@@ -177,9 +193,9 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 
 | 동작 | 처리 (트랜잭션 1개) | 응답 | 로그 |
 |------|------|------|------|
-| PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED | 그 회차 | UPDATED, scope THIS |
-| PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
-| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자, `repeatAnchor` 는 아래) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
+| PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED. (#248) 본문에 `participants` 가 있으면(같은 값이어도) 400 "이 일정만 수정할 때는 참여자를 바꿀 수 없어요" | 그 회차 | UPDATED, scope THIS |
+| PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제. (#248) 참여자도 원본 값을 바꾼다 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
+| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자, `repeatAnchor` 는 아래. (#248) 참여자는 본문 값, 없으면 원본 참여자 복사. 끊긴 원본의 참여자는 그대로) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
 | DELETE this | 예외 upsert `cancelled = true` | `{ ok: true }` | DELETED, scope THIS |
 | DELETE following, 첫 회차 | 원본 삭제 (예외 cascade) | `{ ok: true }` | DELETED, scope FOLLOWING (`eventId` 는 SetNull 로 null) |
 | DELETE following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, 이후 예외 삭제 | `{ ok: true }` | DELETED, scope FOLLOWING |
@@ -242,13 +258,14 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
    → 멤버들이 속한 모든 팀 (개인 팀 포함). 같은 팀이 여러 멤버에 걸려도 한 번만
 3. once = Event.findMany({
      where: { groupId in allGroupIds, repeat: null, startsAt < to, endsAt > from, ...(includeAllDay ? {} : { allDay: false }) },
-     select: { startsAt, endsAt },          // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
+     select: { startsAt, endsAt, allMembers, participants: { userId } },   // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
      orderBy: { startsAt: 'asc' } })
    series = Event.findMany({               // 반복 원본 (#187, 반복-일정.md 4-2)
      where: { groupId in allGroupIds, repeat != null, startsAt < to + 31일,
               OR: [{ repeatUntil: null }, { repeatUntil >= (from - 31일) 의 KST 날짜 }] },
-     select: { startsAt, endsAt, allDay, repeat, repeatUntil,
+     select: { startsAt, endsAt, allDay, repeat, repeatUntil, repeatAnchor, allMembers, participants: { userId },
                exceptions: { occurrence, cancelled, startsAt, endsAt, allDay } } })   // 여기도 title/memo 없음
+   → (#248) once, series 를 isBusyForAny 로 거른다: allMembers 이거나 참여자 중 memberIds 가 있으면 바쁨 (참여자 없음은 안 바쁨, D-137)
    → series 를 [from, to) 회차로 펼치고(취소 제외, 예외 시각 반영) includeAllDay 가 아니면 최종 allDay 회차를 뺀다
    → busy = once + 회차, startsAt 오름차순
 4. busy 를 정렬 상태에서 한 번 훑어 겹치거나 맞닿은 구간을 병합
@@ -290,6 +307,8 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 ```
 1. 멤버십 확인. group.type == PERSONAL 이면 GROUP_PERSONAL_LEAVE
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
+   (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
+   로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
 ```
 
@@ -305,6 +324,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
    b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제)
    c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
    d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+      (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
@@ -340,6 +360,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 같은 값이면 저장하지 않는 규칙(#62) 에 `reminder` 도 들어간다. 알림만 바꿔도 UPDATED 로그가 남는다
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
+**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+
 **발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일 당일, 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
 
 | 환경 변수 | 필수 | 용도 |
@@ -370,6 +392,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 앱 푸시 기기 등록, 해제 (#188) | `PUT /me/push-devices`, `DELETE /me/push-devices` |
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
+| 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
 
 ## 4. 개발 전용
 

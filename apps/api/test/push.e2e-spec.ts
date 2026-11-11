@@ -35,8 +35,12 @@ describe('푸시 알림 (e2e)', () => {
   const registerDevice = (session: Session, token: string, platform: 'IOS' | 'ANDROID') =>
     api(app).put('/v1/me/push-devices').set(auth(session)).send({ token, platform, appVersion: '1.1.0' }).expect(200);
 
+  /** (#248) 기존 시나리오는 팀원 모두가 받는 "모두" 일정. 본문에 participants 가 있으면 그 값 */
   const createEvent = async (session: Session, body: Record<string, unknown>) =>
-    (await api(app).post(`/v1/groups/${groupId}/events`).set(auth(session)).send(body).expect(201)).body.data as { id: number; reminder: string };
+    (await api(app).post(`/v1/groups/${groupId}/events`).set(auth(session)).send({ participants: 'ALL', ...body }).expect(201)).body.data as {
+      id: number;
+      reminder: string;
+    };
 
   const timed = (title: string, start: string, end: string, extra: Record<string, unknown> = {}) => ({
     title,
@@ -138,6 +142,54 @@ describe('푸시 알림 (e2e)', () => {
       expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).remindAt).toEqual(at('11:50:00'));
       const list = await api(app).get(`/v1/groups/${groupId}/events`).query({ from: at('00:00:00').toISOString(), to: at('23:59:00').toISOString() }).set(auth(minji)).expect(200);
       expect(list.body.data.map((e: { reminder: string }) => e.reminder)).toEqual(['NONE', 'MIN_10']);
+    });
+  });
+
+  describe('(#248) 일정 알림은 참여자에게만 (D-138, 기획 성공 기준 3)', () => {
+    const reminderTo = async (participants: unknown) => {
+      const body = timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' });
+      const event = await createEvent(minji, participants === undefined ? { ...body, participants: undefined } : { ...body, participants });
+      await scheduler.tick(at('17:00:10'));
+      return { event, to: fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to).sort() };
+    };
+
+    it('생략(= 등록자만) 이면 등록자에게만', async () => {
+      expect((await reminderTo(undefined)).to).toEqual([MINJI_TOKEN]);
+    });
+
+    it('참여자가 아닌 팀원(등록자 포함)에게는 가지 않는다', async () => {
+      expect((await reminderTo([jihun.userId])).to).toEqual([JIHUN_TOKEN]);
+    });
+
+    it('모두면 팀원 전원', async () => {
+      expect((await reminderTo('ALL')).to).toEqual([JIHUN_TOKEN, MINJI_TOKEN].sort());
+    });
+
+    it('참여자 없음이면 0건으로 DISPATCHED (새 상태 없음)', async () => {
+      const body = timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1', participants: [jihun.userId] });
+      const event = await createEvent(minji, body);
+      await api(app).delete(`/v1/groups/${groupId}/me`).set(auth(jihun)).expect(200);
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER')).toHaveLength(0);
+      expect(await prisma.pushNotification.findFirstOrThrow({ where: { kind: 'REMINDER', eventId: event.id } })).toMatchObject({ status: 'DISPATCHED' });
+    });
+
+    it('펼치는 순간의 참여자: 예약 뒤에 참여자를 바꾸면 바뀐 사람에게', async () => {
+      const event = await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1', participants: [minji.userId] }));
+      await prisma.eventParticipant.deleteMany({ where: { eventId: event.id } });
+      await prisma.eventParticipant.create({ data: { eventId: event.id, userId: jihun.userId } });
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([JIHUN_TOKEN]);
+    });
+
+    it('팀원 변경 알림(CHANGE) 은 참여자와 무관하게 팀 전체, 참여자만 바꿔도 "수정"', async () => {
+      const event = await createEvent(minji, timed('점심', '12:00:00', '13:00:00', { participants: [minji.userId] }));
+      await scheduler.tick(afterCoalesce());
+      expect(fake.messages).toEqual([expect.objectContaining({ to: JIHUN_TOKEN, title: '[우리] 민지님이 일정을 추가했어요' })]);
+      fake.reset();
+      await api(app).patch(`/v1/groups/${groupId}/events/${event.id}`).set(auth(minji)).send({ participants: [jihun.userId] }).expect(200);
+      await scheduler.tick(afterCoalesce());
+      expect(fake.messages).toEqual([expect.objectContaining({ to: JIHUN_TOKEN, title: '[우리] 민지님이 일정을 수정했어요' })]);
     });
   });
 

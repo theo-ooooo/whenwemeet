@@ -6,6 +6,7 @@ import { expand } from '../events/recurrence.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import type { FreeSlotsQueryDto } from './dto/free-slots-query.dto.js';
+import { isBusyForAny } from './participants.js';
 import { clampFromToNow, findFreeSlots, Interval, parseHHmm } from './slots.js';
 
 /** 조회 범위 상한 (결정기록 D-13) */
@@ -46,11 +47,15 @@ export class FreeSlotsService {
     const allGroupIds = await this.membershipsRepo.listDistinctGroupIds(memberIds);
 
     // 3. 바쁜 구간만 (title/memo 는 select 하지 않는다). 반복 원본은 회차로 펼쳐 합친다 (#187, 설계 4-2)
-    const [once, series] = await Promise.all([
+    //    (#248) 참여자 중 요청 팀 멤버가 있는 일정만 바쁨. 반복은 원본 참여자라 펼치기 전에 거른다 (D-137)
+    const [onceRows, seriesRows] = await Promise.all([
       this.events.listBusyRanges(allGroupIds, from, to, query.includeAllDay),
       this.events.listBusySeries(allGroupIds, from, to),
     ]);
-    const recurring = series
+    const members = new Set(memberIds);
+    const once = onceRows.filter((row) => isBusyForAny(row, members)).map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));
+    const recurring = seriesRows
+      .filter((row) => isBusyForAny(row, members))
       .flatMap((row) => expand(row, row.exceptions, from, to))
       .filter((occurrence) => query.includeAllDay || !occurrence.allDay)
       .map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));

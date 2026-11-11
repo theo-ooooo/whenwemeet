@@ -25,7 +25,7 @@ describe('FreeSlotsService', () => {
     membershipsRepo.listUserIds.mockResolvedValue([1, 2]); // 1. 팀 멤버
     membershipsRepo.listDistinctGroupIds.mockResolvedValue([10, 21, 22]); // 2. 멤버들의 모든 팀
     events.listBusyRanges.mockResolvedValue([
-      { startsAt: new Date('2026-11-10T01:00:00.000Z'), endsAt: new Date('2026-11-10T03:00:00.000Z') },
+      { startsAt: new Date('2026-11-10T01:00:00.000Z'), endsAt: new Date('2026-11-10T03:00:00.000Z'), allMembers: true, participantIds: [] },
     ]);
     events.listBusySeries.mockResolvedValue([]);
   });
@@ -51,6 +51,18 @@ describe('FreeSlotsService', () => {
       new Date('2026-11-11T00:00:00.000Z'),
       false,
     );
+  });
+
+  it('(#248) 한 번짜리도 참여자로 거른다: 참여자 없음, 다른 사람만 참여한 일정은 바쁨이 아니다', async () => {
+    const range = { startsAt: new Date('2026-11-10T01:00:00.000Z'), endsAt: new Date('2026-11-10T03:00:00.000Z') };
+    events.listBusyRanges.mockResolvedValue([
+      { ...range, allMembers: false, participantIds: [] },
+      { ...range, allMembers: false, participantIds: [3] },
+    ]);
+    const result = await service.find(1, 10, query(), now);
+    expect(result.slots.map((s) => [s.startsAt.toISOString(), s.endsAt.toISOString()])).toEqual([['2026-11-10T00:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    events.listBusyRanges.mockResolvedValue([{ ...range, allMembers: false, participantIds: [2] }]);
+    expect((await service.find(1, 10, query(), now)).slots[0].startsAt.toISOString()).toBe('2026-11-10T03:00:00.000Z');
   });
 
   it('includeAllDay=true 면 그대로 Repository 에 전달', async () => {
@@ -114,6 +126,8 @@ describe('FreeSlotsService', () => {
       repeat: 'WEEKLY' as const,
       repeatUntil: null,
       exceptions: [],
+      allMembers: true,
+      participantIds: [] as number[],
       ...overrides,
     });
     const pairs = (slots: { startsAt: Date; endsAt: Date }[]) => slots.map((s) => [s.startsAt.toISOString(), s.endsAt.toISOString()]);
@@ -148,6 +162,13 @@ describe('FreeSlotsService', () => {
       expect((await service.find(1, 10, query({ includeAllDay: true }), now)).slots).toEqual([]);
       events.listBusySeries.mockResolvedValue([weekly({ exceptions: [{ occurrence: '2026-11-10', cancelled: false, startsAt: null, endsAt: null, allDay: true }] })]);
       expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    });
+
+    it('(#248) 참여자에 요청 팀 멤버가 없는 반복 원본은 펼치기 전에 빠진다, 모두/멤버 참여는 바쁨', async () => {
+      events.listBusySeries.mockResolvedValue([weekly({ allMembers: false, participantIds: [3] })]);
+      expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+      events.listBusySeries.mockResolvedValue([weekly({ allMembers: false, participantIds: [2, 3] })]);
+      expect((await service.find(1, 10, query(), now)).slots).toHaveLength(2);
     });
 
     it('repeatUntil 이 지난 원본은 바쁨이 아니다', async () => {
