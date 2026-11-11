@@ -221,9 +221,10 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
           </header>
 
           <main
-            // 넓은 화면 본문 바깥 여백 28 32 (디자인규칙.md 2-2). 달력은 남은 높이를 채우고, 다른 화면은 내용 폭 760 까지 사이드바 옆 같은 선에서
+            // 넓은 화면 본문 바깥 여백 28 32 (디자인규칙.md 2-2). 달력은 남은 높이를 채우고, 다른 화면도 본문 폭을 다 쓴다.
+            // 폭 상한(예전 760)은 두지 않고 lg(≥1024) 에서 화면마다 2단, 격자로 나눈다 (#244, D-100)
             className={`flex-1 px-5 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-8 fold:py-7 ${
-              isCalendar ? "" : "fold:w-full fold:max-w-[824px]"
+              isCalendar ? "" : "fold:w-full fold:min-w-0"
             }`}
           >
             {children}
