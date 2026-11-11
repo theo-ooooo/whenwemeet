@@ -8,6 +8,9 @@ export function charLength(s: string): number {
   return Array.from(s).length;
 }
 
+/** (#196) "{이름}님이 초대했어요" 의 이름 최대 길이 */
+export const INVITER_NAME_MAX = 20;
+
 export function clampTeamName(name: string, max = TEAM_NAME_MAX): string {
   const chars = Array.from(name.trim().replace(/\s+/g, " "));
   if (chars.length <= max) return chars.join("");

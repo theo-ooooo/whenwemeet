@@ -141,6 +141,22 @@ export const DAD_ID = 4;
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
 
+/**
+ * (#196) 목 보낸 사람 표식. 실제 API 는 HMAC(D-157), 목은 팀과 사용자로 정해지는 10자 (FNV-1a).
+ * 화면 확인용이라 비밀은 없다. 맞는 표식 예: inviteMarkerOf(2, 1) (우리 둘 + 나)
+ */
+export function inviteMarkerOf(groupId: number, userId: number): string {
+  const ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let h = 0x811c9dc5;
+  for (const ch of `wwm-mock:${groupId}:${userId}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  let out = "";
+  for (let i = 0; i < 10; i++) {
+    h = Math.imul(h ^ (i + 1), 0x01000193) >>> 0;
+    out += ALPHA[(h >>> 11) & 63];
+  }
+  return out;
+}
+
 const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
 
 export function buildStore(): Store {

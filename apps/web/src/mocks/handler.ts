@@ -9,6 +9,7 @@ import { reminderError } from "@/lib/reminder";
 import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Repeat } from "@/lib/types";
 import {
   buildStore,
+  inviteMarkerOf,
   inviteUrlOf,
   ME_ID,
   memberOf,
@@ -59,6 +60,7 @@ function groupDetail(s: Store, groupId: number, userId: number) {
     name: grp.name,
     inviteCode: grp.inviteCode,
     inviteUrl: grp.inviteCode ? inviteUrlOf(grp.inviteCode) : null,
+    inviteShareUrl: grp.inviteCode ? `${inviteUrlOf(grp.inviteCode)}?by=${inviteMarkerOf(groupId, userId)}` : null,
     createdAt: grp.createdAt,
     members,
     me: myMember(s, groupId, userId),
@@ -319,14 +321,21 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   if (method === "GET" && path === "/health") return ok({ ok: true });
 
-  // 공개: 초대 미리보기
+  // 공개(선택 인증): 초대 미리보기. (#196) by 가 현재 멤버 표식이면 inviter, 로그인한 내가 멤버면 isMember + groupId
   if (method === "GET" && seg[0] === "invites" && seg[1]) {
     const code = seg[1].toUpperCase();
     const grp = s.groups.find((x) => x.inviteCode === code);
     if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
+    const members = s.memberships.filter((m) => m.groupId === grp.id);
+    const by = query.get("by");
+    const inviter = by ? members.find((m) => inviteMarkerOf(grp.id, m.userId) === by) : undefined;
+    const isMember = ctx.userId !== null && members.some((m) => m.userId === ctx.userId);
     return ok({
       groupName: grp.name,
-      memberCount: s.memberships.filter((m) => m.groupId === grp.id).length,
+      memberCount: members.length,
+      inviter: inviter ? { nickname: memberOf(s, grp.id, inviter.userId).displayName } : null,
+      isMember,
+      groupId: isMember ? grp.id : null,
     });
   }
 
@@ -510,7 +519,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
       ).join("");
       grp.inviteCode = code;
-      return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code) });
+      return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code), inviteShareUrl: `${inviteUrlOf(code)}?by=${inviteMarkerOf(grp.id, userId)}` });
     }
 
     if (rest[0] === "me" && rest.length === 1) {

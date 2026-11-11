@@ -11,7 +11,8 @@ const OG_IMAGE_BASE = { width: 1200, height: 630, type: "image/png" } as const;
 /** 사이트 기본 카드 (모든 화면) */
 export const SITE_OG_IMAGE = { ...OG_IMAGE_BASE, url: "/og", alt: SITE_TITLE };
 
-/** 초대 카드. 코드가 없거나 API 가 안 되면 route 가 일반 초대 카드를 그린다 */
-export function inviteOgImage(code: string) {
-  return { ...OG_IMAGE_BASE, url: `/og/join/${encodeURIComponent(code)}`, alt: "언제볼까 팀 초대" };
+/** 초대 카드. 코드가 없거나 API 가 안 되면 route 가 일반 초대 카드를 그린다. (#196) by 가 있으면 보낸 사람 이름을 그린다 */
+export function inviteOgImage(code: string, by: string | null = null) {
+  const query = by ? `?by=${by}` : "";
+  return { ...OG_IMAGE_BASE, url: `/og/join/${encodeURIComponent(code)}${query}`, alt: "언제볼까 팀 초대" };
 }

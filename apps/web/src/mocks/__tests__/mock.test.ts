@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getMockFile, MOCK_FILE_PREFIX, putMockFile } from "../files";
 import { mockHandle } from "../handler";
-import { ME_ID, TEAM_ID } from "../fixtures";
+import { inviteMarkerOf, ME_ID, TEAM_ID } from "../fixtures";
 
 const call = (method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
   mockHandle({ method, path, query: new URLSearchParams(query), body, userId: ME_ID }) as { status: number; body: { data: Record<string, unknown> } };
@@ -344,5 +344,32 @@ describe("목 새 소식 v=2 (#191)", () => {
     expect(merged.some((i) => i.kind === "ACTIVITY")).toBe(true);
     expect(merged.length).toBe(old.length + merged.filter((i) => i.kind === "ACTIVITY").length);
     for (let i = 1; i < merged.length; i += 1) expect(merged[i - 1].createdAt >= merged[i].createdAt).toBe(true);
+  });
+});
+
+describe("(#196) 목 초대 미리보기의 초대한 사람, 이미 멤버", () => {
+  const preview = (code: string, by: string | null, userId: number | null) =>
+    mockHandle({ method: "GET", path: `/invites/${code}`, query: new URLSearchParams(by ? { by } : {}), body: null, userId }) as {
+      status: number;
+      body: { data: Record<string, unknown> };
+    };
+
+  it("GroupDetail.inviteShareUrl 은 inviteUrl?by=<내 표식>, 미리보기는 그 표식으로 내 이름을 준다", () => {
+    const detail = call("GET", `/groups/${TEAM_ID}`).body.data;
+    expect(detail.inviteShareUrl).toBe(`${detail.inviteUrl}?by=${inviteMarkerOf(TEAM_ID, ME_ID)}`);
+    const code = String(detail.inviteCode);
+    const by = inviteMarkerOf(TEAM_ID, ME_ID);
+    expect(by).toMatch(/^[A-Za-z0-9_-]{10}$/);
+    // 사람, 팀마다 다르다
+    expect(inviteMarkerOf(TEAM_ID, ME_ID + 1)).not.toBe(by);
+    expect(inviteMarkerOf(TEAM_ID + 1, ME_ID)).not.toBe(by);
+
+    const anon = preview(code, by, null).body.data;
+    expect(anon.inviter).toMatchObject({ nickname: expect.any(String) });
+    expect(anon).toMatchObject({ isMember: false, groupId: null });
+
+    expect(preview(code, "AAAAAAAAAA", null).body.data.inviter).toBeNull();
+    expect(preview(code, inviteMarkerOf(TEAM_ID + 99, ME_ID), null).body.data.inviter).toBeNull();
+    expect(preview(code, null, ME_ID).body.data).toMatchObject({ inviter: null, isMember: true, groupId: TEAM_ID });
   });
 });

@@ -1,9 +1,9 @@
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { readCookie } from './auth.controller.js';
-import { IS_PUBLIC_KEY, JwtAuthGuard } from './jwt-auth.guard.js';
+import { IS_OPTIONAL_AUTH_KEY, IS_PUBLIC_KEY, JwtAuthGuard } from './jwt-auth.guard.js';
 
-function contextOf(headers: Record<string, string | undefined>, isPublic = false) {
+function contextOf(headers: Record<string, string | undefined>, isPublic = false, isOptional = false) {
   const request: { headers: Record<string, string | undefined>; user?: unknown } = { headers };
   return {
     request,
@@ -12,7 +12,9 @@ function contextOf(headers: Record<string, string | undefined>, isPublic = false
       getClass: () => 'class',
       switchToHttp: () => ({ getRequest: () => request }),
     } as never,
-    reflector: { getAllAndOverride: vi.fn((key: string) => (key === IS_PUBLIC_KEY ? isPublic : undefined)) } as never,
+    reflector: {
+      getAllAndOverride: vi.fn((key: string) => (key === IS_PUBLIC_KEY ? isPublic : key === IS_OPTIONAL_AUTH_KEY ? isOptional : undefined)),
+    } as never,
   };
 }
 
@@ -59,6 +61,30 @@ describe('JwtAuthGuard', () => {
     users.findById.mockResolvedValueOnce(null);
     await expect(guard.canActivate(context)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     expect(users.findById).toHaveBeenCalledWith(404);
+  });
+
+  it('(#196) @OptionalAuth: 토큰 없음, 틀림, 만료, 사용자 없음이면 익명 통과(user 없음), 유효하면 user', async () => {
+    for (const headers of [{}, { authorization: 'Basic abc' }]) {
+      const { context, reflector, request } = contextOf(headers, false, true);
+      const guard = new JwtAuthGuard(reflector, jwt as never, users as never);
+      expect(await guard.canActivate(context)).toBe(true);
+      expect(request.user).toBeUndefined();
+    }
+
+    const { context, reflector, request } = contextOf({ authorization: 'Bearer t' }, false, true);
+    const guard = new JwtAuthGuard(reflector, jwt as never, users as never);
+    jwt.verifyAsync.mockRejectedValueOnce(new Error('expired'));
+    expect(await guard.canActivate(context)).toBe(true);
+    jwt.verifyAsync.mockResolvedValueOnce({ sub: '404' });
+    users.findById.mockResolvedValueOnce(null);
+    expect(await guard.canActivate(context)).toBe(true);
+    expect(request.user).toBeUndefined();
+
+    const user = { id: 1, nickname: '닉', profileImageUrl: null, createdAt: new Date() };
+    jwt.verifyAsync.mockResolvedValueOnce({ sub: '1' });
+    users.findById.mockResolvedValueOnce(user);
+    expect(await guard.canActivate(context)).toBe(true);
+    expect(request.user).toEqual(user);
   });
 
   it('유효하면 request.user 를 채운다 (대소문자 무관 bearer)', async () => {
