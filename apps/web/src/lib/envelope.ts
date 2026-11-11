@@ -5,6 +5,10 @@
 //   실패 { status, data: null, message, error: { code, details?: [{ field, message }] } }
 // status 는 HTTP 상태 코드와 같은 값. 봉투가 바뀌면 이 파일만 고치면 된다. 훅과 화면은 봉투 모양을 모른다.
 
+/** (#186) API 요청 제한(429 RATE_LIMITED) 의 화면 문구. 화면마다 다른 기본 문구 대신 이것 하나 */
+export const RATE_LIMITED = "RATE_LIMITED";
+export const RATE_LIMITED_MESSAGE = "잠시 후 다시 시도해 주세요";
+
 /** 검증 실패 시 필드별 위반 한 줄 */
 export type ApiErrorDetail = { field: string; message: string };
 

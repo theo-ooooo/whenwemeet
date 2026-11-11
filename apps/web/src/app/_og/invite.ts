@@ -2,7 +2,7 @@
 // 스크래퍼는 몇 초 안에 응답을 못 받으면 이미지를 버리므로 짧게 끊는다
 import { readEnvelope } from "@/lib/envelope";
 import type { InvitePreview } from "@/lib/types";
-import { apiUrl, isMock, upstream } from "@/lib/upstream";
+import { apiUrl, internalHeaders, isMock, upstream } from "@/lib/upstream";
 
 const TIMEOUT_MS = 2500;
 /** 팀 이름, 멤버 수가 바뀌어도 5분 안에 새 이미지 */
@@ -18,7 +18,8 @@ export async function loadInviteForOg(code: string): Promise<InvitePreview | nul
       return env.ok ? (env.data ?? null) : null;
     }
     const res = await fetch(`${apiUrl()}/v1${path}`, {
-      headers: { Accept: "application/json" },
+      // (#186) 캐시된 결과를 여러 사람이 보므로 사용자 IP 없이 내부 키만. API 는 웹 서버 묶음("internal")으로 센다
+      headers: { Accept: "application/json", ...internalHeaders(null) },
       next: { revalidate: INVITE_OG_REVALIDATE },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });

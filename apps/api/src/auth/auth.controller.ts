@@ -8,6 +8,7 @@ import { AuthService } from './auth.service.js';
 import { AppleNativeLoginDto, HandoffExchangeDto, KakaoNativeLoginDto } from './dto/app-auth.dto.js';
 import { DevLoginDto } from './dto/dev-login.dto.js';
 import { Public } from './jwt-auth.guard.js';
+import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { DevProvider } from './providers/dev.provider.js';
 import { KakaoProvider } from './providers/kakao.provider.js';
 
@@ -42,6 +43,7 @@ export class AuthController {
   /** 302 → 카카오 인가 페이지. 설정이 없으면 503 KAKAO_NOT_CONFIGURED */
   @Public()
   @Get('kakao')
+  @RateLimit('login', { redirectToLogin: true })
   startKakao(@Query('next') nextRaw: string | undefined, @Res() res: Response): void {
     const next = this.auth.sanitizeNext(nextRaw);
     const { nonce, state } = this.auth.createState(next);
@@ -53,6 +55,7 @@ export class AuthController {
   /** 카카오 → 여기. 성공이면 웹 콜백으로 JWT 전달, 실패면 /login?error= */
   @Public()
   @Get('kakao/callback')
+  @RateLimit('login', { redirectToLogin: true })
   async kakaoCallback(
     @Query('code') code: string | undefined,
     @Query('state') stateRaw: string | undefined,
@@ -84,6 +87,7 @@ export class AuthController {
   /** 앱 카카오 SDK 로그인 (앱.md 3.1). 세션 JWT 대신 60초 1회용 handoff 를 돌려준다 */
   @Public()
   @Post('kakao/native')
+  @RateLimit('login')
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   kakaoNative(@Body() dto: KakaoNativeLoginDto): Promise<HandoffIssued> {
@@ -93,6 +97,7 @@ export class AuthController {
   /** handoff + verifier → 세션 JWT (앱.md 2.2). 호출자는 웹 서버(`/auth/app` route handler) 뿐 */
   @Public()
   @Post('handoff')
+  @RateLimit('login')
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   exchangeHandoff(@Body() dto: HandoffExchangeDto): Promise<{ token: string }> {
@@ -102,6 +107,7 @@ export class AuthController {
   /** iOS 앱 애플 로그인 (앱.md 3.3). 세션 JWT 대신 60초 1회용 handoff */
   @Public()
   @Post('apple/native')
+  @RateLimit('login')
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   appleNative(@Body() dto: AppleNativeLoginDto): Promise<HandoffIssued> {
@@ -111,6 +117,7 @@ export class AuthController {
   /** 웹과 Android 애플 로그인 시작 (앱.md 3.4). state 쿠키를 심고 Apple 인가 페이지로 302. 미설정이면 503 */
   @Public()
   @Get('apple')
+  @RateLimit('login', { redirectToLogin: true })
   startApple(
     @Query('next') next: string | undefined,
     @Query('client') client: string | undefined,
@@ -128,6 +135,7 @@ export class AuthController {
    */
   @Public()
   @Post('apple/callback')
+  @RateLimit('login', { redirectToLogin: true })
   async appleCallback(@Body() body: Record<string, unknown>, @Req() req: Request, @Res() res: Response): Promise<void> {
     const field = (key: string): string | undefined => (typeof body?.[key] === 'string' ? (body[key] as string) : undefined);
     const cookieNonce = readCookie(req.headers.cookie, APPLE_STATE_COOKIE);

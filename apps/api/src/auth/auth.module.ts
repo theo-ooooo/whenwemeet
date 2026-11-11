@@ -10,6 +10,8 @@ import { AppleAuthService } from './apple-auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { RateLimitGuard, RateLimitSettings } from '../rate-limit/rate-limit.guard.js';
+import { RateLimitStore } from '../rate-limit/rate-limit.store.js';
 import { APPLE_JWKS, AppleProvider, createAppleJwks } from './providers/apple.provider.js';
 import { AuthProviders } from './providers/auth-providers.js';
 import { DevProvider } from './providers/dev.provider.js';
@@ -43,7 +45,13 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     AppleProvider,
     EmailProvider,
     { provide: APPLE_JWKS, useFactory: createAppleJwks },
-    AuthProviders, { provide: APP_GUARD, useClass: JwtAuthGuard }],
+    AuthProviders,
+    // (#186) 전역 가드는 등록 순서대로 돈다. 요청 제한이 인증보다 먼저여야 401 이 될 요청도 IP 한도에 들어간다
+    RateLimitStore,
+    RateLimitSettings,
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
   exports: [AuthService, AuthProviders, JwtModule],
 })
 export class AuthModule {}

@@ -7,6 +7,7 @@ import { Symbol } from "@/components/Logo";
 import { appSupportsEmailLogin, parseAppUserAgent } from "@/lib/app-bridge";
 import { webEmailEnabled } from "@/lib/email-route";
 import { EXPIRED_REASON, safeNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
+import { RATE_LIMITED_MESSAGE } from "@/lib/envelope";
 
 export const metadata: Metadata = { title: "로그인" };
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAUTH_STATE: "로그인 시간이 지났어요. 다시 시도해 주세요",
   KAKAO_ERROR: "카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요",
   HANDOFF_INVALID: "로그인이 만료됐어요. 다시 시도해 주세요",
+  // (#186) API 요청 제한. 브라우저 로그인 경로는 API 가 302 로, 앱 handoff 는 /auth/app 이 이리로 보낸다
+  RATE_LIMITED: RATE_LIMITED_MESSAGE,
 };
 /** 문구 없이 화면만 그리는 오류 (사용자가 직접 취소, 앱.md 8장) */
 const SILENT_ERRORS = new Set(["APPLE_CANCELLED"]);

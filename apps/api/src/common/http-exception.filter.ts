@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiException, DEFAULT_MESSAGE, ErrorBody, ErrorCode } from './errors.js';
+import { ApiException, DEFAULT_MESSAGE, ErrorBody, ErrorCode, RateLimitedException } from './errors.js';
 
 /** Nest 기본 예외(라우터 404, 파이프 400 등) 를 api.md 오류 코드로 옮기는 표 */
 const STATUS_TO_CODE: Record<number, ErrorCode> = {
@@ -27,6 +27,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const { status, body } = this.translate(exception);
     if (status >= 500) {
       this.logger.error(exception instanceof Error ? (exception.stack ?? exception.message) : String(exception));
+    }
+    if (exception instanceof RateLimitedException) {
+      // (#186) 요청 제한은 다시 보낼 때까지의 초를 헤더로도 알린다
+      res.setHeader('Retry-After', String(exception.retryAfterSec));
+      if (exception.redirectTo) {
+        res.redirect(302, exception.redirectTo);
+        return;
+      }
     }
     res.status(status).json(body);
   }
