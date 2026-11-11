@@ -230,6 +230,38 @@ model Anniversary {
   @@index([groupId, date])
 }
 
+/// (#279) ICS 파일 가져오기 한 번 (D-162). 200개마다 커밋, 다 넣으면 doneAt. 파일은 저장하지 않는다
+model EventImport {
+  id        Int       @id @default(autoincrement())
+  groupId   Int
+  userId    Int?
+  created   Int       @default(0)
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  group Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items EventImportItem[]
+
+  @@index([groupId])
+  @@index([userId])
+}
+
+/// (#279) 가져온 일정 하나의 원본 키 해시. (팀, uidHash) 유일. 일정을 지워도 남는다 (기획 Q5)
+model EventImportItem {
+  importId Int
+  groupId  Int
+  uidHash  String @db.Char(64)
+  eventId  Int?
+
+  import EventImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  event  Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@id([importId, uidHash])
+  @@unique([groupId, uidHash])
+  @@index([eventId])
+}
+
 /// (#105) 기념일 종류
 /// COUNT_UP: 시작일 = 1일로 세어 100일 단위(1000일까지, 이후 1000일 단위)와 N주년 표시 (처음 만난 날)
 /// YEARLY: 매년 같은 월일 표시, 2/29 는 평년 2/28 (생일)
@@ -279,6 +311,8 @@ enum GroupActivityType {
   /// 탈퇴. 남는 TEAM 마다 한 줄, actorId 는 User 삭제로 null
   MEMBER_DELETED
   GROUP_RENAMED
+  /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-163)
+  EVENTS_IMPORTED
 }
 
 /// (#191) 팀에 생긴 일. 새 소식이 EventLog 와 합쳐 보여 준다 (api.md 2.6, D-150 ~ D-155)

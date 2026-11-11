@@ -47,6 +47,8 @@
 | EMAIL_CODE_EXPIRED | 400 | 그 이메일의 살아 있는 메일 없음 (만료, 사용, 새로 받음, 잠김) |
 | SIGNUP_TOKEN_INVALID | 401 | 이메일 가입 티켓 없음, 만료(30분), 사용됨 |
 | EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
+| IMPORT_TOO_LARGE | 400 | (#279) ICS 파일의 VEVENT 가 3,000개 초과 |
+| IMPORT_INCOMPLETE | 500 | (#279) 일정 가져오기가 중간에 실패. 넣은 묶음은 남는다. message "N개 중 M개 넣었어요. 같은 파일을 다시 올리면 나머지만 들어가요", `details: { created, total }`. 웹은 점검 화면으로 보내지 않는다(INTERNAL 아님) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 요청 제한 (#186, D-143)
@@ -59,6 +61,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 초대 미리보기 `GET /invites/:code` | IP | 30 / 1분 |
 | 초대 합류 `POST /groups/join` (6자리 코드 추측 방지) | 사용자 **그리고** IP | 사용자 10 / 10분, IP 30 / 10분 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
+| 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
+| 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
 | 그 밖의 모든 요청 (위 경로도 함께 센다) | 로그인(유효한 JWT)이면 사용자, 아니면 IP | 사용자 300 / 1분, IP 600 / 1분 |
 
 - 제외: `GET /health` (배포 healthcheck, 점검 화면). 푸시 스케줄러는 HTTP 가 아니라 대상 아님. 이메일 엔드포인트는 자체 제한(EMAIL_RATE_LIMITED)을 그대로 두고 기본 한도만 함께 센다
@@ -344,7 +348,8 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 EventNewsItem    = { kind: 'EVENT' } & NewsItem          // 일정 항목 모양은 그대로
 ActivityNewsItem = { kind: 'ACTIVITY', id: number,
   type: 'ANNIVERSARY_CREATED'|'ANNIVERSARY_UPDATED'|'ANNIVERSARY_DELETED'
-      | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED',
+      | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED'
+      | 'EVENTS_IMPORTED',          // (#279)
   actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
   anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
   payload: ActivityPayload, createdAt, isNew }
@@ -352,6 +357,7 @@ ActivityPayload =
   | { name, date: 'YYYY-MM-DD', kind: AnniversaryKind,          // 기념일 3종: 바뀐 뒤 값 (삭제는 삭제 전 값)
       changed?: ('name'|'date'|'kind')[], before?: { name?, date?, kind? } }   // 수정만: 바뀐 필드와 그 이전 값
   | { from: string, to: string }                                // GROUP_RENAMED
+  | { count: number }                                           // EVENTS_IMPORTED (#279)
   | {}                                                           // 멤버 3종
 ```
 
@@ -364,6 +370,7 @@ ActivityPayload =
 | MEMBER_LEFT | `DELETE /groups/:id/me` (2.7) | 마지막 멤버라 팀이 지워짐 |
 | MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
 | GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
+| EVENTS_IMPORTED (#279) | `POST /groups/:id/imports` 끝 (2.9) | 넣은 일정 0개 |
 
 - 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
 - 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
@@ -442,6 +449,30 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | `EXPO_ACCESS_TOKEN` | 아니오 (운영 권장) | Expo 액세스 토큰. 있으면 `Authorization: Bearer` (D-94) |
 | `EXPO_PUSH_URL` | 아니오 | 기본 `https://exp.host/--/api/v2/push`. e2e 가 가짜 서버 주소를 넣는다 |
 
+### 2.9 일정 가져오기 (#279, 설계 `일정-가져오기.md`, D-157 ~ D-164)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'` (기본 future) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
+| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
+
+```ts
+SkipReason   = 'DUPLICATE'|'CANCELLED'|'TOO_OLD'|'TOO_LONG'|'INVALID'|'OVER_LIMIT'
+SkipCount    = { reason: SkipReason, count: number }        // 0 인 이유는 뺀다, 위 순서
+ImportPreview = { total: number,          // 파일 안 VEVENT 수
+                  toCreate: number,       // 넣을 일정 (반복으로 옮긴 것 1개, 펼친 회차 각각). 최대 1,000
+                  recurringKept: number, expanded: number, expandedSeries: number,
+                  skipped: SkipCount[], firstStartsAt: ISO|null, lastStartsAt: ISO|null,
+                  warnings: ('UNKNOWN_TZID'|'TRUNCATED_TITLE')[],
+                  sample: { title, startsAt, endsAt, allDay, repeat }[] }   // 시작 순 앞 5개
+```
+
+- 파일은 저장하지 않는다. 미리보기와 넣기에서 두 번 올린다 (서버 상태 없음). 넣기는 같은 계산을 다시 한다
+- 오류: 파일 없음, 못 읽음, 2MB 초과, 다른 이름의 파일 필드 → 400 VALIDATION_FAILED `field: 'file'` ("캘린더 파일(.ics)을 읽지 못했어요" / "파일이 너무 커요. 2MB 까지 올릴 수 있어요"). VEVENT 3,000개 초과 → 400 IMPORT_TOO_LARGE. range, participants 형식, 모르는 필드 → 400. 멤버 아님 403. 중간 실패 500 IMPORT_INCOMPLETE
+- 1,000개를 넘으면 오류가 아니라 시작 순 1,000개만 넣고 나머지는 OVER_LIMIT (같은 파일을 다시 올리면 다음 묶음)
+- 중복: (팀, 원본 키 해시) 가 이미 있으면 DUPLICATE. 일정을 지워도 다시 들어가지 않고, 바뀐 내용으로 덮어쓰지 않는다
+- 넣은 일정: 등록자 = 요청자, 알림 NONE, EventLog 없음. 끝나면 GroupActivity `EVENTS_IMPORTED { count }` 한 줄 + TEAM 이면 팀원 변경 푸시 한 건 (dedupeKey `I:{importId}`)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -465,6 +496,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
+| ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 
 ## 4. 개발 전용
 
