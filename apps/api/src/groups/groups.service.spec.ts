@@ -66,6 +66,7 @@ describe('GroupsService', () => {
   let groupsRepo: RepositoryMock<GroupsRepository>;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let eventLogs: RepositoryMock<EventLogsRepository>;
+  let pushScheduler: { kick: ReturnType<typeof vi.fn> };
   let service: GroupsService;
 
   beforeEach(() => {
@@ -73,7 +74,8 @@ describe('GroupsService', () => {
     membershipsRepo = mockRepository(MembershipsRepository);
     eventLogs = mockRepository(EventLogsRepository);
     const memberships = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
-    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships);
+    pushScheduler = { kick: vi.fn() };
+    service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never);
   });
 
   it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
@@ -157,7 +159,7 @@ describe('GroupsService', () => {
   it('join: 가장 적게 쓰인 색을 고르는 규칙을 넘겨 멤버십을 만들고 상세를 돌려준다', async () => {
     groupsRepo.findByInviteCode.mockResolvedValue(INVITE_GROUP);
     groupsRepo.findById.mockResolvedValue(GROUP);
-    membershipsRepo.addMemberIfAbsentTx.mockResolvedValue(undefined);
+    membershipsRepo.addMemberIfAbsentTx.mockResolvedValue(true);
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, color: '#F2994A' })]);
     const detail = await service.join(2, 'abcdef');
     expect(detail.me.userId).toBe(2);
@@ -165,6 +167,17 @@ describe('GroupsService', () => {
     const pickColor = membershipsRepo.addMemberIfAbsentTx.mock.calls[0][2];
     expect(pickColor(['#F26D6D'])).toBe('#F2994A');
     expect(pickColor([])).toBe('#F26D6D');
+    // (#188) 새 멤버십이면 커밋 뒤 틱을 깨운다 (D-91)
+    expect(pushScheduler.kick).toHaveBeenCalledTimes(1);
+  });
+
+  it('join: 이미 멤버면 합류 알림 틱을 깨우지 않는다 (#188)', async () => {
+    groupsRepo.findByInviteCode.mockResolvedValue(INVITE_GROUP);
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.addMemberIfAbsentTx.mockResolvedValue(false);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2 })]);
+    await service.join(2, 'ABCDEF');
+    expect(pushScheduler.kick).not.toHaveBeenCalled();
   });
 
   it('join: 동시 참여로 P2002 가 나도 성공, 다른 오류는 전파', async () => {
@@ -187,6 +200,14 @@ describe('GroupsService', () => {
 
     await service.updateMe(1, 10, {});
     expect(membershipsRepo.updateMe).toHaveBeenLastCalledWith(1001, {});
+  });
+
+  it('updateMe: notify 를 저장하고 응답에 내 notify 를 싣는다 (#188)', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.updateMe.mockResolvedValue({ ...membershipRow(), notify: false });
+    const member = await service.updateMe(1, 10, { notify: false });
+    expect(membershipsRepo.updateMe).toHaveBeenCalledWith(1001, { notify: false });
+    expect(member).toMatchObject({ userId: 1, notify: false });
   });
 
   it('leave: 멤버 아님 → FORBIDDEN, PERSONAL → GROUP_PERSONAL_LEAVE, 팀 없음 → NOT_FOUND', async () => {

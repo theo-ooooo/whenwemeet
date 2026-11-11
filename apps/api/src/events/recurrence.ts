@@ -43,7 +43,12 @@ export interface ExceptionRule {
   endsAt?: Date | null;
   allDay?: boolean | null;
   memo?: string | null;
+  /** (#188) 이 회차의 알림. null 이면 원본 값 (펼치기 규칙과 무관, 그대로 전달만) */
+  reminder?: EventReminderValue | null;
 }
+
+/** (#188) 일정 알림 값 (push/remind-at.ts 의 EventReminder 와 같은 집합) */
+export type EventReminderValue = 'NONE' | 'AT_START' | 'MIN_10' | 'HOUR_1' | 'DAY_1' | 'DAY_OF_0900' | 'DAY_BEFORE_0900';
 
 export interface Occurrence {
   /** 원래 회차 날짜 (KST). 예외로 옮겨도 그대로 */
@@ -54,6 +59,8 @@ export interface Occurrence {
   /** 예외로 바꾼 제목/메모. 없으면 원본 값을 쓴다 */
   title?: string;
   memo?: string;
+  /** (#188) 예외로 바꾼 알림. 없으면 원본 값을 쓴다 */
+  reminder?: EventReminderValue;
   /** 예외가 적용된 회차인지 */
   exception: boolean;
 }
@@ -195,6 +202,7 @@ export function applyException(original: Occurrence, exception: ExceptionRule | 
   };
   if (exception.title != null) result.title = exception.title;
   if (exception.memo != null) result.memo = exception.memo;
+  if (exception.reminder != null) result.reminder = exception.reminder;
   return result;
 }
 

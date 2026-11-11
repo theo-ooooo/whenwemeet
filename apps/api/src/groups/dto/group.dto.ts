@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 import { Trim } from '../../common/validation.js';
 
 export class CreateGroupDto {
@@ -33,4 +33,9 @@ export class UpdateMeDto {
   @IsString({ message: '표시 이름은 문자열이어야 해요' })
   @Length(1, 20, { message: '표시 이름은 1~20자여야 해요' })
   displayName?: string | null;
+
+  /** (#188) 이 팀 알림 받기 */
+  @IsOptional()
+  @IsBoolean({ message: 'notify 는 true/false 여야 해요' })
+  notify?: boolean;
 }
