@@ -27,6 +27,8 @@ export type GroupDetail = {
   name: string;
   inviteCode: string | null;
   inviteUrl: string | null;
+  /** (#196) inviteUrl + `?by=<내 표식>`. 복사, 공유는 이 주소 (lib/invite-share.ts) */
+  inviteShareUrl: string | null;
   createdAt: string;
   members: Member[];
   me: Member;
@@ -184,7 +186,15 @@ export type Me = {
   createdAt: string;
 };
 
-export type InvitePreview = { groupName: string; memberCount: number };
+export type InvitePreview = {
+  groupName: string;
+  memberCount: number;
+  /** (#196) 링크의 by 가 이 팀 현재 멤버의 표식일 때 그 사람의 팀 표시 이름 */
+  inviter: { nickname: string } | null;
+  /** (#196) 로그인한 내가 이미 멤버. 그때만 groupId 가 있다 */
+  isMember: boolean;
+  groupId: number | null;
+};
 
 // api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
 export const MEMBER_COLORS = [

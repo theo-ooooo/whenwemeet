@@ -10,6 +10,7 @@ import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton, Toggle } from "@/c
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
+import { inviteShare } from "@/lib/invite-share";
 import { COLOR_NAMES, memberColor, ON_MEMBER_COLOR, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
 
@@ -104,9 +105,8 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
     }
   }, [open]);
 
-  const url = group.inviteUrl ?? "";
-  const message = `'${group.name}' 달력에 초대할게요. 링크를 열고 카카오로 로그인하면 바로 합류돼요`;
-  const text = `${message}\n${url}`;
+  // (#196) 주소는 내 표식(?by=)이 붙은 inviteShareUrl. 문구와 함께 lib/invite-share.ts 한 곳에서 (D-159)
+  const { url, message, text, title } = inviteShare(group);
 
   async function copy() {
     try {
@@ -119,10 +119,10 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
 
   async function share() {
     // 앱 안이면 OS 공유 시트 (Android WebView 에는 Web Share 가 없다, 앱.md 4.3). 링크는 셸이 붙이므로 본문에서 뺀다
-    if (postToApp({ type: "share", url, text: message, title: "언제볼까 초대" })) return;
+    if (postToApp({ type: "share", url, text: message, title })) return;
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: "언제볼까 초대", text, url });
+        await navigator.share({ title, text, url });
       } catch {}
       return;
     }
@@ -135,7 +135,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
       toast.show(messageOf(r.error, "재발급하지 못했어요. 다시 시도해 주세요"));
       return;
     }
-    onSaved({ ...group, inviteCode: r.data.inviteCode, inviteUrl: r.data.inviteUrl });
+    onSaved({ ...group, inviteCode: r.data.inviteCode, inviteUrl: r.data.inviteUrl, inviteShareUrl: r.data.inviteShareUrl });
     toast.show("새 초대 코드를 만들었어요");
     setConfirm(false);
   }

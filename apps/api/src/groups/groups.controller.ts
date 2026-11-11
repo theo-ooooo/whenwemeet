@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { Public } from '../auth/jwt-auth.guard.js';
+import { CurrentUser, OptionalUser } from '../auth/current-user.decorator.js';
+import { OptionalAuth } from '../auth/jwt-auth.guard.js';
 import { IdParam } from '../common/id-param.js';
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { CreateGroupDto, JoinGroupDto, UpdateGroupDto, UpdateMeDto } from './dto/group.dto.js';
@@ -60,10 +60,11 @@ export class GroupsController {
 export class InvitesController {
   constructor(private readonly groups: GroupsService) {}
 
-  @Public()
+  /** (#196) 선택 인증. `by` 는 보낸 사람 표식(D-157), 토큰이 있으면 이미 멤버인지도 (D-158) */
+  @OptionalAuth()
   @Get(':code')
   @RateLimit('invitePreview')
-  preview(@Param('code') code: string) {
-    return this.groups.invitePreview(code);
+  preview(@Param('code') code: string, @Query('by') by: unknown, @OptionalUser() user: AuthUser | null) {
+    return this.groups.invitePreview(code, by, user?.id ?? null);
   }
 }

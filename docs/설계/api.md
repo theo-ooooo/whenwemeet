@@ -139,20 +139,26 @@ type AuthResult =
 | POST | `/groups` | 유저 | `{ name }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급 |
 | GET | `/groups/:groupId` | 멤버 | - | `{ data: GroupDetail }` |
 | PATCH | `/groups/:groupId` | 멤버 | `{ name }` | `{ data: GroupDetail }` |
-| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
-| GET | `/invites/:code` | 없음 | - | `{ data: { groupName, memberCount } }`. 로그인 전 미리보기 |
+| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
+| GET | `/invites/:code?by=` | 선택 | `by?`(보낸 사람 표식) | `{ data: InvitePreview }`. 로그인 전 미리보기. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명으로 답한다 (#196, D-157, D-158) |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
 | PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
 GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, memberCount, me: { color, displayName }, unreadNewsCount }
-GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, createdAt,
+GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, createdAt,
                  members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
+InvitePreview = { groupName, memberCount,
+                  inviter: { nickname: string } | null,   // (#196) by 가 이 팀 현재 멤버의 표식과 맞을 때만. 팀 표시 이름, 사진 없음
+                  isMember: boolean,                       // (#196) 유효한 토큰의 사용자가 이미 멤버
+                  groupId: number | null }                 // (#196) isMember 일 때만 값. 비멤버에게 팀 id 를 주지 않는다
 ```
 
 - `inviteUrl` = `${WEB_ORIGIN}/join/${inviteCode}`
+- `inviteShareUrl` = `inviteUrl + "?by=" + 표식`. 표식은 요청자 기준이라 같은 팀도 멤버마다 다르다. 코드가 없으면(PERSONAL) null. 표식은 `base64url(HMAC-SHA256(HKDF(JWT_SECRET, "wwm-invite-by"), "<groupId>:<userId>"))` 앞 10자 (D-157). 복사, 공유는 이 주소를 쓴다
+- `by` 가 10자 base64url 이 아니거나 어떤 현재 멤버와도 맞지 않으면(나간 멤버, 다른 팀 표식, 위조) `inviter: null`. 오류를 내지 않는다
 - `unreadNewsCount` = 그 팀 EventLog 중 `createdAt > me.lastSeenAt` 이고 `actorId != me` 인 건수. 팀 수만큼 count 쿼리 (사용자당 팀 수가 작아 허용)
 - 초대 코드: 알파벳 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (혼동 문자 제외) 6자. 충돌 시 재생성. 입력은 대문자로 정규화
 - 멤버 색: 합류 시 아래 팔레트 중 그 팀에서 가장 적게 쓰인 색을 자동 배정. 검증은 `^#[0-9A-Fa-f]{6}$` 만 (팔레트 밖 값도 허용)

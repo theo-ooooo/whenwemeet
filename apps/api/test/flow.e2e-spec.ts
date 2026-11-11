@@ -76,7 +76,7 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('GET /invites/:code 는 비로그인 미리보기, 소문자도 허용', async () => {
     const res = await api(app).get(`/v1/invites/${inviteCode.toLowerCase()}`).expect(200);
-    expect(res.body.data).toEqual({ groupName: '우리 모임', memberCount: 1 });
+    expect(res.body.data).toEqual({ groupName: '우리 모임', memberCount: 1, inviter: null, isMember: false, groupId: null });
     const missing = await api(app).get('/v1/invites/ZZZZZZ').expect(404);
     expect(missing.body.error.code).toBe('INVITE_NOT_FOUND');
   });
