@@ -111,6 +111,8 @@ describe('bucketsFor (한도 고르기)', () => {
         { scope: 'ip', limit: 30, windowSec: 600 },
       ],
       avatarUpload: [{ scope: 'user', limit: 20, windowSec: 3600 }],
+      icsPreview: [{ scope: 'user', limit: 30, windowSec: 3600 }],
+      icsImport: [{ scope: 'user', limit: 10, windowSec: 3600 }],
     });
   });
 

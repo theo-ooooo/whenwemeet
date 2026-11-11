@@ -5,6 +5,7 @@ import {
   changePhrase,
   copula,
   eventUrl,
+  importPayload,
   joinPayload,
   kstDateLabel,
   kstTimeLabel,
@@ -209,5 +210,18 @@ describe('toExpoMessage (IOS / ANDROID 모양, D-95, D-98)', () => {
     expect(late.expiration).toBe(NOW.getTime() / 1000 + 600);
     const future = NOW.getTime() / 1000 + 3600;
     expect(toExpoMessage('REMINDER', 7, { ...payload, expiration: future }, { token: 't', platform: 'IOS' }, NOW).expiration).toBe(future);
+  });
+});
+
+describe('importPayload (#279)', () => {
+  it('가져오기 한 번에 한 건: 새 소식과 같은 문장, 팀 이름은 subtitle, 달력으로', () => {
+    const now = new Date('2026-11-11T03:00:00Z');
+    expect(importPayload(7, '우리', '민지', 1234, now)).toEqual({
+      title: '민지님이 일정 1,234개를 가져왔어요',
+      subtitle: '우리',
+      body: null,
+      url: '/g/7/calendar',
+      expiration: Math.floor(now.getTime() / 1000) + 86_400,
+    });
   });
 });
