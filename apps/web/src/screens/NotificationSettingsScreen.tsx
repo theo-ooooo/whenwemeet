@@ -1,6 +1,6 @@
 "use client";
 // (#188) 내 정보 > 알림 (푸시-알림.md 8장, 7-1).
-//   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
+//   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 / 등록하지 못함 + [다시 시도] / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
 //   토글 4개: 계정 단위라 다른 기기에도 적용. 누르면 바로 저장, 실패하면 되돌리고 토스트
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useSyncExternalStore } from "react";
@@ -9,7 +9,7 @@ import { useToast } from "@/components/Toast";
 import { Button, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useNotificationSettings, useUpdateNotificationSettings } from "@/hooks";
 import { appSupportsPush, openAppSettings, requestPushStatus, type PushStatus } from "@/lib/app-bridge";
-import { recordPrompt } from "@/lib/push";
+import { canAskPermission, recordPrompt } from "@/lib/push";
 import { usePushRegistrar, usePushSync } from "@/lib/usePushSync";
 import type { NotificationSettings } from "@/lib/types";
 
@@ -46,14 +46,32 @@ function DeviceRow() {
     setAsking(false);
   }
 
+  async function retry() {
+    setAsking(true);
+    const s = await requestPushStatus("status");
+    if (s) setStatus(s);
+    await apply(s);
+    setAsking(false);
+  }
+
   let body: React.ReactNode;
   if (!checked) {
     body = <Skeleton className="h-5 w-24" />;
   } else if (!status) {
     body = <span className="text-[13px] text-ink-2">상태를 확인하지 못했어요</span>;
-  } else if (status.permission === "granted") {
+  } else if (status.permission === "granted" && status.token) {
     body = <span className="text-[13px] font-semibold text-acc-ink">알림 받는 중</span>;
-  } else if (status.permission === "undetermined") {
+  } else if (status.permission === "granted") {
+    // (#288) OS 는 허용인데 토큰을 못 받았다(첫 발급 지연, 네트워크). 받는 중이라고 하지 않는다
+    body = (
+      <span className="flex items-center gap-2">
+        <span className="text-[13px] text-ink-2">기기를 등록하지 못했어요</span>
+        <Button size="sm" variant="secondary" loading={asking} onClick={() => void retry()}>
+          다시 시도
+        </Button>
+      </span>
+    );
+  } else if (canAskPermission(status.permission, status.canAskAgain)) {
     body = (
       <Button size="sm" loading={asking} onClick={() => void ask()}>
         알림 받기
