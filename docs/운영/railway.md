@@ -78,10 +78,28 @@ Proxy(주황 구름) 를 꼭 켜고 싶다면: 먼저 회색으로 인증서 발
 
 ## 4. 백업
 MySQL 서비스 > **Backups** 탭
-- Schedule: **Daily**(6일 보관) + **Weekly**(27일 보관) 켬. 증분이라 비용은 볼륨 단가($0.15/GB-월) 로 소량
+- (Pro 전용) Schedule: Daily + Weekly. **Hobby 는 새 백업과 일정을 만들 수 없어 아래 일일 자동 백업으로 대신한다.** 증분이라 비용은 볼륨 단가($0.15/GB-월) 로 소량
 - 큰 마이그레이션이 든 릴리스 전에는 **Create Backup** 으로 수동 백업 (볼륨 크기의 50% 까지)
 - 복원: Backups 에서 날짜 고르고 Restore → 캔버스 상단 변경 사항(Details) 확인 → Deploy. 새 볼륨이 원래 경로에 붙고 이전 볼륨은 분리된 채 남는다
 - 볼륨을 Wipe 하면 백업도 같이 지워지니 하지 않는다
+
+### 일일 자동 백업 (Railway Hobby 대체, 2026-11-11)
+Hobby 요금제는 Backups 탭에서 새 백업, 자동 일정, 시점 복구를 막아 두었다(Pro 전용). 그래서 직접 백업한다.
+
+- 서비스: 프로젝트 `whenwemeet` 의 `db-backup` (Railway cron `0 18 * * *` = 매일 03:00 KST, 재시작 안 함)
+- 코드: `ops/db-backup/` (MySQL 8.4 이미지 + rclone). `railway up ops/db-backup --path-as-root --service db-backup` 로 배포 (Git 연결 안 함. 반드시 `whenwemeet` 에 링크된 디렉터리에서 실행)
+- 대상: Cloudflare R2 버킷 `whenwemeet-backups` (비공개), 키 `mysql/whenwemeet-<UTC시각>.sql.gz`. 수명 주기 규칙 `delete-after-30-days`
+- 변수: `MYSQL*` 는 `${{MySQL.*}}` 참조, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`(이 버킷만 개체 읽기/쓰기인 계정 API 토큰 `whenwemeet-db-backup`). 키 원본은 `~/Workspace/whenwemeet-secrets/r2-backup.txt`
+- 확인: `railway logs --service db-backup -d` 에 `[db-backup] uploaded mysql/...` 한 줄. 덤프가 `-- Dump completed` 로 끝나지 않거나 gzip 이 깨지면 업로드하지 않고 실패한다
+
+복원 (운영 DB 를 덮어쓴다. 먼저 지금 상태를 수동 백업):
+```sh
+# 1) R2 에서 원하는 파일 받기 (rclone 또는 대시보드 R2 > whenwemeet-backups > mysql/)
+# 2) MySQL 컨테이너로 흘려 넣기
+railway ssh config --service MySQL --alias wwm-mysql -i ~/.ssh/id_rsa --path ./ssh_config
+gunzip -c whenwemeet-<시각>.sql.gz | ssh -F ./ssh_config wwm-mysql 'mysql -uroot -p"$MYSQLPASSWORD" "$MYSQLDATABASE"'
+# 3) API 재배포 후 /v1/health 확인
+```
 
 ### 수동 백업 (railway ssh + mysqldump)
 Backups 탭이 없을 때(Trial) 나 큰 작업 직전에 쓴다. SSH 키는 Railway Account Settings > SSH Keys 에 등록돼 있어야 한다. 덤프 파일은 저장소 밖 `~/Workspace/whenwemeet-secrets/backups/` 에만 둔다.
