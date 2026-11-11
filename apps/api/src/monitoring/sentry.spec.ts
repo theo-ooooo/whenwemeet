@@ -103,13 +103,13 @@ describe('Sentry 로 실제 나가는 이벤트 (가짜 전송)', () => {
     Sentry.withScope((scope) => {
       scope.setUser({ id: 'u1', email: 'a@b.com', ip_address: '203.0.113.1' });
       scope.setSDKProcessingMetadata({
-        normalizedRequest: { url: 'http://x/v1/auth/email?token=secret1', headers: { cookie: 'wwm_session=s1', 'x-internal-key': 'k1' }, data: '{"email":"a@b.com"}' },
+        normalizedRequest: { url: 'http://x/v1/auth/email?token=TOKEN185', headers: { cookie: 'wwm_session=SESSION185', 'x-internal-key': 'INTERNALKEY185' }, data: '{"email":"a@b.com"}' },
       });
       reportError(new Error('tick 실패'), 'push.tick');
     });
     const body = await payloads();
     expect(body).toContain('"where":"push.tick"');
     expect(body).toContain('"id":"u1"');
-    for (const secret of ['a@b.com', '203.0.113.1', 'secret1', 'wwm_session', 'k1']) expect(body).not.toContain(secret);
+    for (const secret of ['a@b.com', '203.0.113.1', 'TOKEN185', 'SESSION185', 'INTERNALKEY185']) expect(body).not.toContain(secret);
   });
 });
