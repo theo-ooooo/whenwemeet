@@ -232,7 +232,9 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       ) : (
         webview
       )}
-      {failed || offline ? <OfflineScreen offline={offline} onRetry={retry} /> : null}
+      {/* OS 연결 신호(expo-network)만으로는 덮지 않는다. iOS 에서 isInternetReachable 이 잘못 false 로 남아
+          웹이 정상인데도 오프라인 화면만 보이는 일이 있었다(1.1 TestFlight). 실제 로드 실패일 때만, 문구에만 신호를 쓴다 */}
+      {failed ? <OfflineScreen offline={offline} onRetry={retry} /> : null}
     </View>
   );
 }
