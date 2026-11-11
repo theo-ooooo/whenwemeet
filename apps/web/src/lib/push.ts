@@ -37,9 +37,23 @@ export function syncAction(
   return storedToken ? { kind: "delete", token: storedToken } : { kind: "none" };
 }
 
-/** 권한 안내 시트를 띄울지 (8-1): 푸시 지원 앱 + OS 권한 미정 + 이 기기에서 답한 적 없음 */
-export function shouldPrompt(input: { supported: boolean; permission: PushPermission | null; record: PromptRecord | null }): boolean {
-  return input.supported && input.permission === "undetermined" && input.record === null;
+/**
+ * OS 권한 창을 띄울 수 있는 상태인지 (#288).
+ * Android 13+ 는 한 번도 묻지 않은 상태를 denied + canAskAgain true 로 준다(한 번 거부한 것과 구분되지 않음).
+ * 셸 requestPush 는 이 경우 OS 창을 띄우므로 미정과 같이 다룬다
+ */
+export function canAskPermission(permission: PushPermission | null, canAskAgain: boolean | null | undefined): boolean {
+  return permission === "undetermined" || (permission === "denied" && canAskAgain === true);
+}
+
+/** 권한 안내 시트를 띄울지 (8-1): 푸시 지원 앱 + OS 권한을 물을 수 있음 + 이 기기에서 답한 적 없음 */
+export function shouldPrompt(input: {
+  supported: boolean;
+  permission: PushPermission | null;
+  canAskAgain?: boolean | null;
+  record: PromptRecord | null;
+}): boolean {
+  return input.supported && canAskPermission(input.permission, input.canAskAgain) && input.record === null;
 }
 
 /** sessionStorage 의 마지막 PUT 기록을 읽는다. 틀린 모양이면 null */
@@ -145,7 +159,7 @@ export async function maybeOpenPushPrompt(): Promise<void> {
   if (!appSupportsPush() || promptRecord() !== null) return;
   if (!claimPromptCheck()) return;
   const status = await requestPushStatus("status");
-  if (shouldPrompt({ supported: true, permission: status?.permission ?? null, record: promptRecord() })) setPromptOpen(true);
+  if (shouldPrompt({ supported: true, permission: status?.permission ?? null, canAskAgain: status?.canAskAgain, record: promptRecord() })) setPromptOpen(true);
 }
 
 /** 테스트 전용 초기화 */
