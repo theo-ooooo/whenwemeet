@@ -5,7 +5,9 @@ import {
   isPromptOpen,
   maybeOpenPushPrompt,
   parseLastPut,
+  encodePromptRecord,
   parsePromptRecord,
+  PROMPT_LATER_MS,
   PUSH_PROMPT_KEY,
   PUSH_PUT_INTERVAL_MS,
   canAskPermission,
@@ -97,7 +99,13 @@ describe("저장 값 읽기", () => {
     expect(parseLastPut(null)).toBeNull();
   });
   it("시트 답 기록", () => {
-    expect(parsePromptRecord("later")).toBe("later");
+    const now = 1_800_000_000_000;
+    expect(parsePromptRecord(`later:${now - 1000}`, now)).toBe("later");
+    expect(parsePromptRecord(`later:${now - PROMPT_LATER_MS}`, now)).toBeNull();
+    expect(parsePromptRecord(`later:${now + 60_000}`, now)).toBeNull();
+    expect(parsePromptRecord("later", now)).toBeNull();
+    expect(encodePromptRecord("later", now)).toBe(`later:${now}`);
+    expect(encodePromptRecord("accepted", now)).toBe("accepted");
     expect(parsePromptRecord("accepted")).toBe("accepted");
     expect(parsePromptRecord("yes")).toBeNull();
     expect(parsePromptRecord(null)).toBeNull();
@@ -152,11 +160,23 @@ describe("권한 안내 시트 열림 상태와 계기", () => {
     expect(isPromptOpen()).toBe(true);
   });
 
-  it("[나중에] 기록이 있으면 셸에 묻지도 않는다", async () => {
-    const post = stubApp("1.1.0", { record: "later" });
+  it("[나중에] 7일 안이면 셸에 묻지도 않는다", async () => {
+    const post = stubApp("1.1.0", { record: `later:${Date.now() - 60_000}` });
     await maybeOpenPushPrompt();
     expect(post).not.toHaveBeenCalled();
     expect(isPromptOpen()).toBe(false);
+  });
+
+  it("[나중에] 7일이 지나면 다시 연다 (#291)", async () => {
+    stubApp("1.1.0", { record: `later:${Date.now() - PROMPT_LATER_MS - 1}` });
+    await maybeOpenPushPrompt();
+    expect(isPromptOpen()).toBe(true);
+  });
+
+  it("Android 13+ 묻지 않음(denied + canAskAgain) 도 연다 (#288)", async () => {
+    stubApp("1.1.0", { permission: "denied" });
+    await maybeOpenPushPrompt();
+    expect(isPromptOpen()).toBe(true);
   });
 
   it("OS 에서 이미 허용한 기기는 띄우지 않는다", async () => {

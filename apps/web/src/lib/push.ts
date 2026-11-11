@@ -5,8 +5,14 @@ import { appSupportsPush, requestPushStatus, type PushPermission, type PushStatu
 
 /** 이 기기에서 마지막으로 등록에 성공한 토큰 (로그아웃 때 서버에서 지울 값) */
 export const PUSH_TOKEN_KEY = "wwm_push_token";
-/** 권한 안내 시트에 답한 기록 'accepted' | 'later'. 있으면 다시 띄우지 않는다 (기기 단위, D-82) */
+/**
+ * 권한 안내 시트에 답한 기록 (기기 단위). 'accepted' 면 다시 띄우지 않고,
+ * 'later:<ms>' 면 그때부터 PROMPT_LATER_MS 가 지나면 다시 띄운다 (앱 실행 시 안내, #291).
+ * 시각 없는 옛 값 'later' 는 기한이 지난 것으로 본다
+ */
 export const PUSH_PROMPT_KEY = "wwm_push_prompt";
+/** [나중에] 뒤 다시 묻기까지 7일 */
+export const PROMPT_LATER_MS = 7 * 24 * 3_600_000;
 /** 같은 토큰 PUT 을 1시간에 한 번만 (sessionStorage, JSON { token, at }) */
 export const PUSH_PUT_KEY = "wwm_push_put";
 export const PUSH_PUT_INTERVAL_MS = 3_600_000;
@@ -67,8 +73,18 @@ export function parseLastPut(raw: string | null): { token: string; at: number } 
   }
 }
 
-export function parsePromptRecord(raw: string | null): PromptRecord | null {
-  return raw === "accepted" || raw === "later" ? raw : null;
+/** 저장된 답을 지금 시각 기준으로 읽는다. [나중에] 가 기한이 지났거나 틀린 값이면 null (다시 물을 수 있음) */
+export function parsePromptRecord(raw: string | null, now: number = Date.now()): PromptRecord | null {
+  if (raw === "accepted") return "accepted";
+  const m = raw ? /^later:(\d{1,16})$/.exec(raw) : null;
+  if (!m) return null;
+  const at = Number(m[1]);
+  return now >= at && now - at < PROMPT_LATER_MS ? "later" : null;
+}
+
+/** 저장할 값. later 는 고른 시각을 함께 둔다 */
+export function encodePromptRecord(r: PromptRecord, now: number = Date.now()): string {
+  return r === "later" ? `later:${now}` : r;
 }
 
 /* ---------- 저장소 (실패해도 던지지 않는다: 사파리 개인 정보 보호 모드 등) ---------- */
@@ -120,7 +136,7 @@ export function forgetPushToken(opts: { leave?: boolean } = {}): void {
 }
 
 export function recordPrompt(r: PromptRecord): void {
-  write("local", PUSH_PROMPT_KEY, r);
+  write("local", PUSH_PROMPT_KEY, encodePromptRecord(r));
 }
 
 /* ---------- 권한 안내 시트 열림 상태 (루트 레이아웃의 PushPrompt 하나가 구독) ---------- */
@@ -152,7 +168,7 @@ export function claimPromptCheck(): boolean {
 }
 
 /**
- * 권한 안내 시트 계기 (8-1): ① 일정 저장 성공 직후 ② 알림 행에서 "없음" 이 아닌 값을 처음 고를 때.
+ * 권한 안내 시트 계기 (8-1, #291): ① 로그인된 화면을 처음 열 때(앱 실행) ② 일정 저장 성공 직후 ③ 알림 행에서 "없음" 이 아닌 값을 처음 고를 때.
  * 조건이 맞으면 시트를 연다. 웹, 1.0.x 앱, 이미 답한 기기, OS 권한이 정해진 기기는 아무것도 하지 않는다
  */
 export async function maybeOpenPushPrompt(): Promise<void> {
