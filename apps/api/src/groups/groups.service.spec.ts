@@ -175,19 +175,19 @@ describe('GroupsService', () => {
 
     groupsRepo.findType.mockResolvedValueOnce(null);
     await expect(service.rotateInviteCode(1, 10)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(groupsRepo.setInviteCode).not.toHaveBeenCalled();
+    expect(groupsRepo.setInviteCodeTx).not.toHaveBeenCalled();
 
     groupsRepo.findType.mockResolvedValueOnce({ type: 'TEAM' });
-    groupsRepo.setInviteCode.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce(undefined);
+    groupsRepo.setInviteCodeTx.mockRejectedValueOnce({ code: 'P2002' }).mockResolvedValueOnce(undefined);
     const result = await service.rotateInviteCode(1, 10);
     expect(result.inviteCode).toMatch(INVITE_CODE_PATTERN);
     expect(result.inviteUrl).toBe(`http://web/join/${result.inviteCode}`);
     expect(result.inviteShareUrl).toBe(`http://web/join/${result.inviteCode}?by=${markerOf(10, 1)}`);
-    expect(groupsRepo.setInviteCode).toHaveBeenCalledTimes(2);
-    expect(groupsRepo.setInviteCode).toHaveBeenLastCalledWith(10, result.inviteCode);
+    expect(groupsRepo.setInviteCodeTx).toHaveBeenCalledTimes(2);
+    expect(groupsRepo.setInviteCodeTx).toHaveBeenLastCalledWith(10, result.inviteCode);
 
     groupsRepo.findType.mockResolvedValueOnce({ type: 'TEAM' });
-    groupsRepo.setInviteCode.mockRejectedValueOnce(new Error('x'));
+    groupsRepo.setInviteCodeTx.mockRejectedValueOnce(new Error('x'));
     await expect(service.rotateInviteCode(1, 10)).rejects.toThrow('x');
   });
 
@@ -233,7 +233,7 @@ describe('GroupsService', () => {
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, color: '#F2994A' })]);
     const detail = await service.join(2, 'abcdef');
     expect(detail.me.userId).toBe(2);
-    expect(membershipsRepo.addMemberIfAbsentTx).toHaveBeenCalledWith(2, 10, expect.any(Function));
+    expect(membershipsRepo.addMemberIfAbsentTx).toHaveBeenCalledWith(2, 10, expect.any(Function), undefined);
     const pickColor = membershipsRepo.addMemberIfAbsentTx.mock.calls[0][2];
     expect(pickColor(['#F26D6D'])).toBe('#F2994A');
     expect(pickColor([])).toBe('#F26D6D');

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ActivityActor } from '../group-activities/activity.js';
+import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -29,6 +30,7 @@ export class GroupsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activities: GroupActivitiesRepository,
+    private readonly eventShares: EventSharesRepository,
   ) {}
 
   findById(groupId: number): Promise<GroupRow | null> {
@@ -73,7 +75,11 @@ export class GroupsRepository {
     });
   }
 
-  async setInviteCode(groupId: number, inviteCode: string): Promise<void> {
-    await this.prisma.group.update({ where: { id: groupId }, data: { inviteCode } });
+  /** 새 초대 코드로 바꾸고 (#274) 그 팀의 살아 있는 일정 공유 링크도 모두 끊는다 (D-183). 코드 충돌은 P2002 로 던져지고 끊기도 되돌려진다 */
+  async setInviteCodeTx(groupId: number, inviteCode: string): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.group.update({ where: { id: groupId }, data: { inviteCode } });
+      await this.eventShares.revokeGroupTx(tx, groupId, new Date());
+    });
   }
 }

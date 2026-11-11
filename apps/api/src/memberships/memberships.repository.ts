@@ -3,6 +3,7 @@ import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecor
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
+import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { PushRepository } from '../push/push.repository.js';
 
@@ -53,6 +54,11 @@ export interface MembershipMeInput {
   notify?: boolean;
 }
 
+/** (#274) 합류 경로. 일정 링크로 들어오면 그 링크의 합류 수를 세고 새 소식에 경로를 남긴다 (D-185) */
+export interface JoinVia {
+  eventShareId: number;
+}
+
 @Injectable()
 export class MembershipsRepository {
   constructor(
@@ -60,6 +66,7 @@ export class MembershipsRepository {
     private readonly urls: FileUrlBuilder,
     private readonly push: PushRepository,
     private readonly activities: GroupActivitiesRepository,
+    private readonly eventShares: EventSharesRepository,
   ) {}
 
   async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
@@ -135,9 +142,9 @@ export class MembershipsRepository {
   /**
    * 아직 멤버가 아니면 팀에서 쓰인 색을 보고 고른 색으로 멤버십 생성. 이미 멤버면 아무것도 하지 않는다.
    * 새로 만들었으면 같은 트랜잭션에서 합류 알림을 예약하고(#188, D-91) 새 소식에 합류를 남긴 뒤(#191) true.
-   * 멱등 재호출은 기록하지 않는다
+   * 멱등 재호출은 기록하지 않는다. (#274) via 가 있으면 그 일정 링크의 합류 수 +1, 새 소식 payload `{ via: 'EVENT_SHARE' }` (D-185)
    */
-  async addMemberIfAbsentTx(userId: number, groupId: number, pickColor: (usedColors: string[]) => string): Promise<boolean> {
+  async addMemberIfAbsentTx(userId: number, groupId: number, pickColor: (usedColors: string[]) => string, via?: JoinVia): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.membership.findUnique({
         where: { userId_groupId: { userId, groupId } },
@@ -150,7 +157,13 @@ export class MembershipsRepository {
         select: { id: true, user: { select: { nickname: true } } },
       });
       await this.push.scheduleJoinTx(tx, { id: created.id, groupId, userId }, new Date());
-      await this.activities.recordTx(tx, { groupId, type: 'MEMBER_JOINED', actor: { id: userId, name: snapshotName(null, created.user.nickname) } });
+      await this.activities.recordTx(tx, {
+        groupId,
+        type: 'MEMBER_JOINED',
+        actor: { id: userId, name: snapshotName(null, created.user.nickname) },
+        payload: via ? { via: 'EVENT_SHARE' } : null,
+      });
+      if (via) await this.eventShares.incrementJoinCountTx(tx, via.eventShareId);
       return true;
     });
   }
@@ -165,7 +178,8 @@ export class MembershipsRepository {
    * 참여자 정리는 일정 변경이 아니라 로그, 새 소식, 알림을 남기지 않는다. 행이 0 이 된 일정은 "참여자 없음".
    * 멤버십을 먼저 지운다: 일정 저장은 멤버십을 공유 잠금으로 읽어 확인하므로(D-133) 이 순서여야 고아 행이 남지 않는다.
    * (#191) 팀이 남으면 나가기(MEMBER_LEFT) 또는 탈퇴(MEMBER_DELETED)를 지운 멤버십의 표시 이름 스냅샷으로 남긴다.
-   * 팀이 지워지면 볼 사람이 없어 남기지 않는다
+   * 팀이 지워지면 볼 사람이 없어 남기지 않는다.
+   * (#274) 그 사람이 이 팀에서 만든 일정 공유 링크는 끊는다 (D-183). 팀이 지워지면 Cascade 로 같이 사라진다
    */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
     const removed = await db.membership.delete({
@@ -174,6 +188,7 @@ export class MembershipsRepository {
     });
     const { userId } = removed;
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
+    await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
     const remaining = await db.membership.count({ where: { groupId } });
     if (remaining > 0) {
       await this.activities.recordTx(db, { groupId, type: activity, actor: { id: userId, name: snapshotName(removed.displayName, removed.user.nickname) } });

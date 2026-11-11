@@ -96,7 +96,8 @@ export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">)
       return `기념일 ${quoted(name)}의 ${FIELD_NAME[field]}를 바꿨어요`;
     }
     case "MEMBER_JOINED":
-      return "팀에 들어왔어요";
+      // (#274) 일정 링크로 들어오면 경로를 붙인다 (D-185)
+      return p.via === "EVENT_SHARE" ? "일정 링크로 팀에 들어왔어요" : "팀에 들어왔어요";
     case "MEMBER_LEFT":
       return "팀을 나갔어요";
     case "MEMBER_DELETED":

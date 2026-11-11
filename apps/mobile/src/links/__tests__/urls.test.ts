@@ -92,6 +92,12 @@ describe("deepLinkToWebUrl", () => {
       "https://staging.example.com/join/ABC",
     );
   });
+  it("(#274) 일정 공유 링크 /join/e/<토큰> 은 기존 /join 앱 링크로 열린다 (네이티브 변경 없음)", () => {
+    const token = "Ab3_-Ab3_-Ab3_-Ab3_-AB";
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/join/e/${token}`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}`);
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/join/e/${token}?auto=1`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}?auto=1`);
+    expect(deepLinkToWebUrl(`whenwemeet://join/e/${token}`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}`);
+  });
   it("대상 밖 경로, 다른 호스트, 다른 스킴, auth 복귀는 null", () => {
     for (const u of [
       "https://whenwemeet.day/",

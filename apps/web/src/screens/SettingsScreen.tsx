@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconCheck, IconChevronRight } from "@/components/icons";
+import { IconCheck, IconChevronRight, KakaoSymbol } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
 import { Avatar, Button, ConfirmDialog, ErrorState, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useLeaveGroup, useRotateInviteCode, useUpdateGroup, useUpdateMembership } from "@/hooks";
@@ -98,18 +98,6 @@ const noopSubscribe = () => () => {};
 const textButton = "hit rounded-sm px-1 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-ink";
 /** OS 공유 시트를 띄울 수 있는지: 앱 셸(share 브리지) 또는 Web Share 가 있는 브라우저. 없으면(PC 대부분) "다른 앱으로 보내기" 를 숨긴다 */
 const canUseOsShare = () => isInApp() || typeof navigator.share === "function";
-
-/** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양) */
-function KakaoSymbol() {
-  return (
-    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" className="shrink-0">
-      <path
-        fill="#000000"
-        d="M12 3C6.48 3 2 6.58 2 10.9c0 2.78 1.84 5.22 4.62 6.6l-.94 3.48c-.08.3.26.54.52.37l4.15-2.76c.54.07 1.09.11 1.65.11 5.52 0 10-3.58 10-7.9S17.52 3 12 3z"
-      />
-    </svg>
-  );
-}
 
 function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: (g: GroupDetail) => void; open: boolean }) {
   const toast = useToast();
@@ -211,7 +199,7 @@ function InviteSection({ group, onSaved, open }: { group: GroupDetail; onSaved: 
       <ConfirmDialog
         open={confirm}
         title="초대 코드를 다시 만들까요?"
-        body="이전 링크는 더 이상 쓸 수 없어요"
+        body="이전 초대 링크와 일정 공유 링크는 더 이상 쓸 수 없어요"
         confirmLabel="재발급"
         neutral
         loading={rotating}

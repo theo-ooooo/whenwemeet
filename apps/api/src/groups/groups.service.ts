@@ -4,7 +4,7 @@ import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.j
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
-import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { type JoinVia, MembershipsRepository } from '../memberships/memberships.repository.js';
 import { unseenAfter } from '../news/news.service.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
@@ -98,7 +98,7 @@ export class GroupsService {
     return this.memberships.groupDetail(groupId, userId);
   }
 
-  /** 새 코드로 교체. 이전 코드는 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE (결정기록 D-04) */
+  /** 새 코드로 교체. 이전 코드와 (#274) 그 팀의 일정 공유 링크는 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE (결정기록 D-04, D-183) */
   async rotateInviteCode(
     userId: number,
     groupId: number,
@@ -111,7 +111,7 @@ export class GroupsService {
     for (let attempt = 0; ; attempt += 1) {
       const inviteCode = generateInviteCode();
       try {
-        await this.groupsRepo.setInviteCode(groupId, inviteCode);
+        await this.groupsRepo.setInviteCodeTx(groupId, inviteCode);
         return {
           inviteCode,
           inviteUrl: this.memberships.inviteUrl(inviteCode)!,
@@ -147,16 +147,24 @@ export class GroupsService {
   /** 코드로 참여. 이미 멤버면 같은 응답 (멱등, 결정기록 D-19). 색은 팀에서 가장 적게 쓰인 것 */
   async join(userId: number, codeRaw: string): Promise<GroupDetail> {
     const group = await this.findByInviteCode(codeRaw);
+    return this.joinGroup(userId, group.id);
+  }
+
+  /**
+   * 팀 합류 공통 단계. 초대 코드 합류와 (#274) 일정 링크 합류가 같이 쓴다 (D-185).
+   * 멤버 색 배정(D-21), 합류 알림(PushKind.JOIN), 새 소식 기록은 멤버십 트랜잭션 안에서. 이미 멤버면 아무것도 남기지 않는다 (D-19)
+   */
+  async joinGroup(userId: number, groupId: number, via?: JoinVia): Promise<GroupDetail> {
     let joined = false;
     try {
-      joined = await this.membershipsRepo.addMemberIfAbsentTx(userId, group.id, pickLeastUsedColor);
+      joined = await this.membershipsRepo.addMemberIfAbsentTx(userId, groupId, pickLeastUsedColor, via);
     } catch (error) {
       // 같은 링크를 동시에 두 번 눌러 멤버십이 먼저 생긴 경우도 멱등하게 성공
       if (!isUniqueViolation(error)) throw error;
     }
     // (#188) 합류 알림은 트랜잭션에서 예약됐다. 커밋 뒤 틱을 바로 한 번 깨운다 (D-91)
     if (joined) this.pushScheduler.kick();
-    return this.memberships.groupDetail(group.id, userId);
+    return this.memberships.groupDetail(groupId, userId);
   }
 
   /** 내 색/표시 이름, 이 팀 알림 받기(#188). displayName null 은 닉네임으로 되돌림. 응답에 내 notify 포함 */

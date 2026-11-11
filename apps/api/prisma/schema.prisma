@@ -73,6 +73,8 @@ model User {
   eventImports   EventImport[]
   /// (#248) 참여하는 일정
   eventParticipations EventParticipant[]
+  /// (#274) 내가 만든 일정 공유 링크
+  eventShares    EventShare[]
 }
 
 /// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
@@ -200,6 +202,8 @@ model Group {
   activities        GroupActivity[]
   /// (#279) ICS 파일 가져오기 기록
   eventImports      EventImport[]
+  /// (#274) 일정 공유 링크
+  eventShares       EventShare[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -263,6 +267,8 @@ model Event {
   participants EventParticipant[]
   /// (#279) ICS 가져오기로 들어온 일정이면 그 기록 (원본 UID 해시)
   importItems  EventImportItem[]
+  /// (#274) 이 일정(회차)을 팀 밖에 보여주는 링크
+  shares       EventShare[]
 
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
@@ -306,6 +312,35 @@ model EventParticipant {
 
   @@id([eventId, userId])
   @@index([userId])
+}
+
+/// (#274) 일정 하나(반복이면 회차 하나)를 팀 밖에 보여주는 링크 (D-181). 살아 있는 링크 = revokedAt null 이고 expiresAt 이 지나지 않음.
+/// 같은 (eventId, occurrence) 의 살아 있는 링크는 하나 (서비스가 트랜잭션 안에서 확인, nullable 유니크는 DB 로 막지 않는다)
+model EventShare {
+  id          Int       @id @default(autoincrement())
+  /// 16바이트 랜덤 base64url 22자. 대소문자 구분
+  token       String    @unique @db.VarChar(32)
+  groupId     Int
+  eventId     Int
+  /// 반복 회차의 원래 날짜 (KST). 한 번짜리는 null
+  occurrence  DateTime? @db.Date
+  /// 만든 사람. 탈퇴하면 null (나가기, 탈퇴 때 그 사람 링크는 먼저 끊는다)
+  createdById Int?
+  createdAt   DateTime  @default(now())
+  /// 그 회차 끝 + 1일, 만든 때 + 30일 중 이른 쪽 (D-183)
+  expiresAt   DateTime
+  /// 끊은 시각. 끊기, 초대 코드 재발급, 만든 사람 나감
+  revokedAt   DateTime?
+  /// 이 링크로 새로 합류한 사람 수 (이미 멤버는 세지 않는다)
+  joinCount   Int       @default(0)
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  event     Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventId, occurrence])
+  @@index([groupId])
+  @@index([createdById])
 }
 
 /// 기념일. 날짜만 가지며 D-day 계산은 클라이언트가 한다
