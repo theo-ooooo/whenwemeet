@@ -1,5 +1,6 @@
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { DevProvider } from '../auth/providers/dev.provider.js';
+import { EmailProvider } from '../auth/providers/email.provider.js';
 import { ApiException } from '../common/errors.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
@@ -14,6 +15,8 @@ describe('MeService', () => {
   const apple = { provider: 'APPLE' as const, unlink: vi.fn() };
   const dev = new DevProvider();
   const devUnlink = vi.spyOn(dev, 'unlink');
+  const email = new EmailProvider();
+  const emailUnlink = vi.spyOn(email, 'unlink');
   const avatars = { purgeObjects: vi.fn() };
 
   beforeEach(() => {
@@ -22,8 +25,9 @@ describe('MeService', () => {
     kakao.unlink.mockReset();
     apple.unlink.mockReset().mockResolvedValue(undefined);
     devUnlink.mockClear();
+    emailUnlink.mockClear();
     avatars.purgeObjects.mockReset().mockResolvedValue(undefined);
-    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never), avatars as never);
+    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never, email), avatars as never);
     membershipsRepo.listByUserWithGroupType.mockResolvedValue([
       { id: 501, groupId: 21, groupType: 'PERSONAL' },
       { id: 502, groupId: 31, groupType: 'TEAM' },
@@ -66,6 +70,14 @@ describe('MeService', () => {
   it('개발 사용자(DEV 계정만) 는 카카오를 부르지 않는다', async () => {
     users.listAuthAccounts.mockResolvedValue([{ provider: 'DEV', providerUserId: '개발', providerClientId: null, refreshToken: null }]);
     expect(await service.deleteAccount(1)).toEqual({ ok: true });
+    expect(kakao.unlink).not.toHaveBeenCalled();
+    expect(users.deleteAccountTx).toHaveBeenCalled();
+  });
+
+  it('(#245) 이메일 계정은 외부 연결이 없어 unlink 가 바로 성공하고 탈퇴 트랜잭션으로 간다 (8-1)', async () => {
+    users.listAuthAccounts.mockResolvedValue([{ provider: 'EMAIL', providerUserId: 'a@b.co', providerClientId: null, refreshToken: null }]);
+    expect(await service.deleteAccount(1)).toEqual({ ok: true });
+    expect(emailUnlink).toHaveBeenCalledTimes(1);
     expect(kakao.unlink).not.toHaveBeenCalled();
     expect(users.deleteAccountTx).toHaveBeenCalled();
   });

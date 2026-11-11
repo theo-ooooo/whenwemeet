@@ -1,5 +1,6 @@
 import { AuthProviders } from './auth-providers.js';
 import { DevProvider } from './dev.provider.js';
+import { EmailProvider } from './email.provider.js';
 
 describe('DevProvider', () => {
   it('코드 = 닉네임 = providerUserId, 사진 없음, unlink 는 할 일 없음', async () => {
@@ -15,10 +16,20 @@ describe('AuthProviders', () => {
     const kakao = { provider: 'KAKAO' as const, exchangeCode: vi.fn(), unlink: vi.fn() };
     const dev = new DevProvider();
     const apple = { provider: 'APPLE' as const, unlink: vi.fn() };
-    const providers = new AuthProviders(kakao as never, dev, apple as never);
+    const email = new EmailProvider();
+    const providers = new AuthProviders(kakao as never, dev, apple as never, email);
     expect(providers.get('KAKAO')).toBe(kakao);
+    expect(providers.get('EMAIL')).toBe(email);
     expect(providers.get('DEV')).toBe(dev);
     expect(providers.get('APPLE')).toBe(apple);
     expect(() => providers.get('NAVER')).toThrow('지원하지 않는 로그인 제공자: NAVER');
+  });
+});
+
+describe('EmailProvider (#245)', () => {
+  it('EMAIL, unlink 는 할 일 없음 (이메일-로그인.md 8-1)', async () => {
+    const email = new EmailProvider();
+    expect(email.provider).toBe('EMAIL');
+    await expect(email.unlink({ providerUserId: 'a@b.co', providerClientId: null, refreshToken: null })).resolves.toBeUndefined();
   });
 });
