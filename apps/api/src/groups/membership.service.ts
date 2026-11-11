@@ -13,7 +13,8 @@ export interface GroupDetail {
   inviteUrl: string | null;
   createdAt: Date;
   members: MemberWithJoin[];
-  me: MemberWithJoin;
+  /** notify: (#188) 나 자신의 "이 팀 알림 받기". 다른 멤버의 값은 싣지 않는다 */
+  me: MemberWithJoin & { notify: boolean };
 }
 
 /** 멤버십 확인과 멤버 목록. 모든 그룹 자원 서비스가 첫 줄에서 `assertMember` 를 부른다 */
@@ -49,9 +50,11 @@ export class MembershipService {
   async groupDetail(groupId: number, userId: number): Promise<GroupDetail> {
     const group = await this.groupsRepo.findById(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
-    const members = (await this.listMembers(groupId)).map(toMember);
+    const rows = await this.listMembers(groupId);
+    const members = rows.map(toMember);
     const me = members.find((member) => member.userId === userId);
-    if (!me) throw new ApiException('FORBIDDEN');
+    const myRow = rows.find((row) => row.userId === userId);
+    if (!me || !myRow) throw new ApiException('FORBIDDEN');
     return {
       id: group.id,
       type: group.type,
@@ -60,7 +63,7 @@ export class MembershipService {
       inviteUrl: this.inviteUrl(group.inviteCode),
       createdAt: group.createdAt,
       members,
-      me,
+      me: { ...me, notify: myRow.notify },
     };
   }
 }

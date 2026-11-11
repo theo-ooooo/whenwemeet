@@ -68,6 +68,11 @@ export class UsersRepository {
     return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }), this.urls);
   }
 
+  /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */
+  async markAppLogin(id: number, at: Date): Promise<void> {
+    await this.prisma.user.updateMany({ where: { id }, data: { lastAppLoginAt: at } });
+  }
+
   /** (provider, providerUserId) 로 연결 계정 하나 */
   findAuthAccount(provider: AuthProvider, providerUserId: string): Promise<{ id: number } | null> {
     return this.prisma.authAccount.findUnique({

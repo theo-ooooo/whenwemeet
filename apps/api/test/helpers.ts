@@ -35,9 +35,14 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   return app;
 }
 
-/** 모든 테이블 비우기. FK 순서를 피하려고 자식부터 지운다 */
+/** 모든 테이블 비우기. FK 순서를 피하려고 자식부터 지운다. 푸시 임대 행은 처음 상태로 (#188) */
 export async function resetDb(app: TestApp): Promise<void> {
   const prisma = app.get(PrismaService);
+  await prisma.pushDelivery.deleteMany();
+  await prisma.pushNotification.deleteMany();
+  await prisma.pushDevice.deleteMany();
+  await prisma.schedulerLease.deleteMany();
+  await prisma.schedulerLease.create({ data: { name: 'push', leaseUntil: new Date(0) } });
   await prisma.eventLog.deleteMany();
   await prisma.event.deleteMany();
   await prisma.anniversary.deleteMany();
