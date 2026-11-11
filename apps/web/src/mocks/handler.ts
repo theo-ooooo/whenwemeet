@@ -81,6 +81,7 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     repeatUntil: e.repeatUntil,
     occurrence: occ?.occurrence ?? null,
     seriesStartsAt: e.repeat ? e.startsAt : null,
+    repeatAnchor: e.repeat ? (e.repeatAnchor ?? null) : null,
   };
 }
 
@@ -516,16 +517,19 @@ export function mockHandle(ctx: Ctx): MockResult {
 
       if (method === "PATCH") {
         const input = (body ?? {}) as Partial<EventRow>;
-        const startsAt = String(input.startsAt ?? values.startsAt);
-        const endsAt = String(input.endsAt ?? values.endsAt);
+        // 기준 값: "이 일정만" 은 그 회차의 현재 값(예외 반영), "이후 모두" 는 그 회차의 규칙 자리(예외 적용 전, QA3-M3, D-71)
+        const slot = originalOccurrence(series, date);
+        const base = scope === "this" ? values : { ...slot, title: series.title, memo: series.memo ?? "" };
+        const startsAt = String(input.startsAt ?? base.startsAt);
+        const endsAt = String(input.endsAt ?? base.endsAt);
         const v = validateEvent(input, true) ?? rangeCheck(startsAt, endsAt);
         if (v) return v;
         const next = {
-          title: input.title !== undefined ? String(input.title).trim() : values.title,
+          title: input.title !== undefined ? String(input.title).trim() : base.title,
           startsAt: new Date(startsAt).toISOString(),
           endsAt: new Date(endsAt).toISOString(),
-          allDay: input.allDay !== undefined ? Boolean(input.allDay) : values.allDay,
-          memo: input.memo !== undefined ? String(input.memo ?? "") : values.memo,
+          allDay: input.allDay !== undefined ? Boolean(input.allDay) : base.allDay,
+          memo: input.memo !== undefined ? String(input.memo ?? "") : base.memo,
         };
         if (scope === "this") {
           if ("repeat" in input || "repeatUntil" in input) return err(400, "VALIDATION_FAILED", "이 일정만 수정할 때는 반복을 바꿀 수 없어요");
@@ -544,7 +548,10 @@ export function mockHandle(ctx: Ctx): MockResult {
         const until = input.repeatUntil !== undefined ? (input.repeatUntil ? String(input.repeatUntil) : null) : repeat ? inherited : null;
         const rv = repeatCheck(repeat, until, next.startsAt, next.endsAt);
         if (rv) return rv;
-        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, updatedAt: nowIso() };
+        // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
+        const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
+        const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
+        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, updatedAt: nowIso() };
         let target: EventRow;
         if (date === first) {
           // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)

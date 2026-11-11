@@ -47,6 +47,8 @@ export type EventRow = {
   /** (#187) null 이면 한 번짜리 */
   repeat: Repeat | null;
   repeatUntil: string | null;
+  /** (#228) 반복 기준 날짜. null 이면 첫 회차 날짜 (D-71) */
+  repeatAnchor?: string | null;
   /** (#187) "이 일정만" 예외. 원래 회차 날짜 기준 */
   exceptions: MockException[];
 };

@@ -124,7 +124,8 @@ EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean,
 Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
-               seriesStartsAt: ISO|null }       // 반복이면 원본 첫 회차 시작
+               seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
+               repeatAnchor: 'YYYY-MM-DD'|null } // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
@@ -134,12 +135,12 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 - 팀원 누구나 수정/삭제. 등록자 제한 없음
 - 단건(GET/PATCH/DELETE)의 `eventId` 는 `groupId` 안에서만 찾는다. 멤버가 아니면 403 FORBIDDEN, 멤버이지만 다른 팀 소속 일정이면 없는 ID 와 똑같이 404 NOT_FOUND (존재 여부 비노출. 결정기록 D-31)
 
-#### 반복 일정 (#187, D-63 ~ D-67)
+#### 반복 일정 (#187, D-63 ~ D-67, D-71)
 
 설계 근거는 `반복-일정.md`. 회차는 저장하지 않고 서버가 조회 기간만 펼친다 (`apps/api/src/events/recurrence.ts`).
 
 - 회차의 주소는 `(id, occurrence)`. 화면 키는 `${id}:${occurrence ?? ''}`. 회차 날짜는 원래 날짜라 "이 일정만" 으로 옮겨도 바뀌지 않는다
-- 회차 날짜: 첫 회차 KST 날짜 기준 매주 +7일, 격주 +14일, 매월 같은 날(없는 달은 말일), 매년 같은 월일(2/29 는 평년 2/28). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이
+- 회차 날짜: 첫 회차 KST 날짜 기준 매주 +7일, 격주 +14일, 매월 같은 날(없는 달은 말일), 매년 같은 월일(2/29 는 평년 2/28). 매월/매년의 "같은 날(월일)" 은 `repeatAnchor` 가 있으면 그 날짜 기준 (D-71). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이
 - `occurrence`, `scope` 쿼리는 **한 번짜리 일정이면 무시**한다 (값이 틀려도 지금과 같다)
 - 반복 일정의 단건 GET: `occurrence` 가 없거나 빈 값이면 첫 회차. PATCH/DELETE 는 `scope` 가 없거나 `this`/`following` 이 아니면 400 VALIDATION_FAILED (`details[0].field = 'scope'`), `occurrence` 가 없거나 `YYYY-MM-DD` 실제 날짜가 아니면 400 (`field: 'occurrence'`)
 - `occurrence` 가 규칙상 회차 날짜가 아니거나, `repeatUntil` 뒤, 또는 취소된 회차면 404 NOT_FOUND
@@ -148,12 +149,13 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 |------|------|------|------|
 | PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED | 그 회차 | UPDATED, scope THIS |
 | PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
-| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
+| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자, `repeatAnchor` 는 아래) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
 | DELETE this | 예외 upsert `cancelled = true` | `{ ok: true }` | DELETED, scope THIS |
 | DELETE following, 첫 회차 | 원본 삭제 (예외 cascade) | `{ ok: true }` | DELETED, scope FOLLOWING (`eventId` 는 SetNull 로 null) |
 | DELETE following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, 이후 예외 삭제 | `{ ok: true }` | DELETED, scope FOLLOWING |
 
-- PATCH 의 기준 값은 **그 회차의 현재 값**(예외 반영) + 본문. "이후 모두" 에서 `repeat` 생략은 그대로, `null` 은 반복 끄기(`repeatUntil` 도 null). `repeatUntil` 생략은 그대로
+- PATCH this 의 기준 값은 **그 회차의 현재 값**(예외 반영) + 본문. PATCH following 의 기준 값은 **그 회차의 규칙 자리**(원래 회차 날짜 + 원본 시각과 값, 말일 보정 그대로, 예외 적용 전) + 본문 (#228, D-71). "이후 모두" 에서 `repeat` 생략은 그대로, `null` 은 반복 끄기(`repeatUntil` 도 null). `repeatUntil` 생략은 그대로
+- (#228, D-71) "이후 모두" 에서 날짜를 바꾸지 않으면(`startsAt` 이 없거나 그 KST 날짜가 원래 회차 날짜) 규칙을 잇는다. 그 뒤 회차: 새 원본은 규칙 자리에서 시작하고, 주기가 그대로인 MONTHLY/YEARLY 면 `repeatAnchor = 원본.repeatAnchor ?? 원본 시작 KST 날짜` (매월 31일을 2/28 회차에서 나눠도 3-31, 4-30. 매년 2/29 를 2027-02-28 에서 나눠도 2028-02-29). 첫 회차: 원본 `repeatAnchor` 그대로. 날짜나 주기를 바꾸면 `repeatAnchor = null`. 주간은 항상 null. 웹은 시작, 종료를 그대로 두면 `startsAt`, `endsAt` 을 빼고 보낸다
 - "이후 모두" 로 시작 시각/날짜를 바꾸면 새 원본의 첫 회차가 되어 요일, 날짜 기준도 따라 바뀐다
 - 메모를 지운 "이 일정만" 예외는 `memo = ''` 로 저장한다 (null 은 원본 값. D-65). 응답 `memo` 도 `''`
 - 같은 값이면 저장하지 않는 규칙(#62): this 는 회차의 현재 값과 같으면 no-op. following 첫 회차는 원본 값, 규칙이 같고 예외가 없으면 no-op. following 그 뒤 회차는 원래 회차 값, 규칙이 같고 그 회차부터 예외가 없으면 no-op (나눠도 결과가 같다)
@@ -167,6 +169,7 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 | `repeatUntil` < 첫 회차 KST 날짜 | EVENT_RANGE_INVALID | 종료 날짜는 시작 날짜 뒤여야 해요 |
 | `repeatUntil` 만 있고 `repeat` 없음 | VALIDATION_FAILED (`field: 'repeatUntil'`) | 반복 주기 없이 종료 날짜만 정할 수 없어요 |
 | this 예외: 시작 < 원래 날짜 00:00 - 30일, 또는 끝 > 다음 날 00:00 + 30일 (KST) | EVENT_RANGE_INVALID | 이 회차는 앞뒤 30일 안으로만 옮길 수 있어요 |
+| following: `repeatAnchor` 가 있는데 시작 날짜가 그 달(해)의 보정된 기준 날짜가 아님 (#228, 정상 흐름에선 안 나오는 방어 검사) | EVENT_RANGE_INVALID | 반복 기준 날짜와 시작 날짜가 맞지 않아요 |
 | `repeat` 이 넷 중 하나가 아님, `repeatUntil` 이 실제 날짜가 아님 | VALIDATION_FAILED | DTO 문구 |
 | 기존 규칙 (종료 > 시작, 30일 이하) | 그대로 (먼저 검사) | 그대로 |
 

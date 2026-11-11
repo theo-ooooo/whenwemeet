@@ -17,6 +17,7 @@ export const EVENT_SELECT = {
   updatedAt: true,
   repeat: true,
   repeatUntil: true,
+  repeatAnchor: true,
   creator: USER_PUBLIC_SELECT,
 } as const;
 
@@ -46,6 +47,8 @@ export interface EventRow {
   repeat: Repeat | null;
   /** (#187) KST 날짜 'YYYY-MM-DD' */
   repeatUntil: string | null;
+  /** (#228) 반복 기준 날짜 'YYYY-MM-DD' (KST). null 이면 startsAt 의 KST 날짜 (D-71) */
+  repeatAnchor: string | null;
   creator: UserRow | null;
 }
 
@@ -63,7 +66,11 @@ export type EventExceptionRow = ExceptionRule & {
   memo: string | null;
 };
 
-type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil'> & { repeatUntil: Date | null; creator: UserPublicRecord | null };
+type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor'> & {
+  repeatUntil: Date | null;
+  repeatAnchor: Date | null;
+  creator: UserPublicRecord | null;
+};
 type ExceptionRecord = Omit<EventExceptionRow, 'occurrence'> & { occurrence: Date };
 
 /** `YYYY-MM-DD` ↔ `@db.Date`. 시각 없는 값이라 UTC 자정으로 고정해 날짜가 밀리지 않게 한다 (기념일과 같은 규칙) */
@@ -79,6 +86,7 @@ function toEventRow(record: EventRecord, urls: FileUrlBuilder): EventRow {
   return {
     ...record,
     repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
+    repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
   };
 }
@@ -109,6 +117,8 @@ export interface EventCreateInput {
   creatorId: number | null;
   repeat?: Repeat | null;
   repeatUntil?: string | null;
+  /** (#228) 반복 기준 날짜. 생략하면 null (D-71) */
+  repeatAnchor?: string | null;
 }
 
 export interface EventUpdateInput {
@@ -120,6 +130,7 @@ export interface EventUpdateInput {
   /** 생략하면 바꾸지 않는다 */
   repeat?: Repeat | null;
   repeatUntil?: string | null;
+  repeatAnchor?: string | null;
 }
 
 /** 회차 예외로 저장할 값. null 은 원본 값 */
@@ -151,10 +162,17 @@ export interface LogSnapshot {
 type EventSnapshot = Pick<EventRow, 'id' | 'groupId' | 'title' | 'startsAt' | 'endsAt' | 'allDay'> & { repeat?: Repeat | null };
 type SeriesRef = Pick<EventRow, 'id' | 'groupId'>;
 
-function toEventData<T extends { repeatUntil?: string | null }>(data: T): Omit<T, 'repeatUntil'> & { repeatUntil?: Date | null } {
-  const { repeatUntil, ...rest } = data;
-  if (repeatUntil === undefined) return rest;
-  return { ...rest, repeatUntil: repeatUntil === null ? null : dateToDb(repeatUntil) };
+/** KST 날짜 필드(repeatUntil, repeatAnchor) 를 @db.Date 값으로. 생략한 필드는 그대로 생략 */
+function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: string | null }>(
+  data: T,
+): Omit<T, 'repeatUntil' | 'repeatAnchor'> & { repeatUntil?: Date | null; repeatAnchor?: Date | null } {
+  const { repeatUntil, repeatAnchor, ...rest } = data;
+  const toDb = (value: string | null) => (value === null ? null : dateToDb(value));
+  return {
+    ...rest,
+    ...(repeatUntil === undefined ? {} : { repeatUntil: toDb(repeatUntil) }),
+    ...(repeatAnchor === undefined ? {} : { repeatAnchor: toDb(repeatAnchor) }),
+  };
 }
 
 @Injectable()
@@ -244,6 +262,7 @@ export class EventsRepository {
         allDay: true,
         repeat: true,
         repeatUntil: true,
+        repeatAnchor: true,
         exceptions: { select: { occurrence: true, cancelled: true, startsAt: true, endsAt: true, allDay: true } },
       },
     });
@@ -253,6 +272,7 @@ export class EventsRepository {
       allDay: row.allDay,
       repeat: row.repeat as Repeat,
       repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
+      repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
       exceptions: row.exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
     }));
   }

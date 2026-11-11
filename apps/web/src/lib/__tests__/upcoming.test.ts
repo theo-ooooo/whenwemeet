@@ -33,6 +33,7 @@ function ev(start: string, end: string, extra: Partial<Event> = {}): Event {
     repeatUntil: null,
     occurrence: null,
     seriesStartsAt: null,
+    repeatAnchor: null,
     ...extra,
   } as Event;
 }

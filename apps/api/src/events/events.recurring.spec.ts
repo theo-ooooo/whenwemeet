@@ -4,6 +4,7 @@ import { MembershipsRepository } from '../memberships/memberships.repository.js'
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
 import { assertRepeatRule, EventsService, inheritedUntil } from './events.service.js';
+import { expand, kstDate, type Repeat } from './recurrence.js';
 
 /** 반복 일정 (#187, 설계 4장) 서비스 단위 테스트. Repository 는 목 */
 
@@ -24,6 +25,7 @@ const SERIES: EventRow = {
   updatedAt: new Date('2026-11-01T00:00:00.000Z'),
   repeat: 'WEEKLY',
   repeatUntil: null,
+  repeatAnchor: null,
   creator: { nickname: '밥', profileImageUrl: null },
 };
 const ONCE: EventRow = { ...SERIES, id: 100, title: '한 번', memo: null, repeat: null, startsAt: kst('2026-11-18T19:00:00'), endsAt: kst('2026-11-18T20:00:00') };
@@ -278,7 +280,7 @@ describe('EventsService 반복 일정', () => {
       const view = await service.update(1, 10, 200, { title: '바뀜', repeat: 'BIWEEKLY' }, { scope: 'following', occurrence: '2026-11-11' });
       expect(events.updateSeriesFromStartTx).toHaveBeenCalledWith(
         200,
-        { title: '바뀜', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: '원본 메모', repeat: 'BIWEEKLY', repeatUntil: null },
+        { title: '바뀜', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: '원본 메모', repeat: 'BIWEEKLY', repeatUntil: null, repeatAnchor: null },
         { actorId: 1, scope: 'FOLLOWING', occurrence: '2026-11-11' },
       );
       expect(view).toMatchObject({ title: '바뀜', repeat: 'BIWEEKLY', occurrence: '2026-11-11' });
@@ -321,6 +323,7 @@ describe('EventsService 반복 일정', () => {
           creatorId: 2,
           repeat: 'WEEKLY',
           repeatUntil: '2027-06-30',
+          repeatAnchor: null,
         },
       );
       expect(view).toMatchObject({ id: 201, occurrence: '2026-11-25', seriesStartsAt: created.startsAt });
@@ -334,11 +337,17 @@ describe('EventsService 반복 일정', () => {
       expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ creatorId: null, startsAt: kst('2026-11-27T10:00:00') });
     });
 
-    it('그 뒤 회차: 기준 값은 그 회차의 현재 값 (예외 반영)', async () => {
+    it('그 뒤 회차: 기준 값은 그 회차의 규칙 자리 (예외 적용 전, QA3-M3)', async () => {
       events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), title: '이번만' })]);
       events.splitSeriesTx.mockResolvedValue({ ...SERIES, id: 201 });
       await service.update(1, 10, 200, { memo: '새 메모' }, { scope: 'following', occurrence: '2026-11-25' });
-      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ title: '이번만', startsAt: kst('2026-11-25T20:00:00'), memo: '새 메모' });
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ title: '저녁', startsAt: kst('2026-11-25T19:00:00'), endsAt: kst('2026-11-25T21:00:00'), memo: '새 메모' });
+    });
+
+    it('"이 일정만" 은 여전히 그 회차의 현재 값 (예외 반영) 이 기준', async () => {
+      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), title: '이번만' })]);
+      await service.update(1, 10, 200, { memo: '새 메모' }, { scope: 'this', occurrence: '2026-11-25' });
+      expect(events.saveExceptionWithLogTx.mock.calls[0][4]).toMatchObject({ title: '이번만', startsAt: kst('2026-11-25T20:00:00'), memo: '새 메모' });
     });
 
     it('그 뒤 회차: 원래 회차 값 그대로이고 이 회차부터 예외가 없으면 no-op (#62)', async () => {
@@ -456,6 +465,111 @@ describe('EventsService 반복 일정', () => {
       await service.remove(1, 10, 100, { scope: 'x' });
       expect(events.deleteWithLogTx).toHaveBeenCalledWith(ONCE, 1);
       expect(events.cancelOccurrenceWithLogTx).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('반복 기준 날짜 repeatAnchor (QA3-M3, D-71)', () => {
+    /** 2026-10-31(토) 09:00~10:00 KST 매월 */
+    const MONTHLY31: EventRow = { ...SERIES, id: 300, title: '31일 회비', memo: null, startsAt: kst('2026-10-31T09:00:00'), endsAt: kst('2026-10-31T10:00:00'), repeat: 'MONTHLY' };
+    /** 2024-02-29(목) 09:00~10:00 KST 매년 */
+    const LEAP: EventRow = { ...SERIES, id: 400, title: '윤일', memo: null, startsAt: kst('2024-02-29T09:00:00'), endsAt: kst('2024-02-29T10:00:00'), repeat: 'YEARLY' };
+    const following = (occurrence: string) => ({ scope: 'following', occurrence });
+    /** splitSeriesTx 에 넘긴 새 원본을 펼친 회차 날짜들 */
+    const createdDates = (from: string, to: string): string[] => {
+      const created = events.splitSeriesTx.mock.calls[0][3] as { startsAt: Date; endsAt: Date; allDay: boolean; repeat: Repeat; repeatUntil: string | null; repeatAnchor: string | null };
+      return expand(created, [], kst(`${from}T00:00:00`), kst(`${to}T00:00:00`)).map((o) => kstDate(o.startsAt));
+    };
+
+    beforeEach(() => {
+      events.splitSeriesTx.mockResolvedValue({ ...MONTHLY31, id: 301 });
+    });
+
+    it('매월 31일을 2/28 회차에서 "이후 모두" 로 제목만 바꿔도 3-31, 4-30, 5-31 (웹이 그 회차 시각을 보내도 같다)', async () => {
+      events.findInGroup.mockResolvedValue(MONTHLY31);
+      await service.update(
+        1, 10, 300,
+        { title: '31일 회비 (인상)', startsAt: '2027-02-28T09:00:00+09:00', endsAt: '2027-02-28T10:00:00+09:00', repeat: 'MONTHLY', repeatUntil: null },
+        following('2027-02-28'),
+      );
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ title: '31일 회비 (인상)', startsAt: kst('2027-02-28T09:00:00'), repeat: 'MONTHLY', repeatAnchor: '2026-10-31' });
+      expect(createdDates('2027-02-01', '2027-06-01')).toEqual(['2027-02-28', '2027-03-31', '2027-04-30', '2027-05-31']);
+    });
+
+    it('본문에 시각이 없어도 같은 규칙 자리에서 잇는다. 시각만 바꾸면 기준 유지', async () => {
+      events.findInGroup.mockResolvedValue(MONTHLY31);
+      await service.update(1, 10, 300, { title: '바뀜' }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2027-02-28T09:00:00'), repeatAnchor: '2026-10-31' });
+      events.splitSeriesTx.mockClear();
+      await service.update(1, 10, 300, { startsAt: '2027-02-28T19:00:00+09:00', endsAt: '2027-02-28T20:00:00+09:00' }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2027-02-28T19:00:00'), repeatAnchor: '2026-10-31' });
+      expect(createdDates('2027-03-01', '2027-05-01')).toEqual(['2027-03-31', '2027-04-30']);
+    });
+
+    it('매년 2/29 를 2027-02-28 회차에서 "이후 모두" 로 제목만 바꿔도 2028-02-29', async () => {
+      events.findInGroup.mockResolvedValue(LEAP);
+      await service.update(1, 10, 400, { title: '윤일 (바뀜)' }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2027-02-28T09:00:00'), repeatAnchor: '2024-02-29' });
+      expect(createdDates('2028-02-01', '2028-03-15')).toEqual(['2028-02-29']);
+    });
+
+    it('매주: "이 일정만" 으로 금요일로 옮긴 회차에서 "이후 모두" 로 제목만 바꾸면 원래 수요일에서 잇는다', async () => {
+      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-18', startsAt: kst('2026-11-20T19:00:00'), endsAt: kst('2026-11-20T21:00:00') })]);
+      events.splitSeriesTx.mockResolvedValue({ ...SERIES, id: 201 });
+      await service.update(1, 10, 200, { title: '저녁 (바뀜)' }, following('2026-11-18'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2026-11-18T19:00:00'), repeat: 'WEEKLY', repeatAnchor: null });
+      expect(createdDates('2026-11-18', '2026-12-03')).toEqual(['2026-11-18', '2026-11-25', '2026-12-02']);
+    });
+
+    it('날짜를 바꾸거나 주기를 바꾸면 기준은 null (새 시작이 기준)', async () => {
+      events.findInGroup.mockResolvedValue(MONTHLY31);
+      await service.update(1, 10, 300, { startsAt: '2027-02-27T09:00:00+09:00', endsAt: '2027-02-27T10:00:00+09:00' }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2027-02-27T09:00:00'), repeatAnchor: null });
+      await service.update(1, 10, 300, { repeat: 'YEARLY' }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[1][3]).toMatchObject({ repeat: 'YEARLY', repeatAnchor: null });
+      await service.update(1, 10, 300, { repeat: null }, following('2027-02-28'));
+      expect(events.splitSeriesTx.mock.calls[2][3]).toMatchObject({ repeat: null, repeatAnchor: null });
+    });
+
+    it('이미 기준이 있는 원본에서 다시 나누면 그 기준을 잇는다', async () => {
+      const split: EventRow = { ...MONTHLY31, id: 301, startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeatAnchor: '2026-10-31' };
+      events.findInGroup.mockResolvedValue(split);
+      await service.update(1, 10, 301, { title: '또 바뀜' }, following('2027-04-30'));
+      expect(events.splitSeriesTx.mock.calls[0][3]).toMatchObject({ startsAt: kst('2027-04-30T09:00:00'), repeatAnchor: '2026-10-31' });
+      expect(createdDates('2027-04-01', '2027-07-01')).toEqual(['2027-04-30', '2027-05-31', '2027-06-30']);
+    });
+
+    it('첫 회차 "이후 모두" 는 기준을 그대로 두고, 날짜를 바꾸면 null', async () => {
+      const split: EventRow = { ...MONTHLY31, id: 301, startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeatAnchor: '2026-10-31' };
+      events.findInGroup.mockResolvedValue(split);
+      events.updateSeriesFromStartTx.mockResolvedValue(split);
+      await service.update(1, 10, 301, { title: '바뀜' }, following('2027-02-28'));
+      expect(events.updateSeriesFromStartTx.mock.calls[0][1]).toMatchObject({ title: '바뀜', repeatAnchor: '2026-10-31' });
+      await service.update(1, 10, 301, { startsAt: '2027-03-01T09:00:00+09:00', endsAt: '2027-03-01T10:00:00+09:00' }, following('2027-02-28'));
+      expect(events.updateSeriesFromStartTx.mock.calls[1][1]).toMatchObject({ startsAt: kst('2027-03-01T09:00:00'), repeatAnchor: null });
+      // 기준이 없는 원본은 첫 회차에서 고쳐도 null 그대로 (지금 동작)
+      events.findInGroup.mockResolvedValue(MONTHLY31);
+      events.updateSeriesFromStartTx.mockResolvedValue(MONTHLY31);
+      await service.update(1, 10, 300, { title: '바뀜' }, following('2026-10-31'));
+      expect(events.updateSeriesFromStartTx.mock.calls[2][1]).toMatchObject({ repeatAnchor: null });
+    });
+
+    it('기준을 이어받는 나누기도 바뀐 게 없으면 no-op (#62)', async () => {
+      events.findInGroup.mockResolvedValue(MONTHLY31);
+      const view = await service.update(1, 10, 300, { title: '31일 회비', repeat: 'MONTHLY' }, following('2027-02-28'));
+      expect(events.splitSeriesTx).not.toHaveBeenCalled();
+      expect(view).toMatchObject({ id: 300, occurrence: '2027-02-28', repeatAnchor: null });
+    });
+
+    it('응답에 repeatAnchor. 한 번짜리는 null, 기준이 있는 원본은 그 값으로 펼친다', async () => {
+      const split: EventRow = { ...MONTHLY31, id: 301, startsAt: kst('2027-02-28T09:00:00'), endsAt: kst('2027-02-28T10:00:00'), repeatAnchor: '2026-10-31' };
+      events.listSeriesForRange.mockResolvedValue([{ ...split, repeat: 'MONTHLY', exceptions: [] } as SeriesRow]);
+      const list = await service.list(1, 10, kst('2027-03-01T00:00:00').toISOString(), kst('2027-04-01T00:00:00').toISOString());
+      expect(list.map((v) => [v.occurrence, v.repeatAnchor])).toEqual([['2027-03-31', '2026-10-31']]);
+      events.findInGroup.mockResolvedValue(split);
+      expect(await service.get(1, 10, 301, '2027-04-30')).toMatchObject({ occurrence: '2027-04-30', repeatAnchor: '2026-10-31' });
+      await expect(service.get(1, 10, 301, '2027-04-28')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      events.findInGroup.mockResolvedValue(ONCE);
+      expect(await service.get(1, 10, 100)).toMatchObject({ repeatAnchor: null });
     });
   });
 });

@@ -12,14 +12,14 @@ import { addDays, dateKeyOf, kstToIso, timeOf, todayKey } from "@/lib/date";
 import { missingEventTarget } from "@/lib/calendar-url";
 import { charCount, clampChars } from "@/lib/chars";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
-import { followingUntil, repeatRuleError } from "@/lib/recurrence";
-import { repeatLabel } from "@/lib/recurrence-label";
-import type { Event, EventInput, EventScope, Repeat } from "@/lib/types";
+import { followingUntil, formRepeatOf, keepsLoadedTimes, repeatRuleError } from "@/lib/recurrence";
+import { formRuleDate, repeatLabel } from "@/lib/recurrence-label";
+import type { Event, EventInput, EventPatchInput, EventScope, Repeat } from "@/lib/types";
 
 type Props = {
   groupId: number;
   eventId?: number;
-  /** 복제할 일정 ID. 값만 채우고 새 일정으로 저장한다 */
+  /** 복제할 일정 ID. 값만 채우고 새 일정으로 저장한다. 반복 회차를 복제해도 한 번짜리로 시작한다 (QA3-L2) */
   copyFrom?: number;
   /** 반복 일정의 회차 날짜 (?occurrence=, #187). 없으면 첫 회차 */
   occurrence?: string | null;
@@ -89,6 +89,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   useEffect(() => {
     if (!loadedEvent) return;
     const ev = loadedEvent;
+    // 복제는 반복 안 함, 종료 없음으로 시작한다 (QA3-L2). 사용자가 반복 줄에서 다시 켤 수 있다
+    const formRepeat = formRepeatOf(ev, !eventId);
     // 효과 본문에서 직접 setState 하지 않도록 마이크로태스크로 미룬다
     queueMicrotask(() => {
       setTitle(ev.title);
@@ -103,9 +105,9 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
         setEndTime(timeOf(ev.endsAt));
       }
       setMemo(ev.memo ?? "");
-      setRepeat(ev.repeat);
-      setUntilOn(Boolean(ev.repeatUntil));
-      setUntilDate(ev.repeatUntil ?? "");
+      setRepeat(formRepeat.repeat);
+      setUntilOn(Boolean(formRepeat.until));
+      setUntilDate(formRepeat.until ?? "");
       setBaseline(
         formSnapshot(
           ev.title,
@@ -115,8 +117,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
           ev.allDay ? addDays(dateKeyOf(ev.endsAt), -1) : dateKeyOf(ev.endsAt),
           ev.allDay ? "00:00" : timeOf(ev.endsAt),
           ev.memo ?? "",
-          ev.repeat,
-          ev.repeatUntil,
+          formRepeat.repeat,
+          formRepeat.until,
         ),
       );
       if (eventId) setCreator(ev.creator);
@@ -174,6 +176,10 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   })();
   // "이후 모두" 에서 종료 날짜를 원본 그대로 두었으면 보내지 않는다 (서버가 이어받고 필요하면 늘린다, QA3-L1)
   const sentUntil = series ? followingUntil(until, series.repeatUntil) : until;
+  // "이후 모두" 에서 시작, 종료를 불러온 값 그대로 두었으면 보내지 않는다. 서버가 그 회차의 규칙 자리에서 잇는다 (QA3-M3)
+  const timesKept = Boolean(series && payload && keepsLoadedTimes(payload, series));
+  // 반복 줄, 반복 시트의 설명 날짜. 규칙을 이어받으면 원본 기준 날짜("매월 31일"), 아니면 폼의 시작 날짜
+  const ruleDateFor = (r: Repeat) => formRuleDate(series, r, startDate, timesKept);
   // 반복 규칙 (설계 4-1): 길이 < 주기, 종료 날짜 >= 첫 회차 날짜. 줄을 숨기면 보지 않는다. 보내지 않는 종료 날짜는 보지 않는다
   const repeatError =
     payload && showRepeat
@@ -259,9 +265,18 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   }
 
   /** 보낼 본문. 반복 필드는 새 일정/한 번짜리 수정에서 켰을 때, 반복 일정은 "이후 모두" 일 때만 싣는다 (api.md 2.3) */
-  function bodyFor(scope: EventScope | null): EventInput | null {
+  function bodyFor(scope: EventScope | null): EventPatchInput | null {
     if (!payload) return null;
-    if (series) return scope === "following" ? { ...payload, repeat, ...(sentUntil === undefined ? {} : { repeatUntil: sentUntil }) } : payload;
+    if (series && scope === "following") {
+      const { startsAt, endsAt, ...rest } = payload;
+      return {
+        ...rest,
+        ...(timesKept ? {} : { startsAt, endsAt }),
+        repeat,
+        ...(sentUntil === undefined ? {} : { repeatUntil: sentUntil }),
+      };
+    }
+    if (series) return payload;
     return repeat ? { ...payload, repeat, repeatUntil: until } : payload;
   }
 
@@ -297,7 +312,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     setConfirmFollowing(false);
     setScopePending(scope);
     const target = series && scope ? { occurrence: series.occurrence ?? undefined, scope } : {};
-    const r = eventId ? await update.mutate({ eventId, input, ...target }) : await create.mutate(input);
+    const r = eventId ? await update.mutate({ eventId, input, ...target }) : await create.mutate(input as EventInput);
     setScopePending(null);
     setScopeSheet(null);
     if (r.ok) {
@@ -439,7 +454,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
                 className="flex min-h-11 w-full items-center gap-3 py-1 text-left"
               >
                 <span className="shrink-0 text-[14px] font-semibold">반복</span>
-                <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{repeat ? repeatLabel(repeat, startDate) : "반복 안 함"}</span>
+                <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{repeat ? repeatLabel(repeat, ruleDateFor(repeat)) : "반복 안 함"}</span>
                 <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
               </button>
               {repeat && (
@@ -520,6 +535,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
         open={repeatOpen}
         value={repeat}
         firstDate={startDate}
+        labelDate={ruleDateFor}
         onPick={(v) => {
           setRepeat(v);
           setRepeatOpen(false);
