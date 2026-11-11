@@ -10,10 +10,13 @@ import { deepLinkToWebUrl } from "./links/urls";
 import { initKakao } from "./auth/login";
 import { WebScreen } from "./screens/WebScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { configureNotifications, subscribeNotificationTaps } from "./push/notifications";
 import { usePretendard } from "./ui/fonts";
 import { useTheme } from "./ui/theme";
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+// 포그라운드 표시 규칙과 Android 채널 (#188). 권한은 묻지 않는다 (웹의 안내 시트에서만, 8-1)
+configureNotifications();
 
 type LoginState = { next: string; reason?: "expired" } | null;
 
@@ -24,6 +27,10 @@ export default function App() {
   const [nav, setNav] = useState({ url: `${env.webOrigin}/`, key: 0 });
   const [login, setLogin] = useState<LoginState>(null);
   const handledInitial = useRef(false);
+  const loginRef = useRef<LoginState>(null);
+  useEffect(() => {
+    loginRef.current = login;
+  }, [login]);
 
   const open = useCallback((url: string) => setNav((n) => ({ url, key: n.key + 1 })), []);
 
@@ -52,6 +59,17 @@ export default function App() {
     });
     return () => sub.remove();
   }, [open]);
+
+  // 알림 누름 (#188, 푸시-알림.md 9장): 콜드 스타트와 실행 중 모두. 로그인 화면이 떠 있으면 로그인 후 그 경로로
+  useEffect(
+    () =>
+      subscribeNotificationTaps(({ path, url }) => {
+        const l = loginRef.current;
+        if (l) setLogin({ ...l, next: path });
+        else open(url);
+      }),
+    [open],
+  );
 
   const onLoginRequested = useCallback((next: string, reason?: "expired") => setLogin({ next, reason }), []);
 

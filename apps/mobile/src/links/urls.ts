@@ -119,3 +119,19 @@ export function parseAuthReturn(raw: string): AuthReturn | null {
   if (h && /^[A-Za-z0-9_-]{43}$/.test(h)) return { ok: true, handoff: h };
   return { ok: false, error: "HANDOFF_INVALID" };
 }
+
+/**
+ * (#188) 알림 data.url → 웹뷰가 열 주소 (푸시-알림.md 6장 경로, 9장 누름 처리, D-95).
+ * API 는 웹 경로만 싣고 셸이 webOrigin 을 붙인다. safeNext 와 같은 규칙으로 상대 경로만 받고
+ * 절대 주소, `//`, 백슬래시, 제어문자는 null (그때는 아무 데도 가지 않는다)
+ */
+export function notificationTarget(
+  data: unknown,
+  webOrigin: string,
+): { path: string; url: string } | null {
+  if (!data || typeof data !== "object") return null;
+  const raw = (data as Record<string, unknown>).url;
+  if (typeof raw !== "string" || raw.length === 0) return null;
+  if (safeNext(raw) !== raw) return null;
+  return { path: raw, url: `${webOrigin.replace(/\/+$/, "")}${raw}` };
+}

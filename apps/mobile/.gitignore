@@ -43,3 +43,7 @@ yarn-error.*
 # local env
 .env
 coverage/
+
+# Android FCM 설정 (#188, D-96). EAS 파일 환경 변수 GOOGLE_SERVICES_JSON 으로만 넣는다
+google-services.json
+GoogleService-Info.plist
