@@ -6,7 +6,7 @@ import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { env } from "./config/env";
-import { deepLinkToWebUrl } from "./links/urls";
+import { buildEmailLoginUrl, deepLinkToWebUrl } from "./links/urls";
 import { initKakao } from "./auth/login";
 import { WebScreen } from "./screens/WebScreen";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -73,6 +73,13 @@ export default function App() {
 
   const onLoginRequested = useCallback((next: string, reason?: "expired") => setLogin({ next, reason }), []);
 
+  // (#245) 네이티브 로그인 화면의 [이메일로 계속하기]: 화면을 닫고 웹뷰가 이메일 로그인 화면을 연다 (D-116)
+  const onEmail = useCallback(() => {
+    const l = loginRef.current;
+    setLogin(null);
+    open(buildEmailLoginUrl(env.webOrigin, l?.next ?? "/"));
+  }, [open]);
+
   const onLoggedIn = useCallback(
     (authAppUrl: string) => {
       setLogin(null);
@@ -91,7 +98,7 @@ export default function App() {
       </SafeAreaView>
       {login ? (
         <View style={StyleSheet.absoluteFill}>
-          <LoginScreen next={login.next} reason={login.reason} onSuccess={onLoggedIn} />
+          <LoginScreen next={login.next} reason={login.reason} onSuccess={onLoggedIn} onEmail={onEmail} />
         </View>
       ) : null}
     </SafeAreaProvider>

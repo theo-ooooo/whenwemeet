@@ -19,14 +19,15 @@ import { flushCookies } from "../../modules/cookie-flush/src";
 import { env } from "../config/env";
 import { type BridgeMessage, parseBridgeMessage, shareContent } from "../bridge/messages";
 import { type AppEventDetail, buildAppEventScript } from "../bridge/reply";
-import { decideNavigation, isWebOrigin } from "../links/urls";
+import { buildUserAgentSuffix, decideNavigation, isWebOrigin } from "../links/urls";
 import { readPushStatus, requestPush } from "../push/notifications";
 import { clearNativeSessions } from "../auth/login";
 import { OfflineScreen } from "./OfflineScreen";
 import { useTheme } from "../ui/theme";
 
-/** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81) */
-export const USER_AGENT_SUFFIX = `WhenwemeetApp/${env.version} (${Platform.OS})`;
+/** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81).
+ *  (#245) 끝의 EmailLogin/1 은 네이티브 로그인 화면에 이메일 버튼이 있다는 표시 (D-116) */
+export const USER_AGENT_SUFFIX = buildUserAgentSuffix(env.version, Platform.OS);
 
 type Props = {
   /** 열 주소. key 가 바뀌면 웹뷰를 새로 띄운다 (로그인 직후, 딥링크) */

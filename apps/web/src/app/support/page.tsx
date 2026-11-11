@@ -131,13 +131,14 @@ export default function SupportPage() {
           <a href={supportMailto("계정 삭제 요청")} className="font-semibold text-ink underline underline-offset-2">
             {SUPPORT_EMAIL}
           </a>{" "}
-          로 가입한 방법(카카오 또는 Apple)과 닉네임을 적어 보내 주세요. 본인인지 확인한 뒤 대신 삭제해 드려요.
+          로 가입한 방법(카카오, Apple 또는 이메일)과 닉네임을 적어 보내 주세요. 본인인지 확인한 뒤 대신 삭제해 드려요.
         </p>
 
         <h3>바로 삭제되는 정보</h3>
         <ul>
           <li>계정과 닉네임</li>
           <li>카카오, Apple 계정 연결. 카카오는 연결을 끊고, Apple 은 로그인 때 받은 토큰을 폐기(revoke)해요</li>
+          <li>이메일로 가입했다면 이메일 주소와 로그인 메일 기록</li>
           <li>올린 프로필 사진 파일</li>
           <li>개인 달력과 그 안의 일정, 기념일</li>
           <li>팀 멤버 자격과 팀마다 정한 표시 이름, 색</li>
