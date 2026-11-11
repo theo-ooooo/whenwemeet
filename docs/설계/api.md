@@ -311,7 +311,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/groups/:groupId/news` | 멤버 | - | `{ data: { items: NewsItem[], lastSeenAt } }` |
+| GET | `/groups/:groupId/news` | 멤버 | `?v=2` (#191, 선택) | `{ data: { items: NewsItem[], lastSeenAt } }`. `v=2` 면 `items: (EventNewsItem \| ActivityNewsItem)[]` |
 | POST | `/groups/:groupId/news/seen` | 멤버 | - | `{ data: { lastSeenAt } }`. `Membership.lastSeenAt = now` |
 
 ```ts
@@ -330,6 +330,40 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 - `isNew` = `createdAt > me.lastSeenAt`. 화면은 목록을 받은 뒤 `seen` 을 호출한다 (순서 고정: GET → POST)
 - `eventId` 가 null 이거나 action 이 DELETED 면 탭해도 일정으로 이동하지 않는다
 
+#### 팀 활동 기록 (#191, D-150 ~ D-156, 기획 `새-소식-확장.md`)
+
+`v=2` 일 때만 일정 기록(EventLog)과 팀 활동 기록(GroupActivity)을 합친다. `v` 가 없거나 다른 값이면 위 응답 그대로 (옛 웹 보호, D-155)
+
+```ts
+EventNewsItem    = { kind: 'EVENT' } & NewsItem          // 일정 항목 모양은 그대로
+ActivityNewsItem = { kind: 'ACTIVITY', id: number,
+  type: 'ANNIVERSARY_CREATED'|'ANNIVERSARY_UPDATED'|'ANNIVERSARY_DELETED'
+      | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED',
+  actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
+  anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
+  payload: ActivityPayload, createdAt, isNew }
+ActivityPayload =
+  | { name, date: 'YYYY-MM-DD', kind: AnniversaryKind,          // 기념일 3종: 바뀐 뒤 값 (삭제는 삭제 전 값)
+      changed?: ('name'|'date'|'kind')[], before?: { name?, date?, kind? } }   // 수정만: 바뀐 필드와 그 이전 값
+  | { from: string, to: string }                                // GROUP_RENAMED
+  | {}                                                           // 멤버 3종
+```
+
+| 종류 | 남기는 곳 (같은 트랜잭션) | 남기지 않는 경우 |
+|------|--------------------------|-----------------|
+| ANNIVERSARY_CREATED | `POST /groups/:id/anniversaries` | 같은 사람이 60초 안에 지운 기념일을 같은 이름, 날짜, 종류로 다시 추가 → 그 DELETED 기록을 지우고 CREATED 도 없음 (되돌리기, D-153) |
+| ANNIVERSARY_UPDATED | `PATCH .../anniversaries/:id` | 이름, 날짜, 종류가 하나도 안 바뀜 (알림 시점만 바꿈 포함, #62 규칙) |
+| ANNIVERSARY_DELETED | `DELETE .../anniversaries/:id` | - |
+| MEMBER_JOINED | `POST /groups/join` 이 새 멤버십을 만들 때 | 이미 멤버 (멱등 재호출) |
+| MEMBER_LEFT | `DELETE /groups/:id/me` (2.7) | 마지막 멤버라 팀이 지워짐 |
+| MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
+| GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
+
+- 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
+- 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
+- `GroupSummary.unreadNewsCount` = EventLog 미확인 수 + GroupActivity 미확인 수 (`v` 와 무관, D-154)
+- 기록 생성은 서버만. 오류 코드 추가 없음, `POST /news/seen` 그대로. 푸시 변화 없음 (합류 푸시 D-91 은 따로)
+
 ### 2.7 나가기 / 탈퇴 처리 순서
 
 **DELETE /groups/:groupId/me (팀 나가기)** — 한 트랜잭션
@@ -337,6 +371,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 ```
 1. 멤버십 확인. group.type == PERSONAL 이면 GROUP_PERSONAL_LEAVE
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
+   (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -351,9 +386,10 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
    애플 계정이면 Apple /auth/revoke (앱.md 3.5). 실패 → 502 APPLE_ERROR, DB 그대로
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
-   b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제)
+   b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제).
+      (#191) 남는 팀에는 MEMBER_LEFT 대신 MEMBER_DELETED 한 줄. User 삭제 전에 넣고 d 에서 actorId 가 SetNull 이 된다
    c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
-   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId / GroupActivity.actorId 는 FK SetNull → "탈퇴한 멤버"
       (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
