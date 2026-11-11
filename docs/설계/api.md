@@ -9,7 +9,7 @@
 |------|------|
 | 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값 |
 | 성공 | `200 { status: 200, data, message: "OK" }`. 생성은 201. 삭제는 `data: { ok: true }`. 이 문서의 엔드포인트 표에 적힌 `{ data: ... }` 는 `data` 필드의 모양이다 |
-| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록 |
+| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록(`[{ field, message }]`), 이메일 로그인 오류는 이유 객체(`{ reason, retryAfterSec }` 등, 2.1 이메일 로그인) |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
 | 날짜시각 | 응답은 ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 입력(본문 `startsAt`/`endsAt`, 쿼리 `from`/`to`)은 날짜, 시각, 오프셋(`Z` 또는 `±HH:mm`)이 모두 있어야 하며 없으면 400 VALIDATION_FAILED (D-40). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
@@ -39,6 +39,13 @@
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
+| EMAIL_RATE_LIMITED | 429 | 이메일 로그인 발송 횟수 제한. `details: { reason: "COOLDOWN" \| "HOURLY" \| "IP", retryAfterSec }` (#245) |
+| EMAIL_LINK_INVALID | 400 | 로그인 링크 없음, 사용됨, 만료, 무효. `details: { reason: "INVALID" \| "USED" \| "EXPIRED" }` |
+| EMAIL_CODE_INVALID | 400 | 코드 불일치. `details: { attemptsLeft }` |
+| EMAIL_CODE_LOCKED | 400 | 코드 5번째 틀림. 그 메일(링크 포함)은 무효 |
+| EMAIL_CODE_EXPIRED | 400 | 그 이메일의 살아 있는 메일 없음 (만료, 사용, 새로 받음, 잠김) |
+| SIGNUP_TOKEN_INVALID | 401 | 이메일 가입 티켓 없음, 만료(30분), 사용됨 |
+| EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 환경 변수 (apps/api/.env)
@@ -53,6 +60,7 @@
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | HS256 비밀키, `30d` |
 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI`, `KAKAO_ADMIN_KEY` | 인증흐름.md |
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
+| `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -76,7 +84,23 @@
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
-**이메일 로그인 (#245)**: `POST /auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup`. 웹 서버 전용(`X-Internal-Key`), 오류 코드 `EMAIL_*`, `SIGNUP_TOKEN_INVALID`, 환경 변수 `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `INTERNAL_API_KEY`, `REVIEW_*` 와 탈퇴 시 발송 기록 삭제(2.7 확장)는 `이메일-로그인.md` 4장, 8-1.
+**이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
+
+| 메서드 | 경로 | 요청 | 응답 |
+|--------|------|------|------|
+| POST | `/auth/email/request` | `{ email, next? }`. email 은 앞뒤 공백 제거 + 소문자, ASCII `로컬@도메인.최상위`, 191자 이하. next 는 sanitizeNext | `{ data: { cooldownSec: 60, expiresInSec: 900 } }`. 가입 여부, 발송 성공과 무관하게 같다. 제한 위반은 429 EMAIL_RATE_LIMITED (이메일 60초 1번 COOLDOWN, 1시간 5번 HOURLY, 같은 IP 1시간 20번 IP). 같은 이메일의 이전 링크와 코드는 무효. 심사 이메일(`REVIEW_EMAIL`)이면 메일을 보내지 않고 `REVIEW_CODE` 가 코드 |
+| POST | `/auth/email/link/inspect` | `{ token }` | `{ data: { state: "VALID" \| "EXPIRED" \| "USED" \| "INVALID", emailMasked } }`. 소비하지 않는다(D-113). `emailMasked` 는 `ki***@gmail.com`, INVALID(없음, 형식 틀림)면 null |
+| POST | `/auth/email/link` | `{ token, client? }` | `{ data: AuthResult }`. 1회 소비. 실패 400 EMAIL_LINK_INVALID `{ reason }` |
+| POST | `/auth/email/code` | `{ email, code(6자리 숫자), client? }` | `{ data: AuthResult }`. 그 이메일의 살아 있는 최신 메일과 대조. 실패 400 EMAIL_CODE_INVALID `{ attemptsLeft }`, 5번째 틀림 EMAIL_CODE_LOCKED, 살아 있는 메일 없음 EMAIL_CODE_EXPIRED |
+| POST | `/auth/email/signup` | `{ signupToken, nickname(앞뒤 공백 제거 2~20자), client? }` | `{ data: { token, next } }`. 가입 티켓 1회 소비 → User + AuthAccount(EMAIL) + 개인 팀. 같은 이메일이 먼저 가입했으면 그 계정으로 로그인(닉네임 무시). 실패 401 SIGNUP_TOKEN_INVALID |
+
+```ts
+type AuthResult =
+  | { kind: "SESSION"; token: string; next: string }     // 기존 이메일 계정. token = 세션 JWT
+  | { kind: "SIGNUP"; signupToken: string; next: string } // 처음 이메일. 30분 안에 /auth/email/signup
+```
+- 링크와 코드는 15분 유효, 한 메일에서 하나를 쓰면 둘 다 끝. `next` 는 요청 때 저장한 값(링크를 다른 기기에서 열어도 같다)
+- `AuthAccount(provider: EMAIL, providerUserId: 정규화 이메일, email: 같은 값, rawProfile: null)`. 카카오, 애플 계정과 합치지 않는다
 
 로그아웃은 웹이 쿠키를 지운다. 앱이면 그 전에 웹 route handler 가 `DELETE /me/push-devices { token }` 으로 이 기기 푸시 토큰을 지운다 (2.8, D-83).
 
@@ -279,7 +303,8 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
    b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제)
-   c. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+   c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
+   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
@@ -328,6 +353,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 기획 기능 | 엔드포인트 |
 |-----------|-----------|
 | 카카오 로그인 | `/auth/kakao`, `/auth/kakao/callback`, `/me` |
+| 이메일 로그인 (#245) | `/auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup` (이메일-로그인.md) |
 | 앱 로그인 (카카오, 애플), 웹 애플 로그인 | `/auth/kakao/native`, `/auth/apple/native`, `/auth/apple`, `/auth/apple/callback`, `/auth/handoff` (앱.md) |
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
