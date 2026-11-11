@@ -8,6 +8,7 @@ import {
   parsePromptRecord,
   PUSH_PROMPT_KEY,
   PUSH_PUT_INTERVAL_MS,
+  canAskPermission,
   resetPromptStateForTest,
   setPromptOpen,
   shouldPrompt,
@@ -65,7 +66,26 @@ describe("shouldPrompt (8-1 조건 표)", () => {
     [false, "undetermined", null, false],
   ];
   it.each(cases)("지원 %s, 권한 %s, 기록 %s → %s", (supported, permission, record, want) => {
-    expect(shouldPrompt({ supported, permission, record })).toBe(want);
+    expect(shouldPrompt({ supported, permission, canAskAgain: false, record })).toBe(want);
+  });
+
+  // (#288) Android 13+ 는 묻지 않은 상태를 denied + canAskAgain true 로 준다
+  it("denied 라도 다시 물을 수 있으면 띄운다", () => {
+    expect(shouldPrompt({ supported: true, permission: "denied", canAskAgain: true, record: null })).toBe(true);
+    expect(shouldPrompt({ supported: true, permission: "denied", canAskAgain: true, record: "later" })).toBe(false);
+    expect(shouldPrompt({ supported: true, permission: "denied", canAskAgain: false, record: null })).toBe(false);
+    expect(shouldPrompt({ supported: true, permission: "granted", canAskAgain: true, record: null })).toBe(false);
+  });
+});
+
+describe("canAskPermission (#288)", () => {
+  it("미정이거나 denied + canAskAgain 이면 물을 수 있다", () => {
+    expect(canAskPermission("undetermined", false)).toBe(true);
+    expect(canAskPermission("denied", true)).toBe(true);
+    expect(canAskPermission("denied", false)).toBe(false);
+    expect(canAskPermission("denied", undefined)).toBe(false);
+    expect(canAskPermission("granted", true)).toBe(false);
+    expect(canAskPermission(null, true)).toBe(false);
   });
 });
 
