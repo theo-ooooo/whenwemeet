@@ -84,6 +84,8 @@ describe("팀 활동 줄 (#191)", () => {
     expect(activityPhrase({ type: "MEMBER_DELETED", payload: {} })).toBe("서비스를 떠났어요");
     expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리집", to: "우리 가족" } })).toBe("팀 이름을 '우리집'에서 '우리 가족'으로 바꿨어요");
     expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리 가족", to: "우리 둘" } })).toBe("팀 이름을 '우리 가족'에서 '우리 둘'로 바꿨어요");
+    // (#279)
+    expect(activityPhrase({ type: "EVENTS_IMPORTED", payload: { count: 1234 } })).toBe("일정 1,234개를 가져왔어요");
   });
 
   it("activityHref: 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름은 팀 설정, 삭제와 나가기는 이동 없음", () => {
@@ -92,6 +94,7 @@ describe("팀 활동 줄 (#191)", () => {
     expect(activityHref(2, { type: "ANNIVERSARY_DELETED" })).toBeNull();
     expect(activityHref(2, { type: "MEMBER_JOINED" })).toBe("/g/2/settings");
     expect(activityHref(2, { type: "GROUP_RENAMED" })).toBe("/g/2/settings");
+    expect(activityHref(2, { type: "EVENTS_IMPORTED" })).toBe("/g/2/calendar");
     expect(activityHref(2, { type: "MEMBER_LEFT" })).toBeNull();
     expect(activityHref(2, { type: "MEMBER_DELETED" })).toBeNull();
   });

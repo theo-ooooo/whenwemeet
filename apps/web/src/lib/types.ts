@@ -146,7 +146,9 @@ export type ActivityType =
   | "MEMBER_JOINED"
   | "MEMBER_LEFT"
   | "MEMBER_DELETED"
-  | "GROUP_RENAMED";
+  | "GROUP_RENAMED"
+  /** (#279) ICS 파일로 일정을 가져옴. payload { count } */
+  | "EVENTS_IMPORTED";
 
 export type AnniversaryField = "name" | "date" | "kind";
 
@@ -168,8 +170,8 @@ export type ActivityNewsItem = {
   actor: Member;
   /** 기념일 3종의 대상. 삭제된 기념일이면 null */
   anniversaryId: number | null;
-  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 멤버 3종 {} */
-  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string };
+  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} */
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number };
   createdAt: string;
   isNew: boolean;
 };
@@ -207,3 +209,32 @@ export const MEMBER_COLORS = [
   "#A66CF4",
   "#F279B5",
 ] as const;
+
+// ── (#279) ICS 파일 가져오기 (api.md 2.9) ──
+
+export type ImportRange = "future" | "year";
+export type ImportParticipants = "ALL" | "ME";
+export type ImportSkipReason = "DUPLICATE" | "CANCELLED" | "TOO_OLD" | "TOO_LONG" | "INVALID" | "OVER_LIMIT";
+export type ImportWarning = "UNKNOWN_TZID" | "TRUNCATED_TITLE";
+
+export type ImportPreview = {
+  /** 파일 안 VEVENT 수 */
+  total: number;
+  /** 넣을 일정 수 (반복으로 옮긴 것은 1개, 펼친 회차는 각각) */
+  toCreate: number;
+  recurringKept: number;
+  /** 반복을 옮길 수 없어 펼친 회차 수와 그 원본 수 */
+  expanded: number;
+  expandedSeries: number;
+  skipped: { reason: ImportSkipReason; count: number }[];
+  firstStartsAt: string | null;
+  lastStartsAt: string | null;
+  warnings: ImportWarning[];
+  sample: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null }[];
+};
+
+export type ImportResult = {
+  importId: number | null;
+  created: number;
+  skipped: { reason: ImportSkipReason; count: number }[];
+};

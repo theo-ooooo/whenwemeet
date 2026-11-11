@@ -499,6 +499,32 @@ export function mockHandle(ctx: Ctx): MockResult {
     if (!ms) return err(403, "FORBIDDEN", "이 팀에 더 이상 속해 있지 않아요");
     const rest = seg.slice(2);
 
+    // (#279) 일정 가져오기. 목은 파일을 읽지 않고 고정된 미리보기와 결과만 준다 (화면 확인용)
+    if (rest[0] === "imports" && method === "POST") {
+      const at = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+      if (rest[1] === "preview") {
+        return ok({
+          total: 9,
+          toCreate: 14,
+          recurringKept: 2,
+          expanded: 11,
+          expandedSeries: 3,
+          skipped: [
+            { reason: "CANCELLED", count: 1 },
+            { reason: "TOO_OLD", count: 1 },
+          ],
+          firstStartsAt: at(1),
+          lastStartsAt: at(200),
+          warnings: [],
+          sample: [
+            { title: "영어 스터디", startsAt: at(2), endsAt: at(2.05), allDay: false, repeat: "WEEKLY" },
+            { title: "치과", startsAt: at(3), endsAt: at(3.05), allDay: false, repeat: null },
+          ],
+        });
+      }
+      return ok({ importId: 1, created: 14, skipped: [{ reason: "CANCELLED", count: 1 }] }, 201);
+    }
+
     if (rest.length === 0) {
       if (method === "GET") return ok(groupDetail(s, groupId, userId));
       if (method === "PATCH") {
