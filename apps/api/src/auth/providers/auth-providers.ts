@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { AuthProvider, AuthProviderClient } from './auth-provider.js';
 import { AppleProvider } from './apple.provider.js';
 import { DevProvider } from './dev.provider.js';
+import { EmailProvider } from './email.provider.js';
 import { KakaoProvider } from './kakao.provider.js';
 
 /** 제공자 이름 → 구현. 아직 붙이지 않은 제공자(GOOGLE, NAVER) 를 찾으면 500 (코드 버그) */
@@ -9,8 +10,8 @@ import { KakaoProvider } from './kakao.provider.js';
 export class AuthProviders {
   private readonly byName: ReadonlyMap<AuthProvider, AuthProviderClient>;
 
-  constructor(kakao: KakaoProvider, dev: DevProvider, apple: AppleProvider) {
-    this.byName = new Map<AuthProvider, AuthProviderClient>([kakao, dev, apple].map((client) => [client.provider, client]));
+  constructor(kakao: KakaoProvider, dev: DevProvider, apple: AppleProvider, email: EmailProvider) {
+    this.byName = new Map<AuthProvider, AuthProviderClient>([kakao, dev, apple, email].map((client) => [client.provider, client]));
   }
 
   get(provider: AuthProvider): AuthProviderClient {

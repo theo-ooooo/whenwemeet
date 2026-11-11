@@ -16,6 +16,7 @@ import {
   type EventRow,
   type Store,
 } from "./fixtures";
+import { mockEmailLogin } from "./email-login";
 import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence } from "./recurrence";
 
 export type MockResult = { status: number; body: unknown };
@@ -277,6 +278,10 @@ export function mockHandle(ctx: Ctx): MockResult {
       memberCount: s.memberships.filter((m) => m.groupId === grp.id).length,
     });
   }
+
+  // (#245) 공개: 이메일 로그인 (웹 서버 전용 엔드포인트, 이메일-로그인.md 4장)
+  const email = mockEmailLogin(s, method, path, body);
+  if (email) return email;
 
   const userId = ctx.userId;
   if (!userId || !s.users.find((u) => u.id === userId)) {

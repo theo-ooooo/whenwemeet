@@ -30,5 +30,13 @@ export function applyTestEnv(): string {
   process.env.PUSH_ENABLED = '';
   process.env.EXPO_ACCESS_TOKEN = '';
   process.env.EXPO_PUSH_URL = 'http://127.0.0.1:9/--/api/v2/push';
+  // (#245) 이메일 로그인은 켜고 내부 키를 맞춘다. 실제 Resend 로 나가지 않게 키는 비우고 주소는 닫힌 로컬 포트.
+  // 이메일 e2e 는 MAIL_CLIENT 를 가짜로 바꿔 메일에서 링크와 코드를 꺼낸다. 심사 계정 값도 가짜
+  process.env.EMAIL_LOGIN_ENABLED = '1';
+  process.env.INTERNAL_API_KEY = 'e2e-internal-key';
+  process.env.RESEND_API_KEY = '';
+  process.env.RESEND_API_URL = 'http://127.0.0.1:9';
+  process.env.REVIEW_EMAIL = 'review@e2e.example';
+  process.env.REVIEW_CODE = '246810';
   return url;
 }

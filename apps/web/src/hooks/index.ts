@@ -34,6 +34,7 @@ export { useUpdateMe } from "./useUpdateMe";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
 export { useRegisterPushDevice, useRemovePushDevice, type PushDeviceInput } from "./usePushDevice";
+export { useRequestEmailLogin, useVerifyEmailCode, useEmailSignup, type EmailRequestResult } from "./useEmailLogin";
 
 // 공통 이벤트
 export { useGroupGone } from "./useGroupGone";

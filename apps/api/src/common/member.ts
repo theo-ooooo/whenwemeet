@@ -81,7 +81,7 @@ export function toMember(row: MembershipRow): MemberWithJoin {
   };
 }
 
-/** 팀 멤버십 목록으로 creatorId/actorId 를 Member 로 바꾸는 해석기 */
+/** 팀 멤버십 목록으로 creatorId/actorId, 일정 참여자(#248)를 Member 로 바꾸는 해석기 */
 export class MemberResolver {
   private readonly byUserId = new Map<number, Member>();
 
@@ -90,6 +90,11 @@ export class MemberResolver {
       const { joinedAt: _joinedAt, ...member } = toMember(row);
       this.byUserId.set(row.userId, member);
     }
+  }
+
+  /** (#248) 지금 멤버 전원. 생성자에 넘긴 순서 그대로 (resolverFor 는 가입순으로 읽는다) */
+  all(): Member[] {
+    return [...this.byUserId.values()];
   }
 
   /**

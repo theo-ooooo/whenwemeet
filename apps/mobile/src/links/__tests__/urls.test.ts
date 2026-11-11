@@ -1,4 +1,4 @@
-import { buildAuthAppUrl, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
+import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -198,5 +198,28 @@ describe("notificationTarget (#188, 푸시-알림.md 9장)", () => {
     }
     expect(notificationTarget(null, W)).toBeNull();
     expect(notificationTarget("x", W)).toBeNull();
+  });
+});
+
+describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () => {
+  it("웹뷰가 여는 /login/email 주소. next 는 safeNext 후 인코딩, / 면 생략", () => {
+    expect(buildEmailLoginUrl("https://whenwemeet.day/", "/")).toBe("https://whenwemeet.day/login/email");
+    expect(buildEmailLoginUrl("https://whenwemeet.day", "/join/ABC123?auto=1")).toBe(
+      "https://whenwemeet.day/login/email?next=%2Fjoin%2FABC123%3Fauto%3D1",
+    );
+    expect(buildEmailLoginUrl("https://whenwemeet.day", "//evil.com")).toBe("https://whenwemeet.day/login/email");
+  });
+  it("웹뷰가 /login/email 과 /auth/email 을 가로채지 않는다 (네이티브 로그인은 /auth/kakao, /auth/apple 만)", () => {
+    const W = "https://whenwemeet.day";
+    expect(decideNavigation(`${W}/login/email?next=%2F`, W)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${W}/login/email/nickname`, W)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${W}/auth/email?token=${"a".repeat(43)}`, W)).toEqual({ kind: "allow" });
+  });
+  it("UA 접미사 끝에 EmailLogin/1, 앞부분은 웹 APP_UA 정규식 그대로", () => {
+    const ua = buildUserAgentSuffix("1.1.0", "ios");
+    expect(ua).toBe("WhenwemeetApp/1.1.0 (ios) EmailLogin/1");
+    // 웹 apps/web/src/lib/app-bridge.ts 의 APP_UA, appSupportsEmailLogin 과 같은 식
+    expect(/\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/.exec(`Mozilla/5.0 ${ua}`)?.[2]).toBe("ios");
+    expect(/(?:^|\s)EmailLogin\/1(?:\s|$)/.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.1.0", "android")}`)).toBe(true);
   });
 });

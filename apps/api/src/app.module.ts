@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
 import { createValidationPipe } from './common/validation.js';
+import { EmailLoginModule } from './email-login/email-login.module.js';
 import { EventsModule } from './events/events.module.js';
 import { FileUrlModule } from './files/file-url.module.js';
 import { FreeSlotsModule } from './free-slots/free-slots.module.js';
@@ -22,6 +23,7 @@ import { PushModule } from './push/push.module.js';
     PrismaModule,
     FileUrlModule,
     AuthModule,
+    EmailLoginModule,
     GroupsModule,
     EventsModule,
     AnniversariesModule,

@@ -9,7 +9,7 @@
 |------|------|
 | 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값 |
 | 성공 | `200 { status: 200, data, message: "OK" }`. 생성은 201. 삭제는 `data: { ok: true }`. 이 문서의 엔드포인트 표에 적힌 `{ data: ... }` 는 `data` 필드의 모양이다 |
-| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록 |
+| 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록(`[{ field, message }]`), 이메일 로그인 오류는 이유 객체(`{ reason, retryAfterSec }` 등, 2.1 이메일 로그인) |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
 | 권한 | `멤버` 검사는 서비스 메서드 첫 줄에서 `Membership(userId, groupId)` 조회. 없으면 403 FORBIDDEN. 멤버면 팀 안의 모든 자원을 읽고 쓸 수 있다 (역할 없음) |
 | 날짜시각 | 응답은 ISO 8601 UTC (`2026-11-09T05:00:00.000Z`). 입력(본문 `startsAt`/`endsAt`, 쿼리 `from`/`to`)은 날짜, 시각, 오프셋(`Z` 또는 `±HH:mm`)이 모두 있어야 하며 없으면 400 VALIDATION_FAILED (D-40). 날짜만인 값(기념일)은 `YYYY-MM-DD` (KST 달력 날짜) |
@@ -39,6 +39,13 @@
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
+| EMAIL_RATE_LIMITED | 429 | 이메일 로그인 발송 횟수 제한. `details: { reason: "COOLDOWN" \| "HOURLY" \| "IP", retryAfterSec }` (#245) |
+| EMAIL_LINK_INVALID | 400 | 로그인 링크 없음, 사용됨, 만료, 무효. `details: { reason: "INVALID" \| "USED" \| "EXPIRED" }` |
+| EMAIL_CODE_INVALID | 400 | 코드 불일치. `details: { attemptsLeft }` |
+| EMAIL_CODE_LOCKED | 400 | 코드 5번째 틀림. 그 메일(링크 포함)은 무효 |
+| EMAIL_CODE_EXPIRED | 400 | 그 이메일의 살아 있는 메일 없음 (만료, 사용, 새로 받음, 잠김) |
+| SIGNUP_TOKEN_INVALID | 401 | 이메일 가입 티켓 없음, 만료(30분), 사용됨 |
+| EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 환경 변수 (apps/api/.env)
@@ -53,6 +60,7 @@
 | `JWT_SECRET`, `JWT_EXPIRES_IN` | HS256 비밀키, `30d` |
 | `KAKAO_CLIENT_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI`, `KAKAO_ADMIN_KEY` | 인증흐름.md |
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
+| `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -76,7 +84,23 @@
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
-**이메일 로그인 (#245)**: `POST /auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup`. 웹 서버 전용(`X-Internal-Key`), 오류 코드 `EMAIL_*`, `SIGNUP_TOKEN_INVALID`, 환경 변수 `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `INTERNAL_API_KEY`, `REVIEW_*` 와 탈퇴 시 발송 기록 삭제(2.7 확장)는 `이메일-로그인.md` 4장, 8-1.
+**이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
+
+| 메서드 | 경로 | 요청 | 응답 |
+|--------|------|------|------|
+| POST | `/auth/email/request` | `{ email, next? }`. email 은 앞뒤 공백 제거 + 소문자, ASCII `로컬@도메인.최상위`, 191자 이하. next 는 sanitizeNext | `{ data: { cooldownSec: 60, expiresInSec: 900 } }`. 가입 여부, 발송 성공과 무관하게 같다. 제한 위반은 429 EMAIL_RATE_LIMITED (이메일 60초 1번 COOLDOWN, 1시간 5번 HOURLY, 같은 IP 1시간 20번 IP). 같은 이메일의 이전 링크와 코드는 무효. 심사 이메일(`REVIEW_EMAIL`)이면 메일을 보내지 않고 `REVIEW_CODE` 가 코드 |
+| POST | `/auth/email/link/inspect` | `{ token }` | `{ data: { state: "VALID" \| "EXPIRED" \| "USED" \| "INVALID", emailMasked } }`. 소비하지 않는다(D-113). `emailMasked` 는 `ki***@gmail.com`, INVALID(없음, 형식 틀림)면 null |
+| POST | `/auth/email/link` | `{ token, client? }` | `{ data: AuthResult }`. 1회 소비. 실패 400 EMAIL_LINK_INVALID `{ reason }` |
+| POST | `/auth/email/code` | `{ email, code(6자리 숫자), client? }` | `{ data: AuthResult }`. 그 이메일의 살아 있는 최신 메일과 대조. 실패 400 EMAIL_CODE_INVALID `{ attemptsLeft }`, 5번째 틀림 EMAIL_CODE_LOCKED, 살아 있는 메일 없음 EMAIL_CODE_EXPIRED |
+| POST | `/auth/email/signup` | `{ signupToken, nickname(앞뒤 공백 제거 2~20자), client? }` | `{ data: { token, next } }`. 가입 티켓 1회 소비 → User + AuthAccount(EMAIL) + 개인 팀. 같은 이메일이 먼저 가입했으면 그 계정으로 로그인(닉네임 무시). 실패 401 SIGNUP_TOKEN_INVALID |
+
+```ts
+type AuthResult =
+  | { kind: "SESSION"; token: string; next: string }     // 기존 이메일 계정. token = 세션 JWT
+  | { kind: "SIGNUP"; signupToken: string; next: string } // 처음 이메일. 30분 안에 /auth/email/signup
+```
+- 링크와 코드는 15분 유효, 한 메일에서 하나를 쓰면 둘 다 끝. `next` 는 요청 때 저장한 값(링크를 다른 기기에서 열어도 같다)
+- `AuthAccount(provider: EMAIL, providerUserId: 정규화 이메일, email: 같은 값, rawProfile: null)`. 카카오, 애플 계정과 합치지 않는다
 
 로그아웃은 웹이 쿠키를 지운다. 앱이면 그 전에 웹 route handler 가 `DELETE /me/push-devices { token }` 으로 이 기기 푸시 토큰을 지운다 (2.8, D-83).
 
@@ -124,17 +148,33 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
                repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
-               reminder?: EventReminder }                              // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
+               reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
+               participants?: 'ALL'|number[] }                         // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
 Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
                seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
                repeatAnchor: 'YYYY-MM-DD'|null,  // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
-               reminder: EventReminder }         // (#188) 그 회차의 실제 알림 (예외 반영)
+               reminder: EventReminder,          // (#188) 그 회차의 실제 알림 (예외 반영)
+               participants: { all: boolean, members: Member[] } }   // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
-- (#248) 참여자: `EventInput.participants?: 'ALL'|number[]`, `Event.participants: { all, members: Member[] }`. 검증, 반복 범위, 빈 시간(2.5), 일정 알림 받는 사람, 나가기(2.7) 변경은 `일정-참여자.md` 3~6장
+- (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙
+  - 응답 `participants` 는 목록, 단건, 생성/수정 모두 같은 모양. `members` 는 지금 멤버만(나가면 행이 지워진다), 순서는 `Membership.joinedAt`. `creator` 는 그대로 ("○○님이 추가")
+  - 검증 (400 VALIDATION_FAILED, `field: 'participants'`):
+
+    | 입력 | 결과 / message |
+    |------|------|
+    | 생략 | 생성: `[요청자]`. 수정: 그대로 (참여자 없음 일정도 다른 필드는 고칠 수 있다) |
+    | `'ALL'` | 모두, 참여자 행 없음 |
+    | 양의 정수 1~50개 | 중복은 합친다. 전원을 하나씩 골라도 `'ALL'` 로 바꾸지 않는다 |
+    | `[]` | 참여자를 한 명 이상 골라 주세요 |
+    | 50명 초과 | 참여자는 최대 50명까지 고를 수 있어요 |
+    | 이 팀 지금 멤버가 아닌 id 포함 | 이 팀 멤버만 참여자로 고를 수 있어요 (저장 트랜잭션 안에서 멤버십을 `FOR SHARE` 로 읽어 확인) |
+    | `null`, 다른 문자열, 숫자 아닌 원소 | participants 는 'ALL' 또는 멤버 id 배열이어야 해요 |
+  - 참여자만 바꿔도 수정: UPDATED 로그 + 팀원 변경 알림. 같은 참여자(순서 무관)면 #62 규칙대로 저장 안 함
+  - `EventLog.participantsAll`, `participantIds`(오름차순, 모두면 null): CREATED, UPDATED 는 저장 후 값, "이 일정만" 은 원본 값, DELETED 는 null. 새 소식 응답과 문구는 그대로
 - 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
@@ -153,9 +193,9 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 
 | 동작 | 처리 (트랜잭션 1개) | 응답 | 로그 |
 |------|------|------|------|
-| PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED | 그 회차 | UPDATED, scope THIS |
-| PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
-| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자, `repeatAnchor` 는 아래) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
+| PATCH this | `EventException(eventId, occurrence)` upsert. 원래 회차와 다른 필드만 저장, 모두 원래 값이 되면 예외 행 삭제. 본문에 `repeat`/`repeatUntil` 이 있으면 400 VALIDATION_FAILED. (#248) 본문에 `participants` 가 있으면(같은 값이어도) 400 "이 일정만 수정할 때는 참여자를 바꿀 수 없어요" | 그 회차 | UPDATED, scope THIS |
+| PATCH following, 첫 회차 | 원본 수정 + 원본의 예외 전부 삭제. (#248) 참여자도 원본 값을 바꾼다 | 수정된 첫 회차 (반복을 끄면 한 번짜리) | UPDATED, scope FOLLOWING |
+| PATCH following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, `occurrence` 이후(그날 포함) 예외 삭제, 새 Event 생성 (`creatorId` = 원본 등록자, `repeatAnchor` 는 아래. (#248) 참여자는 본문 값, 없으면 원본 참여자 복사. 끊긴 원본의 참여자는 그대로) | 새 원본의 첫 회차 | UPDATED, scope FOLLOWING, `eventId` = 새 원본 |
 | DELETE this | 예외 upsert `cancelled = true` | `{ ok: true }` | DELETED, scope THIS |
 | DELETE following, 첫 회차 | 원본 삭제 (예외 cascade) | `{ ok: true }` | DELETED, scope FOLLOWING (`eventId` 는 SetNull 로 null) |
 | DELETE following, 그 뒤 회차 | 원본 `repeatUntil = occurrence - 1일`, 이후 예외 삭제 | `{ ok: true }` | DELETED, scope FOLLOWING |
@@ -218,13 +258,14 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
    → 멤버들이 속한 모든 팀 (개인 팀 포함). 같은 팀이 여러 멤버에 걸려도 한 번만
 3. once = Event.findMany({
      where: { groupId in allGroupIds, repeat: null, startsAt < to, endsAt > from, ...(includeAllDay ? {} : { allDay: false }) },
-     select: { startsAt, endsAt },          // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
+     select: { startsAt, endsAt, allMembers, participants: { userId } },   // title/memo 는 select 하지 않는다 (타 팀 내용 비노출)
      orderBy: { startsAt: 'asc' } })
    series = Event.findMany({               // 반복 원본 (#187, 반복-일정.md 4-2)
      where: { groupId in allGroupIds, repeat != null, startsAt < to + 31일,
               OR: [{ repeatUntil: null }, { repeatUntil >= (from - 31일) 의 KST 날짜 }] },
-     select: { startsAt, endsAt, allDay, repeat, repeatUntil,
+     select: { startsAt, endsAt, allDay, repeat, repeatUntil, repeatAnchor, allMembers, participants: { userId },
                exceptions: { occurrence, cancelled, startsAt, endsAt, allDay } } })   // 여기도 title/memo 없음
+   → (#248) once, series 를 isBusyForAny 로 거른다: allMembers 이거나 참여자 중 memberIds 가 있으면 바쁨 (참여자 없음은 안 바쁨, D-137)
    → series 를 [from, to) 회차로 펼치고(취소 제외, 예외 시각 반영) includeAllDay 가 아니면 최종 allDay 회차를 뺀다
    → busy = once + 회차, startsAt 오름차순
 4. busy 를 정렬 상태에서 한 번 훑어 겹치거나 맞닿은 구간을 병합
@@ -266,6 +307,8 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 ```
 1. 멤버십 확인. group.type == PERSONAL 이면 GROUP_PERSONAL_LEAVE
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
+   (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
+   로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
 ```
 
@@ -279,7 +322,9 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 2. 트랜잭션:
    a. 내 PERSONAL 팀 삭제 (Cascade)
    b. 내 TEAM 멤버십 각각에 대해 2.7 나가기 2~3 단계 (마지막 멤버였던 팀은 삭제)
-   c. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+   c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
+   d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId 는 FK SetNull → "탈퇴한 멤버"
+      (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
@@ -315,6 +360,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 같은 값이면 저장하지 않는 규칙(#62) 에 `reminder` 도 들어간다. 알림만 바꿔도 UPDATED 로그가 남는다
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
+**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+
 **발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일 당일, 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
 
 | 환경 변수 | 필수 | 용도 |
@@ -328,6 +375,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 기획 기능 | 엔드포인트 |
 |-----------|-----------|
 | 카카오 로그인 | `/auth/kakao`, `/auth/kakao/callback`, `/me` |
+| 이메일 로그인 (#245) | `/auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup` (이메일-로그인.md) |
 | 앱 로그인 (카카오, 애플), 웹 애플 로그인 | `/auth/kakao/native`, `/auth/apple/native`, `/auth/apple`, `/auth/apple/callback`, `/auth/handoff` (앱.md) |
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
@@ -344,6 +392,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 | 앱 푸시 기기 등록, 해제 (#188) | `PUT /me/push-devices`, `DELETE /me/push-devices` |
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
+| 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
 
 ## 4. 개발 전용
 

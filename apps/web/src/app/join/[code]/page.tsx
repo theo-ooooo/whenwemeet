@@ -7,6 +7,7 @@ import { JoinLoginActions } from "@/components/JoinLoginActions";
 import { OpenInApp } from "@/components/OpenInApp";
 import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
+import { webEmailEnabled } from "@/lib/email-route";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
 import { SITE_NAME } from "@/lib/site";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
@@ -93,7 +94,12 @@ export default async function JoinPage({
             {loggedIn ? (
               <JoinButton code={code} auto={autoJoin} />
             ) : (
-              <JoinLoginActions next={joinAutoNext(code)} appleEnabled={appleEnabled} appGuess={appGuess} />
+              <JoinLoginActions
+                next={joinAutoNext(code)}
+                appleEnabled={appleEnabled}
+                appGuess={appGuess}
+                emailEnabled={webEmailEnabled()}
+              />
             )}
             <OpenInApp plan={appOpen} />
           </div>

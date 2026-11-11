@@ -194,3 +194,14 @@ export function IconCamera(p: IconProps) {
     </Svg>
   );
 }
+
+/** (#245) 이메일: 둥근 사각 봉투 + 덮개. 조각은 덮개 꼭짓점의 45도 작은 사각 (디자인규칙.md 3-1) */
+export function IconMail({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="5" width="18" height="14" rx="4" />
+      <path d="M6.5 8.5 12 12.5l5.5-4" />
+      <rect x="10.3" y="11.3" width="3.4" height="3.4" rx="1" transform="rotate(45 12 13)" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}

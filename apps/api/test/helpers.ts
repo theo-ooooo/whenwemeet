@@ -6,9 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
 import { APPLE_JWKS } from '../src/auth/providers/apple.provider.js';
+import { EmailLoginConfig } from '../src/email-login/email-login.config.js';
+import { MAIL_CLIENT, type MailClient } from '../src/email-login/mail-client.js';
 import { FileUrlBuilder } from '../src/files/file-url.builder.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { StorageService } from '../src/storage/storage.service.js';
+import { fakeConfig } from '../src/testing/fake-config.js';
 
 export type TestApp = INestApplication<App>;
 
@@ -19,6 +22,10 @@ export interface TestAppOptions {
   publicBaseUrl?: string;
   /** Apple JWKS 대신 쓸 로컬 키 집합 (apple.e2e-spec) */
   appleJwks?: unknown;
+  /** (#245) 메일러 (가짜). 없으면 콘솔 메일러(보내지 않음) */
+  mail?: MailClient;
+  /** (#245) 이메일 로그인 설정을 process.env 위에 덮어쓴다 (스위치 끔 등) */
+  emailEnv?: Record<string, string>;
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -28,6 +35,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     builder.overrideProvider(FileUrlBuilder).useValue(new FileUrlBuilder(new ConfigService({ R2_PUBLIC_BASE_URL: options.publicBaseUrl })));
   }
   if (options.appleJwks) builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
+  if (options.mail) builder.overrideProvider(MAIL_CLIENT).useValue(options.mail);
+  if (options.emailEnv) builder.overrideProvider(EmailLoginConfig).useValue(new EmailLoginConfig(fakeConfig({ ...process.env, ...options.emailEnv })));
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);
@@ -50,6 +59,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.group.deleteMany();
   await prisma.file.deleteMany();
   await prisma.authHandoff.deleteMany();
+  await prisma.emailLoginChallenge.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();
 }

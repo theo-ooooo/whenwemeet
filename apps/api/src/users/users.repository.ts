@@ -31,7 +31,8 @@ export interface NewAccountInput {
   provider: AuthProvider;
   providerUserId: string;
   email: string | null;
-  rawProfile: RawProfile;
+  /** 이메일 계정(#245)은 원본 프로필이 없어 null (컬럼 NULL 로 둔다) */
+  rawProfile: RawProfile | null;
   nickname: string;
   /** 애플 토큰 폐기용 (D-51). 없으면 null 로 둔다 */
   credentials?: ProviderCredentials;
@@ -81,6 +82,15 @@ export class UsersRepository {
     });
   }
 
+  /** (#245) (provider, providerUserId) 연결 계정의 사용자 ID. 이메일 로그인이 기존 계정인지 가를 때 쓴다 */
+  async findUserIdByAccount(provider: AuthProvider, providerUserId: string): Promise<number | null> {
+    const account = await this.prisma.authAccount.findUnique({
+      where: { provider_providerUserId: { provider, providerUserId } },
+      select: { userId: true },
+    });
+    return account?.userId ?? null;
+  }
+
   /**
    * 재로그인 시 제공자 원본 프로필(과 애플이면 새 refresh token) 만 갱신하고 연결된 사용자를 돌려준다.
    * User 의 닉네임/사진은 건드리지 않는다 (D-36)
@@ -113,7 +123,7 @@ export class UsersRepository {
               provider: input.provider,
               providerUserId: input.providerUserId,
               email: input.email,
-              rawProfile: input.rawProfile,
+              ...(input.rawProfile === null ? {} : { rawProfile: input.rawProfile }),
               ...input.credentials,
             },
           },
@@ -133,7 +143,8 @@ export class UsersRepository {
   }
 
   /**
-   * 팀 삭제 → 멤버십마다 나가기 → 파일 행 삭제 → 연결 계정 삭제 → User 삭제 (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로.
+   * 팀 삭제 → 멤버십마다 나가기 → 파일 행 삭제 → 이메일 로그인 발송 기록 삭제(#245, 이메일-로그인.md 8-1) → 연결 계정 삭제 → User 삭제
+   * (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로.
    * 파일 객체는 Service 가 이 호출 전에 저장소에서 지운다
    */
   async deleteAccountTx(userId: number, plan: AccountCleanupPlan): Promise<void> {
@@ -145,6 +156,10 @@ export class UsersRepository {
         await this.memberships.removeWithGroupPrune(tx, membershipId, groupId);
       }
       await tx.file.deleteMany({ where: { ownerId: userId } });
+      const emailAccounts = await tx.authAccount.findMany({ where: { userId, provider: 'EMAIL' }, select: { providerUserId: true } });
+      if (emailAccounts.length > 0) {
+        await tx.emailLoginChallenge.deleteMany({ where: { email: { in: emailAccounts.map((account) => account.providerUserId) } } });
+      }
       await tx.authAccount.deleteMany({ where: { userId } });
       await tx.user.delete({ where: { id: userId } });
     });

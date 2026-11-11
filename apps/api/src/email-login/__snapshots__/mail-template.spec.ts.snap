@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`로그인 메일 문구 (5장) > 스냅샷 1`] = `
+"<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>[언제볼까] 로그인 링크와 코드</title>
+</head>
+<body style="margin:0;padding:0;background:#FFFFFF;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">로그인 코드 012345 (15분 동안 쓸 수 있어요)</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:480px;font-family:-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;color:#1F1A17;">
+<tr><td style="font-size:20px;font-weight:700;padding:0 0 24px;">언제볼까</td></tr>
+<tr><td style="font-size:16px;line-height:1.6;padding:0 0 16px;">아래 버튼을 누르면 바로 로그인돼요.</td></tr>
+<tr><td align="center" style="padding:0 0 32px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td align="center" bgcolor="#C8432D" style="border-radius:12px;">
+<a href="https://whenwemeet.day/auth/email?token=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde" target="_blank" style="display:inline-block;padding:0 32px;line-height:48px;height:48px;font-size:16px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:12px;font-family:-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;">언제볼까 시작하기</a>
+</td>
+</tr></table>
+</td></tr>
+<tr><td style="font-size:16px;line-height:1.6;padding:0 0 12px;">앱이나 다른 기기에서는 이 코드를 입력하세요.</td></tr>
+<tr><td align="center" style="padding:0 0 32px;font-size:32px;font-weight:700;letter-spacing:0.3em;font-variant-numeric:tabular-nums;font-family:ui-monospace, Menlo, Consolas, monospace;">012345</td></tr>
+<tr><td style="font-size:14px;line-height:1.6;color:#6B625C;padding:0 0 8px;">15분 안에 사용해 주세요. 링크와 코드는 한 번만 쓸 수 있어요.</td></tr>
+<tr><td style="font-size:14px;line-height:1.6;color:#6B625C;padding:0 0 32px;">요청하지 않았다면 이 메일을 무시하세요. 계정에는 아무 일도 일어나지 않아요.</td></tr>
+<tr><td style="font-size:12px;color:#9A918B;">whenwemeet.day</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+"
+`;
+
+exports[`로그인 메일 문구 (5장) > 스냅샷 2`] = `
+"언제볼까
+
+아래 링크를 열면 바로 로그인돼요.
+https://whenwemeet.day/auth/email?token=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde
+
+앱이나 다른 기기에서는 이 코드를 입력하세요.
+012345
+
+15분 안에 사용해 주세요. 링크와 코드는 한 번만 쓸 수 있어요.
+요청하지 않았다면 이 메일을 무시하세요. 계정에는 아무 일도 일어나지 않아요.
+
+whenwemeet.day
+"
+`;

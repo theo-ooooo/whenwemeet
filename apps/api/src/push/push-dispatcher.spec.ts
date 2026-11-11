@@ -62,7 +62,7 @@ describe('PushDispatcher', () => {
       push.eventExists.mockImplementation(async (id) => id === 5);
       push.listRecipients.mockResolvedValue([{ userId: 1, token: 'a', platform: 'IOS' }]);
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'REMINDER', null);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'REMINDER', null, 5);
       expect(push.dispatchTx).toHaveBeenCalledWith(1, NOW, null, [{ userId: 1, token: 'a', platform: 'IOS' }]);
       expect(push.markSkipped).toHaveBeenLastCalledWith([2]);
     });
@@ -82,7 +82,7 @@ describe('PushDispatcher', () => {
         occurrence: null,
       });
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null);
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: '민지님이 일정을 수정했어요', body: '저녁 약속, 11월 12일 (목) 오후 6:00' });
     });
 
@@ -91,7 +91,7 @@ describe('PushDispatcher', () => {
       push.findGroupName.mockResolvedValue('우리 가족');
       push.findPersonName.mockResolvedValue(null);
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'JOIN', 9);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'JOIN', 9, null);
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: "탈퇴한 멤버님이 '우리 가족' 에 들어왔어요" });
     });
 

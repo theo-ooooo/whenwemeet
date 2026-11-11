@@ -472,14 +472,28 @@ export class PushRepository {
     return user.memberships[0]?.displayName ?? user.nickname;
   }
 
-  /** 지금 팀원 × 기기 중 종류 설정과 팀 설정이 켜진 것. excludeUserId 는 뺀다 (설계 5-6 받는 사람) */
-  async listRecipients(groupId: number, kind: PushKindName, excludeUserId: number | null): Promise<Recipient[]> {
+  /**
+   * 지금 팀원 × 기기 중 종류 설정과 팀 설정이 켜진 것. excludeUserId 는 뺀다 (설계 5-6 받는 사람).
+   * (#248) REMINDER 는 펼치는 순간 그 일정의 참여자만 ("모두" 면 팀원 전원). 참여자 없음이거나 일정이 없으면 0명 (D-138)
+   */
+  async listRecipients(groupId: number, kind: PushKindName, excludeUserId: number | null, eventId: number | null = null): Promise<Recipient[]> {
+    let participantIds: number[] | null = null;
+    if (kind === 'REMINDER' && eventId !== null) {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { allMembers: true, participants: { select: { userId: true } } },
+      });
+      if (!event) return [];
+      if (!event.allMembers) participantIds = event.participants.map((row) => row.userId);
+    }
+    if (participantIds !== null && participantIds.length === 0) return [];
     const rows = await this.prisma.membership.findMany({
       where: {
         groupId,
         notify: true,
         user: { [KIND_SETTING[kind]]: true } as Prisma.UserWhereInput,
         ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
+        ...(participantIds === null ? {} : { AND: [{ userId: { in: participantIds } }] }),
       },
       select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
     });
