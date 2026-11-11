@@ -49,6 +49,13 @@ model User {
   avatarFileId Int?     @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  /// (#188) 내 정보 > 알림. 기본 모두 켬
+  notifyReminder    Boolean   @default(true)
+  notifyChange      Boolean   @default(true)
+  notifyAnniversary Boolean   @default(true)
+  notifyJoin        Boolean   @default(true)
+  /// (#188) 마지막 앱 로그인 (handoff 교환 성공). 권한 허용률 지표의 분모 (D-97)
+  lastAppLoginAt    DateTime?
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -58,6 +65,8 @@ model User {
   createdEvents Event[]       @relation("EventCreator")
   anniversaries Anniversary[] @relation("AnniversaryCreator")
   eventLogs     EventLog[]    @relation("EventLogActor")
+  pushDevices    PushDevice[]
+  pushDeliveries PushDelivery[]
 }
 
 /// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
@@ -122,10 +131,11 @@ model Group {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  memberships   Membership[]
-  events        Event[]
-  anniversaries Anniversary[]
-  eventLogs     EventLog[]
+  memberships       Membership[]
+  events            Event[]
+  anniversaries     Anniversary[]
+  eventLogs         EventLog[]
+  pushNotifications PushNotification[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -140,6 +150,8 @@ model Membership {
   /// 새 소식 화면을 마지막으로 연 시각. 이 시각 이후의 EventLog 가 "새 소식"
   lastSeenAt  DateTime @default(now())
   joinedAt    DateTime @default(now())
+  /// (#188) 팀 설정 "이 팀 알림 받기". 기본 켬
+  notify      Boolean  @default(true)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -170,6 +182,12 @@ model Event {
   /// (#228) 반복 기준 날짜 (KST). MONTHLY 는 이 날짜의 일, YEARLY 는 월일로 회차 날짜를 정한다 (말일 보정 그대로).
   /// null 이면 startsAt 의 KST 날짜. "이후 모두" 로 나눈 새 원본이 말일 보정된 회차에서 시작해도 원래 날짜를 잇는다 (D-71)
   repeatAnchor DateTime?    @db.Date
+  /// (#188) 알림 시각. 기본 없음
+  reminder      EventReminder @default(NONE)
+  /// (#188) 한 번짜리 일정의 알림 시각(UTC). 반복 원본이거나 NONE 이면 null. 저장할 때 계산 (D-85)
+  remindAt      DateTime?
+  /// (#188) 알림 시각을 정하는 값(시작, 끝, 종일, 알림, 반복, 반복 종료일)을 마지막으로 바꾼 시각 (D-86)
+  reminderSetAt DateTime      @default(now())
 
   group      Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator    User?            @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
@@ -179,6 +197,8 @@ model Event {
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
   @@index([groupId, repeat])
+  @@index([remindAt])
+  @@index([reminder, repeat])
 }
 
 /// (#187) 반복 일정 회차 하나의 예외. "이 일정만" 수정/삭제 (D-65)
@@ -196,6 +216,10 @@ model EventException {
   allDay     Boolean?
   memo       String?   @db.VarChar(500)
   updatedAt  DateTime  @updatedAt
+  /// (#188) 이 회차의 알림. null 이면 원본 값
+  reminder      EventReminder?
+  /// (#188) 이 회차의 시각이나 알림을 바꾼 시각. null 이면 원본 값
+  reminderSetAt DateTime?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -298,4 +322,136 @@ model File {
 
   @@unique([bucket, key])
   @@index([ownerId, kind])
+}
+
+/// (#188) 일정 알림 시각. 시간 일정은 AT_START ~ DAY_1, 종일 일정은 DAY_OF_0900, DAY_BEFORE_0900 (D-84)
+enum EventReminder {
+  NONE
+  AT_START
+  MIN_10
+  HOUR_1
+  DAY_1
+  DAY_OF_0900
+  DAY_BEFORE_0900
+}
+
+/// (#188) 기기 OS
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+/// (#188) 알림 종류. 내 정보 > 알림 의 토글 4개와 1:1
+enum PushKind {
+  REMINDER
+  CHANGE
+  ANNIVERSARY
+  JOIN
+}
+
+/// (#188) PENDING 예약 → DISPATCHED 받을 기기로 펼침 / CANCELLED 묶음으로 취소 / SKIPPED 10분 넘게 늦어 버림
+enum PushNotificationStatus {
+  PENDING
+  DISPATCHED
+  CANCELLED
+  SKIPPED
+}
+
+/// (#188) QUEUED → SENDING → SENT(Expo 접수) / FAILED
+enum PushDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+}
+
+/// (#188) 푸시를 받을 기기. 로그아웃하면 지우고, 탈퇴하면 Cascade 로 지운다
+model PushDevice {
+  id         Int            @id @default(autoincrement())
+  userId     Int
+  /// Expo 푸시 토큰 'ExponentPushToken[...]'. 한 기기는 한 사용자
+  token      String         @unique @db.VarChar(200)
+  platform   DevicePlatform
+  /// 등록한 앱 버전 (문제 추적용)
+  appVersion String         @db.VarChar(20)
+  createdAt  DateTime       @default(now())
+  /// 웹이 마지막으로 등록을 확인한 시각 (1시간 단위)
+  lastSeenAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt])
+}
+
+/// (#188) 보낼 알림 한 건 (사람, 기기와 무관한 "무엇을 언제"). dedupeKey 로 한 번만 생긴다
+model PushNotification {
+  id            Int                    @id @default(autoincrement())
+  kind          PushKind
+  /// 중복 방지 키 (D-89). 같은 키는 다시 만들지 않는다
+  dedupeKey     String                 @unique @db.VarChar(120)
+  groupId       Int
+  scheduledAt   DateTime
+  status        PushNotificationStatus @default(PENDING)
+  /// CHANGE 묶음 키 "{actorId}:{eventId}" (D-90). 그 밖은 null
+  coalesceKey   String?                @db.VarChar(40)
+  /// CHANGE 에 보일 동작 (묶은 결과). 그 밖은 null
+  changeAction  EventLogAction?
+  /// 대상. FK 를 걸지 않는다 (원본이 지워져도 기록은 남고, 발송 때 판정)
+  eventId       Int?
+  occurrence    DateTime?              @db.Date
+  eventLogId    Int?
+  anniversaryId Int?
+  /// CHANGE 의 변경한 사람, JOIN 의 합류한 사람. 받는 사람에서 뺀다
+  actorId       Int?
+  /// 펼칠 때 만든 문구와 경로 { title, subtitle, body, url, expiration }. 기록과 재현용
+  payload       Json?
+  dispatchedAt  DateTime?
+  createdAt     DateTime               @default(now())
+
+  group      Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  deliveries PushDelivery[]
+
+  @@index([status, scheduledAt])
+  @@index([coalesceKey, status])
+  @@index([createdAt])
+}
+
+/// (#188) 기기 하나에 보낸 기록. (알림, 토큰) 이 유일해 한 기기에 한 번만 간다
+model PushDelivery {
+  id               Int                @id @default(autoincrement())
+  notificationId   Int
+  userId           Int
+  token            String             @db.VarChar(200)
+  platform         DevicePlatform
+  status           PushDeliveryStatus @default(QUEUED)
+  attempts         Int                @default(0)
+  /// Expo 티켓 id (SENT 일 때)
+  ticketId         String?            @db.VarChar(64)
+  /// Expo 오류 코드 (DeviceNotRegistered 등) 또는 TIMEOUT, EXPIRED
+  error            String?            @db.VarChar(64)
+  /// 영수증 결과 'ok' | 오류 코드. null 이면 아직 확인 안 함
+  receipt          String?            @db.VarChar(64)
+  sentAt           DateTime?
+  receiptCheckedAt DateTime?
+  createdAt        DateTime           @default(now())
+
+  notification PushNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, token])
+  @@index([status, createdAt])
+  @@index([status, receiptCheckedAt, sentAt])
+}
+
+/// (#188) 프로세스 안 예약 작업의 임대와 진행 위치. 행 1개('push') (D-87)
+model SchedulerLease {
+  name        String    @id @db.VarChar(40)
+  /// 임대를 가진 프로세스 id (기동 때 랜덤)
+  holder      String?   @db.VarChar(40)
+  leaseUntil  DateTime
+  /// 일정 알림과 기념일 계산을 마친 시각 (창의 아래 끝)
+  cursor      DateTime?
+  /// 하루 한 번 청소를 마친 KST 날짜
+  dailyDoneOn DateTime? @db.Date
+  updatedAt   DateTime  @updatedAt
 }

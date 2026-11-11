@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthHandoffsRepository } from '../auth-handoffs/auth-handoffs.repository.js';
 import { ApiException } from '../common/errors.js';
+import { UsersRepository } from '../users/users.repository.js';
 import { AuthService } from './auth.service.js';
 import { randomToken, s256Challenge, sha256hex } from './pkce.js';
 import { KakaoProvider } from './providers/kakao.provider.js';
@@ -26,6 +27,7 @@ export class AppAuthService {
     private readonly handoffs: AuthHandoffsRepository,
     private readonly auth: AuthService,
     private readonly kakao: KakaoProvider,
+    private readonly users: UsersRepository,
   ) {}
 
   /**
@@ -55,11 +57,15 @@ export class AppAuthService {
 
   /**
    * POST /auth/handoff (앱.md 2.2). 1회 소비 후 세션 JWT.
-   * 없음, 만료, 사용됨, verifier 불일치는 모두 401 HANDOFF_INVALID (어느 것인지 알려주지 않는다)
+   * 없음, 만료, 사용됨, verifier 불일치는 모두 401 HANDOFF_INVALID (어느 것인지 알려주지 않는다).
+   * 성공이면 User.lastAppLoginAt = now (#188)
    */
   async exchangeHandoff(handoff: string, verifier: string): Promise<{ token: string }> {
-    const userId = await this.handoffs.consume(sha256hex(handoff), s256Challenge(verifier), new Date());
+    const now = new Date();
+    const userId = await this.handoffs.consume(sha256hex(handoff), s256Challenge(verifier), now);
     if (userId === null) throw new ApiException('HANDOFF_INVALID');
+    // (#188) 마지막 앱 로그인. 응답은 그대로 (D-97)
+    await this.users.markAppLogin(userId, now);
     return { token: await this.auth.signToken(userId) };
   }
 }

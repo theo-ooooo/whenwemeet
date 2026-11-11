@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecord } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
+import { PushRepository } from '../push/push.repository.js';
 
 export const MEMBERSHIP_WITH_USER = {
   select: {
@@ -12,11 +13,13 @@ export const MEMBERSHIP_WITH_USER = {
     displayName: true,
     lastSeenAt: true,
     joinedAt: true,
+    notify: true,
     user: USER_PUBLIC_SELECT,
   },
 } as const;
 
-export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date };
+/** notify: (#188) 팀 설정 "이 팀 알림 받기" */
+export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean };
 
 /** user 를 USER_PUBLIC_SELECT 모양으로 읽은 멤버십 행 → 응답용 `{ nickname, profileImageUrl }` */
 function withUserRow<T extends { user: UserPublicRecord }>(row: T, urls: FileUrlBuilder): Omit<T, 'user'> & { user: MembershipRow['user'] } {
@@ -42,6 +45,8 @@ export interface MembershipGroupTypeRow {
 export interface MembershipMeInput {
   color?: string;
   displayName?: string | null;
+  /** (#188) */
+  notify?: boolean;
 }
 
 @Injectable()
@@ -49,6 +54,7 @@ export class MembershipsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
+    private readonly push: PushRepository,
   ) {}
 
   async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
@@ -100,7 +106,7 @@ export class MembershipsRepository {
     return rows.map((row) => row.groupId);
   }
 
-  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow> {
+  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow & { notify: boolean }> {
     const row = await this.prisma.membership.update({
       where: { id: membershipId },
       data,
@@ -109,6 +115,7 @@ export class MembershipsRepository {
         color: true,
         displayName: true,
         joinedAt: true,
+        notify: true,
         user: USER_PUBLIC_SELECT,
       },
     });
@@ -119,16 +126,21 @@ export class MembershipsRepository {
     return this.prisma.membership.update({ where: { id: membershipId }, data: { lastSeenAt: at }, select: { lastSeenAt: true } });
   }
 
-  /** 아직 멤버가 아니면 팀에서 쓰인 색을 보고 고른 색으로 멤버십 생성. 이미 멤버면 아무것도 하지 않는다 */
-  async addMemberIfAbsentTx(userId: number, groupId: number, pickColor: (usedColors: string[]) => string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+  /**
+   * 아직 멤버가 아니면 팀에서 쓰인 색을 보고 고른 색으로 멤버십 생성. 이미 멤버면 아무것도 하지 않는다.
+   * 새로 만들었으면 같은 트랜잭션에서 합류 알림을 예약하고 true (#188, D-91)
+   */
+  async addMemberIfAbsentTx(userId: number, groupId: number, pickColor: (usedColors: string[]) => string): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
       const existing = await tx.membership.findUnique({
         where: { userId_groupId: { userId, groupId } },
         select: { id: true },
       });
-      if (existing) return;
+      if (existing) return false;
       const used = await tx.membership.findMany({ where: { groupId }, select: { color: true } });
-      await tx.membership.create({ data: { userId, groupId, color: pickColor(used.map((m) => m.color)) } });
+      const created = await tx.membership.create({ data: { userId, groupId, color: pickColor(used.map((m) => m.color)) }, select: { id: true } });
+      await this.push.scheduleJoinTx(tx, { id: created.id, groupId, userId }, new Date());
+      return true;
     });
   }
 

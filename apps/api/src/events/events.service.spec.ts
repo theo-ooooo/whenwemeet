@@ -21,6 +21,8 @@ const ROW = {
   repeat: null,
   repeatUntil: null,
   repeatAnchor: null,
+  reminder: 'NONE' as const,
+  reminderSetAt: new Date('2026-11-01T00:00:00.000Z'),
   creator: { nickname: '앨리스', profileImageUrl: null },
 };
 
@@ -95,7 +97,7 @@ describe('EventsService', () => {
     const created = await service.create(1, 10, { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe(100);
     expect(events.createWithLogTx).toHaveBeenCalledWith(
-      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1 },
+      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date) },
       1,
     );
   });
@@ -110,7 +112,7 @@ describe('EventsService', () => {
     expect(updated.title).toBe('변경');
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       100,
-      { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모' },
+      { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모', reminder: 'NONE', remindAt: null },
       1,
     );
 
@@ -124,7 +126,7 @@ describe('EventsService', () => {
     await service.update(1, 10, 100, { memo: '' });
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       100,
-      { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null },
+      { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null },
       1,
     );
   });
@@ -145,14 +147,15 @@ describe('EventsService', () => {
     expect(events.updateWithLogTx).not.toHaveBeenCalled();
   });
 
-  it('isUnchanged: 필드 하나라도 다르면 false', () => {
-    const base = { title: 't', startsAt: new Date(0), endsAt: new Date(1000), allDay: false, memo: null };
+  it('isUnchanged: 필드 하나라도 다르면 false (알림 포함, #188)', () => {
+    const base = { title: 't', startsAt: new Date(0), endsAt: new Date(1000), allDay: false, memo: null, reminder: 'NONE' as const };
     expect(isUnchanged(base, { ...base, startsAt: new Date(0) })).toBe(true);
     expect(isUnchanged(base, { ...base, title: 'u' })).toBe(false);
     expect(isUnchanged(base, { ...base, startsAt: new Date(1) })).toBe(false);
     expect(isUnchanged(base, { ...base, endsAt: new Date(999) })).toBe(false);
     expect(isUnchanged(base, { ...base, allDay: true })).toBe(false);
     expect(isUnchanged(base, { ...base, memo: '' })).toBe(false);
+    expect(isUnchanged(base, { ...base, reminder: 'HOUR_1' })).toBe(false);
   });
 
   it('update: startsAt 만 바꾸면 나머지는 현재 값을 그대로 넘긴다', async () => {
@@ -163,7 +166,7 @@ describe('EventsService', () => {
     expect(updated.startsAt).toEqual(new Date('2026-12-01T11:00:00.000Z'));
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       100,
-      { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모' },
+      { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date) },
       1,
     );
   });

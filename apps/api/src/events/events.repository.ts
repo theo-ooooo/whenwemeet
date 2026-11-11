@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { addDays, type ExceptionRule, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
+import { type CreatedLog, PushRepository } from '../push/push.repository.js';
+import { addDays, type EventReminderValue, type ExceptionRule, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
 
 export const EVENT_SELECT = {
   id: true,
@@ -18,6 +19,8 @@ export const EVENT_SELECT = {
   repeat: true,
   repeatUntil: true,
   repeatAnchor: true,
+  reminder: true,
+  reminderSetAt: true,
   creator: USER_PUBLIC_SELECT,
 } as const;
 
@@ -30,6 +33,8 @@ export const EVENT_EXCEPTION_SELECT = {
   endsAt: true,
   allDay: true,
   memo: true,
+  reminder: true,
+  reminderSetAt: true,
 } as const;
 
 export interface EventRow {
@@ -49,6 +54,10 @@ export interface EventRow {
   repeatUntil: string | null;
   /** (#228) 반복 기준 날짜 'YYYY-MM-DD' (KST). null 이면 startsAt 의 KST 날짜 (D-71) */
   repeatAnchor: string | null;
+  /** (#188) 알림 (D-84) */
+  reminder: EventReminderValue;
+  /** (#188) 알림 시각을 정하는 값을 마지막으로 바꾼 시각 (D-86) */
+  reminderSetAt: Date;
   creator: UserRow | null;
 }
 
@@ -64,6 +73,8 @@ export type EventExceptionRow = ExceptionRule & {
   endsAt: Date | null;
   allDay: boolean | null;
   memo: string | null;
+  reminder: EventReminderValue | null;
+  reminderSetAt: Date | null;
 };
 
 type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor'> & {
@@ -119,6 +130,12 @@ export interface EventCreateInput {
   repeatUntil?: string | null;
   /** (#228) 반복 기준 날짜. 생략하면 null (D-71) */
   repeatAnchor?: string | null;
+  /** (#188) 알림. 생략하면 NONE */
+  reminder?: EventReminderValue;
+  /** (#188) 한 번짜리 일정의 알림 시각 (D-85) */
+  remindAt?: Date | null;
+  /** (#188) 생략하면 지금 (D-86) */
+  reminderSetAt?: Date;
 }
 
 export interface EventUpdateInput {
@@ -127,10 +144,15 @@ export interface EventUpdateInput {
   endsAt: Date;
   allDay: boolean;
   memo: string | null;
+  /** (#188) 알림 */
+  reminder: EventReminderValue;
   /** 생략하면 바꾸지 않는다 */
   repeat?: Repeat | null;
   repeatUntil?: string | null;
   repeatAnchor?: string | null;
+  /** (#188) 생략하면 바꾸지 않는다 */
+  remindAt?: Date | null;
+  reminderSetAt?: Date;
 }
 
 /** 회차 예외로 저장할 값. null 은 원본 값 */
@@ -140,6 +162,8 @@ export interface ExceptionFields {
   endsAt: Date | null;
   allDay: boolean | null;
   memo: string | null;
+  /** (#188) 원본 알림과 다를 때만 값 */
+  reminder: EventReminderValue | null;
 }
 
 /** 반복 일정에서 범위를 고른 변경의 로그 정보 */
@@ -180,6 +204,7 @@ export class EventsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
+    private readonly push: PushRepository,
   ) {}
 
   /** 한 번짜리 일정. 겹침 조건 `startsAt < to AND endsAt > from`, startsAt 오름차순 */
@@ -281,7 +306,8 @@ export class EventsRepository {
   createWithLogTx(data: EventCreateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
       const created = await tx.event.create({ data: toEventData(data), select: EVENT_SELECT });
-      await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED') });
+      const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(created, this.urls);
     });
   }
@@ -290,7 +316,8 @@ export class EventsRepository {
   updateWithLogTx(eventId: number, data: EventUpdateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.event.update({ where: { id: eventId }, data: toEventData(data), select: EVENT_SELECT });
-      await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED') });
+      const log = await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED'), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(updated, this.urls);
     });
   }
@@ -298,34 +325,52 @@ export class EventsRepository {
   /** 삭제 전 스냅샷으로 DELETED 로그를 남기고 삭제. 로그의 eventId 는 FK SetNull 로 null 이 된다 */
   async deleteWithLogTx(event: EventSnapshot, actorId: number): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.eventLog.create({ data: snapshotLog(event, actorId, 'DELETED') });
+      const log = await tx.eventLog.create({ data: snapshotLog(event, actorId, 'DELETED'), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, log, true, new Date());
       await tx.event.delete({ where: { id: event.id } });
     });
   }
 
-  /** "이 일정만" 수정: 예외 upsert (fields 가 null 이면 원본과 같아져 예외 행 삭제) + UPDATED THIS 로그 */
-  async saveExceptionWithLogTx(event: SeriesRef, occurrence: string, fields: ExceptionFields | null, log: ScopeLog, snapshot: LogSnapshot): Promise<void> {
+  /**
+   * "이 일정만" 수정: 예외 upsert (fields 가 null 이면 원본과 같아져 예외 행 삭제) + UPDATED THIS 로그.
+   * reminderSetAt 은 그 회차의 시각, 종일, 알림이 바뀌었을 때만 (#188, D-86). null 이면 그대로 둔다
+   */
+  async saveExceptionWithLogTx(
+    event: SeriesRef,
+    occurrence: string,
+    fields: ExceptionFields | null,
+    log: ScopeLog,
+    snapshot: LogSnapshot,
+    reminderSetAt: Date | null = null,
+  ): Promise<void> {
     const where = { eventId_occurrence: { eventId: event.id, occurrence: dateToDb(occurrence) } };
+    const setAt = reminderSetAt ? { reminderSetAt } : {};
     await this.prisma.$transaction(async (tx) => {
       if (fields) {
-        await tx.eventException.upsert({ where, create: { eventId: event.id, occurrence: dateToDb(occurrence), ...fields }, update: { cancelled: false, ...fields } });
+        await tx.eventException.upsert({
+          where,
+          create: { eventId: event.id, occurrence: dateToDb(occurrence), ...fields, ...setAt },
+          update: { cancelled: false, ...fields, ...setAt },
+        });
       } else {
         await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: dateToDb(occurrence) } });
       }
-      await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'UPDATED', log, snapshot) });
+      const created = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'UPDATED', log, snapshot), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, created, false, new Date());
     });
   }
 
   /** "이 일정만" 삭제: 예외 upsert `cancelled = true` + DELETED THIS 로그 */
   async cancelOccurrenceWithLogTx(event: SeriesRef, occurrence: string, log: ScopeLog, snapshot: LogSnapshot): Promise<void> {
-    const cleared = { cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null };
+    const cleared = { cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null, reminder: null, reminderSetAt: null };
     await this.prisma.$transaction(async (tx) => {
       await tx.eventException.upsert({
         where: { eventId_occurrence: { eventId: event.id, occurrence: dateToDb(occurrence) } },
         create: { eventId: event.id, occurrence: dateToDb(occurrence), ...cleared },
         update: cleared,
       });
-      await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot) });
+      const created = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, created, false, new Date());
     });
   }
 
@@ -334,7 +379,8 @@ export class EventsRepository {
     return this.prisma.$transaction(async (tx) => {
       await tx.eventException.deleteMany({ where: { eventId } });
       const updated = await tx.event.update({ where: { id: eventId }, data: toEventData(data), select: EVENT_SELECT });
-      await tx.eventLog.create({ data: scopeLog(updated.groupId, updated.id, 'UPDATED', log, updated) });
+      const created = await tx.eventLog.create({ data: scopeLog(updated.groupId, updated.id, 'UPDATED', log, updated), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, created, false, new Date());
       return toEventRow(updated, this.urls);
     });
   }
@@ -342,7 +388,8 @@ export class EventsRepository {
   /** 첫 회차 "이후 모두" 삭제: DELETED FOLLOWING 로그 후 원본 삭제 (예외는 cascade, 로그 eventId 는 SetNull) */
   async deleteSeriesWithLogTx(event: SeriesRef, log: ScopeLog, snapshot: LogSnapshot): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot) });
+      const created = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, created, true, new Date());
       await tx.event.delete({ where: { id: event.id } });
     });
   }
@@ -359,15 +406,20 @@ export class EventsRepository {
       await tx.event.update({ where: { id: event.id }, data: { repeatUntil: dateToDb(addDays(occurrence, -1)) } });
       await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: { gte: dateToDb(occurrence) } } });
       if (!next) {
-        await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot as LogSnapshot) });
+        const deleted = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot as LogSnapshot), select: LOG_REF_SELECT });
+        await this.push.recordChangeTx(tx, deleted, false, new Date());
         return null;
       }
       const created = await tx.event.create({ data: toEventData(next), select: EVENT_SELECT });
-      await tx.eventLog.create({ data: scopeLog(created.groupId, created.id, 'UPDATED', log, created) });
+      const updated = await tx.eventLog.create({ data: scopeLog(created.groupId, created.id, 'UPDATED', log, created), select: LOG_REF_SELECT });
+      await this.push.recordChangeTx(tx, updated, false, new Date());
       return toEventRow(created, this.urls);
     });
   }
 }
+
+/** (#188) 팀원 변경 묶기에 넘기는 로그 필드 */
+const LOG_REF_SELECT = { id: true, groupId: true, eventId: true, actorId: true, action: true } as const satisfies Record<keyof CreatedLog, true>;
 
 function snapshotLog(event: EventSnapshot, actorId: number, action: 'CREATED' | 'UPDATED' | 'DELETED') {
   return {
