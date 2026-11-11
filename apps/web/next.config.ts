@@ -8,10 +8,19 @@ const nextConfig: NextConfig = {
     SENTRY_CLIENT_RELEASE: process.env.VERCEL_GIT_COMMIT_SHA || "",
   },
   agentRules: false,
-  // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 를 함수 번들에 넣는다
+  // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 를 그 route 함수에만 넣는다 (#204: app/og 로 옮김)
   outputFileTracingIncludes: {
-    "/**/opengraph-image*": ["./src/app/_og/fonts/*.otf"],
-    "/**/twitter-image*": ["./src/app/_og/fonts/*.otf"],
+    "/og": ["./src/app/_og/fonts/*.otf"],
+    "/og/**/*": ["./src/app/_og/fonts/*.otf"],
+  },
+  // (#204) 옛 메타데이터 이미지 주소(이미 공유된 카드의 캐시된 HTML 이 가리킬 수 있음)를 새 route 로 보낸다
+  async redirects() {
+    return [
+      { source: "/opengraph-image", destination: "/og", permanent: true },
+      { source: "/twitter-image", destination: "/og", permanent: true },
+      { source: "/join/:code/opengraph-image", destination: "/og/join/:code", permanent: true },
+      { source: "/join/:code/twitter-image", destination: "/og/join/:code", permanent: true },
+    ];
   },
   // 모든 화면이 사용자별(쿠키) 데이터라 캐시 컴포넌트는 쓰지 않는다
   turbopack: {

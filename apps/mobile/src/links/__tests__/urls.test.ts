@@ -1,4 +1,4 @@
-import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseAuthReturn, parseSchemeLink, safeNext } from "../urls";
+import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseSchemeLink, safeNext } from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -135,20 +135,6 @@ describe("buildAuthAppUrl", () => {
     expect(u.searchParams.get("v")).toBe("V".repeat(43));
     expect(u.searchParams.get("next")).toBe("/join/AB?auto=1");
     expect(new URL(buildAuthAppUrl(WEB, "h", "v", "//evil")).searchParams.get("next")).toBe("/");
-  });
-});
-
-describe("parseAuthReturn", () => {
-  const h = "a".repeat(43);
-  it("handoff 성공", () => {
-    expect(parseAuthReturn(`whenwemeet://auth?h=${h}&next=/`)).toEqual({ ok: true, handoff: h });
-    expect(parseAuthReturn(`whenwemeet:///auth?h=${h}`)).toEqual({ ok: true, handoff: h });
-  });
-  it("오류와 형식 위반", () => {
-    expect(parseAuthReturn("whenwemeet://auth?error=APPLE_CANCELLED")).toEqual({ ok: false, error: "APPLE_CANCELLED" });
-    expect(parseAuthReturn("whenwemeet://auth?h=short")).toEqual({ ok: false, error: "HANDOFF_INVALID" });
-    expect(parseAuthReturn(`https://whenwemeet.day/auth?h=${h}`)).toBeNull();
-    expect(parseAuthReturn(`whenwemeet://other?h=${h}`)).toBeNull();
   });
 });
 

@@ -79,7 +79,7 @@ export function parseSchemeLink(raw: string): { path: string; search: string } |
  * - https://whenwemeet.day/join/<code>?.. , /g/.. → 같은 경로를 webOrigin 에서 (스테이징 빌드면 스테이징 웹)
  * - whenwemeet://join/<code>?.. , whenwemeet://g/.. → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
  *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다)
- * - whenwemeet://auth?... 는 openAuthSessionAsync 가 받으므로 null
+ * - whenwemeet://auth?... 는 null (옛 Android 애플 웹 로그인 복귀 주소. #145 로 접고 #204 로 API 경로도 지웠다)
  */
 export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whenwemeet.day"): string | null {
   let pathname: string;
@@ -119,21 +119,6 @@ export function buildUserAgentSuffix(version: string, os: string): string {
 export function buildAuthAppUrl(webOrigin: string, handoff: string, verifier: string, next: string): string {
   const q = new URLSearchParams({ h: handoff, v: verifier, next: safeNext(next) });
   return `${webOrigin.replace(/\/+$/, "")}/auth/app?${q.toString()}`;
-}
-
-/** 애플 웹 로그인 복귀 주소 whenwemeet://auth?h=..|error=.. 해석 (3.4).
- *  #145 로 Android 앱의 애플 로그인을 접어 지금은 셸에서 부르지 않는다 (API 의 client=app 경로는 남아 있음) */
-export type AuthReturn = { ok: true; handoff: string } | { ok: false; error: string };
-export function parseAuthReturn(raw: string): AuthReturn | null {
-  const u = parseUrl(raw);
-  if (!u || u.protocol !== "whenwemeet:") return null;
-  // whenwemeet://auth 는 host=auth 로, whenwemeet:///auth 는 pathname 으로 들어온다
-  if (u.hostname !== "auth" && u.pathname.replace(/^\/+/, "") !== "auth") return null;
-  const error = u.searchParams.get("error");
-  if (error) return { ok: false, error };
-  const h = u.searchParams.get("h");
-  if (h && /^[A-Za-z0-9_-]{43}$/.test(h)) return { ok: true, handoff: h };
-  return { ok: false, error: "HANDOFF_INVALID" };
 }
 
 /**

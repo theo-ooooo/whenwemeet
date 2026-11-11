@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import { AppAuthService, type HandoffIssued } from './app-auth.service.js';
 import { AuthService } from './auth.service.js';
-import { CODE_CHALLENGE_LENGTH, sha256hex } from './pkce.js';
+import { sha256hex } from './pkce.js';
 import type { ProviderProfile } from './providers/auth-provider.js';
 import { AppleProvider } from './providers/apple.provider.js';
 
@@ -12,19 +12,13 @@ import { AppleProvider } from './providers/apple.provider.js';
 export const APPLE_DEFAULT_NICKNAME = '새 사용자';
 const NICKNAME_MAX_LENGTH = 20;
 
-/** Android 셸이 Custom Tabs 에서 돌아오는 주소 (앱.md 3.4, 5.1) */
-export const APP_AUTH_RETURN_URL = 'whenwemeet://auth';
-
-/** 웹 애플 로그인을 시작한 쪽. app 은 Android 셸 (D-52) */
-export type AppleClient = 'web' | 'app';
-
-/** GET /auth/apple 이 만드는 state. 서명하지 않고 nonce 쿠키와 대조한다 (카카오와 같은 방식, D-08) */
+/**
+ * GET /auth/apple 이 만드는 state. 서명하지 않고 nonce 쿠키와 대조한다 (카카오와 같은 방식, D-08).
+ * (#204) Android 셸 복귀(client=app, cc, whenwemeet://auth)는 #145 로 셸이 부르지 않아 지웠다. 웹 전용
+ */
 export interface AppleState {
   nonce: string;
   next: string;
-  client: AppleClient;
-  /** client=app 일 때 handoff 에 묶을 codeChallenge */
-  cc?: string;
 }
 
 /** POST /auth/apple/callback 의 form_post 본문 중 쓰는 것 */
@@ -45,7 +39,6 @@ export interface AppleNativeInput {
   codeChallenge: string;
 }
 
-const CHALLENGE_PATTERN = new RegExp(`^[A-Za-z0-9_-]{${CODE_CHALLENGE_LENGTH}}$`);
 const HANGUL_ONLY = /^[가-힣]+$/;
 
 /**
@@ -87,19 +80,13 @@ export class AppleAuthService {
   }
 
   /**
-   * GET /auth/apple (앱.md 3.4). client=app 이면 cc(codeChallenge) 필수.
+   * GET /auth/apple (앱.md 3.4, 웹 전용).
    * 쿠키에 심을 nonce 와 Apple 인가 주소를 돌려준다. 설정이 없으면 503
    */
-  start(nextRaw: unknown, clientRaw: unknown, ccRaw: unknown): { nonce: string; url: string } {
+  start(nextRaw: unknown): { nonce: string; url: string } {
     this.apple.assertConfigured();
-    const client = parseClient(clientRaw);
-    const cc = typeof ccRaw === 'string' && ccRaw ? ccRaw : undefined;
-    if (!client) throw new ApiException('VALIDATION_FAILED', 'client 는 web 또는 app 이어야 해요');
-    if (client === 'app' && !(cc && CHALLENGE_PATTERN.test(cc))) {
-      throw new ApiException('VALIDATION_FAILED', 'cc 형식이 올바르지 않아요');
-    }
     const nonce = randomBytes(32).toString('hex');
-    const state: AppleState = { nonce, next: this.auth.sanitizeNext(nextRaw), client, ...(client === 'app' ? { cc } : {}) };
+    const state: AppleState = { nonce, next: this.auth.sanitizeNext(nextRaw) };
     const encoded = Buffer.from(JSON.stringify(state), 'utf8').toString('base64url');
     return { nonce, url: this.apple.authorizeUrl(encoded, nonce) };
   }
@@ -108,10 +95,8 @@ export class AppleAuthService {
     if (typeof raw !== 'string' || !raw) return null;
     try {
       const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<AppleState>;
-      const client = parseClient(parsed.client);
-      if (typeof parsed.nonce !== 'string' || !parsed.nonce || !client) return null;
-      if (client === 'app' && !(typeof parsed.cc === 'string' && CHALLENGE_PATTERN.test(parsed.cc))) return null;
-      return { nonce: parsed.nonce, next: this.auth.sanitizeNext(parsed.next), client, ...(client === 'app' ? { cc: parsed.cc } : {}) };
+      if (typeof parsed.nonce !== 'string' || !parsed.nonce) return null;
+      return { nonce: parsed.nonce, next: this.auth.sanitizeNext(parsed.next) };
     } catch {
       return null;
     }
@@ -123,9 +108,9 @@ export class AppleAuthService {
    */
   async completeWeb(input: AppleCallbackInput): Promise<string> {
     const state = this.parseState(input.state);
-    if (!state || !input.cookieNonce || input.cookieNonce !== state.nonce) return this.failureUrl(state?.client ?? 'web', 'OAUTH_STATE');
-    if (input.error) return this.failureUrl(state.client, input.error === 'user_cancelled_authorize' ? 'APPLE_CANCELLED' : 'APPLE_ERROR');
-    if (!input.code) return this.failureUrl(state.client, 'OAUTH_STATE');
+    if (!state || !input.cookieNonce || input.cookieNonce !== state.nonce) return this.failureUrl('OAUTH_STATE');
+    if (input.error) return this.failureUrl(input.error === 'user_cancelled_authorize' ? 'APPLE_CANCELLED' : 'APPLE_ERROR');
+    if (!input.code) return this.failureUrl('OAUTH_STATE');
 
     try {
       this.apple.assertConfigured();
@@ -134,21 +119,16 @@ export class AppleAuthService {
       const { sub } = await this.apple.verifyIdToken(tokens.idToken, { audience: clientId, nonce: state.nonce, nonceRequired: false });
       const user = await this.auth.login(this.apple.provider, this.profile(sub, nicknameFromUserJson(input.user), clientId, tokens.refreshToken));
 
-      if (state.client === 'app') {
-        const { handoff } = await this.appAuth.issueHandoff(user.id, state.cc!);
-        return `${APP_AUTH_RETURN_URL}?${new URLSearchParams({ h: handoff, next: state.next }).toString()}`;
-      }
       const token = await this.auth.signToken(user.id);
       return `${this.webOrigin()}/auth/callback?${new URLSearchParams({ token, next: state.next }).toString()}`;
     } catch (error) {
-      return this.failureUrl(state.client, error instanceof ApiException ? error.code : 'APPLE_ERROR');
+      return this.failureUrl(error instanceof ApiException ? error.code : 'APPLE_ERROR');
     }
   }
 
-  /** 실패 시 돌아갈 주소. web: 웹 로그인 화면, app: 셸 커스텀 스킴 */
-  failureUrl(client: AppleClient, code: string): string {
-    const query = new URLSearchParams({ error: code }).toString();
-    return client === 'app' ? `${APP_AUTH_RETURN_URL}?${query}` : `${this.webOrigin()}/login?${query}`;
+  /** 실패 시 돌아갈 주소: 웹 로그인 화면 */
+  failureUrl(code: string): string {
+    return `${this.webOrigin()}/login?${new URLSearchParams({ error: code }).toString()}`;
   }
 
   /** 이메일, 사진은 받지 않는다 (D-50). raw 에는 sub 만 */
@@ -166,11 +146,6 @@ export class AppleAuthService {
   private webOrigin(): string {
     return this.config.getOrThrow<string>('WEB_ORIGIN');
   }
-}
-
-function parseClient(raw: unknown): AppleClient | null {
-  if (raw === undefined || raw === null || raw === '' || raw === 'web') return 'web';
-  return raw === 'app' ? 'app' : null;
 }
 
 /** form_post 의 user(JSON, 첫 로그인만) → 닉네임. 깨졌으면 기본값 */

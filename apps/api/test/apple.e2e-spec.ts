@@ -169,18 +169,14 @@ describe('애플 로그인 (e2e)', () => {
     expect((await api(app).get('/v1/me').set({ Authorization: `Bearer ${token}` }).expect(200)).body.data.nickname).toBe('김철수');
   });
 
-  it('Android(client=app): whenwemeet://auth?h= 로 돌아가고 verifier 로 교환', async () => {
-    const { verifier, challenge } = pkcePair();
-    const { cookie, state, nonce } = await startWeb({ client: 'app', cc: challenge, next: '/join/ABC123?auto=1' });
+  it('(#204) client=app, cc 는 더 받지 않는다: 무시하고 웹 콜백 JWT 로 돌아간다', async () => {
+    const { cookie, state, nonce } = await startWeb({ client: 'app', cc: pkcePair().challenge, next: '/join/ABC123?auto=1' });
+    expect(JSON.parse(Buffer.from(state, 'base64url').toString())).toEqual({ nonce, next: '/join/ABC123?auto=1' });
     globalThis.fetch = appleFetch({ idToken: await signAppleToken(keys, { sub: 'apple.sub.android', nonce, aud: APPLE_TEST_ENV.APPLE_SERVICE_ID }) });
     const res = await api(app).post('/v1/auth/apple/callback').type('form').set('Cookie', cookie).send({ code: 'c', state }).expect(302);
-    expect(res.headers.location).toMatch(/^whenwemeet:\/\/auth\?h=[A-Za-z0-9_-]{43}&next=%2Fjoin%2FABC123%3Fauto%3D1$/);
-    const handoff = new URL(res.headers.location).searchParams.get('h')!;
-    await api(app).post('/v1/auth/handoff').send({ handoff, verifier: pkcePair().verifier }).expect(401);
-    await api(app).post('/v1/auth/handoff').send({ handoff, verifier }).expect(200);
-
-    // cc 가 없으면 시작 단계에서 400
-    await api(app).get('/v1/auth/apple').query({ client: 'app' }).expect(400);
+    const back = new URL(res.headers.location);
+    expect(back.origin + back.pathname).toBe('http://localhost:3000/auth/callback');
+    expect(back.searchParams.get('next')).toBe('/join/ABC123?auto=1');
   });
 
   it('콜백 실패: state 불일치 → OAUTH_STATE, 취소 → APPLE_CANCELLED, 교환 실패 → 코드', async () => {

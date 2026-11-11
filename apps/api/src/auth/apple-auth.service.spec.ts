@@ -92,29 +92,25 @@ describe('AppleAuthService', () => {
   });
 
   describe('start / parseState (앱.md 3.4)', () => {
-    it('web 기본: nonce 와 state(nonce, next, client) 를 만든다', () => {
-      const { nonce, url } = service.start('/join/ABC123?auto=1', undefined, undefined);
+    it('nonce 와 state(nonce, next) 를 만든다', () => {
+      const { nonce, url } = service.start('/join/ABC123?auto=1');
       expect(nonce).toMatch(/^[0-9a-f]{64}$/);
       const state = new URL(url).searchParams.get('state')!;
-      expect(JSON.parse(Buffer.from(state, 'base64url').toString())).toEqual({ nonce, next: '/join/ABC123?auto=1', client: 'web' });
+      expect(JSON.parse(Buffer.from(state, 'base64url').toString())).toEqual({ nonce, next: '/join/ABC123?auto=1' });
       expect(apple.authorizeUrl).toHaveBeenCalledWith(state, nonce);
-      expect(service.parseState(state)).toEqual({ nonce, next: '/join/ABC123?auto=1', client: 'web' });
+      expect(service.parseState(state)).toEqual({ nonce, next: '/join/ABC123?auto=1' });
     });
 
-    it('app: cc 필수이고 state 에 싣는다. next 는 규칙 밖이면 /', () => {
-      const { nonce, url } = service.start('https://evil', 'app', CC);
-      const state = new URL(url).searchParams.get('state')!;
-      expect(service.parseState(state)).toEqual({ nonce, next: '/', client: 'app', cc: CC });
-      expect(() => service.start('/', 'app', undefined)).toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED' }));
-      expect(() => service.start('/', 'app', 'short')).toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED' }));
-      expect(() => service.start('/', 'ios', undefined)).toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED' }));
+    it('next 는 규칙 밖이면 /', () => {
+      const { nonce, url } = service.start('https://evil');
+      expect(service.parseState(new URL(url).searchParams.get('state')!)).toEqual({ nonce, next: '/' });
     });
 
     it('미설정이면 503', () => {
       apple.assertConfigured.mockImplementation(() => {
         throw new ApiException('APPLE_NOT_CONFIGURED');
       });
-      expect(() => service.start('/', undefined, undefined)).toThrow(expect.objectContaining({ code: 'APPLE_NOT_CONFIGURED' }));
+      expect(() => service.start('/')).toThrow(expect.objectContaining({ code: 'APPLE_NOT_CONFIGURED' }));
     });
 
     it('깨진 state 는 null', () => {
@@ -122,16 +118,15 @@ describe('AppleAuthService', () => {
       expect(service.parseState(undefined)).toBeNull();
       expect(service.parseState('@@')).toBeNull();
       expect(service.parseState(enc({ next: '/' }))).toBeNull();
-      expect(service.parseState(enc({ nonce: 'n', client: 'ios' }))).toBeNull();
-      expect(service.parseState(enc({ nonce: 'n', client: 'app' }))).toBeNull();
-      expect(service.parseState(enc({ nonce: 'n' }))).toEqual({ nonce: 'n', next: '/', client: 'web' });
+      expect(service.parseState(enc({ nonce: 'n' }))).toEqual({ nonce: 'n', next: '/' });
+      // (#204) 배포 전에 만든 state 의 client, cc 는 무시한다
+      expect(service.parseState(enc({ nonce: 'n', next: '/g/1', client: 'app', cc: CC }))).toEqual({ nonce: 'n', next: '/g/1' });
     });
   });
 
   describe('completeWeb (앱.md 3.4)', () => {
     const stateOf = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
-    const webState = stateOf({ nonce: 'N', next: '/g/3', client: 'web' });
-    const appState = stateOf({ nonce: 'N', next: '/join/ABC123?auto=1', client: 'app', cc: CC });
+    const webState = stateOf({ nonce: 'N', next: '/g/3' });
 
     it('web 성공: Service ID 로 교환(redirect_uri 포함) → id_token(aud=Service ID, nonce=state.nonce) → 웹 콜백 JWT', async () => {
       const location = await service.completeWeb({
@@ -150,11 +145,11 @@ describe('AppleAuthService', () => {
       }));
     });
 
-    it('app 성공: cc 로 handoff 발급 → whenwemeet://auth?h=&next=', async () => {
-      const location = await service.completeWeb({ code: 'CODE', state: appState, cookieNonce: 'N' });
-      expect(location).toBe(`whenwemeet://auth?h=${'H'.repeat(43)}&next=%2Fjoin%2FABC123%3Fauto%3D1`);
-      expect(appAuth.issueHandoff).toHaveBeenCalledWith(8, CC);
-      expect(auth.signToken).not.toHaveBeenCalled();
+    it('(#204) 옛 state(client=app, cc) 도 웹 콜백으로 돌아가고 handoff 를 만들지 않는다', async () => {
+      const oldAppState = stateOf({ nonce: 'N', next: '/join/ABC123?auto=1', client: 'app', cc: CC });
+      const location = await service.completeWeb({ code: 'CODE', state: oldAppState, cookieNonce: 'N' });
+      expect(location).toBe('http://localhost:3000/auth/callback?token=jwt-8&next=%2Fjoin%2FABC123%3Fauto%3D1');
+      expect(appAuth.issueHandoff).not.toHaveBeenCalled();
     });
 
     it('user JSON 이 없거나 깨졌으면 기본 닉네임', async () => {
@@ -163,11 +158,11 @@ describe('AppleAuthService', () => {
       expect(auth.login.mock.calls.map((call) => call[1].nickname)).toEqual([APPLE_DEFAULT_NICKNAME, APPLE_DEFAULT_NICKNAME]);
     });
 
-    it('state 불일치, 쿠키 없음, 깨진 state, code 없음 → OAUTH_STATE (client 에 맞는 주소)', async () => {
+    it('state 불일치, 쿠키 없음, 깨진 state, code 없음 → 웹 로그인 화면 OAUTH_STATE', async () => {
       expect(await service.completeWeb({ code: 'C', state: webState, cookieNonce: 'X' })).toBe('http://localhost:3000/login?error=OAUTH_STATE');
-      expect(await service.completeWeb({ code: 'C', state: appState, cookieNonce: null })).toBe('whenwemeet://auth?error=OAUTH_STATE');
+      expect(await service.completeWeb({ code: 'C', state: webState, cookieNonce: null })).toBe('http://localhost:3000/login?error=OAUTH_STATE');
       expect(await service.completeWeb({ code: 'C', state: '!!', cookieNonce: 'N' })).toBe('http://localhost:3000/login?error=OAUTH_STATE');
-      expect(await service.completeWeb({ state: appState, cookieNonce: 'N' })).toBe('whenwemeet://auth?error=OAUTH_STATE');
+      expect(await service.completeWeb({ state: webState, cookieNonce: 'N' })).toBe('http://localhost:3000/login?error=OAUTH_STATE');
       expect(apple.exchangeCode).not.toHaveBeenCalled();
     });
 
@@ -175,14 +170,14 @@ describe('AppleAuthService', () => {
       expect(await service.completeWeb({ state: webState, cookieNonce: 'N', error: 'user_cancelled_authorize' })).toBe(
         'http://localhost:3000/login?error=APPLE_CANCELLED',
       );
-      expect(await service.completeWeb({ state: appState, cookieNonce: 'N', error: 'invalid_request' })).toBe('whenwemeet://auth?error=APPLE_ERROR');
+      expect(await service.completeWeb({ state: webState, cookieNonce: 'N', error: 'invalid_request' })).toBe('http://localhost:3000/login?error=APPLE_ERROR');
     });
 
     it('검증, 교환 실패는 그 코드로, 예상 밖 오류는 APPLE_ERROR 로 리다이렉트', async () => {
       apple.exchangeCode.mockRejectedValueOnce(new ApiException('SOCIAL_TOKEN_INVALID'));
       expect(await service.completeWeb({ code: 'C', state: webState, cookieNonce: 'N' })).toBe('http://localhost:3000/login?error=SOCIAL_TOKEN_INVALID');
       auth.login.mockRejectedValueOnce(new Error('db down'));
-      expect(await service.completeWeb({ code: 'C', state: appState, cookieNonce: 'N' })).toBe('whenwemeet://auth?error=APPLE_ERROR');
+      expect(await service.completeWeb({ code: 'C', state: webState, cookieNonce: 'N' })).toBe('http://localhost:3000/login?error=APPLE_ERROR');
       apple.assertConfigured.mockImplementation(() => {
         throw new ApiException('APPLE_NOT_CONFIGURED');
       });
