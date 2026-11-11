@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -19,6 +19,7 @@ export const ERROR_STATUS = {
   INVITE_NOT_FOUND: 404,
   PAYLOAD_TOO_LARGE: 413,
   EMAIL_RATE_LIMITED: 429,
+  RATE_LIMITED: 429,
   INTERNAL: 500,
   KAKAO_ERROR: 502,
   APPLE_ERROR: 502,
@@ -50,6 +51,7 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   INVITE_NOT_FOUND: '초대 코드를 찾을 수 없어요',
   PAYLOAD_TOO_LARGE: '요청 내용이 너무 커요',
   EMAIL_RATE_LIMITED: '잠시 후 다시 보내 주세요',
+  RATE_LIMITED: '잠시 후 다시 시도해 주세요',
   INTERNAL: '잠시 후 다시 시도해 주세요',
   KAKAO_ERROR: '카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
   KAKAO_NOT_CONFIGURED: '카카오 로그인이 설정되지 않았어요',
@@ -101,5 +103,20 @@ export class ApiException extends HttpException {
     const details = this.details ?? this.reason;
     if (details) error.details = details;
     return { status: this.getStatus(), data: null, message: this.message, error };
+  }
+}
+
+/**
+ * (#186) 요청 제한 초과. `details: { retryAfterSec }` 와 `Retry-After` 헤더로 내려간다.
+ * `redirectTo` 가 있으면(브라우저가 직접 여는 로그인 경로) 예외 필터가 JSON 대신 그 주소로 302
+ */
+export class RateLimitedException extends ApiException {
+  readonly retryAfterSec: number;
+  readonly redirectTo?: string;
+
+  constructor(retryAfterSec: number, redirectTo?: string) {
+    super('RATE_LIMITED', undefined, { retryAfterSec });
+    this.retryAfterSec = retryAfterSec;
+    if (redirectTo) this.redirectTo = redirectTo;
   }
 }

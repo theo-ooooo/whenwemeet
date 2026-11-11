@@ -3,6 +3,7 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { Public } from '../auth/jwt-auth.guard.js';
 import { IdParam } from '../common/id-param.js';
+import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { CreateGroupDto, JoinGroupDto, UpdateGroupDto, UpdateMeDto } from './dto/group.dto.js';
 import { GroupsService } from './groups.service.js';
 
@@ -23,6 +24,7 @@ export class GroupsController {
   /** 이미 멤버여도 200 (멱등) 이라 201 을 쓰지 않는다 */
   @Post('join')
   @HttpCode(200)
+  @RateLimit('inviteJoin')
   join(@CurrentUser() user: AuthUser, @Body() dto: JoinGroupDto) {
     return this.groups.join(user.id, dto.code);
   }
@@ -60,6 +62,7 @@ export class InvitesController {
 
   @Public()
   @Get(':code')
+  @RateLimit('invitePreview')
   preview(@Param('code') code: string) {
     return this.groups.invitePreview(code);
   }

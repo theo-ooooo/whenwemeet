@@ -10,6 +10,7 @@ import { EmailLoginConfig } from '../src/email-login/email-login.config.js';
 import { MAIL_CLIENT, type MailClient } from '../src/email-login/mail-client.js';
 import { FileUrlBuilder } from '../src/files/file-url.builder.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { RateLimitSettings } from '../src/rate-limit/rate-limit.guard.js';
 import { StorageService } from '../src/storage/storage.service.js';
 import { fakeConfig } from '../src/testing/fake-config.js';
 
@@ -26,6 +27,11 @@ export interface TestAppOptions {
   mail?: MailClient;
   /** (#245) 이메일 로그인 설정을 process.env 위에 덮어쓴다 (스위치 끔 등) */
   emailEnv?: Record<string, string>;
+  /**
+   * (#186) 요청 제한. 기존 e2e 는 한 IP 로 수백 번 부르므로 기본은 끔. 켜면 now 로 시계를 바꿀 수 있다
+   * (rate-limit.e2e-spec)
+   */
+  rateLimit?: { now?: () => number };
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -37,6 +43,10 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   if (options.appleJwks) builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
   if (options.mail) builder.overrideProvider(MAIL_CLIENT).useValue(options.mail);
   if (options.emailEnv) builder.overrideProvider(EmailLoginConfig).useValue(new EmailLoginConfig(fakeConfig({ ...process.env, ...options.emailEnv })));
+  const settings = new RateLimitSettings();
+  settings.enabled = options.rateLimit !== undefined;
+  if (options.rateLimit?.now) settings.now = options.rateLimit.now;
+  builder.overrideProvider(RateLimitSettings).useValue(settings);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);

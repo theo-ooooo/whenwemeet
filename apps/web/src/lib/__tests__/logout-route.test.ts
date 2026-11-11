@@ -29,6 +29,7 @@ describe("/auth/logout 기기 해제 (#188 D-83)", () => {
       body: JSON.stringify({ token: "ExponentPushToken[abc]" }),
       token: "jwt.abc.def",
       timeoutMs: 2000,
+      internal: { clientIp: "unknown" },
     });
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("https://whenwemeet.day/login");

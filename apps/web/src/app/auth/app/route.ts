@@ -2,6 +2,7 @@
 // 서버에서 API 로 넘겨 세션 JWT 로 바꾸고, 카카오 웹 콜백과 같은 httpOnly 쿠키로 싣는다. JWT 는 URL 과 셸에 실리지 않는다.
 import { NextRequest, NextResponse } from "next/server";
 import { GROUP_COOKIE, isHandoffPair, looksLikeJwt, safeNext, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
+import { clientIpOf } from "@/lib/email-login";
 import { readEnvelope } from "@/lib/envelope";
 import { isMock, upstream } from "@/lib/upstream";
 
@@ -32,11 +33,14 @@ export async function GET(req: NextRequest) {
       path: "/auth/handoff",
       body: JSON.stringify({ handoff: h, verifier: v }),
       token: null,
+      // (#186) 로그인 요청 제한(IP 20/1분)이 앱 사용자 IP 로 세도록
+      internal: { clientIp: clientIpOf(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) },
     });
     const env = readEnvelope<{ token?: unknown }>(r.status, r.body);
     if (env.ok && typeof env.data?.token === "string") token = env.data.token;
     // 401(없음, 만료, 사용됨, verifier 불일치)과 400(형식)은 다시 로그인. 그 밖(연결 실패, 5xx)은 일반 실패 문구
     else if (r.status === 400 || r.status === 401) return toLogin(req, "HANDOFF_INVALID", next);
+    else if (r.status === 429) return toLogin(req, "RATE_LIMITED", next);
     else return toLogin(req, "LOGIN_FAILED", next);
   }
 

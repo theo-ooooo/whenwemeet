@@ -3,7 +3,8 @@
 import { errorBody } from "./envelope";
 import { UPSTREAM_UNAVAILABLE } from "./maintenance";
 
-export type UpstreamResult = { status: number; body: unknown };
+/** retryAfter: (#186) 429 의 Retry-After 헤더 값. 프록시가 브라우저에 그대로 넘긴다 */
+export type UpstreamResult = { status: number; body: unknown; retryAfter?: string };
 
 export const isMock = () => process.env.API_MOCK === "1";
 
@@ -26,10 +27,12 @@ export function apiUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
-/** (#245) 서버 전용 헤더. 키 값은 서버 환경 변수에서만 읽고 브라우저로 가는 응답에 싣지 않는다.
- *  키가 비어 있으면 헤더를 빼고 보낸다 (API 가 개발에서만 통과, 운영은 503) */
-export function internalHeaders(clientIp: string, key = process.env.INTERNAL_API_KEY): Record<string, string> {
-  const h: Record<string, string> = { "X-Client-IP": clientIp };
+/** (#245, #186) 서버 전용 헤더. 키 값은 서버 환경 변수에서만 읽고 브라우저로 가는 응답에 싣지 않는다.
+ *  API 는 키가 맞을 때만 X-Client-IP 를 사용자 IP 로 믿는다(이메일 로그인, 요청 제한). 키가 비어 있으면 헤더를 빼고 보낸다.
+ *  clientIp 가 없으면(웹 서버 자신의 호출) X-Client-IP 를 싣지 않는다 */
+export function internalHeaders(clientIp: string | null, key = process.env.INTERNAL_API_KEY): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (clientIp) h["X-Client-IP"] = clientIp;
   if (key) h["X-Internal-Key"] = key;
   return h;
 }
@@ -43,7 +46,8 @@ export async function upstream(opts: {
   token: string | null;
   /** 기다리는 최대 시간(ms). 기본 15초. 로그아웃 기기 해제처럼 실패해도 되는 호출은 짧게 (#188 D-83) */
   timeoutMs?: number;
-  /** (#245) 웹 서버 전용 API(이메일 로그인, D-115). X-Internal-Key(INTERNAL_API_KEY)와 사용자 IP 를 싣는다 */
+  /** 브라우저 사용자의 IP. X-Internal-Key(INTERNAL_API_KEY) 는 항상, 이 IP 는 X-Client-IP 로 싣는다.
+   *  이메일 로그인(D-115)과 요청 제한(#186, api.md 1장) 이 쓴다. 없으면 API 는 웹 서버 자신의 호출로 본다 */
   internal?: { clientIp: string };
 }): Promise<UpstreamResult> {
   const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal } = opts;
@@ -79,7 +83,7 @@ export async function upstream(opts: {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers["Content-Type"] = contentType ?? "application/json";
-  if (internal) Object.assign(headers, internalHeaders(internal.clientIp));
+  Object.assign(headers, internalHeaders(internal?.clientIp ?? null));
   try {
     const res = await fetch(`${apiUrl()}/v1${path}${search}`, {
       method,
@@ -97,7 +101,8 @@ export async function upstream(opts: {
         json = errorBody(res.status, "INTERNAL", "잠시 후 다시 시도해 주세요");
       }
     }
-    return { status: res.status, body: json };
+    const retryAfter = res.headers.get("retry-after");
+    return retryAfter ? { status: res.status, body: json, retryAfter } : { status: res.status, body: json };
   } catch (e) {
     // 연결 거부, DNS 실패 등은 502, 시간 초과는 504. 클라이언트와 서버 컴포넌트는 이 코드를 보고 점검 화면으로 보낸다 (#54)
     const status = isTimeout(e) ? 504 : 502;

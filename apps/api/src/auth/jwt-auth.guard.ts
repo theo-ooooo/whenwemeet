@@ -33,15 +33,8 @@ export class JwtAuthGuard implements CanActivate {
     const token = extractBearer(request.headers.authorization);
     if (!token) throw new ApiException('UNAUTHORIZED');
 
-    let sub: number;
-    try {
-      const payload = await this.jwt.verifyAsync<{ sub?: unknown }>(token);
-      // sub 는 양의 정수 문자열. 예전 cuid 토큰도 여기서 401 이 된다
-      if (typeof payload.sub !== 'string' || !/^[1-9]\d{0,9}$/.test(payload.sub)) throw new Error('sub 형식 아님');
-      sub = Number(payload.sub);
-    } catch {
-      throw new ApiException('UNAUTHORIZED');
-    }
+    const sub = await verifySessionSub(this.jwt, token);
+    if (sub === null) throw new ApiException('UNAUTHORIZED');
 
     const user = await this.users.findById(sub);
     if (!user) throw new ApiException('UNAUTHORIZED');
@@ -50,7 +43,21 @@ export class JwtAuthGuard implements CanActivate {
   }
 }
 
-function extractBearer(header: string | undefined): string | null {
+/**
+ * 세션 JWT 의 서명과 만료를 확인하고 sub(사용자 id) 를 돌려준다. 실패면 null.
+ * sub 는 양의 정수 문자열. 예전 cuid 토큰도 여기서 null 이 된다. 요청 제한 가드(#186)도 같은 판정을 쓴다
+ */
+export async function verifySessionSub(jwt: JwtService, token: string): Promise<number | null> {
+  try {
+    const payload = await jwt.verifyAsync<{ sub?: unknown }>(token);
+    if (typeof payload.sub !== 'string' || !/^[1-9]\d{0,9}$/.test(payload.sub)) return null;
+    return Number(payload.sub);
+  } catch {
+    return null;
+  }
+}
+
+export function extractBearer(header: string | undefined): string | null {
   if (!header) return null;
   const [scheme, token] = header.split(' ');
   if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
