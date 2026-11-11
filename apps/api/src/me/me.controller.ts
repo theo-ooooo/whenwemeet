@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Patch, Post, UploadedFile, Use
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { AvatarsService, type UploadedImage } from '../avatars/avatars.service.js';
+import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { AvatarFileInterceptor } from './avatar-file.interceptor.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { MeService } from './me.service.js';
@@ -27,6 +28,7 @@ export class MeController {
   /** 프로필 사진 업로드 (D-37). multipart 필드 `file`. 생성이 아니라 교체라 200 */
   @Post('avatar')
   @HttpCode(200)
+  @RateLimit('avatarUpload')
   @UseInterceptors(AvatarFileInterceptor)
   uploadAvatar(@CurrentUser() user: AuthUser, @UploadedFile() file: UploadedImage | undefined) {
     return this.avatars.upload(user.id, file);

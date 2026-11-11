@@ -40,6 +40,7 @@
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
 | EMAIL_RATE_LIMITED | 429 | 이메일 로그인 발송 횟수 제한. `details: { reason: "COOLDOWN" \| "HOURLY" \| "IP", retryAfterSec }` (#245) |
+| RATE_LIMITED | 429 | 요청 제한 초과 (#186, 아래 "요청 제한"). message "잠시 후 다시 시도해 주세요", `details: { retryAfterSec }`, 헤더 `Retry-After: <초>` |
 | EMAIL_LINK_INVALID | 400 | 로그인 링크 없음, 사용됨, 만료, 무효. `details: { reason: "INVALID" \| "USED" \| "EXPIRED" }` |
 | EMAIL_CODE_INVALID | 400 | 코드 불일치. `details: { attemptsLeft }` |
 | EMAIL_CODE_LOCKED | 400 | 코드 5번째 틀림. 그 메일(링크 포함)은 무효 |
@@ -47,6 +48,32 @@
 | SIGNUP_TOKEN_INVALID | 401 | 이메일 가입 티켓 없음, 만료(30분), 사용됨 |
 | EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
+
+### 요청 제한 (#186, D-143)
+
+API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 인스턴스라 공유 저장소가 없고, 재시작하면 0 부터 센다. 넘으면 429 `RATE_LIMITED` (`details: { retryAfterSec }`, `Retry-After` 헤더). 거절된 요청은 세지 않는다.
+
+| 대상 | 기준 | 한도 |
+|------|------|------|
+| 로그인: `GET /auth/kakao`, `GET /auth/kakao/callback`, `POST /auth/kakao/native`, `GET /auth/apple`, `POST /auth/apple/callback`, `POST /auth/apple/native`, `POST /auth/handoff` | IP (경로끼리 한 묶음) | 20 / 1분 |
+| 초대 미리보기 `GET /invites/:code` | IP | 30 / 1분 |
+| 초대 합류 `POST /groups/join` (6자리 코드 추측 방지) | 사용자 **그리고** IP | 사용자 10 / 10분, IP 30 / 10분 |
+| 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
+| 그 밖의 모든 요청 (위 경로도 함께 센다) | 로그인(유효한 JWT)이면 사용자, 아니면 IP | 사용자 300 / 1분, IP 600 / 1분 |
+
+- 제외: `GET /health` (배포 healthcheck, 점검 화면). 푸시 스케줄러는 HTTP 가 아니라 대상 아님. 이메일 엔드포인트는 자체 제한(EMAIL_RATE_LIMITED)을 그대로 두고 기본 한도만 함께 센다
+- 사용자 기준은 가드가 JWT 서명을 직접 확인한 `sub`. 서명이 틀린 토큰은 IP 로 센다 (남의 sub 를 위조해 그 사람 한도를 소진시키지 못하게)
+- 인증 가드보다 먼저 돈다. 토큰 없는 요청, 401 이 될 요청도 IP 기본 한도에 들어간다
+- 브라우저가 직접 여는 로그인 경로(`GET /auth/kakao`, `GET /auth/kakao/callback`, `GET /auth/apple`, `POST /auth/apple/callback`)는 JSON 대신 `302 → {WEB_ORIGIN}/login?error=RATE_LIMITED` (헤더 `Retry-After` 동일)
+
+**IP 판정**
+1. 요청의 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같으면(상수 시간 비교) 웹 서버가 보낸 요청이다. `X-Client-IP`(100자 이하) 를 IP 로 쓴다. 헤더가 없으면 `internal` 한 묶음 (OG 이미지처럼 사용자 요청이 아닌 웹 서버 자신의 호출)
+2. 키가 없거나 다르면(앱의 네이티브 로그인, 브라우저의 카카오/애플 리다이렉트처럼 API 를 직접 부르는 요청) Railway 엣지가 넣는 `X-Real-IP`. 그것도 없으면(로컬, 테스트) 소켓 주소
+3. `X-Forwarded-For` 는 쓰지 않는다. Railway 문서가 클라이언트 IP 헤더로 `X-Real-IP` 만 명시하고, XFF 를 덮어쓰는지 이어 붙이는지 밝히지 않아 위조 여부를 장담할 수 없다
+
+웹 프록시(`/api/[...path]`, 서버 컴포넌트 `serverApi`, `/auth/app` handoff 교환, 로그아웃 기기 해제)는 모든 API 호출에 `X-Internal-Key` 와 사용자 IP(`X-Client-IP` = Vercel 의 `X-Forwarded-For` 첫 값)를 싣는다. 웹은 429 의 `Retry-After` 를 그대로 브라우저에 넘기고, 화면은 RATE_LIMITED 면 "잠시 후 다시 시도해 주세요" 를 보여준다. `/auth/app` 이 429 를 받으면 `/login?error=RATE_LIMITED`.
+
+**운영 주의**: Railway(api)와 Vercel(web)의 `INTERNAL_API_KEY` 가 다르거나 한쪽이 비면 웹 경유 요청이 모두 Vercel 의 나가는 IP 몇 개로 묶여 기본 IP 한도(600/1분)를 사용자 전체가 나눠 쓰게 된다. 키를 바꿀 때는 두 곳을 같이 바꾼다.
 
 ### 환경 변수 (apps/api/.env)
 
@@ -224,18 +251,21 @@ Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Memb
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/groups/:groupId/anniversaries` | 멤버 | - | `{ data: Anniversary[] }` date 오름차순 |
-| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD', kind? }` (kind 생략 시 `COUNT_UP`) | 201 `{ data: Anniversary }` |
-| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date?, kind? }` | `{ data: Anniversary }` |
+| POST | `/groups/:groupId/anniversaries` | 멤버 | `{ name(1~30), date: 'YYYY-MM-DD', kind?, reminders? }` (kind 생략 시 `COUNT_UP`, reminders 생략 시 `['DAY_OF']`) | 201 `{ data: Anniversary }` |
+| PATCH | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | `{ name?, date?, kind?, reminders? }` | `{ data: Anniversary }` |
 | DELETE | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | - | `{ data: { ok: true } }` |
 
 ```ts
-Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, creator: Member|탈퇴자, createdAt }
+Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, reminders: AnniversaryReminder[], creator: Member|탈퇴자, createdAt }
 AnniversaryKind = 'COUNT_UP' | 'YEARLY' | 'ONCE'   // 함께한 날 세기(기본) / 매년 반복 / 그날만
+AnniversaryReminder = 'DAY_OF' | 'DAY_BEFORE' | 'WEEK_BEFORE'   // (#269) 당일 / 하루 전 / 일주일 전, 모두 오전 9시 KST
 ```
 
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
+
+기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
 
 ### 2.5 빈 시간 찾기
 
@@ -362,7 +392,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
-**발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일 당일, 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
+**발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일(당일, 하루 전, 일주일 전), 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
 
 | 환경 변수 | 필수 | 용도 |
 |-----------|------|------|

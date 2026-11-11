@@ -2,6 +2,7 @@
 // API_MOCK=1 이면 upstream 이 메모리 목으로 응답한다.
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth";
+import { clientIpOf } from "@/lib/email-login";
 import { errorBody } from "@/lib/envelope";
 import { isMock, upstream } from "@/lib/upstream";
 
@@ -40,9 +41,12 @@ async function handle(req: NextRequest, ctx: Ctx) {
     body: body || null,
     contentType: multipart ? contentType : null,
     token,
+    // (#186) API 요청 제한이 사용자 IP 로 세도록. 키가 맞을 때만 API 가 믿는다 (api.md 1장 "요청 제한")
+    internal: { clientIp: clientIpOf(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) },
   });
 
   const res = NextResponse.json(result.body ?? null, { status: result.status });
+  if (result.retryAfter) res.headers.set("Retry-After", result.retryAfter);
   if (result.status === 401) {
     res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0, httpOnly: true, sameSite: "lax" });
   }

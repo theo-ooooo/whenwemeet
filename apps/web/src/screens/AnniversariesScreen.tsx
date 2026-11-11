@@ -4,11 +4,21 @@ import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { IconHeart, IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
-import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, inputClass } from "@/components/ui";
+import { ReminderNote } from "@/components/ReminderPicker";
+import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
+import {
+  DEFAULT_REMINDERS,
+  REMINDER_CHOICES,
+  isChoiceOn,
+  reminderHint,
+  remindersOf,
+  sameReminders,
+  toggleReminder,
+} from "@/lib/anniversary-reminder";
 import { formatDateKo, todayKey } from "@/lib/date";
-import type { Anniversary, AnniversaryKind } from "@/lib/types";
+import type { Anniversary, AnniversaryInput, AnniversaryKind, AnniversaryReminder } from "@/lib/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 
@@ -28,6 +38,9 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
   const [date, setDate] = useState(today);
   const [kind, setKind] = useState<AnniversaryKind>("COUNT_UP");
   const kindLabelId = useId();
+  // (#269) 알림 시점. 기념일에 하나, 팀 공통 (기획 푸시-알림.md 3-7)
+  const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
+  const reminderLabelId = useId();
   // 다음 항목 날짜순, 다음이 없는 것(지난 '그날만')은 맨 아래 (기획 4장)
   const sorted = useMemo(() => (items ? sortByNext(items, today) : null), [items, today]);
   const saving = create.isPending || update.isPending;
@@ -40,10 +53,12 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       setName(next.item.name);
       setDate(next.item.date);
       setKind(kindOf(next.item));
+      setReminders(remindersOf(next.item));
     } else {
       setName("");
       setDate(today);
       setKind("COUNT_UP");
+      setReminders([...DEFAULT_REMINDERS]);
     }
   }
 
@@ -64,7 +79,10 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     e.preventDefault();
     if (!valid || !editing) return;
     setFormError(null);
-    const input = { name: name.trim(), date, kind };
+    // 알림은 기본값과 다를 때(추가), 바뀌었을 때(수정)만 싣는다. 앱 셸이 옛 API 를 볼 때도 다른 칸 저장이 막히지 않게
+    const input: AnniversaryInput = { name: name.trim(), date, kind };
+    const before = editing.mode === "new" ? DEFAULT_REMINDERS : remindersOf(editing.item);
+    if (!sameReminders(reminders, before)) input.reminders = reminders;
     const r = editing.mode === "new" ? await create.mutate(input) : await update.mutate({ id: editing.item.id, input });
     if (!r.ok) {
       setFormError(messageOf(r.error, "저장하지 못했어요. 다시 시도해 주세요"));
@@ -94,7 +112,13 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
     toast.show(`'${item.name}' 을 삭제했어요`, {
       actionLabel: "되돌리기",
       onAction: async () => {
-        const restored = await create.mutate({ name: item.name, date: item.date, kind: kindOf(item) });
+        const kept = remindersOf(item);
+        const restored = await create.mutate({
+          name: item.name,
+          date: item.date,
+          kind: kindOf(item),
+          ...(sameReminders(kept, DEFAULT_REMINDERS) ? {} : { reminders: kept }),
+        });
         if (!restored.ok) {
           toast.show(messageOf(restored.error, "되돌리지 못했어요. 다시 추가해 주세요"));
           return;
@@ -192,6 +216,20 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
             </span>
             <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
             <p className="t-sub mt-1.5">{KIND_OPTIONS.find((o) => o.value === kind)?.hint}</p>
+          </div>
+          {/* 알림 (#269, 기획 푸시-알림.md 3-7): 당일 / 하루 전 / 일주일 전 여러 개, "없음" 은 셋을 끈다. 모두 오전 9시 */}
+          <div>
+            <span id={reminderLabelId} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+              알림 <span className="font-normal">(오전 9시)</span>
+            </span>
+            <ToggleChips
+              labelledBy={reminderLabelId}
+              options={REMINDER_CHOICES}
+              isOn={(v) => isChoiceOn(reminders, v)}
+              onToggle={(v) => setReminders((prev) => toggleReminder(prev, v))}
+            />
+            {reminderHint(kind, reminders) && <p className="t-sub mt-1.5">{reminderHint(kind, reminders)}</p>}
+            <ReminderNote className="mt-1.5" />
           </div>
           <Button type="submit" size="lg" full disabled={!valid} loading={saving}>
             {editing?.mode === "edit" ? "저장" : "추가"}

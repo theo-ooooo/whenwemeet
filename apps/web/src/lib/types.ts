@@ -91,17 +91,22 @@ export type EventDetailData = Event & { hasLaterExceptions: boolean };
 /** 기념일 종류 (api.md 2.4, D-62): 함께한 날 세기(기본) / 매년 반복 / 그날만 */
 export type AnniversaryKind = "COUNT_UP" | "YEARLY" | "ONCE";
 
+/** (#269) 기념일 알림 시점: 당일 / 하루 전 / 일주일 전, 모두 오전 9시 KST. 빈 배열 = 알림 없음 */
+export type AnniversaryReminder = "DAY_OF" | "DAY_BEFORE" | "WEEK_BEFORE";
+
 export type Anniversary = {
   id: number;
   groupId: number;
   name: string;
   date: string; // YYYY-MM-DD (KST)
   kind: AnniversaryKind;
+  /** (#269) 당일, 하루 전, 일주일 전 순. #269 전 API 응답에는 없다 (lib/anniversary-reminder.ts remindersOf) */
+  reminders?: AnniversaryReminder[];
   creator: Member;
   createdAt: string;
 };
 
-export type AnniversaryInput = { name: string; date: string; kind?: AnniversaryKind };
+export type AnniversaryInput = { name: string; date: string; kind?: AnniversaryKind; reminders?: AnniversaryReminder[] };
 
 export type FreeSlots = {
   slots: { startsAt: string; endsAt: string }[];

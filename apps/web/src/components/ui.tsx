@@ -186,6 +186,50 @@ export function Segmented<T extends string>({
   );
 }
 
+/**
+ * (#269) 여러 개 켜고 끄는 칩 줄 (기념일 알림 시점). 모양은 Segmented 와 같고 각 칸이 aria-pressed 토글.
+ * 켜고 끄는 규칙(예: "없음" 이 나머지를 끔)은 부르는 쪽이 정한다
+ */
+export function ToggleChips<T extends string>({
+  labelledBy,
+  options,
+  isOn,
+  onToggle,
+}: {
+  labelledBy: string;
+  options: { value: T; label: string }[];
+  isOn: (v: T) => boolean;
+  onToggle: (v: T) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-labelledby={labelledBy}
+      className="grid gap-1 rounded-sm bg-surface p-1"
+      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+    >
+      {options.map((o) => {
+        const on = isOn(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(o.value)}
+            className={`anim-pick hit flex h-9 items-center justify-center rounded-[8px] border px-1 text-[13px] whitespace-nowrap ${
+              on
+                ? "border-[var(--seg-edge)] bg-[var(--seg-on)] font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                : "border-transparent font-medium text-soft hover:text-ink"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------- 스켈레톤 ---------- */
 
 export function Skeleton({ className = "" }: { className?: string }) {

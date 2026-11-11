@@ -1,6 +1,7 @@
 import { Controller, Get, Logger } from '@nestjs/common';
 import { Public } from '../auth/jwt-auth.guard.js';
 import { ApiException } from '../common/errors.js';
+import { SkipRateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /**
@@ -14,6 +15,7 @@ export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Public()
+  @SkipRateLimit()
   @Get('health')
   async health(): Promise<{ ok: true }> {
     try {

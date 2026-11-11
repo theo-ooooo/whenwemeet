@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+// (#185) 오류 수집은 Nest 보다 먼저 띄운다. SENTRY_DSN 이 비면 아무것도 하지 않는다
+import './instrument.js';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { configureApp } from './app.setup.js';

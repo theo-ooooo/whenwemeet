@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GROUP_COOKIE, SESSION_COOKIE } from "@/lib/auth";
 import { PUSH_TOKEN_RE } from "@/lib/app-bridge";
+import { clientIpOf } from "@/lib/email-login";
 import { upstream } from "@/lib/upstream";
 
 const UNREGISTER_TIMEOUT_MS = 2_000;
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({ token: pushToken }),
         token: session,
         timeoutMs: UNREGISTER_TIMEOUT_MS,
+        internal: { clientIp: clientIpOf(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) },
       });
     } catch {
       // 기기 해제 실패는 로그아웃을 막지 않는다

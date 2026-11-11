@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getMockFile, MOCK_FILE_PREFIX, putMockFile } from "../files";
 import { mockHandle } from "../handler";
-import { ME_ID } from "../fixtures";
+import { ME_ID, TEAM_ID } from "../fixtures";
 
 const call = (method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
   mockHandle({ method, path, query: new URLSearchParams(query), body, userId: ME_ID }) as { status: number; body: { data: Record<string, unknown> } };
@@ -309,5 +309,29 @@ describe("목 일정 참여자 (#248, 설계 3-2, 4장, 6장)", () => {
     const get = (id: number) => as(2, "GET", `/groups/4/events/${id}`).body.data.participants as P;
     expect(get(solo)).toEqual({ all: false, members: [] });
     expect(ids(get(pair))).toEqual([2]);
+  });
+});
+
+describe("목 기념일 알림 시점 (#269)", () => {
+  type Row = { id: number; reminders: string[] };
+  const groupId = TEAM_ID;
+
+  it("기존 시드와 생략은 당일만, 지정은 순서를 맞춰 저장, 잘못된 값은 400", () => {
+    const list = call("GET", `/groups/${groupId}/anniversaries`).body.data as unknown as Row[];
+    expect(list.find((a) => a.id === 1)?.reminders).toEqual(["DAY_OF"]);
+    expect(list.find((a) => a.id === 4)?.reminders).toEqual([]);
+
+    const plain = call("POST", `/groups/${groupId}/anniversaries`, { name: "새 기념일", date: "2025-01-01" });
+    expect(plain.status).toBe(201);
+    expect(plain.body.data.reminders).toEqual(["DAY_OF"]);
+
+    const id = plain.body.data.id as number;
+    const patched = call("PATCH", `/groups/${groupId}/anniversaries/${id}`, { reminders: ["WEEK_BEFORE", "DAY_BEFORE"] });
+    expect(patched.body.data.reminders).toEqual(["DAY_BEFORE", "WEEK_BEFORE"]);
+    expect(call("PATCH", `/groups/${groupId}/anniversaries/${id}`, { name: "이름만" }).body.data.reminders).toEqual(["DAY_BEFORE", "WEEK_BEFORE"]);
+
+    for (const reminders of [null, "DAY_OF", ["MONTH_BEFORE"], ["DAY_OF", "DAY_OF"]]) {
+      expect(call("PATCH", `/groups/${groupId}/anniversaries/${id}`, { reminders }).status).toBe(400);
+    }
   });
 });

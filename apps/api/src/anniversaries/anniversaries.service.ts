@@ -4,6 +4,12 @@ import { ApiException } from '../common/errors.js';
 import { Member, MemberResolver } from '../common/member.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { AnniversariesRepository, AnniversaryRow } from './anniversaries.repository.js';
+import {
+  type AnniversaryReminder,
+  DEFAULT_ANNIVERSARY_REMINDERS,
+  fromReminderFlags,
+  toReminderFlags,
+} from './anniversary-reminders.js';
 import type { CreateAnniversaryDto, UpdateAnniversaryDto } from './dto/anniversary.dto.js';
 
 export interface AnniversaryView {
@@ -14,6 +20,8 @@ export interface AnniversaryView {
   date: string;
   /** 자동 표시 종류 (#105, D-62) */
   kind: AnniversaryKind;
+  /** (#269) 알림 시점. 당일, 하루 전, 일주일 전 순, `[]` = 알림 없음 */
+  reminders: AnniversaryReminder[];
   creator: Member;
   createdAt: Date;
 }
@@ -34,6 +42,7 @@ export function toAnniversaryView(row: AnniversaryRow, resolver: MemberResolver)
     name: row.name,
     date: dbToDateString(row.date),
     kind: row.kind,
+    reminders: fromReminderFlags(row),
     creator: resolver.resolve(row.creatorId, row.creator),
     createdAt: row.createdAt,
   };
@@ -60,6 +69,7 @@ export class AnniversariesService {
       name: dto.name,
       date: dateStringToDb(dto.date),
       kind: dto.kind ?? AnniversaryKind.COUNT_UP,
+      ...toReminderFlags(dto.reminders ?? DEFAULT_ANNIVERSARY_REMINDERS),
       creatorId: userId,
     });
     const resolver = await this.memberships.resolverFor(groupId);
@@ -73,6 +83,7 @@ export class AnniversariesService {
       ...(dto.name !== undefined ? { name: dto.name } : {}),
       ...(dto.date !== undefined ? { date: dateStringToDb(dto.date) } : {}),
       ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
+      ...(dto.reminders !== undefined ? toReminderFlags(dto.reminders) : {}),
     });
     const resolver = await this.memberships.resolverFor(groupId);
     return toAnniversaryView(row, resolver);

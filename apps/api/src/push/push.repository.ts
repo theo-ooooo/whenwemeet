@@ -6,6 +6,7 @@ import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './
 import type { AnniversaryKind } from './anniversary-items.js';
 import type { ChangeLogSnapshot, Platform, PushKindName, PushPayload } from './push-copy.js';
 import type { EventReminder } from './remind-at.js';
+import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-reminders.js';
 
 /** 사용자당 기기 상한 (D-83) */
 export const MAX_DEVICES_PER_USER = 10;
@@ -86,7 +87,7 @@ export interface ReminderSeriesRow {
   exceptions: ReminderExceptionRow[];
 }
 
-export interface AnniversaryPlanRow {
+export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   id: number;
   groupId: number;
   groupName: string;
@@ -329,7 +330,20 @@ export class PushRepository {
   /** 모든 기념일 (그날 항목은 순수 함수로 거른다) */
   async listAnniversaries(): Promise<AnniversaryPlanRow[]> {
     const rows = await this.prisma.anniversary.findMany({
-      select: { id: true, groupId: true, name: true, date: true, kind: true, updatedAt: true, group: { select: { name: true } } },
+      // (#269) 알림 없음(셋 다 꺼짐) 은 읽지 않는다
+      where: { OR: [{ remindDayOf: true }, { remindDayBefore: true }, { remindWeekBefore: true }] },
+      select: {
+        id: true,
+        groupId: true,
+        name: true,
+        date: true,
+        kind: true,
+        remindDayOf: true,
+        remindDayBefore: true,
+        remindWeekBefore: true,
+        updatedAt: true,
+        group: { select: { name: true } },
+      },
       orderBy: { id: 'asc' },
     });
     return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, date: dbToDate(date) }));
