@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import pkg from "./package.json";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -6,6 +7,9 @@ const nextConfig: NextConfig = {
   env: {
     SENTRY_CLIENT_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT || process.env.VERCEL_ENV || process.env.NODE_ENV || "",
     SENTRY_CLIENT_RELEASE: process.env.VERCEL_GIT_COMMIT_SHA || "",
+    // (#333) 내 정보 맨 아래 버전 한 줄. 웹 버전은 package.json(release PR 이 올린다), 커밋은 Vercel 빌드에만 있다
+    NEXT_PUBLIC_WEB_VERSION: pkg.version,
+    NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || "",
   },
   agentRules: false,
   // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 를 그 route 함수에만 넣는다 (#204: app/og 로 옮김)

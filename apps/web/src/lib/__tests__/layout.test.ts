@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { layoutFromMatches, layoutOf, MAIN_2XL, MAIN_LG, MAIN_NARROW, MAIN_XL, mainWidthOf } from "../layout";
+import { layoutFromMatches, layoutOf, MAIN_2XL, MAIN_LG, MAIN_NARROW, MAIN_PANEL, MAIN_XL, mainWidthOf } from "../layout";
 
 describe("layoutOf (폴더블.md 3장 경계)", () => {
   it.each([
@@ -63,6 +63,9 @@ describe("(#323) 본문 폭 구간", () => {
     expect(px("main-lg")).toBe(MAIN_LG);
     expect(px("main-xl")).toBe(MAIN_XL);
     expect(px("main-2xl")).toBe(MAIN_2XL);
+    // (#331) 일 상세 패널 / 덮는 시트
+    expect(px("main-panel")).toBe(MAIN_PANEL);
+    expect(px("main-sheet")).toBe(MAIN_PANEL);
   });
 
   // 사용자 보고(#323): 접힌 레일 + 600 대에서 빈 시간 결과 칸이 화면 밖으로 넘쳤다.

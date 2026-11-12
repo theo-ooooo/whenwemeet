@@ -1,23 +1,26 @@
 "use client";
-// 날짜 상세 내용 (docs/설계/폴더블.md 5-2). 폰 바텀 시트(DaySheet) 와 넓은 화면 팝오버(DayPopover) 가 같이 쓴다.
-// 단계: 날짜(비는 시간 한 줄, 그날 기념일, 일정) → 빠른 추가(QuickAddForm) / 일정 상세(EventDetail)
-// "이 날 일정 추가" 는 목록과 같이 스크롤되면 바쁜 날 잘리므로 표면(시트, 팝오버)의 고정 바닥 바에 둔다: DayAddButton (#175)
-// 단계 전환은 같은 표면 안에서 내용만 바꾼다. 주소(?day, &event, &add) 는 CalendarScreen 이 맡는다
+// 날짜 상세 내용. 넓은 화면 오른쪽 패널(DayDock, #331) 과 폰 일정 상세, 빠른 추가 바텀 시트(DaySheet) 가 같이 쓴다.
+// 단계: 날짜(머리 "11월 14일 토요일" + ‹ 13 [14] 15 ›, 그날 기념일, 일정) → 빠른 추가(QuickAddForm) / 일정 상세(EventDetail)
+// 날짜 단계는 넓은 화면에서만 그린다 (폰은 일 상세 화면 DayView, #212).
+// 비는 시간 줄과 "이 날 일정 추가" 는 목록과 같이 스크롤되면 바쁜 날 잘리므로 표면의 고정 바닥 바에 둔다: DayFreeRow, DayAddButton (#175)
+// 단계 전환은 같은 표면 안에서 내용만 바꾼다. 주소(?day, &add, /events/<코드>) 는 CalendarScreen 이 맡는다
 import Link from "next/link";
 import { ANNIVERSARIES_PATH } from "@/lib/routes";
 import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
-import { IconCalendar, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
-import { useWho } from "./Participants";
+import { IconArrowRight, IconCalendar, IconChevronLeft, IconChevronRight, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
+import { DotCluster, useWho } from "./Participants";
 import { QuickAddForm } from "./QuickAdd";
 import { EmptyState, ErrorState, Skeleton } from "./ui";
 import { dayBadge } from "@/lib/day-detail";
-import { dowOf, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
+import { panelDays, panelTitle } from "@/lib/day-panel";
+import { timeColumn } from "@/lib/day-view";
+import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import type { Event } from "@/lib/types";
 import { eventKey } from "@/lib/recurrence";
-import { barColors, splitBackground, whoOf, withWho } from "@/lib/participants";
+import { withWho } from "@/lib/participants";
 
 /** 비는 시간 한 줄. null 이면 줄을 숨긴다 (멤버 1명, 지난 날, 계산 실패) */
 export type FreeHint = { label: string; slot: { startsAt: string; endsAt: string } | null | "loading" } | null;
@@ -36,12 +39,13 @@ type Props = {
   onRetry: () => void;
   /** 그날 기념일 항목 전부 (lib/day-detail.ts anniversariesOn) */
   anniversaries: Occurrence[];
-  free: FreeHint;
   /** 일정 상세 단계의 일정. undefined = 아직 못 찾음(불러오는 중) */
   event: Event | undefined;
   onClose: () => void;
   onBack: () => void;
   onOpenEvent: (ev: Event) => void;
+  /** 머리 ‹ › 와 앞뒤 날짜로 다른 날 (#331) */
+  onPickDay: (date: DateKey) => void;
   onSaved: (ev: Event) => void;
   onDelete: () => void;
 };
@@ -100,42 +104,59 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onOpenEvent }: Props) {
+function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay }: Props) {
   const who = useWho();
   const holiday = holidayOf(date);
+  const [prev, , next] = panelDays(date);
   const empty = events !== null && !eventsError && events.length === 0 && anniversaries.length === 0;
+  const navBtn = "hit grid size-8 shrink-0 place-items-center rounded-full text-ink-2 hover:bg-hover hover:text-ink";
 
   return (
     <div className="flex flex-col">
-      {/* 머리: "10일 화요일" + 오늘 + 공휴일 + 닫기 */}
-      <div data-drag className="flex h-10 touch-none items-center gap-1.5">
-        <h2 id={titleId} tabIndex={-1} data-autofocus className="text-[18px] font-bold leading-6 tracking-[-0.02em] outline-none">
-          {dayTitle(date)}
+      {/* 머리: "11월 14일 토요일" + 오늘 + 공휴일 + 닫기 */}
+      <div className="flex min-h-11 items-center gap-1.5">
+        <h2 id={titleId} tabIndex={-1} data-autofocus className="min-w-0 truncate text-[18px] font-bold leading-6 tracking-[-0.02em] outline-none">
+          {panelTitle(date)}
         </h2>
-        {date === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}
-        {holiday && <span className="truncate text-[12px] font-medium text-holiday">{holiday}</span>}
+        {date === today && <em className="shrink-0 text-[12px] font-bold not-italic text-today-ink">오늘</em>}
+        {holiday && <span className="min-w-0 truncate text-[12px] font-medium text-holiday">{holiday}</span>}
         <span className="flex-1" />
         <button type="button" onClick={onClose} aria-label="닫기" className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
       </div>
 
-      {/* 비는 시간 한 줄 (멤버 2명 이상, 실패하면 숨김). 목록이 길어도 보이게 머리 바로 아래 (#175) */}
-      {free && (
-        <div className="flex h-9 items-center gap-2 text-[13px]">
-          <IconClock size={16} className="shrink-0 text-acc-ink" />
-          <span className="shrink-0">{free.label}</span>
-          {free.slot === "loading" ? (
-            <Skeleton className="h-3.5 w-24" />
-          ) : free.slot ? (
-            <b className="font-bold text-acc-ink">
-              {timeOf(free.slot.startsAt)}~{timeOf(free.slot.endsAt)}
-            </b>
-          ) : (
-            <span className="text-ink-2">없어요</span>
-          )}
-        </div>
-      )}
+      {/* 앞뒤 날짜 ‹ 13 [14] 15 › (#331). 패널만 바뀌고 기록은 쌓지 않는다 (CalendarScreen changeDay) */}
+      <nav aria-label="날짜 이동" className="-ml-1.5 flex h-10 items-center gap-1">
+        <button type="button" onClick={() => onPickDay(prev)} aria-label="전날" className={navBtn}>
+          <IconChevronLeft size={18} />
+        </button>
+        {panelDays(date).map((k) => {
+          const sel = k === date;
+          const dow = dowOf(k);
+          const red = dow === 0 || dow === 6 || Boolean(holidayOf(k));
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onPickDay(k)}
+              aria-pressed={sel}
+              aria-label={`${formatDateKo(k)}${k === today ? ", 오늘" : ""}`}
+              className={`anim-pick grid h-8 min-w-10 shrink-0 place-items-center rounded-full px-2 text-[14px] font-bold ${
+                sel ? "bg-sel-fill text-on-pri" : `hover:bg-hover ${k === today ? "text-today-ink" : red ? "text-holiday" : "text-ink-2"}`
+              }`}
+            >
+              <span aria-hidden="true">
+                {parseKey(k).d}
+                <small className="ml-0.5 text-[11px] font-medium">{WEEKDAYS[dow]}</small>
+              </span>
+            </button>
+          );
+        })}
+        <button type="button" onClick={() => onPickDay(next)} aria-label="다음 날" className={navBtn}>
+          <IconChevronRight size={18} />
+        </button>
+      </nav>
 
       {/* 기념일 줄: 그날 항목 전부 "처음 만난 날 300일" + 오늘 / D-3 / D+5. 누르면 기념일 화면 (#107, 기획 4장) */}
       {anniversaries.length > 0 && (
@@ -155,16 +176,16 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         </ul>
       )}
 
-      {/* 그날 일정 */}
+      {/* 그날 일정: 왼쪽 시각 열(라벨 11, 시각 15/700, 일 상세와 같은 timeColumn) + 참여자 색 점 + 제목 / 시간, 참여자 */}
       {eventsError ? (
         <div className="mt-1">
           <ErrorState message={eventsError} onRetry={onRetry} />
         </div>
       ) : events === null ? (
-        <div className="space-y-2 py-1" aria-busy="true" aria-label="불러오는 중">
+        <div className="mt-1 space-y-2 py-1" aria-busy="true" aria-label="불러오는 중">
           {[0, 1].map((i) => (
-            <div key={i} className="flex min-h-11 items-center gap-2.5">
-              <Skeleton className="h-8 w-[3px] rounded-[2px]" />
+            <div key={i} className="flex min-h-12 items-center gap-2.5">
+              <Skeleton className="h-8 w-10" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-1/2" />
                 <Skeleton className="h-3 w-1/4" />
@@ -173,30 +194,33 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
           ))}
         </div>
       ) : events.length > 0 ? (
-        <ul className="mt-0.5">
-          {events.map((ev) => (
-            <li key={eventKey(ev)}>
-              <button
-                type="button"
-                onClick={() => onOpenEvent(ev)}
-                aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
-                className="-mx-1.5 flex min-h-11 w-[calc(100%+12px)] items-stretch gap-2.5 rounded-sm px-1.5 py-1 text-left hover:bg-hover"
-              >
-                <i aria-hidden="true" className="my-1 block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
-                <span className="min-w-0 flex-1 self-center">
-                  <b className="block truncate text-[15px] font-semibold leading-5">{ev.title}</b>
-                  <span className="block text-[12px] leading-4 text-ink-2">{formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}</span>
-                </span>
-                {/* 행의 주인공은 제목: 이름은 행 폭의 30% 까지만, 넘치면 말줄임 (#169). 전체 이름은 상세에 있다.
-                    등록자 대신 참여자 (색과 이름이 같은 사람을 가리키게, #248 D-140). 개인 팀은 사람 표시 없음 */}
-                {whoOf(ev, who) && (
-                  <span aria-hidden="true" className="ml-auto min-w-0 max-w-[30%] shrink-0 self-center truncate text-[12px] text-ink-2">
-                    {whoOf(ev, who)}
+        <ul className="mt-1">
+          {events.map((ev) => {
+            const col = timeColumn(ev, date);
+            return (
+              <li key={eventKey(ev)}>
+                <button
+                  type="button"
+                  onClick={() => onOpenEvent(ev)}
+                  aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+                  className="-mx-1.5 flex min-h-12 w-[calc(100%+12px)] items-start gap-2.5 rounded-sm px-1.5 py-1.5 text-left hover:bg-hover"
+                >
+                  <span aria-hidden="true" className="flex w-11 shrink-0 flex-col">
+                    <small className="text-[11px] leading-4 text-ink-2">{col.label}</small>
+                    {col.value && <b className="text-[15px] font-bold leading-5 tracking-[-0.02em]">{col.value}</b>}
                   </span>
-                )}
-              </button>
-            </li>
-          ))}
+                  <span aria-hidden="true" className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <DotCluster event={ev} size={6} />
+                      <b className="min-w-0 truncate text-[15px] font-semibold leading-5">{ev.title}</b>
+                    </span>
+                    {/* 등록자 대신 참여자 (#248 D-140). 개인 팀은 사람 표시 없음 */}
+                    <span className="block truncate text-[12px] leading-4 text-ink-2">{withWho(formatEventTime(ev.startsAt, ev.endsAt, ev.allDay), ev, who)}</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 
@@ -210,7 +234,38 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
   );
 }
 
-/** 날짜 단계의 주 버튼. 표면(DaySheet, DayPopover)의 footer 로 넘겨 스크롤 밖 바닥에 고정한다 (#175) */
+/** 이날 모두 비는 시간 한 줄 + "만들기 →" (#331). 패널 바닥 바에 "이 날 일정 추가" 위로 둔다 (#175: 바쁜 날에도 보이게) */
+export function DayFreeRow({ free, newEventHref }: { free: NonNullable<FreeHint>; newEventHref: (start: string, end: string) => string }) {
+  const slot = free.slot;
+  return (
+    <div className="flex h-9 items-center gap-2 text-[13px]">
+      <IconClock size={16} className="shrink-0 text-acc-ink" />
+      <span className="shrink-0">{free.label}</span>
+      {slot === "loading" ? (
+        <Skeleton className="h-3.5 w-24" />
+      ) : slot ? (
+        <>
+          <b className="font-bold text-acc-ink">
+            {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
+          </b>
+          <span className="flex-1" />
+          <Link
+            href={newEventHref(slot.startsAt, slot.endsAt)}
+            aria-label={`${free.label} ${timeOf(slot.startsAt)}부터 ${timeOf(slot.endsAt)}까지 일정 만들기`}
+            className="hit flex h-8 shrink-0 items-center gap-0.5 font-bold text-btn hover:underline underline-offset-2"
+          >
+            만들기
+            <IconArrowRight size={14} />
+          </Link>
+        </>
+      ) : (
+        <span className="text-ink-2">없어요</span>
+      )}
+    </div>
+  );
+}
+
+/** 날짜 단계의 주 버튼. 표면(DayDock)의 footer 로 넘겨 스크롤 밖 바닥에 고정한다 (#175) */
 export function DayAddButton({ onAdd }: { onAdd: () => void }) {
   return (
     <button
