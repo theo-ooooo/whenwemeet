@@ -5,6 +5,7 @@ import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import { unseenAfter } from '../news/news.service.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
 import { GroupsRepository, InviteGroupRow } from './groups.repository.js';
@@ -44,16 +45,19 @@ export class GroupsService {
     private readonly activities: GroupActivitiesRepository,
   ) {}
 
-  /** PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 일정 기록 + 팀 활동 기록 count (결정기록 D-23, D-154) */
+  /**
+   * PERSONAL 먼저, 그다음 joinedAt 순. unreadNewsCount 는 팀마다 일정 기록 + 팀 활동 기록 count (결정기록 D-23, D-154).
+   * (#297) 새 소식 목록과 같이 내가 들어오기 전 기록은 세지 않는다 (D-180)
+   */
   async list(userId: number): Promise<GroupSummary[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
     rows.sort((a, b) => Number(b.group.type === 'PERSONAL') - Number(a.group.type === 'PERSONAL'));
 
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
+      const after = unseenAfter(row.lastSeenAt, row.joinedAt);
       const unreadNewsCount =
-        (await this.eventLogs.countUnseenByOthers(row.group.id, row.lastSeenAt, userId)) +
-        (await this.activities.countUnseenByOthers(row.group.id, row.lastSeenAt, userId));
+        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) + (await this.activities.countUnseenByOthers(row.group.id, after, userId));
       summaries.push({
         id: row.group.id,
         type: row.group.type,

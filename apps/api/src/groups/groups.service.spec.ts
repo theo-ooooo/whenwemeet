@@ -103,8 +103,8 @@ describe('GroupsService', () => {
 
   it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
-      { color: '#2', displayName: '나', lastSeenAt: new Date('2026-11-02T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 21, type: 'PERSONAL', name: '내 달력', _count: { memberships: 1 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
+      { color: '#2', displayName: '나', lastSeenAt: new Date('2026-11-02T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 21, type: 'PERSONAL', name: '내 달력', _count: { memberships: 1 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(0).mockResolvedValueOnce(4);
     const list = await service.list(1);
@@ -116,13 +116,23 @@ describe('GroupsService', () => {
 
   it('list: unreadNewsCount 는 일정 기록 + 팀 활동 기록 (#191, D-154)', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
     activities.countUnseenByOthers.mockResolvedValueOnce(3);
     const [team] = await service.list(1);
     expect(team.unreadNewsCount).toBe(5);
     expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
+  });
+
+  it('(#297) list: lastSeenAt 이 joinedAt 보다 이르면 joinedAt 이후만 센다 (D-180)', async () => {
+    membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-11-03T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', _count: { memberships: 3 } } },
+    ]);
+    eventLogs.countUnseenByOthers.mockResolvedValueOnce(0);
+    await service.list(1);
+    expect(eventLogs.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-03T00:00:00.000Z'), 1);
+    expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-03T00:00:00.000Z'), 1);
   });
 
   it('create: TEAM + 초대 코드 + 첫 멤버, 코드 충돌(P2002) 이면 재시도', async () => {

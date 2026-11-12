@@ -6,6 +6,8 @@ import { type ClaimedDelivery, type DueNotification, PushRepository } from './pu
 
 const NOW = new Date('2026-11-12T08:00:00.000Z');
 const MIN = 60 * 1000;
+/** 예약을 만든 시각 (CHANGE 묶음의 첫 변경 등) */
+const CREATED = new Date(NOW.getTime() - 2 * MIN);
 const PAYLOAD: PushPayload = { title: '저녁 약속', subtitle: '우리', body: '1시간 뒤 오후 6:00', url: '/g/10/calendar', expiration: 0 };
 
 const due = (overrides: Partial<DueNotification> = {}): DueNotification => ({
@@ -13,6 +15,7 @@ const due = (overrides: Partial<DueNotification> = {}): DueNotification => ({
   kind: 'REMINDER',
   groupId: 10,
   scheduledAt: NOW,
+  createdAt: CREATED,
   eventId: 5,
   eventLogId: null,
   actorId: null,
@@ -62,7 +65,7 @@ describe('PushDispatcher', () => {
       push.eventExists.mockImplementation(async (id) => id === 5);
       push.listRecipients.mockResolvedValue([{ userId: 1, token: 'a', platform: 'IOS' }]);
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'REMINDER', null, 5);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'REMINDER', null, 5, null);
       expect(push.dispatchTx).toHaveBeenCalledWith(1, NOW, null, [{ userId: 1, token: 'a', platform: 'IOS' }]);
       expect(push.markSkipped).toHaveBeenLastCalledWith([2]);
     });
@@ -82,7 +85,7 @@ describe('PushDispatcher', () => {
         occurrence: null,
       });
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null, CREATED);
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: '민지님이 일정을 수정했어요', body: '저녁 약속, 11월 12일 (목) 오후 6:00' });
     });
 
@@ -91,7 +94,7 @@ describe('PushDispatcher', () => {
       push.listDuePending.mockResolvedValue([due({ id: 6, kind: 'CHANGE', payload, eventLogId: null, eventId: null, actorId: 1, changeAction: null })]);
       await dispatcher.expandDue(NOW);
       expect(push.findChangeLog).not.toHaveBeenCalled();
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null, CREATED);
       expect(push.dispatchTx).toHaveBeenCalledWith(6, NOW, null, expect.any(Array));
     });
 
@@ -100,8 +103,21 @@ describe('PushDispatcher', () => {
       push.findGroupName.mockResolvedValue('우리 가족');
       push.findPersonName.mockResolvedValue(null);
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenCalledWith(10, 'JOIN', 9, null);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'JOIN', 9, null, CREATED);
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: "탈퇴한 멤버님이 '우리 가족' 에 들어왔어요" });
+    });
+
+    it('(#297) 지난 일을 알리는 CHANGE, JOIN 은 예약을 만든 시각까지 들어온 팀원만, 앞날 알림 REMINDER, ANNIVERSARY 는 합류 시각을 보지 않는다 (D-180)', async () => {
+      const anniversary = { title: '기념일', subtitle: '우리', body: null, url: '/g/10/calendar', expiration: 0 };
+      push.listDuePending.mockResolvedValue([
+        due({ id: 1, kind: 'ANNIVERSARY', eventId: null, payload: anniversary }),
+        due({ id: 2, kind: 'JOIN', payload: null, actorId: 4, createdAt: new Date('2026-11-12T07:59:00.000Z') }),
+      ]);
+      push.findGroupName.mockResolvedValue('우리');
+      push.findPersonName.mockResolvedValue('민지');
+      await dispatcher.expandDue(NOW);
+      expect(push.listRecipients).toHaveBeenNthCalledWith(1, 10, 'ANNIVERSARY', null, null, null);
+      expect(push.listRecipients).toHaveBeenNthCalledWith(2, 10, 'JOIN', 4, null, new Date('2026-11-12T07:59:00.000Z'));
     });
 
     it('팀이 없거나 로그가 없으면 SKIPPED', async () => {

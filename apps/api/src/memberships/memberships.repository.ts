@@ -33,6 +33,8 @@ export interface MembershipGroupRow {
   color: string;
   displayName: string | null;
   lastSeenAt: Date;
+  /** (#297) 안 읽은 새 소식 수의 기준 */
+  joinedAt: Date;
   user: { nickname: string };
   group: { id: number; type: 'PERSONAL' | 'TEAM'; name: string; _count: { memberships: number } };
 }
@@ -80,6 +82,7 @@ export class MembershipsRepository {
         color: true,
         displayName: true,
         lastSeenAt: true,
+        joinedAt: true,
         user: { select: { nickname: true } },
         group: { select: { id: true, type: true, name: true, _count: { select: { memberships: true } } } },
       },

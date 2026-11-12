@@ -4,7 +4,7 @@ import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { type ActivityNewsItem, type EventNewsItem, mergeNews, type MergedNewsItem, NewsService } from './news.service.js';
+import { type ActivityNewsItem, type EventNewsItem, mergeNews, type MergedNewsItem, NewsService, newsSince, unseenAfter } from './news.service.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
 
@@ -32,7 +32,7 @@ describe('NewsService', () => {
   });
 
   it('list: 내 변경 제외 + 30일 + 50건 + isNew 계산', async () => {
-    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ lastSeenAt: new Date('2026-11-05T00:00:00.000Z') }));
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ lastSeenAt: new Date('2026-11-05T00:00:00.000Z'), joinedAt: new Date('2026-09-01T00:00:00.000Z') }));
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     eventLogs.listRecentByOthers.mockResolvedValue([
       { id: 301, action: 'UPDATED', eventId: 100, actorId: 2, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: new Date('2026-11-06T00:00:00.000Z'), repeat: null, scope: null, occurrence: null, actor: { nickname: '밥', profileImageUrl: null } },
@@ -43,6 +43,26 @@ describe('NewsService', () => {
     expect(result.lastSeenAt).toEqual(new Date('2026-11-05T00:00:00.000Z'));
     expect(result.items[0]).toMatchObject({ id: 301, isNew: true, actor: { userId: 2, displayName: '밥' } });
     expect(result.items[1]).toMatchObject({ id: 302, isNew: false, eventId: null, actor: { userId: null, displayName: '탈퇴한 멤버' } });
+  });
+
+  it('(#297) list: 30일 안이어도 내가 들어오기 전 기록은 읽지 않는다. 두 소스 모두 joinedAt 부터 (D-180)', async () => {
+    const joinedAt = new Date('2026-11-05T12:00:00.000Z');
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ joinedAt, lastSeenAt: joinedAt }));
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
+    eventLogs.listRecentByOthers.mockResolvedValue([]);
+    activities.listRecentByOthers.mockResolvedValue([]);
+    await service.list(1, 10, now, 2);
+    expect(eventLogs.listRecentByOthers).toHaveBeenCalledWith(10, 1, joinedAt, 50);
+    expect(activities.listRecentByOthers).toHaveBeenCalledWith(10, 1, joinedAt, 50);
+  });
+
+  it('(#297) newsSince 는 30일 전과 joinedAt 중 늦은 쪽, unseenAfter 는 lastSeenAt 과 joinedAt 중 늦은 쪽', () => {
+    const old = new Date('2026-01-01T00:00:00.000Z');
+    const recent = new Date('2026-11-08T00:00:00.000Z');
+    expect(newsSince(now, old)).toEqual(new Date('2026-10-10T00:00:00.000Z'));
+    expect(newsSince(now, recent)).toEqual(recent);
+    expect(unseenAfter(old, recent)).toEqual(recent);
+    expect(unseenAfter(recent, old)).toEqual(recent);
   });
 
   it('list: 반복 일정 로그는 repeat, scope, occurrence 를 그대로 싣는다 (#187, 설계 4-3)', async () => {
@@ -67,7 +87,7 @@ describe('NewsService', () => {
   });
 
   it('list v2: 두 소스를 시각 내림차순으로 섞고 같은 시각은 일정 먼저, 사람은 스냅샷 규칙 (#191)', async () => {
-    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ lastSeenAt: new Date('2026-11-05T00:00:00.000Z') }));
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ lastSeenAt: new Date('2026-11-05T00:00:00.000Z'), joinedAt: new Date('2026-09-01T00:00:00.000Z') }));
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     eventLogs.listRecentByOthers.mockResolvedValue([eventLog(301, '2026-11-07T00:00:00.000Z'), eventLog(302, '2026-11-04T00:00:00.000Z')]);
     activities.listRecentByOthers.mockResolvedValue([

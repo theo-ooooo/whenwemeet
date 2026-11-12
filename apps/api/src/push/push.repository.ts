@@ -104,6 +104,8 @@ export interface DueNotification {
   kind: PushKindName;
   groupId: number;
   scheduledAt: Date;
+  /** (#297) 예약을 만든 시각. CHANGE 묶음은 첫 변경, JOIN 은 합류, 가져오기는 가져오기를 마친 시각 */
+  createdAt: Date;
   eventId: number | null;
   eventLogId: number | null;
   actorId: number | null;
@@ -462,6 +464,7 @@ export class PushRepository {
         kind: true,
         groupId: true,
         scheduledAt: true,
+        createdAt: true,
         eventId: true,
         eventLogId: true,
         actorId: true,
@@ -508,9 +511,16 @@ export class PushRepository {
 
   /**
    * 지금 팀원 × 기기 중 종류 설정과 팀 설정이 켜진 것. excludeUserId 는 뺀다 (설계 5-6 받는 사람).
-   * (#248) REMINDER 는 펼치는 순간 그 일정의 참여자만 ("모두" 면 팀원 전원). 참여자 없음이거나 일정이 없으면 0명 (D-138)
+   * (#248) REMINDER 는 펼치는 순간 그 일정의 참여자만 ("모두" 면 팀원 전원). 참여자 없음이거나 일정이 없으면 0명 (D-138).
+   * (#297) joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (joinedAt <= joinedBy). 지난 일을 알리는 CHANGE, JOIN 용 (D-180)
    */
-  async listRecipients(groupId: number, kind: PushKindName, excludeUserId: number | null, eventId: number | null = null): Promise<Recipient[]> {
+  async listRecipients(
+    groupId: number,
+    kind: PushKindName,
+    excludeUserId: number | null,
+    eventId: number | null = null,
+    joinedBy: Date | null = null,
+  ): Promise<Recipient[]> {
     let participantIds: number[] | null = null;
     if (kind === 'REMINDER' && eventId !== null) {
       const event = await this.prisma.event.findUnique({
@@ -528,6 +538,7 @@ export class PushRepository {
         user: { [KIND_SETTING[kind]]: true } as Prisma.UserWhereInput,
         ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
         ...(participantIds === null ? {} : { AND: [{ userId: { in: participantIds } }] }),
+        ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),
       },
       select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
     });
