@@ -103,9 +103,9 @@ export function FreeScreen() {
       </div>
       <p className="t-sub mt-0.5">모두 비는 시간을 골라 바로 일정으로 만들어요</p>
 
-      {/* lg(≥1024): 왼쪽 조건 카드(340, xl 400 고정, 스크롤해도 따라옴) + 오른쪽 결과. 그 아래는 위아래 1단 (#244, 디자인규칙.md 2-2) */}
-      <div className="lg:mt-3 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)] lg:items-start lg:gap-5">
-        <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5 lg:sticky lg:top-7 lg:mt-0">
+      {/* 본문 폭 main-lg(≥696, #323): 왼쪽 조건 카드(340, main-xl 400 고정, 스크롤해도 따라옴) + 오른쪽 결과. 그 아래는 위아래 1단 (#244, 디자인규칙.md 2-2) */}
+      <div className="main-lg:mt-3 main-lg:grid main-lg:grid-cols-[340px_minmax(0,1fr)] main-xl:grid-cols-[400px_minmax(0,1fr)] main-lg:items-start main-lg:gap-5">
+        <section className="mt-3 space-y-3.5 rounded-xl bg-paper px-3.5 py-3.5 main-lg:sticky main-lg:top-7 main-lg:mt-0">
           <div>
             {/* 하나만 고르는 것은 세그먼트 하나로 (기념일 종류, 테마와 같은 모양, #174 L2) */}
             <h2 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h2>
@@ -162,7 +162,7 @@ export function FreeScreen() {
           </div>
         </section>
 
-        <section className="mt-3 lg:mt-0" aria-live="polite">
+        <section className="mt-3 main-lg:mt-0" aria-live="polite">
           {conditionError ? (
             <p role="alert" className="px-1 text-[14px] text-danger">
               {conditionError}
@@ -193,12 +193,12 @@ export function FreeScreen() {
                   <>내 일정 기준으로 비는 시간이에요. 다른 팀 일정도 반영됐어요</>
                 )}
               </p>
-              {/* 결과 칸이 넓으면(2xl) 날짜 카드를 2단으로. 날짜 순서는 위에서 아래, 왼쪽 단 다음 오른쪽 단 (카드 높이가 달라도 빈틈 없이) */}
-              <div className="mt-2 space-y-2 2xl:columns-2 2xl:gap-2 2xl:space-y-0">
+              {/* 결과 칸이 넓으면(본문 main-2xl) 날짜 카드를 2단으로. 날짜 순서는 위에서 아래, 왼쪽 단 다음 오른쪽 단 (카드 높이가 달라도 빈틈 없이) */}
+              <div className="mt-2 space-y-2 main-2xl:columns-2 main-2xl:gap-2 main-2xl:space-y-0">
                 {grouped.map(([key, slots]) => {
                   const p = parseKey(key);
                   return (
-                    <div key={key} className="rounded-xl bg-paper px-3.5 pb-1.5 pt-1 2xl:mb-2 2xl:break-inside-avoid">
+                    <div key={key} className="rounded-xl bg-paper px-3.5 pb-1.5 pt-1 main-2xl:mb-2 main-2xl:break-inside-avoid">
                       <h3 className="t-sec">
                         {WEEKDAYS[dowOf(key)]} {p.m}/{p.d}
                         {key === today && <em className="text-[12px] font-bold not-italic text-today-ink">오늘</em>}

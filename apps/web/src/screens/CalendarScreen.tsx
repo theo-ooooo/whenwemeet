@@ -642,9 +642,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   /* ---------- 넓은 화면 요약 카드 (디자인규칙.md 2-2, 5: 3열 × 84, 라벨 13 --mute / 값 20/700) ---------- */
 
   const sumCard =
-    "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left max-[711px]:h-12 max-[711px]:flex-row max-[711px]:items-center max-[711px]:gap-3 max-[711px]:py-0";
-  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2 max-[711px]:shrink-0";
-  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em] max-[711px]:text-[17px]";
+    "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left main-cardstack:h-12 main-cardstack:flex-row main-cardstack:items-center main-cardstack:gap-3 main-cardstack:py-0";
+  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2 main-cardstack:shrink-0";
+  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em] main-cardstack:text-[17px]";
   const freeCard =
     todayFreeQ.error && todayFree === undefined ? (
       <button type="button" onClick={() => void todayFreeQ.refetch()} className={`${sumCard} hover:bg-hover`}>
@@ -762,10 +762,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </button>
         </div>
         {/* 넓은 화면 제목줄 44: "2026년 11월" 28/700, 오늘 알약, ‹ ›, 오른쪽 주 버튼 "일정 추가" (FAB 대신, 디자인규칙.md 2-2).
-            본문이 좁은 폭(<712, 사이드바 264 + 여백 64 를 빼면 384 미만. 아이폰 듀오 펼침 세로 669, 폴드 세로) 에서는
-            한 줄에 다 안 들어가 가로 스크롤이 생겼다. 제목만 첫 줄, 둘째 줄에 오늘 ‹ › 와 "+ 추가" */}
-        <div className="hidden shrink-0 flex-wrap items-center gap-2 fold:flex min-[712px]:h-11">
-          <h1 className="mr-2 shrink-0 whitespace-nowrap text-[28px] font-bold leading-9 tracking-[-0.02em] max-[711px]:basis-full">
+            본문이 좁은 폭(384 미만. 펼친 사이드바면 뷰포트 712 미만: 아이폰 듀오 펼침 세로 669, 폴드 세로) 에서는
+            한 줄에 다 안 들어가 가로 스크롤이 생겼다. 제목만 첫 줄, 둘째 줄에 오늘 ‹ › 와 "+ 추가".
+            (#323) 뷰포트가 아니라 본문 폭(main-narrow/main-roomy)으로 고른다. 사이드바를 접으면 같은 뷰포트에서 본문이 192 넓다 */}
+        <div className="hidden shrink-0 flex-wrap items-center gap-2 fold:flex main-roomy:h-11">
+          <h1 className="mr-2 shrink-0 whitespace-nowrap text-[28px] font-bold leading-9 tracking-[-0.02em] main-narrow:basis-full">
             {y}년 {m}월
           </h1>
           <button type="button" onClick={goToday} className="hit h-8 shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 text-[13px] font-bold hover:bg-hover">
@@ -782,18 +783,18 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           <Link
             href={newHref}
             aria-label="일정 추가"
-            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-btn px-4 text-[14px] font-bold text-on-btn hover:brightness-95 max-[711px]:px-3"
+            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-btn px-4 text-[14px] font-bold text-on-btn hover:brightness-95 main-narrow:px-3"
           >
             <IconPlus size={18} strokeWidth={2.2} />
             <span>
-              <span className="max-[711px]:hidden">일정 </span>추가
+              <span className="main-narrow:hidden">일정 </span>추가
             </span>
           </Link>
         </div>
 
-        {/* 넓은 화면 요약 카드 3열, 간격 12. 좁은 폭(<712) 은 3열이면 카드가 85px 남짓이라 값이 잘린다 →
+        {/* 넓은 화면 요약 카드 3열, 간격 12. 본문이 좁으면(main-cardstack, <640, #325) 3열이면 카드가 85px 남짓이라 값이 잘린다 →
             한 줄 카드(높이 48, 왼쪽 라벨, 오른쪽 값) 3장을 세로로 */}
-        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid max-[711px]:mt-3 max-[711px]:grid-cols-1 max-[711px]:gap-2">
+        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid main-cardstack:mt-3 main-cardstack:grid-cols-1 main-cardstack:gap-2">
           {freeCard}
           {annCard}
           {weekCard}

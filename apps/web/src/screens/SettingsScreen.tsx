@@ -33,8 +33,8 @@ export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
         <h1 className="t-title">팀 설정</h1>
       </div>
       {group ? (
-        // lg(≥1024): 왼쪽 팀(이름, 초대, 멤버) | 오른쪽 이 팀에서 나(내 표시, 알림, 나가기). 그 아래는 1단 (#244)
-        <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+        // 본문 폭 main-lg(≥696, #323): 왼쪽 팀(이름, 초대, 멤버) | 오른쪽 이 팀에서 나(내 표시, 알림, 나가기). 그 아래는 1단 (#244)
+        <div className="space-y-2 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
           <div className="space-y-2">
             <NameSection group={group} onSaved={setGroup} />
             {group.type === "TEAM" ? (

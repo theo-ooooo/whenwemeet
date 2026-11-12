@@ -71,6 +71,10 @@ describe("접힌 72 레일", () => {
       expect(t.className).toMatch(/group-hover:block/);
       expect(t.className).toMatch(/group-focus-within:block/);
     }
+    // (#323) 레일 밖으로 나간 툴팁이 본문(뒤에 오는 위치 지정 요소)에 가리지 않게 레일이 본문 위 층에 있고, 레일은 툴팁을 자르지 않는다
+    expect(aside.className).toMatch(/\bsticky\b/);
+    expect(aside.className).toMatch(/\bz-30\b/);
+    expect(aside.className).not.toMatch(/overflow-(?:y-|x-)?(?:auto|hidden|scroll|clip)/);
     // 팀 이름 글자, 다가오는 일정 묶음은 없다 (아바타 첫 글자 + 툴팁만)
     expect(within(aside).queryByText("다가오는 일정")).toBeNull();
     expect(within(aside).queryByRole("heading")).toBeNull();

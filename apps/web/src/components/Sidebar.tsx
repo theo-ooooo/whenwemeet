@@ -99,7 +99,9 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
   return (
     <aside
       data-collapsed="true"
-      className="sticky top-0 hidden h-dvh flex-col items-center border-r border-line bg-paper pb-4 pt-5 fold:flex"
+      // (#323) sticky 는 쌓임 맥락을 만든다. z 없이 두면 DOM 에서 뒤에 오는 본문의 위치 지정 요소(카드, 칩)가 레일 밖으로 나간 툴팁을 덮는다.
+      // 레일을 본문 위 층(z-30)에 둬 툴팁이 본문 위에 온전히 보이게 한다. 시트, 팝오버(z-40 이상, 본문 밖 fixed) 보다는 아래
+      className="sticky top-0 z-30 hidden h-dvh flex-col items-center border-r border-line bg-paper pb-4 pt-5 fold:flex"
     >
       <div className={cell}>
         <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="grid size-[34px] place-items-center rounded-sm">
