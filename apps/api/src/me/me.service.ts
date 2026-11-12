@@ -1,9 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
+import { ApiException } from '../common/errors.js';
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
-import { AccountCleanupPlan, UsersRepository } from '../users/users.repository.js';
+import { AccountCleanupPlan, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
+import type { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
+
+/** (#300) GET /me, PATCH /me/start-calendar 응답의 처음 여는 달력. groupId 는 GROUP 일 때만 값 */
+export type StartCalendar = StartCalendarRow;
+
+/** (#300) GET /me 응답 */
+export type MeProfile = AuthUser & { startCalendar: StartCalendar };
+
+const LAST: StartCalendar = { mode: 'LAST', groupId: null };
+
+/** 저장값을 응답 값으로. GROUP 인데 팀이 없으면(FK SetNull) LAST, GROUP 이 아니면 groupId 는 null (D-192) */
+function toStartCalendar(row: StartCalendarRow | null): StartCalendar {
+  if (!row) return LAST;
+  if (row.mode === 'GROUP') return row.groupId === null ? LAST : row;
+  return { mode: row.mode, groupId: null };
+}
+
+function invalid(field: string, message: string): ApiException {
+  return new ApiException('VALIDATION_FAILED', message, [{ field, message }]);
+}
 
 @Injectable()
 export class MeService {
@@ -13,6 +34,29 @@ export class MeService {
     private readonly providers: AuthProviders,
     private readonly avatars: AvatarsService,
   ) {}
+
+  /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력 */
+  async getProfile(user: AuthUser): Promise<MeProfile> {
+    return { ...user, startCalendar: toStartCalendar(await this.users.findStartCalendar(user.id)) };
+  }
+
+  /**
+   * PATCH /me/start-calendar (#300, D-191).
+   * 짝: GROUP 이면 groupId 필수, LAST 와 PERSONAL 은 groupId 없음 또는 null (아니면 400 VALIDATION_FAILED).
+   * GROUP 은 내 팀이어야 하고(아니면 403 FORBIDDEN, 없는 팀도 같다) 개인 팀은 PERSONAL 로 고른다 (400)
+   */
+  async updateStartCalendar(userId: number, dto: UpdateStartCalendarDto): Promise<StartCalendar> {
+    const groupId = dto.groupId ?? null;
+    if (dto.mode !== 'GROUP') {
+      if (groupId !== null) throw invalid('groupId', '팀을 고를 때만 팀 ID 를 보내 주세요');
+      return toStartCalendar(await this.users.updateStartCalendar(userId, { mode: dto.mode, groupId: null }));
+    }
+    if (groupId === null) throw invalid('groupId', '고정할 팀을 골라 주세요');
+    const membership = (await this.membershipsRepo.listByUserWithGroupType(userId)).find((row) => row.groupId === groupId);
+    if (!membership) throw new ApiException('FORBIDDEN');
+    if (membership.groupType === 'PERSONAL') throw invalid('groupId', '내 달력은 "내 달력" 으로 골라 주세요');
+    return toStartCalendar(await this.users.updateStartCalendar(userId, { mode: 'GROUP', groupId }));
+  }
 
   /** PATCH /me. DTO 가 trim 과 1~20자를 검사한 값 */
   updateNickname(userId: number, nickname: string): Promise<AuthUser> {

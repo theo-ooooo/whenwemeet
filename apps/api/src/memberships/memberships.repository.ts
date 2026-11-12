@@ -21,6 +21,9 @@ export const MEMBERSHIP_WITH_USER = {
   },
 } as const;
 
+/** (#300) 고정한 팀에서 나가거나 팀이 지워졌을 때 처음 여는 달력을 마지막에 본 달력으로 (D-192) */
+const START_CALENDAR_RESET = { startCalendarMode: 'LAST', startGroupId: null } as const;
+
 /** notify: (#188) 팀 설정 "이 팀 알림 받기" */
 export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean };
 
@@ -180,6 +183,7 @@ export class MembershipsRepository {
    * (#191) 팀이 남으면 나가기(MEMBER_LEFT) 또는 탈퇴(MEMBER_DELETED)를 지운 멤버십의 표시 이름 스냅샷으로 남긴다.
    * 팀이 지워지면 볼 사람이 없어 남기지 않는다.
    * (#274) 그 사람이 이 팀에서 만든 일정 공유 링크는 끊는다 (D-183). 팀이 지워지면 Cascade 로 같이 사라진다
+   * (#300) 그 사람이 이 팀을 처음 여는 달력으로 고정했으면 LAST 로 되돌린다. 팀이 지워지면 이 팀을 고정한 사람 전부 (D-192)
    */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
     const removed = await db.membership.delete({
@@ -187,6 +191,7 @@ export class MembershipsRepository {
       select: { userId: true, displayName: true, user: { select: { nickname: true } } },
     });
     const { userId } = removed;
+    await db.user.updateMany({ where: { id: userId, startGroupId: groupId }, data: START_CALENDAR_RESET });
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
     await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
     const remaining = await db.membership.count({ where: { groupId } });
@@ -194,6 +199,8 @@ export class MembershipsRepository {
       await this.activities.recordTx(db, { groupId, type: activity, actor: { id: userId, name: snapshotName(removed.displayName, removed.user.nickname) } });
       return false;
     }
+    // FK SetNull 만으로는 mode 가 GROUP 으로 남으므로 지우기 전에 되돌린다
+    await db.user.updateMany({ where: { startGroupId: groupId }, data: START_CALENDAR_RESET });
     await db.group.delete({ where: { id: groupId } });
     return true;
   }

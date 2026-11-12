@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getMockFile, MOCK_FILE_PREFIX, putMockFile } from "../files";
 import { mockHandle } from "../handler";
-import { inviteMarkerOf, ME_ID, TEAM_ID } from "../fixtures";
+import { FAMILY_ID, inviteMarkerOf, ME_ID, PERSONAL_ID, TEAM_ID } from "../fixtures";
 
 const call = (method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
   mockHandle({ method, path, query: new URLSearchParams(query), body, userId: ME_ID }) as { status: number; body: { data: Record<string, unknown> } };
@@ -228,6 +228,27 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
     expect(call("DELETE", "/me/push-devices", { token: TOKEN }).status).toBe(200);
     // 멱등
     expect(call("DELETE", "/me/push-devices", { token: TOKEN }).status).toBe(200);
+  });
+
+  it("처음 여는 달력 (#300): GET /me 기본 LAST, 짝과 권한 검사, 고정한 팀에서 나가면 LAST", () => {
+    call("DELETE", "/me"); // 목 저장소 초기화
+    expect(call("GET", "/me").body.data.startCalendar).toEqual({ mode: "LAST", groupId: null });
+    expect(call("PATCH", "/me/start-calendar", { mode: "PERSONAL" }).body.data).toEqual({ mode: "PERSONAL", groupId: null });
+    expect(call("PATCH", "/me/start-calendar", { mode: "GROUP", groupId: FAMILY_ID }).body.data).toEqual({ mode: "GROUP", groupId: FAMILY_ID });
+    expect(call("GET", "/me").body.data.startCalendar).toEqual({ mode: "GROUP", groupId: FAMILY_ID });
+
+    expect(call("PATCH", "/me/start-calendar", { mode: "GROUP" }).status).toBe(400);
+    expect(call("PATCH", "/me/start-calendar", { mode: "LAST", groupId: TEAM_ID }).status).toBe(400);
+    expect(call("PATCH", "/me/start-calendar", { mode: "GROUP", groupId: PERSONAL_ID }).status).toBe(400);
+    expect(call("PATCH", "/me/start-calendar", { mode: "TEAM" }).status).toBe(400);
+    expect(call("PATCH", "/me/start-calendar", { mode: "GROUP", groupId: 99999 }).status).toBe(403);
+
+    // 다른 팀에서 나가면 그대로, 고정한 팀에서 나가면 LAST
+    call("DELETE", `/groups/${TEAM_ID}/me`);
+    expect(call("GET", "/me").body.data.startCalendar).toEqual({ mode: "GROUP", groupId: FAMILY_ID });
+    call("DELETE", `/groups/${FAMILY_ID}/me`);
+    expect(call("GET", "/me").body.data.startCalendar).toEqual({ mode: "LAST", groupId: null });
+    call("DELETE", "/me");
   });
 
   it("알림 설정: 기본 모두 켬, 바꾼 키만, 불리언 아니면 400", () => {
