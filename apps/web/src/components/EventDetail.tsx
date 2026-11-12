@@ -1,12 +1,14 @@
 "use client";
 // 일정 상세. 날짜 상세(DayPanel) 안에서 일정 행이나 칩을 누르면 같은 표면이 이것으로 바뀐다 (폴더블.md 5-2)
-// 내용: 제목, 시간, 반복, 알림, 참여자(#248), 메모, "○○님이 추가", 등록/수정 시각, 수정/복제/삭제.
+// 내용: 제목, 시간, 반복, 알림, 참여자(#248), 메모, "○○님이 추가", 등록/수정 시각, 수정/복제/삭제. 제목줄 [공유](#274).
 // 개인 팀은 사람 표시가 없던 그대로 등록자 한 줄만 둔다 (7-2)
 import { useRouter } from "next/navigation";
-import { IconArrowRight, IconBell, IconChevronLeft, IconClose } from "./icons";
+import { useEventShareSheet } from "./EventShareSheet";
+import { IconArrowRight, IconBell, IconChevronLeft, IconClose, IconShare } from "./icons";
 import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
+import { isShareEnded } from "@/lib/event-share";
 import { eventCopyHref, eventEditHref } from "@/lib/recurrence";
 import { recurrenceLines } from "@/lib/recurrence-label";
 import { reminderDetail } from "@/lib/reminder";
@@ -51,6 +53,9 @@ export function EventDetail({
   const rec = recurrenceLines(ev, todayKey());
   // 알림 (#188). 없음이면 줄을 두지 않는다
   const remind = reminderDetail(ev.reminder);
+  // (#274) 공유: 개인 팀과 이미 끝난 회차는 숨긴다 (API 도 GROUP_NOT_INVITABLE, EVENT_SHARE_ENDED 로 막는다)
+  const canShare = !who.personal && !isShareEnded(ev.endsAt);
+  const share = useEventShareSheet(groupId, ev);
 
   return (
     <div>
@@ -66,6 +71,16 @@ export function EventDetail({
           <span className="sr-only">로 돌아가기</span>
         </button>
         <span className="flex-1" />
+        {canShare && (
+          <button
+            type="button"
+            onClick={share.open}
+            aria-label="일정 공유"
+            className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
+          >
+            <IconShare size={18} />
+          </button>
+        )}
         <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
           <IconClose size={18} />
         </button>
@@ -148,6 +163,7 @@ export function EventDetail({
           삭제
         </button>
       </div>
+      {canShare && share.sheet}
     </div>
   );
 }

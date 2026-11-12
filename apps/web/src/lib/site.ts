@@ -1,5 +1,5 @@
 // 사이트 공통 메타 (#154). 루트 레이아웃과 페이지별 generateMetadata 가 같이 쓴다.
-// 이미지는 route handler(app/og/route.tsx, app/og/join/[code]/route.tsx)가 그린다 (#159). 주소는 여기서 metadata 에 직접 단다 (#204)
+// 이미지는 route handler(app/og/route.tsx, app/og/join/[code]/route.tsx, app/og/join/e/[token]/route.tsx)가 그린다 (#159, #274). 주소는 여기서 metadata 에 직접 단다 (#204)
 export const SITE_URL = "https://whenwemeet.day";
 export const SITE_NAME = "언제볼까";
 export const SITE_TITLE = "언제볼까 - 같이 쓰는 달력";
@@ -15,4 +15,9 @@ export const SITE_OG_IMAGE = { ...OG_IMAGE_BASE, url: "/og", alt: SITE_TITLE };
 export function inviteOgImage(code: string, by: string | null = null) {
   const query = by ? `?by=${by}` : "";
   return { ...OG_IMAGE_BASE, url: `/og/join/${encodeURIComponent(code)}${query}`, alt: "언제볼까 팀 초대" };
+}
+
+/** (#274) 일정 카드. 토큰이 틀리거나 링크가 끝났으면 route 가 일반 일정 카드를 그린다 */
+export function eventShareOgImage(token: string) {
+  return { ...OG_IMAGE_BASE, url: `/og/join/e/${encodeURIComponent(token)}`, alt: "언제볼까 일정 공유" };
 }

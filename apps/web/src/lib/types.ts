@@ -170,8 +170,8 @@ export type ActivityNewsItem = {
   actor: Member;
   /** 기념일 3종의 대상. 삭제된 기념일이면 null */
   anniversaryId: number | null;
-  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} */
-  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number };
+  /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} (#274 일정 링크 합류는 { via: "EVENT_SHARE" }) */
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string };
   createdAt: string;
   isNew: boolean;
 };
@@ -197,6 +197,22 @@ export type InvitePreview = {
   isMember: boolean;
   groupId: number | null;
 };
+
+/** (#274) 보내는 쪽 일정 링크 (api.md 2.10). url = `${WEB_ORIGIN}/join/e/${token}` */
+export type EventShareLink = { token: string; url: string; expiresAt: string };
+
+/** (#274) 받는 쪽 미리보기 (api.md 2.10). 메모, 참여자, 등록자, id(비멤버)는 없다 */
+export type EventSharePreview = {
+  groupName: string;
+  memberCount: number;
+  sharer: { displayName: string } | null;
+  event: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null; occurrence: string | null };
+  expiresAt: string;
+  viewer: { member: true; groupId: number; eventId: number; occurrence: string | null; date: string } | { member: false };
+};
+
+/** (#274) 일정 링크 합류 결과. 달력 착지 정보 */
+export type EventShareJoin = { group: GroupDetail; eventId: number; occurrence: string | null; date: string };
 
 // api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
 export const MEMBER_COLORS = [

@@ -24,12 +24,14 @@
 |------|------|------|
 | VALIDATION_FAILED | 400 | DTO 검증 실패, 잘못된 쿼리 값, 본문이 JSON 이 아님(message "요청 형식이 올바르지 않아요" 고정) |
 | EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과, 반복 규칙 위반 (길이 >= 주기, 종료일 < 첫 회차 날짜, 회차를 앞뒤 30일 밖으로 옮김. #187) |
-| GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청 |
+| GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청, (#274) PERSONAL 팀 일정 공유 링크 만들기 |
+| EVENT_SHARE_ENDED | 400 | (#274) 이미 끝난 일정(회차)의 공유 링크 만들기 |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
 | NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
+| EVENT_SHARE_NOT_FOUND | 404 | (#274) 일정 공유 링크 없음, 만료, 끊김, 일정 삭제, 회차 취소, 회차 소멸 (구분하지 않는다). message "링크가 만료됐거나 끊겼어요" |
 | PAYLOAD_TOO_LARGE | 413 | JSON 본문이 100KB 초과 (express 기본 한도). message "요청 내용이 너무 커요". 아바타 파일 크기 초과는 해당 없음(400 VALIDATION_FAILED) |
 | SOCIAL_TOKEN_INVALID | 401 | 앱 로그인의 카카오/애플 토큰 검증 실패 (앱.md 8장) |
 | HANDOFF_INVALID | 401 | handoff 없음, 만료, 사용됨, verifier 불일치 (앱.md 2장) |
@@ -60,6 +62,9 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 로그인: `GET /auth/kakao`, `GET /auth/kakao/callback`, `POST /auth/kakao/native`, `GET /auth/apple`, `POST /auth/apple/callback`, `POST /auth/apple/native`, `POST /auth/handoff` | IP (경로끼리 한 묶음) | 20 / 1분 |
 | 초대 미리보기 `GET /invites/:code` | IP | 30 / 1분 |
 | 초대 합류 `POST /groups/join` (6자리 코드 추측 방지) | 사용자 **그리고** IP | 사용자 10 / 10분, IP 30 / 10분 |
+| 일정 링크 미리보기 `GET /event-shares/:token` (#274) | IP | 30 / 1분 (초대 미리보기와 다른 묶음) |
+| 일정 링크 합류 `POST /event-shares/:token/join` (#274) | 사용자 **그리고** IP | 초대 합류 `POST /groups/join` 과 **같은 묶음** (두 길을 번갈아 써서 한도를 두 배로 받지 못하게) |
+| 일정 링크 만들기 `POST /groups/:id/events/:eventId/share` (#274) | 사용자 | 30 / 1시간 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
@@ -143,7 +148,7 @@ type AuthResult =
 | POST | `/groups` | 유저 | `{ name }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급 |
 | GET | `/groups/:groupId` | 멤버 | - | `{ data: GroupDetail }` |
 | PATCH | `/groups/:groupId` | 멤버 | `{ name }` | `{ data: GroupDetail }` |
-| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. PERSONAL 이면 GROUP_NOT_INVITABLE |
+| POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. (#274) 그 팀의 일정 공유 링크도 모두 끊는다. PERSONAL 이면 GROUP_NOT_INVITABLE |
 | GET | `/invites/:code?by=` | 선택 | `by?`(보낸 사람 표식) | `{ data: InvitePreview }`. 로그인 전 미리보기. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명으로 답한다 (#196, D-157, D-158) |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
 | PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
@@ -367,7 +372,7 @@ ActivityPayload =
 | ANNIVERSARY_CREATED | `POST /groups/:id/anniversaries` | 같은 사람이 60초 안에 지운 기념일을 같은 이름, 날짜, 종류로 다시 추가 → 그 DELETED 기록을 지우고 CREATED 도 없음 (되돌리기, D-153) |
 | ANNIVERSARY_UPDATED | `PATCH .../anniversaries/:id` | 이름, 날짜, 종류가 하나도 안 바뀜 (알림 시점만 바꿈 포함, #62 규칙) |
 | ANNIVERSARY_DELETED | `DELETE .../anniversaries/:id` | - |
-| MEMBER_JOINED | `POST /groups/join` 이 새 멤버십을 만들 때 | 이미 멤버 (멱등 재호출) |
+| MEMBER_JOINED | `POST /groups/join`, (#274) `POST /event-shares/:token/join` 이 새 멤버십을 만들 때. 일정 링크면 payload `{ via: 'EVENT_SHARE' }` | 이미 멤버 (멱등 재호출) |
 | MEMBER_LEFT | `DELETE /groups/:id/me` (2.7) | 마지막 멤버라 팀이 지워짐 |
 | MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
 | GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
@@ -386,6 +391,7 @@ ActivityPayload =
 1. 멤버십 확인. group.type == PERSONAL 이면 GROUP_PERSONAL_LEAVE
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
    (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
+   (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -476,6 +482,34 @@ ImportPreview = { total: number,          // 파일 안 VEVENT 수
 - 중복: (팀, 원본 키 해시) 가 이미 있으면 DUPLICATE. 일정을 지워도 다시 들어가지 않고, 바뀐 내용으로 덮어쓰지 않는다
 - 넣은 일정: 등록자 = 요청자, 알림 NONE, EventLog 없음. 끝나면 GroupActivity `EVENTS_IMPORTED { count }` 한 줄 + TEAM 이면 팀원 변경 푸시 한 건 (dedupeKey `I:{importId}`)
 
+### 2.10 일정 카드 공유 (#274, D-181 ~ D-186)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/events/:eventId/share` | 멤버 | 쿼리 `occurrence?` | `{ data: EventShareLink \| null }` 그 일정(회차)의 살아 있는 링크 |
+| POST | `/groups/:groupId/events/:eventId/share` | 멤버 | `{ occurrence? }` | 201 새로 만듦, 200 기존 반환. `{ data: EventShareLink }`. PERSONAL 팀 GROUP_NOT_INVITABLE, 끝난 회차 EVENT_SHARE_ENDED |
+| DELETE | `/groups/:groupId/events/:eventId/share` | 멤버 | 쿼리 `occurrence?` | `{ data: { ok: true } }` 살아 있는 링크를 끊는다(없어도 200). 팀원 누구나 |
+| GET | `/event-shares/:token` | 선택 | - | `{ data: EventSharePreview }`. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명 (D-158 과 같은 선택 인증) |
+| POST | `/event-shares/:token/join` | 유저 | - | `{ data: { group: GroupDetail, eventId, occurrence, date } }`. 멱등(이미 멤버면 그대로 200) |
+
+```ts
+EventShareLink    = { token, url, expiresAt }       // url = `${WEB_ORIGIN}/join/e/${token}`, token = 16바이트 base64url 22자
+EventSharePreview = { groupName, memberCount,
+                      sharer: { displayName } | null,  // 만든 사람의 팀 표시 이름 ?? 닉네임. 팀에 없으면 null. 사진 없음
+                      event: { title, startsAt, endsAt, allDay, repeat, occurrence },  // 그 회차의 지금 값(예외 반영, 스냅샷 아님)
+                      expiresAt,
+                      viewer: { member: true, groupId, eventId, occurrence, date } | { member: false } }  // 유효한 토큰 + 멤버일 때만 id
+```
+
+- `occurrence` 는 반복 일정에서 필수(`YYYY-MM-DD`, 실제 회차가 아니거나 취소된 회차면 400 VALIDATION_FAILED), 한 번짜리에서는 무시
+- 같은 일정(회차)에 살아 있는 링크는 팀 전체에 하나. 살아 있는 링크 = `revokedAt IS NULL AND expiresAt > now`. 만들기는 일정 행을 잠가 동시 요청에도 하나만 생긴다
+- 만료 = 그 회차 `endsAt` + 1일, 단 만든 때 + 30일을 넘지 않음. 정리 작업 없음 (행이 남아도 404)
+- 끊김: DELETE, 초대 코드 재발급(그 팀 전부), 만든 사람의 나가기/탈퇴(그 사람 것), 일정 삭제(Cascade). 미리보기 때 회차가 취소됐거나 "이후 모두" 로 옛 원본에 더는 없으면 404
+- 비멤버 응답에는 메모, 참여자, 등록자, 프로필 사진, groupId, eventId 가 없다
+- `date` 는 그 회차가 지금 시작하는 KST 날짜 ("이 일정만" 으로 옮겼으면 옮긴 날). 웹은 `/g/<groupId>/calendar?date=&day=1&event=[&occurrence=]` 로 간다
+- 합류는 `POST /groups/join` 과 같은 내부 함수(`GroupsService.joinGroup`: 색 배정, JOIN 알림, 새 소식). 새로 합류하면 `joinCount + 1` 과 새 소식 `MEMBER_JOINED { via: 'EVENT_SHARE' }` (D-185)
+- 토큰 대조는 대소문자를 구분한다 (열 정렬은 ci 라 서비스가 다시 맞춘다). Sentry 는 `/join/e/<token>`, `/event-shares/<token>` 경로를 지운다
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -499,6 +533,7 @@ ImportPreview = { total: number,          // 파일 안 VEVENT 수
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
+| 일정 카드 공유 (#274) | 2.10 전부 |
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 
 ## 4. 개발 전용

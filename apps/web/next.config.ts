@@ -22,6 +22,10 @@ const nextConfig: NextConfig = {
       { source: "/join/:code/twitter-image", destination: "/og/join/:code", permanent: true },
     ];
   },
+  // (#274) 일정 공유 링크 화면은 토큰이 밖 링크의 Referer 로 새지 않게 (D-186)
+  async headers() {
+    return [{ source: "/join/e/:token", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] }];
+  },
   // 모든 화면이 사용자별(쿠키) 데이터라 캐시 컴포넌트는 쓰지 않는다
   turbopack: {
     rules: {

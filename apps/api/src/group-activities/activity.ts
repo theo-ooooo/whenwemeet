@@ -38,8 +38,13 @@ export interface EventsImportedPayload {
   count: number;
 }
 
-/** 멤버 3종은 빈 객체 (DB 에는 null) */
-export type ActivityPayload = AnniversaryPayload | GroupRenamedPayload | EventsImportedPayload | Record<string, never>;
+/** (#274) 일정 링크로 합류 (D-185). 초대 코드 합류는 payload 없음 */
+export interface MemberJoinedPayload {
+  via: 'EVENT_SHARE';
+}
+
+/** 멤버 3종은 빈 객체 (DB 에는 null). 일정 링크 합류만 MemberJoinedPayload */
+export type ActivityPayload = AnniversaryPayload | GroupRenamedPayload | EventsImportedPayload | MemberJoinedPayload | Record<string, never>;
 
 /** 기록할 사람. name 은 그 순간의 표시 이름 (팀 표시 이름 ?? 닉네임) 스냅샷 (D-152) */
 export interface ActivityActor {

@@ -62,6 +62,20 @@ describe('요청 제한 (e2e)', () => {
     expect(res.body.error.details.retryAfterSec).toBeGreaterThan(590);
   });
 
+  it('(#274) 일정 링크 합류는 초대 코드 합류와 같은 묶음, 미리보기는 IP 1분 30번', async () => {
+    const me = await devLogin(app, '번갈아');
+    const token = 'A'.repeat(22);
+    for (let i = 0; i < 5; i++) await api(app).post('/v1/groups/join').set(auth(me)).send({ code: '000000' }).expect(404);
+    for (let i = 0; i < 5; i++) await api(app).post(`/v1/event-shares/${token}/join`).set(auth(me)).expect(404);
+    await api(app).post(`/v1/event-shares/${token}/join`).set(auth(me)).expect(429);
+    await api(app).post('/v1/groups/join').set(auth(me)).send({ code: '000000' }).expect(429);
+
+    for (let i = 0; i < 30; i++) await api(app).get(`/v1/event-shares/${token}`).set('X-Real-IP', '198.51.100.7').expect(404);
+    await api(app).get(`/v1/event-shares/${token}`).set('X-Real-IP', '198.51.100.7').expect(429);
+    // 초대 미리보기와는 다른 묶음
+    await api(app).get('/v1/invites/ABCDEF').set('X-Real-IP', '198.51.100.7').expect(404);
+  });
+
   it('인증보다 먼저 돈다: 토큰 없는 요청도 IP 600/1분에 들어가 401 대신 429', async () => {
     for (let i = 0; i < 600; i++) await api(app).get('/v1/groups').set('X-Real-IP', '192.0.2.9').expect(401);
     await api(app).get('/v1/groups').set('X-Real-IP', '192.0.2.9').expect(429);
