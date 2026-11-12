@@ -20,9 +20,9 @@ import {
 } from "@/lib/news-copy";
 import type { ActivityNewsItem, NewsItem } from "@/lib/types";
 
-export function NewsScreen({ groupId }: { groupId: number }) {
+export function NewsScreen() {
   const router = useRouter();
-  const { clearUnread } = useGroupContext();
+  const { groupId, clearUnread } = useGroupContext();
   const newsQ = useNews(groupId);
   const news = newsQ.data;
   const items = news ? knownNewsItems(news.items) : [];
@@ -64,7 +64,7 @@ export function NewsScreen({ groupId }: { groupId: number }) {
           <ul className="rounded-xl bg-paper px-1.5 py-1.5">
             {/* 일정 기록과 팀 활동 기록(#191)을 한 목록에. 모르는 종류는 knownNewsItems 가 거른다 */}
             {items.map((item) => {
-              const href = isActivity(item) ? activityHref(groupId, item) : newsHref(groupId, item);
+              const href = isActivity(item) ? activityHref(item) : newsHref(item);
               const body = (
                 <>
                   {/* 새 항목은 행 왼쪽 6px 점 하나로 (#174 L14). 배지 글자 반복 대신 */}

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
@@ -290,7 +291,7 @@ export function MeScreen() {
               {groups
                 ? groups.map((g, i) => (
                     <li key={g.id} className={i === 0 ? "" : "border-t border-line"}>
-                      <Link href={`/g/${g.id}/calendar`} className="flex min-h-11 items-center gap-2 py-2">
+                      <Link href={withTeam(CALENDAR_PATH, g.publicCode)} className="flex min-h-11 items-center gap-2 py-2">
                         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
                         <span className="shrink-0 text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
                         <IconChevronRight size={14} className="shrink-0 text-ink-2" />

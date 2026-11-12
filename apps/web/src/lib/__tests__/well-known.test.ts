@@ -11,31 +11,26 @@ const FP1 = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, "0")
 const FP2 = Array.from({ length: 32 }, () => "AB").join(":");
 
 describe("buildAppleAppSiteAssociation", () => {
-  it("Team ID 로 appIDs 와 /join, /g 경로를 만든다", () => {
+  it("Team ID 로 appIDs 와 /join 경로를 만든다 (#311: /g/* 는 뺐다, 새 화면 주소도 앱이 받지 않는다)", () => {
     expect(buildAppleAppSiteAssociation("abcde12345")).toEqual({
       applinks: {
         details: [
           {
             appIDs: ["ABCDE12345.day.whenwemeet.app"],
-            components: [
-              { "/": "/join/*", comment: "초대 링크" },
-              { "/": "/g/*", comment: "팀 달력" },
-            ],
+            components: [{ "/": "/join/*", comment: "초대 링크" }],
           },
         ],
       },
     });
+    const paths = buildAppleAppSiteAssociation("ABCDE12345")!.applinks.details[0].components.map((c) => c["/"]);
+    for (const p of ["/g/*", "/calendar", "/events/*", "/team"]) expect(paths).not.toContain(p);
   });
 
   it("(#271) 스위치가 켜졌을 때만 메일 로그인 링크 /auth/email(token 쿼리 필수)을 덧붙인다", () => {
     const comps = (on: boolean) => buildAppleAppSiteAssociation("ABCDE12345", { emailLink: on })!.applinks.details[0].components;
-    expect(comps(false)).toEqual([
-      { "/": "/join/*", comment: "초대 링크" },
-      { "/": "/g/*", comment: "팀 달력" },
-    ]);
+    expect(comps(false)).toEqual([{ "/": "/join/*", comment: "초대 링크" }]);
     expect(comps(true)).toEqual([
       { "/": "/join/*", comment: "초대 링크" },
-      { "/": "/g/*", comment: "팀 달력" },
       { "/": "/auth/email", "?": { token: "?*" }, comment: "메일 로그인 링크 (앱 1.1.1~)" },
     ]);
     expect(buildAppleAppSiteAssociation(undefined, { emailLink: true })).toBeNull();

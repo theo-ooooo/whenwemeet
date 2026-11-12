@@ -9,7 +9,7 @@ import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { isShareEnded } from "@/lib/event-share";
-import { eventCopyHref, eventEditHref } from "@/lib/recurrence";
+import { eventCopyHref, eventEditHref } from "@/lib/routes";
 import { recurrenceLines } from "@/lib/recurrence-label";
 import { reminderDetail } from "@/lib/reminder";
 import { iGa } from "@/lib/text";
@@ -147,14 +147,14 @@ export function EventDetail({
       <div className="mt-4 grid grid-cols-3 gap-2">
         <button
           type="button"
-          onClick={() => router.push(eventEditHref(groupId, ev))}
+          onClick={() => router.push(eventEditHref(ev))}
           className="h-11 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
         >
           수정
         </button>
         <button
           type="button"
-          onClick={() => router.push(eventCopyHref(groupId, ev))}
+          onClick={() => router.push(eventCopyHref(ev))}
           className="h-11 rounded-md bg-hover text-[13.5px] font-bold hover:brightness-95"
         >
           복제

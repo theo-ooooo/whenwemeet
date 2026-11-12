@@ -1,5 +1,5 @@
 // 웹 → 앱 열기 (#154). 카카오톡 인앱 브라우저는 유니버설 링크/앱 링크를 타지 않으므로
-// 초대 화면(/join/<코드>)이 커스텀 스킴(iOS)이나 intent(Android)로 앱을 직접 부른다. 나중에 /g/* 도 같은 함수를 쓴다.
+// 초대 화면(/join/<코드>)이 커스텀 스킴(iOS)이나 intent(Android)로 앱을 직접 부른다.
 // 앱 셸 안(UA `WhenwemeetApp/`)이면 아무것도 하지 않는다 (판정은 app-bridge.ts parseAppUserAgent 그대로).
 // 스토어 이동은 APP_STORE_LIVE (출시 후 Vercel 환경 변수, `1` 또는 `ios`/`android`) 가 켜진 OS 만. 꺼져 있으면 앱이 없을 때 웹 합류 화면에 그대로 남는다.
 // 서버 컴포넌트에서도 import 하므로 React, next/* 를 import 하지 않는다.

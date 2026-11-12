@@ -31,19 +31,21 @@ describe("KST 날짜", () => {
 
 describe("parseWidgetSnapshot", () => {
   it("정상 스냅샷은 쓰는 칸만 옮긴다", () => {
-    const raw = { ...sample(), extra: "x", groups: [{ id: 1, name: "우리 둘", color: 0, memo: "비밀" }] };
+    const raw = { ...sample(), extra: "x", groups: [{ id: 1, name: "우리 둘", color: 0, code: "team1xxx", memo: "비밀" }] };
     raw.days = raw.days.map((d) => ({ ...d, events: d.events.filter((e) => e.g === 1) }));
     raw.anniversaries = raw.anniversaries.filter((a) => a.g === 1);
     const s = parseWidgetSnapshot(raw);
     expect(s).not.toBeNull();
-    expect(s?.groups).toEqual([{ id: 1, name: "우리 둘", color: 0 }]);
+    expect(s?.groups).toEqual([{ id: 1, name: "우리 둘", color: 0, code: "team1xxx" }]);
     expect(s).not.toHaveProperty("extra");
   });
 
   it.each([
     ["generatedAt 없음", { generatedAt: "아님" }],
-    ["팀 색 범위 밖", { groups: [{ id: 1, name: "a", color: 7 }] }],
-    ["팀 이름 21자", { groups: [{ id: 1, name: "가".repeat(21), color: 0 }] }],
+    ["팀 색 범위 밖", { groups: [{ id: 1, name: "a", color: 7, code: "team1xxx" }] }],
+    ["(#311) 팀 코드 없음", { groups: [{ id: 1, name: "a", color: 0, code: "team1xxx" }] }],
+    ["(#311) 팀 코드 모양 틀림", { groups: [{ id: 1, name: "a", color: 0, code: "TEAM-1" }] }],
+    ["팀 이름 21자", { groups: [{ id: 1, name: "가".repeat(21), color: 0, code: "team1xxx" }] }],
     ["8일", { days: Array.from({ length: 8 }, (_, i) => ({ date: addDays("2026-11-12", i), events: [], total: 0 })) }],
     ["날이 이어지지 않음", { days: [{ date: "2026-11-12", events: [], total: 0 }, { date: "2026-11-14", events: [], total: 0 }] }],
     ["하루 일정 4개", { days: [{ date: "2026-11-12", events: Array(4).fill({ g: 1, title: "a", time: "1" }), total: 4 }] }],
@@ -80,19 +82,19 @@ describe("widgetProps", () => {
     expect(p.more).toBe(3);
     expect(p.known).toBe(true);
     expect(p.stale).toBe(false);
-    expect(p.anniversary).toEqual({ title: "처음 만난 날 300일", dday: "D-12", url: "whenwemeet://g/1/anniversaries" });
-    expect(p.url).toBe("whenwemeet://g/1/calendar?date=2026-11-12&day=1");
-    expect(p.url).toBe(dayLink(1, "2026-11-12"));
+    expect(p.anniversary).toEqual({ title: "처음 만난 날 300일", dday: "D-12", url: "whenwemeet://anniversaries?team=team1xxx" });
+    expect(p.url).toBe("whenwemeet://calendar?date=2026-11-12&day=1&team=team1xxx");
+    expect(p.url).toBe(dayLink("team1xxx", "2026-11-12"));
   });
 
   it("팀이 하나면 팀 이름을 빼고, 일정 없는 날은 빈 목록 + 첫 팀의 그날", () => {
-    const s = sample({ groups: [{ id: 1, name: "나", color: 2 }], anniversaries: [] });
+    const s = sample({ groups: [{ id: 1, name: "나", color: 2, code: "team1xxx" }], anniversaries: [] });
     s.days = s.days.map((d) => ({ ...d, events: [], total: 0 }));
     const p = widgetProps(s, NOW);
     expect(p.rows).toEqual([]);
     expect(p.more).toBe(0);
     expect(p.anniversary).toBeNull();
-    expect(p.url).toBe("whenwemeet://g/1/calendar?date=2026-11-12&day=1");
+    expect(p.url).toBe("whenwemeet://calendar?date=2026-11-12&day=1&team=team1xxx");
   });
 
   it("KST 자정이 지나면 다음 날 값, 지난 기념일은 건너뛴다", () => {
@@ -106,7 +108,7 @@ describe("widgetProps", () => {
     const next = widgetProps(s, Date.parse("2026-11-12T15:00:00.000Z"));
     expect(next.dateText).toBe("11월 13일 금");
     expect(next.rows).toEqual([]);
-    expect(next.anniversary).toEqual({ title: "내일 기념일", dday: "D-day", url: "whenwemeet://g/2/anniversaries" });
+    expect(next.anniversary).toEqual({ title: "내일 기념일", dday: "D-day", url: "whenwemeet://anniversaries?team=team2xxx" });
   });
 
   it("24시간 지나면 stale, 범위 밖 날이면 known=false", () => {

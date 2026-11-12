@@ -7,8 +7,10 @@ const MIN = 60 * 1000;
 
 const once = (overrides: Partial<OnceReminderRow> = {}): OnceReminderRow => ({
   id: 5,
+  publicCode: 'evntcode',
   groupId: 10,
   groupName: '우리',
+  groupCode: 'teamcode',
   title: '저녁 약속',
   startsAt: kst('2026-11-12T18:00:00'),
   endsAt: kst('2026-11-12T20:00:00'),
@@ -62,8 +64,10 @@ describe('한 번짜리 일정 알림 (설계 5-3)', () => {
 /** 2026-11-11(수) 19:00~21:00 KST 매주, 1시간 전 */
 const series = (overrides: Partial<ReminderSeriesRow> = {}): ReminderSeriesRow => ({
   id: 200,
+  publicCode: 'srescode',
   groupId: 10,
   groupName: '우리',
+  groupCode: 'teamcode',
   title: '저녁',
   startsAt: kst('2026-11-11T19:00:00'),
   endsAt: kst('2026-11-11T21:00:00'),
@@ -99,7 +103,7 @@ describe('반복 일정 알림 (설계 5-3)', () => {
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
     expect(first[0]).toMatchObject({ occurrence: '2026-11-11', dedupeKey: `R:200:2026-11-11:${kst('2026-11-11T18:00:00').getTime() / 1000}` });
-    expect(second[0].payload.url).toBe('/g/10/calendar?date=2026-11-18&day=1&event=200&occurrence=2026-11-18');
+    expect(second[0].payload.url).toBe('/events/srescode?team=teamcode&occurrence=2026-11-18');
     expect(planAt(series(), kst('2026-11-15T18:00:00'))).toEqual([]);
   });
 

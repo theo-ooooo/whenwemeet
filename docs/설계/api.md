@@ -163,15 +163,18 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
-GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, memberCount, me: { color, displayName }, unreadNewsCount }
-GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, createdAt,
+GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, publicCode, memberCount, me: { color, displayName }, unreadNewsCount }   // publicCode: (#311) 주소용 공개 코드
+GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, publicCode, createdAt,
                  members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
 InvitePreview = { groupName, memberCount,
                   inviter: { nickname: string } | null,   // (#196) by 가 이 팀 현재 멤버의 표식과 맞을 때만. 팀 표시 이름, 사진 없음
                   isMember: boolean,                       // (#196) 유효한 토큰의 사용자가 이미 멤버
-                  groupId: number | null }                 // (#196) isMember 일 때만 값. 비멤버에게 팀 id 를 주지 않는다
+                  groupId: number | null,                  // (#196) isMember 일 때만 값. 비멤버에게 팀 id 를 주지 않는다
+                  groupCode: string | null }               // (#311) isMember 일 때만. 웹이 `/calendar?team=<코드>` 로 간다
 ```
+
+- (#311, D-197) `publicCode`: 주소(`?team=<코드>`), 알림, 위젯에서 팀 번호 대신 쓰는 공개 코드. 혼동 글자(0 o 1 l)를 뺀 소문자 영숫자 8자(`common/public-code.ts`), 유일, 바뀌지 않음. 초대 코드와 다르고 아무 권한도 주지 않는다(멤버십 검사는 그대로). 마이그레이션 `20261112120000_public_codes` 가 기존 팀, 일정에 같은 알파벳으로 채웠다
 
 - `inviteUrl` = `${WEB_ORIGIN}/join/${inviteCode}`
 - `inviteShareUrl` = `inviteUrl + "?by=" + 표식`. 표식은 요청자 기준이라 같은 팀도 멤버마다 다르다. 코드가 없으면(PERSONAL) null. 표식은 `base64url(HMAC-SHA256(HKDF(JWT_SECRET, "wwm-invite-by"), "<groupId>:<userId>"))` 앞 10자 (D-157). 복사, 공유는 이 주소를 쓴다
@@ -191,6 +194,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` 반복 원본은 기간 안 회차로 펼친다. `startsAt` 오름차순, 같으면 `id`, 그다음 `occurrence` |
 | POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` (반복이면 첫 회차) + EventLog CREATED |
 | GET | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence?` | `{ data: Event & { hasLaterExceptions } }` |
+| GET | `/events/:code` | 유저 | 쿼리 `occurrence?` | (#311) 일정 공개 코드로 단건 조회. 응답은 위와 같다. 코드 모양이 틀리거나 없거나 **그 팀 멤버가 아니면 모두 404 NOT_FOUND** (코드의 존재를 드러내지 않는다, D-197). 웹 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다 |
 | PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
 
@@ -200,7 +204,7 @@ EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean,
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
                reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
                participants?: 'ALL'|number[] }                         // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
-Event      = { id, groupId, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,
+Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,   // publicCode: (#311) 주소용 공개 코드 (`/events/<코드>`)
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
                seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
@@ -339,6 +343,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 ```ts
 NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
+             eventCode: string|null,                                  // (#311) 원본의 공개 코드. 삭제됐으면 null
              title, startsAt, endsAt, allDay,
              repeat: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 변경 시점의 반복 주기 (#187)
              scope: 'THIS'|'FOLLOWING'|null,                         // 반복 일정에서 고른 범위. 한 번짜리, 새 반복 추가는 null
@@ -347,7 +352,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 ```
 
 - 반복 일정 동작 하나는 로그 1건. `title`, `startsAt`, `endsAt`, `allDay` 스냅샷은 그 회차 값 ("이후 모두" 수정은 새 원본의 첫 회차). 문구는 웹이 `action` + `scope` + `repeat` + `occurrence` 로 조합 (반복-일정.md 4-3)
-- 반복 일정 항목을 누르면 `/events/:eventId?occurrence=` 로 이동
+- 반복 일정 항목을 누르면 `/events/<eventCode>/edit?occurrence=` 로 이동 (#311)
 
 - items = 그 팀 EventLog 중 `actorId != 요청자` (탈퇴자 null 포함), 최근 30일, createdAt 내림차순, 최대 50건
 - (#297, D-180) 내가 팀에 들어오기 전 기록은 뺀다: `createdAt >= max(지금 - 30일, me.joinedAt)`. 두 소스(일정 기록, 팀 활동 기록) 모두 같은 기준. 다시 들어오면 멤버십을 새로 만들어 `joinedAt` 이 다시 들어온 시각이 된다
@@ -504,7 +509,7 @@ ImportItem   = { key: string,            // 64자 hex. 중복 방지 해시(uidH
 | POST | `/groups/:groupId/events/:eventId/share` | 멤버 | `{ occurrence? }` | 201 새로 만듦, 200 기존 반환. `{ data: EventShareLink }`. PERSONAL 팀 GROUP_NOT_INVITABLE, 끝난 회차 EVENT_SHARE_ENDED |
 | DELETE | `/groups/:groupId/events/:eventId/share` | 멤버 | 쿼리 `occurrence?` | `{ data: { ok: true } }` 살아 있는 링크를 끊는다(없어도 200). 팀원 누구나 |
 | GET | `/event-shares/:token` | 선택 | - | `{ data: EventSharePreview }`. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명 (D-158 과 같은 선택 인증) |
-| POST | `/event-shares/:token/join` | 유저 | - | `{ data: { group: GroupDetail, eventId, occurrence, date } }`. 멱등(이미 멤버면 그대로 200) |
+| POST | `/event-shares/:token/join` | 유저 | - | `{ data: { group: GroupDetail, eventId, eventCode, occurrence, date } }`. 멱등(이미 멤버면 그대로 200). (#311) `eventCode` 와 `group.publicCode` 로 `/events/<eventCode>?team=<groupCode>` 에 착지 |
 
 ```ts
 EventShareLink    = { token, url, expiresAt }       // url = `${WEB_ORIGIN}/join/e/${token}`, token = 16바이트 base64url 22자
@@ -512,7 +517,7 @@ EventSharePreview = { groupName, memberCount,
                       sharer: { displayName } | null,  // 만든 사람의 팀 표시 이름 ?? 닉네임. 팀에 없으면 null. 사진 없음
                       event: { title, startsAt, endsAt, allDay, repeat, occurrence },  // 그 회차의 지금 값(예외 반영, 스냅샷 아님)
                       expiresAt,
-                      viewer: { member: true, groupId, eventId, occurrence, date } | { member: false } }  // 유효한 토큰 + 멤버일 때만 id
+                      viewer: { member: true, groupId, eventId, groupCode, eventCode, occurrence, date } | { member: false } }  // 유효한 토큰 + 멤버일 때만 id 와 (#311) 공개 코드
 ```
 
 - `occurrence` 는 반복 일정에서 필수(`YYYY-MM-DD`, 실제 회차가 아니거나 취소된 회차면 400 VALIDATION_FAILED), 한 번짜리에서는 무시
@@ -520,7 +525,7 @@ EventSharePreview = { groupName, memberCount,
 - 만료 = 그 회차 `endsAt` + 1일, 단 만든 때 + 30일을 넘지 않음. 정리 작업 없음 (행이 남아도 404)
 - 끊김: DELETE, 초대 코드 재발급(그 팀 전부), 만든 사람의 나가기/탈퇴(그 사람 것), 일정 삭제(Cascade). 미리보기 때 회차가 취소됐거나 "이후 모두" 로 옛 원본에 더는 없으면 404
 - 비멤버 응답에는 메모, 참여자, 등록자, 프로필 사진, groupId, eventId 가 없다
-- `date` 는 그 회차가 지금 시작하는 KST 날짜 ("이 일정만" 으로 옮겼으면 옮긴 날). 웹은 `/g/<groupId>/calendar?date=&day=1&event=[&occurrence=]` 로 간다
+- `date` 는 그 회차가 지금 시작하는 KST 날짜 ("이 일정만" 으로 옮겼으면 옮긴 날). 웹은 `/events/<eventCode>?team=<groupCode>[&occurrence=]` 로 간다 (#311)
 - 합류는 `POST /groups/join` 과 같은 내부 함수(`GroupsService.joinGroup`: 색 배정, JOIN 알림, 새 소식). 새로 합류하면 `joinCount + 1` 과 새 소식 `MEMBER_JOINED { via: 'EVENT_SHARE' }` (D-185)
 - 토큰 대조는 대소문자를 구분한다 (열 정렬은 ci 라 서비스가 다시 맞춘다). Sentry 는 `/join/e/<token>`, `/event-shares/<token>` 경로를 지운다
 

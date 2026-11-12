@@ -8,8 +8,8 @@ export function sample(over: Partial<WidgetSnapshot> = {}): WidgetSnapshot {
   return {
     generatedAt: GEN,
     groups: [
-      { id: 1, name: "우리 둘", color: 0 },
-      { id: 2, name: "가족", color: 3 },
+      { id: 1, name: "우리 둘", color: 0, code: "team1xxx" },
+      { id: 2, name: "가족", color: 3, code: "team2xxx" },
     ],
     days: Array.from({ length: 7 }, (_, i) => ({
       date: addDays("2026-11-12", i),

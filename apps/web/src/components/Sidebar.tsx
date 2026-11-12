@@ -11,17 +11,19 @@ import { addDays, dateKeyOf, formatDateKo, formatEventTime, kstToIso, todayKey }
 import { dayBadge, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences } from "@/lib/day-view";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
-import { eventEditHref, eventKey } from "@/lib/recurrence";
+import { eventKey } from "@/lib/recurrence";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, UPCOMING_PATH } from "@/lib/routes";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
 import { IconBell, IconCalendar, IconChevronDown, IconFree, IconHeart, IconTeam } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
-  groupId: number;
+  /** (#311) 아직 팀이 정해지지 않았으면 null (아래 묶음을 받지 않는다) */
+  groupId: number | null;
   group: GroupDetail | null;
-  /** 주소의 셋째 조각 (calendar, upcoming, free, anniversaries, news, settings, events) */
-  section: string;
+  /** 켤 메뉴 (lib/routes.ts activeTab). 일정 화면은 calendar 로 온다 */
+  tab: string | null;
   unread: number;
   /** 넓은 화면일 때만 아래 묶음 데이터를 받는다 (폰은 이 사이드바가 숨어 있다) */
   enabled: boolean;
@@ -60,10 +62,10 @@ function MenuIcon({ name, active, unread }: { name: string; active: boolean; unr
   }
 }
 
-export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, onSwitchTeam }: Props) {
+export function Sidebar({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam }: Props) {
   const today = todayKey();
-  const upcomingQ = useEvents(groupId, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
-  const annQ = useAnniversaries(groupId, { enabled });
+  const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
+  const annQ = useAnniversaries(groupId ?? 0, { enabled });
   const meId = group?.me.userId ?? null;
   const personal = group?.type === "PERSONAL";
 
@@ -86,13 +88,13 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
   const nextAnn = useMemo(() => (annData ? nextOccurrences(annData, today, 2) : annFailed ? [] : null), [annData, annFailed, today]);
 
   // 다가오는 일정 목록(#222)도 달력에 딸린 화면으로 본다
-  const calendarOn = section === "calendar" || section === "events" || section === "upcoming";
+  const calendarOn = tab === "calendar" || tab === "upcoming";
   const menu = [
-    { key: "calendar", href: `/g/${groupId}/calendar`, label: "달력", on: calendarOn },
-    { key: "free", href: `/g/${groupId}/free`, label: "빈 시간", on: section === "free" },
-    { key: "anniversaries", href: `/g/${groupId}/anniversaries`, label: "기념일", on: section === "anniversaries" },
-    { key: "news", href: `/g/${groupId}/news`, label: "새 소식", on: section === "news", badge: unread },
-    { key: "settings", href: `/g/${groupId}/settings`, label: "팀 설정", on: section === "settings" },
+    { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
+    { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
+    { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
+    { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
+    { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
   ];
 
   const head = "flex h-8 items-center px-3 text-[15px] font-bold leading-5 tracking-[-0.01em]";
@@ -100,7 +102,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
 
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col overflow-y-auto border-r border-line bg-paper px-4 pb-4 pt-5 fold:flex">
-      <Link href={`/g/${groupId}/calendar`} aria-label="언제볼까 달력" className="ml-2 grid size-[34px] shrink-0 place-items-center rounded-sm">
+      <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="ml-2 grid size-[34px] shrink-0 place-items-center rounded-sm">
         <Symbol size={34} />
       </Link>
 
@@ -156,7 +158,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
         <div className={head}>
           <h2 id="side-up">다가오는 일정</h2>
           <span className="flex-1" />
-          <Link href={`/g/${groupId}/upcoming`} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
+          <Link href={UPCOMING_PATH} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
             전체보기
           </Link>
         </div>
@@ -184,7 +186,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
               return (
                 <li key={eventKey(ev)}>
                   <Link
-                    href={eventEditHref(groupId, ev)}
+                    href={eventEditHref(ev)}
                     aria-label={withWho(`${day} ${ev.title}, ${time}`, ev, { meId, personal })}
                     className="flex h-12 items-stretch gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
                   >
@@ -219,7 +221,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
         ) : nextAnn.length === 0 ? (
           <p className={muteLine}>
             기념일을 등록하면 D-day 가 보여요.{" "}
-            <Link href={`/g/${groupId}/anniversaries`} className="font-bold text-btn">
+            <Link href={ANNIVERSARIES_PATH} className="font-bold text-btn">
               기념일 추가
             </Link>
           </p>
@@ -231,7 +233,7 @@ export function Sidebar({ groupId, group, section, unread, enabled, refreshKey, 
               return (
                 <li key={`${o.anniversary.id}-${o.date}`}>
                   <Link
-                    href={`/g/${groupId}/anniversaries`}
+                    href={ANNIVERSARIES_PATH}
                     aria-label={`${title}, ${formatDateKo(o.date)}, ${badge}`}
                     className="flex h-10 items-center gap-2 rounded-sm px-3 hover:bg-hover"
                   >

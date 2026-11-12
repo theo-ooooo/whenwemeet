@@ -13,6 +13,7 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: str
 vi.mock("@/lib/useInApp", () => ({ useInApp: () => false }));
 vi.mock("@/components/AppShell", () => ({
   useGroupContext: () => ({
+    groupId: 7,
     groups: [{ id: 7, name: "우리", type: "TEAM" }],
     eventsChanged: vi.fn(),
   }),
@@ -52,7 +53,7 @@ const previewOf = (items: ImportItem[]): ImportPreview => ({
 const ok = <T,>(data: T) => Promise.resolve({ ok: true, data, error: null });
 
 async function pickFile() {
-  const view = render(<ImportScreen groupId={7} />);
+  const view = render(<ImportScreen />);
   const input = view.container.querySelector('input[type="file"]') as HTMLInputElement;
   await act(async () => {
     fireEvent.change(input, { target: { files: [new File(["BEGIN:VCALENDAR"], "a.ics", { type: "text/calendar" })] } });
@@ -147,7 +148,7 @@ describe("ImportScreen 달력에서 골라서 넣기 (#314)", () => {
 
   it("넣을 일정이 없으면 달력 없이 비활성 버튼", async () => {
     preview.mockImplementation(() => ok(previewOf([])));
-    const view = render(<ImportScreen groupId={7} />);
+    const view = render(<ImportScreen />);
     const input = view.container.querySelector('input[type="file"]') as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { files: [new File(["x"], "a.ics", { type: "text/calendar" })] } });

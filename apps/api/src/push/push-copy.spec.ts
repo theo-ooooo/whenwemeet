@@ -38,9 +38,9 @@ describe('공통 표기 (설계 6장)', () => {
     expect(copula('BTS')).toBe('BTS예요');
   });
 
-  it('일정 상세 경로는 calendarEventHref 모양, 오늘이어도 date', () => {
-    expect(eventUrl(10, 5, '2026-11-12', null)).toBe('/g/10/calendar?date=2026-11-12&day=1&event=5');
-    expect(eventUrl(10, 5, '2026-11-19', '2026-11-18')).toBe('/g/10/calendar?date=2026-11-19&day=1&event=5&occurrence=2026-11-18');
+  it('(#311) 일정 상세 경로는 /events/<일정 코드>?team=<팀 코드>, 반복이면 occurrence', () => {
+    expect(eventUrl('teamcode', 'evntcode', null)).toBe('/events/evntcode?team=teamcode');
+    expect(eventUrl('teamcode', 'evntcode', '2026-11-18')).toBe('/events/evntcode?team=teamcode&occurrence=2026-11-18');
   });
 });
 
@@ -48,7 +48,9 @@ describe('일정 알림 문구', () => {
   const timed: ReminderTarget = {
     groupId: 10,
     groupName: '우리',
+    groupCode: 'teamcode',
     eventId: 5,
+    eventCode: 'evntcode',
     occurrence: null,
     title: '저녁 약속',
     startsAt: kst('2026-11-12T18:00:00'),
@@ -68,13 +70,13 @@ describe('일정 알림 문구', () => {
 
   it('경로와 만료 (회차 시작)', () => {
     const payload = reminderPayload(timed, TODAY);
-    expect(payload.url).toBe('/g/10/calendar?date=2026-11-12&day=1&event=5');
+    expect(payload.url).toBe('/events/evntcode?team=teamcode');
     expect(payload.expiration).toBe(kst('2026-11-12T18:00:00').getTime() / 1000);
   });
 
-  it('반복 회차는 occurrence 를 붙인다 (옮긴 회차는 date 가 옮긴 날)', () => {
+  it('반복 회차는 occurrence 를 붙인다 (원래 회차 날짜)', () => {
     const payload = reminderPayload({ ...timed, occurrence: '2026-11-11' }, TODAY);
-    expect(payload.url).toBe('/g/10/calendar?date=2026-11-12&day=1&event=5&occurrence=2026-11-11');
+    expect(payload.url).toBe('/events/evntcode?team=teamcode&occurrence=2026-11-11');
   });
 
   it('종일 하루짜리: 오늘 종일 / 내일 종일, 만료는 그날 끝 KST 24:00', () => {
@@ -94,6 +96,7 @@ describe('일정 알림 문구', () => {
 describe('팀원 변경 문구', () => {
   const log = {
     eventId: 5,
+    eventCode: 'evntcode',
     title: '저녁 약속',
     startsAt: kst('2026-11-12T18:00:00'),
     endsAt: kst('2026-11-12T20:00:00'),
@@ -102,14 +105,14 @@ describe('팀원 변경 문구', () => {
     scope: null,
     occurrence: null,
   };
-  const target = { groupId: 10, groupName: '우리', actorName: '민지', action: 'CREATED' as const, eventId: 5, log };
+  const target = { groupId: 10, groupName: '우리', groupCode: 'teamcode', actorName: '민지', action: 'CREATED' as const, log };
 
   it('추가: 제목, 날짜 시각. 메모는 넣지 않는다', () => {
     expect(changePayload(target, NOW)).toEqual({
       title: '민지님이 일정을 추가했어요',
       subtitle: '우리',
       body: '저녁 약속, 11월 12일 (목) 오후 6:00',
-      url: '/g/10/calendar?date=2026-11-12&day=1&event=5',
+      url: '/events/evntcode?team=teamcode',
       expiration: Math.floor((NOW.getTime() + 86_400_000) / 1000),
     });
   });
@@ -118,7 +121,7 @@ describe('팀원 변경 문구', () => {
     const payload = changePayload({ ...target, log: { ...log, repeat: 'WEEKLY', allDay: true, startsAt: kst('2027-01-05T00:00:00') } }, NOW);
     expect(payload.title).toBe('민지님이 매주 반복 일정을 추가했어요');
     expect(payload.body).toBe('저녁 약속, 2027년 1월 5일 (화) 종일');
-    expect(payload.url).toBe('/g/10/calendar?date=2027-01-05&day=1&event=5&occurrence=2027-01-05');
+    expect(payload.url).toBe('/events/evntcode?team=teamcode&occurrence=2027-01-05');
   });
 
   it('수정 문장은 웹 newsPhrase 와 같다', () => {
@@ -132,26 +135,28 @@ describe('팀원 변경 문구', () => {
 
   it('"이 일정만" 수정 경로는 그 회차, 삭제는 새 소식', () => {
     const thisLog = { ...log, repeat: 'WEEKLY' as const, scope: 'THIS' as const, occurrence: '2026-11-11', startsAt: kst('2026-11-12T18:00:00') };
-    expect(changePayload({ ...target, action: 'UPDATED', log: thisLog }, NOW).url).toBe('/g/10/calendar?date=2026-11-12&day=1&event=5&occurrence=2026-11-11');
-    expect(changePayload({ ...target, action: 'DELETED', log: { ...log, eventId: null } }, NOW).url).toBe('/g/10/news');
+    expect(changePayload({ ...target, action: 'UPDATED', log: thisLog }, NOW).url).toBe('/events/evntcode?team=teamcode&occurrence=2026-11-11');
+    expect(changePayload({ ...target, action: 'DELETED', log: { ...log, eventId: null, eventCode: null } }, NOW).url).toBe('/news?team=teamcode');
+    // 원본이 지워져 코드가 없으면 수정 묶음도 새 소식으로
+    expect(changePayload({ ...target, action: 'UPDATED', log: { ...log, eventId: null, eventCode: null } }, NOW).url).toBe('/news?team=teamcode');
   });
 });
 
 describe('기념일, 합류 문구', () => {
   it('기념일: 이름 + 라벨, "오늘은 …이에요", 만료는 그날 KST 24:00', () => {
-    const payload = anniversaryPayload({ groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12', offsetDays: 0 });
+    const payload = anniversaryPayload({ groupId: 10, groupName: '우리', groupCode: 'teamcode', name: '처음 만난 날', label: '300일', date: '2026-11-12', offsetDays: 0 });
     expect(payload).toEqual({
       title: '처음 만난 날 300일',
       subtitle: '우리',
       body: '오늘은 처음 만난 날 300일이에요',
-      url: '/g/10/anniversaries',
+      url: '/anniversaries?team=teamcode',
       expiration: kst('2026-11-13T00:00:00').getTime() / 1000,
     });
-    expect(anniversaryPayload({ groupId: 10, groupName: '우리', name: '엄마 생신', label: null, date: '2026-11-12', offsetDays: 0 }).title).toBe('엄마 생신');
+    expect(anniversaryPayload({ groupId: 10, groupName: '우리', groupCode: 'teamcode', name: '엄마 생신', label: null, date: '2026-11-12', offsetDays: 0 }).title).toBe('엄마 생신');
   });
 
   it('기념일 하루 전, 일주일 전 (#269, D-147): 제목은 그대로, 본문만 다르고 만료는 보내는 날 KST 24:00', () => {
-    const base = { groupId: 10, groupName: '우리', name: '처음 만난 날', label: '300일', date: '2026-11-12' };
+    const base = { groupId: 10, groupName: '우리', groupCode: 'teamcode', name: '처음 만난 날', label: '300일', date: '2026-11-12' };
     expect(anniversaryPayload({ ...base, offsetDays: 1 })).toMatchObject({
       title: '처음 만난 날 300일',
       body: '내일은 처음 만난 날 300일이에요',
@@ -174,7 +179,7 @@ describe('기념일, 합류 문구', () => {
   });
 
   it("합류: '{이름}님이 '{팀}' 에 들어왔어요', 팀 이름을 따로 붙이지 않는다", () => {
-    expect(joinPayload(10, '우리 가족', '지훈', NOW)).toMatchObject({ title: "지훈님이 '우리 가족' 에 들어왔어요", subtitle: null, body: null, url: '/g/10/calendar' });
+    expect(joinPayload('teamcode', '우리 가족', '지훈', NOW)).toMatchObject({ title: "지훈님이 '우리 가족' 에 들어왔어요", subtitle: null, body: null, url: '/calendar?team=teamcode' });
   });
 });
 
@@ -216,11 +221,11 @@ describe('toExpoMessage (IOS / ANDROID 모양, D-95, D-98)', () => {
 describe('importPayload (#279)', () => {
   it('가져오기 한 번에 한 건: 새 소식과 같은 문장, 팀 이름은 subtitle, 달력으로', () => {
     const now = new Date('2026-11-11T03:00:00Z');
-    expect(importPayload(7, '우리', '민지', 1234, now)).toEqual({
+    expect(importPayload('teamcode', '우리', '민지', 1234, now)).toEqual({
       title: '민지님이 일정 1,234개를 가져왔어요',
       subtitle: '우리',
       body: null,
-      url: '/g/7/calendar',
+      url: '/calendar?team=teamcode',
       expiration: Math.floor(now.getTime() / 1000) + 86_400,
     });
   });

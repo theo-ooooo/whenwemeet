@@ -51,7 +51,7 @@ describe('초대 미리보기 초대한 사람, 이미 멤버 (e2e)', () => {
 
   it('by 맞음 → 팀 표시 이름, 표시 이름을 바꾸면 그 이름', async () => {
     const res = await api(app).get(`/v1/invites/${code}?by=${aliceBy}`).expect(200);
-    expect(res.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: { nickname: '앨리스' }, isMember: false, groupId: null });
+    expect(res.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: { nickname: '앨리스' }, isMember: false, groupId: null, groupCode: null });
 
     await api(app).patch(`/v1/groups/${groupId}/me`).set(auth(bob)).send({ displayName: '밥밥' }).expect(200);
     const bobRes = await api(app).get(`/v1/invites/${code.toLowerCase()}?by=${bobBy}`).expect(200);
@@ -61,7 +61,7 @@ describe('초대 미리보기 초대한 사람, 이미 멤버 (e2e)', () => {
   it('by 틀림, 형식 오류, 여러 개, 없음 → inviter null (오류 아님)', async () => {
     for (const q of ['?by=AAAAAAAAAA', '?by=short', `?by=${aliceBy}x`, '?by=', `?by=${aliceBy}&by=${bobBy}`, '']) {
       const res = await api(app).get(`/v1/invites/${code}${q}`).expect(200);
-      expect(res.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: null, isMember: false, groupId: null });
+      expect(res.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: null, isMember: false, groupId: null, groupCode: null });
     }
     const missing = await api(app).get(`/v1/invites/ZZZZZZ?by=${aliceBy}`).expect(404);
     expect(missing.body.error.code).toBe('INVITE_NOT_FOUND');
@@ -82,7 +82,8 @@ describe('초대 미리보기 초대한 사람, 이미 멤버 (e2e)', () => {
       expect(res.body.data).toMatchObject({ isMember: false, groupId: null });
     }
     const member = await api(app).get(`/v1/invites/${code}?by=${bobBy}`).set(auth(alice)).expect(200);
-    expect(member.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: { nickname: '밥밥' }, isMember: true, groupId });
+    // (#311) 멤버면 팀 공개 코드도 (웹이 `/calendar?team=` 로 간다)
+    expect(member.body.data).toEqual({ groupName: '우리 팀', memberCount: 2, inviter: { nickname: '밥밥' }, isMember: true, groupId, groupCode: expect.stringMatching(/^[a-z0-9]{8}$/) });
   });
 
   it('나간 멤버의 표식 → inviter null, 재발급하면 새 코드에도 같은 표식', async () => {

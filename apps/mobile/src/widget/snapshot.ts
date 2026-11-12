@@ -33,7 +33,8 @@ export type SnapshotDay = {
   total: number;
 };
 
-export type SnapshotGroup = { id: number; name: string; /** 멤버 색 순번 0~6 */ color: number };
+/** (#311) code 는 누름 주소의 `?team=` 에 쓰는 팀 공개 코드 (소문자 영숫자 8자) */
+export type SnapshotGroup = { id: number; name: string; /** 멤버 색 순번 0~6 */ color: number; code: string };
 
 export type SnapshotAnniversary = {
   g: number;
@@ -93,8 +94,10 @@ export function parseWidgetSnapshot(v: unknown): WidgetSnapshot | null {
     const gid = r && id(r.id);
     const name = r && text(r.name, 20);
     const color = r?.color;
+    const code = r?.code;
     if (!gid || !name || typeof color !== "number" || !Number.isInteger(color) || color < 0 || color >= WIDGET_COLOR_COUNT) return null;
-    groups.push({ id: gid, name, color });
+    if (typeof code !== "string" || !/^[a-z0-9]{8}$/.test(code)) return null;
+    groups.push({ id: gid, name, color, code });
   }
   const known = new Set(groups.map((g) => g.id));
   const groupRef = (x: unknown) => {
@@ -167,11 +170,11 @@ export function dateText(key: string): string {
   return `${m}월 ${d}일 ${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}`;
 }
 
-/* ---------- 누름 주소 (셸 parseSchemeLink → /g 딥링크, 앱.md 5.1) ---------- */
+/* ---------- 누름 주소 (셸 parseSchemeLink → 화면 주소 + ?team=<팀 코드>, 앱.md 5.1, #311 D-199) ---------- */
 
-/** 그날 상세가 열린 달력 (웹 lib/calendar-url.ts: ?date=&day=1) */
-export const dayLink = (groupId: number, date: string) => `whenwemeet://g/${groupId}/calendar?date=${date}&day=1`;
-export const anniversaryLink = (groupId: number) => `whenwemeet://g/${groupId}/anniversaries`;
+/** 그날 상세가 열린 달력 (웹 lib/calendar-url.ts: ?date=&day=1). 팀은 공개 코드로 (웹이 쿠키를 바꾸고 주소에서 뗀다) */
+export const dayLink = (groupCode: string, date: string) => `whenwemeet://calendar?date=${date}&day=1&team=${groupCode}`;
+export const anniversaryLink = (groupCode: string) => `whenwemeet://anniversaries?team=${groupCode}`;
 /** 갈 팀이 없을 때: 앱만 연다 (셸이 모르는 경로라 웹뷰는 지금 화면 그대로) */
 export const APP_LINK = "whenwemeet://";
 
@@ -233,14 +236,14 @@ export function widgetProps(s: WidgetSnapshot | null, now: number): WidgetProps 
     return { title: e.title, time: e.time, color: g?.color ?? 0, team: multi && g ? g.name : null };
   });
 
+  const codeOf = (g: number) => groups.get(g)?.code ?? null;
   const ann = s.anniversaries.find((a) => a.date >= today) ?? null;
-  const anniversary = ann
-    ? { title: ann.title, dday: ddayText(daysBetween(today, ann.date)), url: anniversaryLink(ann.g) }
-    : null;
+  const annCode = ann ? codeOf(ann.g) : null;
+  const anniversary = ann && annCode ? { title: ann.title, dday: ddayText(daysBetween(today, ann.date)), url: anniversaryLink(annCode) } : null;
 
   // 누르면: 오늘 첫 일정의 팀 달력 그날 → 아무 팀 그날 → 기념일 → 앱만
-  const firstGroup = day?.events[0]?.g ?? s.groups[0]?.id ?? null;
-  const url = firstGroup ? dayLink(firstGroup, today) : (anniversary?.url ?? APP_LINK);
+  const firstCode = codeOf(day?.events[0]?.g ?? s.groups[0]?.id ?? 0);
+  const url = firstCode ? dayLink(firstCode, today) : (anniversary?.url ?? APP_LINK);
 
   return {
     kind: "today",

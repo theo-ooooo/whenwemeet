@@ -72,10 +72,11 @@ describe('PushDispatcher', () => {
 
     it('팀원 변경: 변경한 사람을 빼고, 로그 스냅샷과 팀 표시 이름으로 문구를 만들어 저장', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 3, kind: 'CHANGE', payload: null, eventLogId: 77, actorId: 1, changeAction: 'UPDATED' })]);
-      push.findGroupName.mockResolvedValue('우리');
+      push.findGroupRef.mockResolvedValue({ name: '우리', publicCode: 'teamcode' });
       push.findPersonName.mockResolvedValue('민지');
       push.findChangeLog.mockResolvedValue({
         eventId: 5,
+        eventCode: 'evntcode',
         title: '저녁 약속',
         startsAt: new Date('2026-11-12T09:00:00.000Z'),
         endsAt: new Date('2026-11-12T10:00:00.000Z'),
@@ -100,7 +101,7 @@ describe('PushDispatcher', () => {
 
     it('탈퇴한 사람의 변경, 나간 사람의 합류는 이름 대신 "탈퇴한 멤버"', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 4, kind: 'JOIN', payload: null, actorId: 9 })]);
-      push.findGroupName.mockResolvedValue('우리 가족');
+      push.findGroupRef.mockResolvedValue({ name: '우리 가족', publicCode: 'teamcode' });
       push.findPersonName.mockResolvedValue(null);
       await dispatcher.expandDue(NOW);
       expect(push.listRecipients).toHaveBeenCalledWith(10, 'JOIN', 9, null, CREATED);
@@ -113,7 +114,7 @@ describe('PushDispatcher', () => {
         due({ id: 1, kind: 'ANNIVERSARY', eventId: null, payload: anniversary }),
         due({ id: 2, kind: 'JOIN', payload: null, actorId: 4, createdAt: new Date('2026-11-12T07:59:00.000Z') }),
       ]);
-      push.findGroupName.mockResolvedValue('우리');
+      push.findGroupRef.mockResolvedValue({ name: '우리', publicCode: 'teamcode' });
       push.findPersonName.mockResolvedValue('민지');
       await dispatcher.expandDue(NOW);
       expect(push.listRecipients).toHaveBeenNthCalledWith(1, 10, 'ANNIVERSARY', null, null, null);
@@ -122,7 +123,7 @@ describe('PushDispatcher', () => {
 
     it('팀이 없거나 로그가 없으면 SKIPPED', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 5, kind: 'CHANGE', payload: null, eventLogId: 1, actorId: 1, changeAction: 'CREATED' })]);
-      push.findGroupName.mockResolvedValue('우리');
+      push.findGroupRef.mockResolvedValue({ name: '우리', publicCode: 'teamcode' });
       push.findPersonName.mockResolvedValue('민지');
       push.findChangeLog.mockResolvedValue(null);
       await dispatcher.expandDue(NOW);

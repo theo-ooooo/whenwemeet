@@ -157,6 +157,19 @@ describe("RN URL 구현에서도 같은 결과 (#154)", () => {
     expect(new URL("whenwemeet://join/AB").pathname).toBe("/"); // RN URL 한계 확인 (이게 바뀌면 이 블록을 다시 본다)
     expect(deepLinkToWebUrl("whenwemeet://join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
     expect(deepLinkToWebUrl("whenwemeet://g/12", WEB)).toBe("https://whenwemeet.day/g/12");
+  });
+  it("(#311) 커스텀 스킴은 새 화면 주소도 연다 (위젯 누름). https 는 /join 과 옛 /g 만", () => {
+    expect(deepLinkToWebUrl("whenwemeet://calendar?date=2026-11-12&day=1&team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/calendar?date=2026-11-12&day=1&team=k3x9ab12");
+    expect(deepLinkToWebUrl("whenwemeet://anniversaries?team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/anniversaries?team=k3x9ab12");
+    expect(deepLinkToWebUrl("whenwemeet://events/evntcode?team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/events/evntcode?team=k3x9ab12");
+    expect(deepLinkToWebUrl("whenwemeet://team/import", WEB)).toBe("https://whenwemeet.day/team/import");
+    // 코드 없는 /join, /g 와 모르는 화면은 그대로 null
+    expect(deepLinkToWebUrl("whenwemeet://join", WEB)).toBeNull();
+    expect(deepLinkToWebUrl("whenwemeet://me", WEB)).toBeNull();
+    expect(deepLinkToWebUrl("whenwemeet://calendars", WEB)).toBeNull();
+    // https 새 주소는 앱 링크가 아니다 (AASA, intentFilters 에 없다)
+    expect(deepLinkToWebUrl("https://whenwemeet.day/calendar?team=k3x9ab12", WEB)).toBeNull();
+    expect(deepLinkToWebUrl("https://whenwemeet.day/events/evntcode", WEB)).toBeNull();
     expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe(
       "https://whenwemeet.day/join/ABC123?auto=1",
     );
@@ -172,6 +185,10 @@ describe("notificationTarget (#188, 푸시-알림.md 9장)", () => {
       url: "https://whenwemeet.day/g/3/calendar?date=2026-11-12&day=1&event=9",
     });
     expect(notificationTarget({ url: "/g/3/news" }, `${W}/`)?.url).toBe("https://whenwemeet.day/g/3/news");
+    // (#311) 새 알림 주소 모양
+    expect(notificationTarget({ url: "/events/evntcode?team=k3x9ab12&occurrence=2026-11-12", kind: "REMINDER" }, W)?.url).toBe(
+      "https://whenwemeet.day/events/evntcode?team=k3x9ab12&occurrence=2026-11-12",
+    );
   });
 
   it("절대 주소, //, 백슬래시, 제어문자, 없음은 null", () => {

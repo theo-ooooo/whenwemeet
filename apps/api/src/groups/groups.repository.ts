@@ -9,6 +9,8 @@ export interface GroupRow {
   type: 'PERSONAL' | 'TEAM';
   name: string;
   inviteCode: string | null;
+  /** (#311) 주소용 공개 코드 */
+  publicCode: string;
   createdAt: Date;
 }
 
@@ -16,12 +18,15 @@ export interface GroupRow {
 export interface InviteGroupRow {
   id: number;
   name: string;
+  publicCode: string;
   memberCount: number;
 }
 
 export interface CreateTeamInput {
   name: string;
   inviteCode: string;
+  /** (#311) 공개 코드. 충돌은 초대 코드처럼 P2002 로 던져진다 */
+  publicCode: string;
   firstMember: { userId: number; color: string };
 }
 
@@ -36,7 +41,7 @@ export class GroupsRepository {
   findById(groupId: number): Promise<GroupRow | null> {
     return this.prisma.group.findUnique({
       where: { id: groupId },
-      select: { id: true, type: true, name: true, inviteCode: true, createdAt: true },
+      select: { id: true, type: true, name: true, inviteCode: true, publicCode: true, createdAt: true },
     });
   }
 
@@ -47,9 +52,9 @@ export class GroupsRepository {
   async findByInviteCode(inviteCode: string): Promise<InviteGroupRow | null> {
     const group = await this.prisma.group.findUnique({
       where: { inviteCode },
-      select: { id: true, name: true, _count: { select: { memberships: true } } },
+      select: { id: true, name: true, publicCode: true, _count: { select: { memberships: true } } },
     });
-    return group && { id: group.id, name: group.name, memberCount: group._count.memberships };
+    return group && { id: group.id, name: group.name, publicCode: group.publicCode, memberCount: group._count.memberships };
   }
 
   /** TEAM 팀과 첫 멤버십을 함께 생성 (중첩 쓰기라 원자적). 초대 코드 충돌은 P2002 로 던져진다 */
@@ -59,6 +64,7 @@ export class GroupsRepository {
         type: 'TEAM',
         name: input.name,
         inviteCode: input.inviteCode,
+        publicCode: input.publicCode,
         memberships: { create: { userId: input.firstMember.userId, color: input.firstMember.color } },
       },
       select: { id: true },

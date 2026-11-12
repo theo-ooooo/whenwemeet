@@ -19,12 +19,16 @@ export const EVENT_LOG_SELECT = {
   scope: true,
   occurrence: true,
   actor: USER_PUBLIC_SELECT,
+  /** (#311) 원본이 남아 있으면 그 공개 코드 (웹이 `/events/<코드>` 로 간다) */
+  event: { select: { publicCode: true } },
 } as const;
 
 export interface EventLogRow {
   id: number;
   action: 'CREATED' | 'UPDATED' | 'DELETED';
   eventId: number | null;
+  /** (#311) 원본의 공개 코드. 삭제됐으면 null */
+  eventCode: string | null;
   actorId: number | null;
   title: string;
   startsAt: Date;
@@ -71,8 +75,9 @@ export class EventLogsRepository {
       take: limit,
       select: EVENT_LOG_SELECT,
     });
-    return rows.map((row) => ({
+    return rows.map(({ event, ...row }) => ({
       ...row,
+      eventCode: event?.publicCode ?? null,
       occurrence: row.occurrence === null ? null : dbToDate(row.occurrence),
       actor: toUserRowOrNull(row.actor, this.urls),
     }));

@@ -4,11 +4,12 @@
 /** 번들 ID 이자 Android 패키지명 (앱.md 6장) */
 export const APP_ID = "day.whenwemeet.app";
 
-/** 앱으로 여는 경로. 셸 links/urls.ts DEEP_LINK_PATHS, app.config intentFilters 와 같은 목록 (5.1) */
-export const DEEP_LINK_COMPONENTS = [
-  { "/": "/join/*", comment: "초대 링크" },
-  { "/": "/g/*", comment: "팀 달력" },
-] as const;
+/**
+ * 앱으로 여는 경로. 셸 links/urls.ts UNIVERSAL_LINK_PATHS, app.config intentFilters 와 같은 목록 (5.1).
+ * (#311, D-199) `/g/*` 는 뺐다: 새 주소(`/calendar` 등)는 앱이 가로채지 않고, 옛 `/g/*` 링크는 브라우저에서 열려 308 로 새 주소로 간다.
+ * 1.1.x Android 앱은 자기 intentFilters 로 `/g/*` 를 계속 받지만 웹뷰 안에서 같은 308 을 따라가므로 깨지지 않는다
+ */
+export const DEEP_LINK_COMPONENTS = [{ "/": "/join/*", comment: "초대 링크" }] as const;
 
 /**
  * (#271) 메일 로그인 링크 `/auth/email?token=` (D-113 확인 화면). 정확히 이 경로 + token 쿼리만 (D-177).
@@ -25,6 +26,7 @@ export const EMAIL_LINK_COMPONENT = {
 /**
  * (#307) 설치된 앱이 가로챌 수 있는 웹 경로인가. Android intentFilters 가 `pathPrefix` 라 가장 넓게 본다
  * (`/g` 는 `/groups/new` 도 잡는다). `/auth/email` 은 1.1.1 의 정확한 경로.
+ * (#311) 1.2.0 은 `/g` 를 받지 않지만 설치된 1.1.x 가 아직 받으므로 `/g` 는 그대로 둔다. 새 화면 주소(`/calendar` ...)는 어느 앱도 받지 않는다
  * Android Chrome(Gmail 인앱 브라우저 Custom Tab 포함)은 폼 제출 뒤 리다이렉트나 사용자 제스처로 시작한 문서 이동이
  * 이 경로에 닿으면 앱으로 넘긴다. 그래서 로그인 직후의 문서 이동은 이 경로로 가면 안 된다 (세션은 브라우저에만 있다)
  */

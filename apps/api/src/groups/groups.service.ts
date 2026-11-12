@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
+import { generatePublicCode } from '../common/public-code.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
@@ -20,12 +21,16 @@ export interface InvitePreview {
   isMember: boolean;
   /** isMember 일 때만. 비멤버에게 팀 id 를 주지 않는다 */
   groupId: number | null;
+  /** (#311) isMember 일 때만. 웹이 `/calendar?team=<코드>` 로 간다 */
+  groupCode: string | null;
 }
 
 export interface GroupSummary {
   id: number;
   type: 'PERSONAL' | 'TEAM';
   name: string;
+  /** (#311) 주소용 공개 코드 (`?team=`) */
+  publicCode: string;
   memberCount: number;
   me: { color: string; displayName: string };
   unreadNewsCount: number;
@@ -62,6 +67,7 @@ export class GroupsService {
         id: row.group.id,
         type: row.group.type,
         name: row.group.name,
+        publicCode: row.group.publicCode,
         memberCount: row.group._count.memberships,
         me: { color: row.color, displayName: row.displayName ?? row.user.nickname },
         unreadNewsCount,
@@ -77,6 +83,7 @@ export class GroupsService {
         const group = await this.groupsRepo.createTeam({
           name,
           inviteCode: generateInviteCode(),
+          publicCode: generatePublicCode(),
           firstMember: { userId, color: pickLeastUsedColor([]) },
         });
         return await this.memberships.groupDetail(group.id, userId);
@@ -130,7 +137,7 @@ export class GroupsService {
    */
   async invitePreview(codeRaw: string, by?: unknown, viewerId: number | null = null): Promise<InvitePreview> {
     const group = await this.findByInviteCode(codeRaw);
-    const preview: InvitePreview = { groupName: group.name, memberCount: group.memberCount, inviter: null, isMember: false, groupId: null };
+    const preview: InvitePreview = { groupName: group.name, memberCount: group.memberCount, inviter: null, isMember: false, groupId: null, groupCode: null };
     if (by === undefined && viewerId === null) return preview;
 
     const members = await this.memberships.listMembers(group.id);
@@ -140,6 +147,7 @@ export class GroupsService {
     if (viewerId !== null && members.some((m) => m.userId === viewerId)) {
       preview.isMember = true;
       preview.groupId = group.id;
+      preview.groupCode = group.publicCode;
     }
     return preview;
   }

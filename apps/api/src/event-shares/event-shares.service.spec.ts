@@ -11,6 +11,7 @@ const config = { getOrThrow: () => 'http://web' } as never;
 const EVENT = {
   id: 7,
   groupId: 10,
+  publicCode: 'evntcode',
   title: '저녁',
   startsAt: kst('2099-01-09T19:00:00'),
   endsAt: kst('2099-01-09T21:00:00'),
@@ -32,7 +33,7 @@ const SHARE = {
   expiresAt: new Date(Date.now() + 86_400_000),
   revokedAt: null,
   joinCount: 0,
-  group: { name: '팀', type: 'TEAM' as const },
+  group: { name: '팀', type: 'TEAM' as const, publicCode: 'teamcode' },
 };
 
 describe('EventSharesService (#274)', () => {
@@ -94,7 +95,7 @@ describe('EventSharesService (#274)', () => {
       { ...SHARE, revokedAt: new Date() },
       { ...SHARE, expiresAt: new Date(Date.now() - 1) },
       { ...SHARE, token: TOKEN.toLowerCase() },
-      { ...SHARE, group: { name: '나', type: 'PERSONAL' as const } },
+      { ...SHARE, group: { name: '나', type: 'PERSONAL' as const, publicCode: 'mycalcod' } },
     ]) {
       shares.findByToken.mockResolvedValueOnce(share);
       await expect(service.preview(TOKEN, null)).rejects.toMatchObject({ code: 'EVENT_SHARE_NOT_FOUND' });
@@ -107,7 +108,7 @@ describe('EventSharesService (#274)', () => {
     const anon = await service.preview(TOKEN, null);
     expect(anon).toMatchObject({ groupName: '팀', memberCount: 2, sharer: { displayName: '민지' }, viewer: { member: false } });
     expect(anon.event).toEqual({ title: '저녁', startsAt: kst('2099-01-09T19:00:00'), endsAt: kst('2099-01-09T21:00:00'), allDay: false, repeat: null, occurrence: null });
-    expect((await service.preview(TOKEN, 3)).viewer).toEqual({ member: true, groupId: 10, eventId: 7, occurrence: null, date: '2099-01-09' });
+    expect((await service.preview(TOKEN, 3)).viewer).toEqual({ member: true, groupId: 10, eventId: 7, groupCode: 'teamcode', eventCode: 'evntcode', occurrence: null, date: '2099-01-09' });
     shares.findByToken.mockResolvedValueOnce({ ...SHARE, createdById: 99 });
     expect((await service.preview(TOKEN, 99)).sharer).toBeNull();
   });
@@ -120,7 +121,7 @@ describe('EventSharesService (#274)', () => {
 
   it('join: 합류 함수에 링크 id 를 넘기고 착지 정보를 돌려준다', async () => {
     shares.findByToken.mockResolvedValue(SHARE);
-    expect(await service.join(5, TOKEN)).toEqual({ group: { id: 10 }, eventId: 7, occurrence: null, date: '2099-01-09' });
+    expect(await service.join(5, TOKEN)).toEqual({ group: { id: 10 }, eventId: 7, eventCode: 'evntcode', occurrence: null, date: '2099-01-09' });
     expect(groups.joinGroup).toHaveBeenCalledWith(5, 10, { eventShareId: 1 });
   });
 });

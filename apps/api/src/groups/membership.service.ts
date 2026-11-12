@@ -15,6 +15,8 @@ export interface GroupDetail {
   inviteUrl: string | null;
   /** (#196) inviteUrl + `?by=<요청자 표식>` (D-157). 코드가 없으면 null */
   inviteShareUrl: string | null;
+  /** (#311) 주소용 공개 코드 (`?team=`). 초대 권한 없음 */
+  publicCode: string;
   createdAt: Date;
   members: MemberWithJoin[];
   /** notify: (#188) 나 자신의 "이 팀 알림 받기". 다른 멤버의 값은 싣지 않는다 */
@@ -38,6 +40,11 @@ export class MembershipService {
     const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
     if (!membership) throw new ApiException('FORBIDDEN');
     return membership;
+  }
+
+  /** (#311) 멤버인지만. 공개 코드 조회처럼 403 대신 404 로 답해야 할 때 */
+  async isMember(userId: number, groupId: number): Promise<boolean> {
+    return (await this.membershipsRepo.findByUserAndGroup(userId, groupId)) !== null;
   }
 
   async listMembers(groupId: number): Promise<MembershipWithUser[]> {
@@ -85,6 +92,7 @@ export class MembershipService {
       inviteCode: group.inviteCode,
       inviteUrl: this.inviteUrl(group.inviteCode),
       inviteShareUrl: this.inviteShareUrl(group.inviteCode, group.id, userId),
+      publicCode: group.publicCode,
       createdAt: group.createdAt,
       members,
       me: { ...me, notify: myRow.notify },

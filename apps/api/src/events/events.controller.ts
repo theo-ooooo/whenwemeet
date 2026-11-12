@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { IdParam } from '../common/id-param.js';
@@ -53,5 +53,16 @@ export class EventsController {
     @Query('scope') scope: unknown,
   ) {
     return this.events.remove(user.id, groupId, eventId, { occurrence, scope });
+  }
+}
+
+/** (#311) 공개 코드로 일정 조회 `GET /events/:code?occurrence=` (api.md 2.3). 멤버가 아니면 404 */
+@Controller('events')
+export class EventLookupController {
+  constructor(private readonly events: EventsService) {}
+
+  @Get(':code')
+  getByCode(@CurrentUser() user: AuthUser, @Param('code') code: string, @Query('occurrence') occurrence: unknown) {
+    return this.events.getByCode(user.id, code, occurrence);
   }
 }

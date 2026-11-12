@@ -49,8 +49,12 @@ export interface PlannedNotification {
 
 export interface OnceReminderRow {
   id: number;
+  /** (#311) 일정 공개 코드 */
+  publicCode: string;
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -73,8 +77,12 @@ export interface ReminderExceptionRow {
 
 export interface ReminderSeriesRow {
   id: number;
+  /** (#311) 일정 공개 코드 */
+  publicCode: string;
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -91,6 +99,8 @@ export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   id: number;
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   name: string;
   /** 'YYYY-MM-DD' */
   date: string;
@@ -255,6 +265,7 @@ export class PushRepository {
       where: { repeat: null, remindAt: { gt: lo, lte: hi } },
       select: {
         id: true,
+        publicCode: true,
         groupId: true,
         title: true,
         startsAt: true,
@@ -263,10 +274,10 @@ export class PushRepository {
         reminder: true,
         remindAt: true,
         reminderSetAt: true,
-        group: { select: { name: true } },
+        group: { select: { name: true, publicCode: true } },
       },
     });
-    return rows.map(({ group, remindAt, ...row }) => ({ ...row, groupName: group.name, remindAt: remindAt as Date }));
+    return rows.map(({ group, remindAt, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, remindAt: remindAt as Date }));
   }
 
   /**
@@ -294,6 +305,7 @@ export class PushRepository {
       },
       select: {
         id: true,
+        publicCode: true,
         groupId: true,
         title: true,
         startsAt: true,
@@ -304,7 +316,7 @@ export class PushRepository {
         repeat: true,
         repeatUntil: true,
         repeatAnchor: true,
-        group: { select: { name: true } },
+        group: { select: { name: true, publicCode: true } },
         exceptions: {
           select: {
             occurrence: true,
@@ -322,6 +334,7 @@ export class PushRepository {
     return rows.map(({ group, exceptions, ...row }) => ({
       ...row,
       groupName: group.name,
+      groupCode: group.publicCode,
       repeat: row.repeat as Repeat,
       repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
       repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
@@ -344,11 +357,11 @@ export class PushRepository {
         remindDayBefore: true,
         remindWeekBefore: true,
         updatedAt: true,
-        group: { select: { name: true } },
+        group: { select: { name: true, publicCode: true } },
       },
       orderBy: { id: 'asc' },
     });
-    return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, date: dbToDate(date) }));
+    return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, date: dbToDate(date) }));
   }
 
   /** dedupeKey 가 이미 있으면 건너뛴다 (D-89). 새로 만든 수 */
@@ -486,17 +499,35 @@ export class PushRepository {
     return (await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })) !== null;
   }
 
-  async findGroupName(groupId: number): Promise<string | null> {
-    return (await this.prisma.group.findUnique({ where: { id: groupId }, select: { name: true } }))?.name ?? null;
+  /** 팀 이름과 (#311) 공개 코드. 팀이 지워졌으면 null */
+  async findGroupRef(groupId: number): Promise<{ name: string; publicCode: string } | null> {
+    return this.prisma.group.findUnique({ where: { id: groupId }, select: { name: true, publicCode: true } });
   }
 
-  /** 변경 알림 문구용 로그 스냅샷 */
+  /** 변경 알림 문구용 로그 스냅샷. (#311) eventCode 는 원본이 남아 있을 때만 (지워지면 로그의 eventId 가 SetNull) */
   async findChangeLog(eventLogId: number): Promise<ChangeLogSnapshot | null> {
     const row = await this.prisma.eventLog.findUnique({
       where: { id: eventLogId },
-      select: { eventId: true, title: true, startsAt: true, endsAt: true, allDay: true, repeat: true, scope: true, occurrence: true },
+      select: {
+        eventId: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        allDay: true,
+        repeat: true,
+        scope: true,
+        occurrence: true,
+        event: { select: { publicCode: true } },
+      },
     });
-    return row && { ...row, repeat: (row.repeat as Repeat | null) ?? null, occurrence: row.occurrence === null ? null : dbToDate(row.occurrence) };
+    if (!row) return null;
+    const { event, ...log } = row;
+    return {
+      ...log,
+      eventCode: event?.publicCode ?? null,
+      repeat: (log.repeat as Repeat | null) ?? null,
+      occurrence: log.occurrence === null ? null : dbToDate(log.occurrence),
+    };
   }
 
   /** 그 팀의 표시 이름. 나갔으면 닉네임, 탈퇴했으면 null */
