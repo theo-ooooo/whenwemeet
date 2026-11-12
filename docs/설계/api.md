@@ -337,6 +337,7 @@ NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
 - 반복 일정 항목을 누르면 `/events/:eventId?occurrence=` 로 이동
 
 - items = 그 팀 EventLog 중 `actorId != 요청자` (탈퇴자 null 포함), 최근 30일, createdAt 내림차순, 최대 50건
+- (#297, D-180) 내가 팀에 들어오기 전 기록은 뺀다: `createdAt >= max(지금 - 30일, me.joinedAt)`. 두 소스(일정 기록, 팀 활동 기록) 모두 같은 기준. 다시 들어오면 멤버십을 새로 만들어 `joinedAt` 이 다시 들어온 시각이 된다
 - `isNew` = `createdAt > me.lastSeenAt`. 화면은 목록을 받은 뒤 `seen` 을 호출한다 (순서 고정: GET → POST)
 - `eventId` 가 null 이거나 action 이 DELETED 면 탭해도 일정으로 이동하지 않는다
 
@@ -374,7 +375,7 @@ ActivityPayload =
 
 - 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
 - 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
-- `GroupSummary.unreadNewsCount` = EventLog 미확인 수 + GroupActivity 미확인 수 (`v` 와 무관, D-154)
+- `GroupSummary.unreadNewsCount` = EventLog 미확인 수 + GroupActivity 미확인 수 (`v` 와 무관, D-154). 미확인 = `createdAt > max(lastSeenAt, joinedAt)` (#297, D-180)
 - 기록 생성은 서버만. 오류 코드 추가 없음, `POST /news/seen` 그대로. 푸시 변화 없음 (합류 푸시 D-91 은 따로)
 
 ### 2.7 나가기 / 탈퇴 처리 순서
@@ -440,6 +441,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+
+**들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 
 **발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일(당일, 하루 전, 일주일 전), 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
 
