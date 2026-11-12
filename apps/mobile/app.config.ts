@@ -18,6 +18,7 @@ const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43
 
 // 1.1.0: 푸시 알림 (#188). 웹은 UA 버전 >= 1.1.0 일 때만 푸시 메시지를 보낸다 (D-81).
 // 1.1.1: 카카오톡 공유 (#195, @react-native-kakao/share). 웹은 UA 토큰 KakaoShare/1 로 판정한다 (D-169)
+//        메일 로그인 링크를 앱에서 열기 (#271, intentFilters /auth/email), 기동 때 업데이트 3초 대기 (D-179)
 // 빌드 번호는 eas.json appVersionSource=remote + autoIncrement 로 EAS 가 올린다
 const VERSION = "1.1.1";
 const BUNDLE_ID = "day.whenwemeet.app";
@@ -156,12 +157,26 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           data: [
             { scheme: "https", host: WEB_HOST, pathPrefix: "/join" },
             { scheme: "https", host: WEB_HOST, pathPrefix: "/g" },
+            // (#271, 1.1.1) 메일 로그인 링크 /auth/email?token=. 정확히 이 경로만 (pathPrefix 면 /auth/email/* 도 앱이 받아 버린다).
+            // 셸 links/urls.ts EMAIL_LINK_PATH, 웹 AASA 와 같은 값 (D-177)
+            { scheme: "https", host: WEB_HOST, path: "/auth/email" },
           ],
         },
       ],
     },
     plugins,
-    ...(EAS_PROJECT_ID ? { updates: { url: `https://u.expo.dev/${EAS_PROJECT_ID}` } } : {}),
+    // (1.1.1, D-179) 기동 때 업데이트를 확인하고 최대 3초 기다린다. 그 안에 받으면 이번 실행부터 새 JS.
+    // 기본값 0 이면 설치 직후 첫 실행은 늘 내장 번들이라 이미 배포한 EAS Update(능력 토큰, 화면)가 두 번째 실행부터 보인다.
+    // 확인이 안 끝나면(느린 망) 3초 뒤 지금 번들로 뜨고 받은 것은 다음 실행에. 오프라인은 바로 실패해 기다리지 않는다
+    ...(EAS_PROJECT_ID
+      ? {
+          updates: {
+            url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+            checkAutomatically: "ON_LOAD" as const,
+            fallbackToCacheTimeout: 3000,
+          },
+        }
+      : {}),
     extra: {
       webOrigin,
       apiOrigin,
