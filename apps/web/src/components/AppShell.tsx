@@ -1,5 +1,5 @@
 "use client";
-// 팀 안 화면(/calendar, /upcoming, /free, /anniversaries, /news, /team, /events/*) 공통 뼈대. 팀 정보를 컨텍스트로 내려준다
+// 팀 안 화면(/calendar, /upcoming, /free, /anniversaries, /todos/*, /news, /team, /events/*) 공통 뼈대. 팀 정보를 컨텍스트로 내려준다
 // (#311, D-196) 주소에 팀이 없다. 지금 보는 팀은 여기 상태 + 쿠키 wwm_group: 처음 값은 (team) 레이아웃이 쿠키(없으면 서버가 고른 팀)로 넘기고,
 //   `?team=<팀 공개 코드>` 가 있으면 내 팀 목록에서 찾아 바꾼 뒤 주소에서 뗀다 (알림, 위젯, 공유, 내 정보의 팀 목록).
 //   팀을 바꾸면 같은 화면에 그대로 두고(일정 화면만 달력으로) 자식 화면을 다시 마운트한다 (key)
@@ -257,8 +257,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const newHref = newEventHref({ start: kstToIso(baseDay, "10:00"), end: kstToIso(baseDay, "11:00") });
   const dots = teamDotColors(groups ?? []);
   const isCalendar = tab === "calendar";
-  // 일정 작성/수정 화면(/events/new, /events/<코드>/edit)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다
-  const isForm = info.form;
+  // 일정 작성/수정 화면(/events/new, /events/<코드>/edit)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다.
+  // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-206)
+  const isForm = info.form || info.todoCode !== null;
   const shownGroup = group && group.id === groupId ? group : null;
 
   return (
