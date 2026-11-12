@@ -642,9 +642,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   /* ---------- 넓은 화면 요약 카드 (디자인규칙.md 2-2, 5: 3열 × 84, 라벨 13 --mute / 값 20/700) ---------- */
 
   const sumCard =
-    "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left main-narrow:h-12 main-narrow:flex-row main-narrow:items-center main-narrow:gap-3 main-narrow:py-0";
-  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2 main-narrow:shrink-0";
-  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em] main-narrow:text-[17px]";
+    "flex h-[84px] min-w-0 flex-col justify-between rounded-xl bg-paper px-4 py-3.5 text-left main-cardstack:h-12 main-cardstack:flex-row main-cardstack:items-center main-cardstack:gap-3 main-cardstack:py-0";
+  const sumLabel = "block truncate text-[13px] leading-[18px] text-ink-2 main-cardstack:shrink-0";
+  const sumValue = "block truncate text-[20px] font-bold leading-7 tracking-[-0.02em] main-cardstack:text-[17px]";
   const freeCard =
     todayFreeQ.error && todayFree === undefined ? (
       <button type="button" onClick={() => void todayFreeQ.refetch()} className={`${sumCard} hover:bg-hover`}>
@@ -792,9 +792,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </Link>
         </div>
 
-        {/* 넓은 화면 요약 카드 3열, 간격 12. 본문이 좁으면(main-narrow, <384) 3열이면 카드가 85px 남짓이라 값이 잘린다 →
+        {/* 넓은 화면 요약 카드 3열, 간격 12. 본문이 좁으면(main-cardstack, <640, #325) 3열이면 카드가 85px 남짓이라 값이 잘린다 →
             한 줄 카드(높이 48, 왼쪽 라벨, 오른쪽 값) 3장을 세로로 */}
-        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid main-narrow:mt-3 main-narrow:grid-cols-1 main-narrow:gap-2">
+        <div className="mt-4 hidden shrink-0 grid-cols-3 gap-3 fold:grid main-cardstack:mt-3 main-cardstack:grid-cols-1 main-cardstack:gap-2">
           {freeCard}
           {annCard}
           {weekCard}

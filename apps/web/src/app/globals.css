@@ -68,6 +68,9 @@
  * lib/layout.ts MAIN_LG/MAIN_XL/MAIN_2XL/MAIN_NARROW 와 같은 값 (layout.test.ts 가 맞춰 본다). 정의 순서 = CSS 순서라 작은 것부터 */
 @custom-variant main-roomy (@container main (width >= 384px));
 @custom-variant main-narrow (@container main (width < 384px));
+/* (#325) 달력 요약 카드: 3열은 본문 640 이상(카드 약 200px), 그보다 좁으면 세로로 쌓는다 */
+@custom-variant main-cards3 (@container main (width >= 640px));
+@custom-variant main-cardstack (@container main (width < 640px));
 @custom-variant main-lg (@container main (width >= 696px));
 @custom-variant main-xl (@container main (width >= 952px));
 @custom-variant main-2xl (@container main (width >= 1208px));
