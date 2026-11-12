@@ -5,7 +5,8 @@
 // fold(600~1023), pc(≥1024): 사이드바(AppShell) 옆 본문. 제목줄 44("2026년 11월" 28/700, 오늘, ‹ ›, "일정 추가") →
 //   요약 카드 3열(오늘 비는 시간, 오늘/다음 기념일, 이번 주 일정) → 남은 높이를 채우는 달력 (디자인규칙.md 2-2, 5, #212, D-69).
 //   D-58 의 개요 칸(다가오는 일정, D-day, 이번 주 빈 시간)은 사이드바 묶음과 요약 카드로 옮겼다
-// 날짜 칸을 누르면 어느 폭이든 그날 상세가 먼저 뜬다: phone 일 상세 화면, fold/pc 날짜 칸 옆 팝오버 (5장).
+// 날짜 칸을 누르면 어느 폭이든 그날 상세가 먼저 뜬다: phone 일 상세 화면, fold/pc 오른쪽 일 상세 패널(DayDock, #331).
+//   패널은 본문 폭 760 이상이면 달력 옆 400 칸(달력이 그만큼 좁아진다), 그보다 좁으면 달력 위를 덮는 시트. 열린 채 다른 날을 누르면 내용만 바뀐다.
 // phone 의 일정 상세, 빠른 추가는 일 상세 위 바텀 시트(DaySheet)로 뜨고, 닫으면 일 상세로 돌아간다.
 // 그 안에서 "이 날 일정 추가" → 빠른 추가, 일정 → 일정 상세로 같은 자리에서 바뀐다. 바로 추가는 + 버튼만 맡는다.
 // 주소: /calendar?date / ?month 는 replaceState(#81), 날짜 상세 단계는 pushState 로 ?day=1, &add=1, 일정 상세는 경로 /events/<코드> (5-5, #311 D-198).
@@ -14,8 +15,8 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
-import { DayPopover } from "@/components/DayPopover";
+import { DayDock } from "@/components/DayDock";
+import { DayAddButton, DayFreeRow, DayPanel, type FreeHint } from "@/components/DayPanel";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
@@ -44,6 +45,7 @@ import {
   occurrenceTitle,
   type Occurrence,
 } from "@/lib/anniversary";
+import { panelMove } from "@/lib/day-panel";
 import { anniversariesOn, dayBadge, groupByDay, isMultiDay, nearestAnniversary, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences, shiftWeek } from "@/lib/day-view";
 import {
@@ -343,8 +345,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     else writeUrl(dayStepUrl(calendarSearch(), { step: "closed" }, today), "replace");
   }
 
-  /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
-  function openDay(date: DateKey, ev?: EventRef) {
+  /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다. 넓은 화면은 openDay 가 먼저 패널을 본다 */
+  function openDayFresh(date: DateKey, ev?: EventRef) {
     if (urlStep.open) {
       pending.current = { date, ev };
       if (!closing) close();
@@ -366,7 +368,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const runPending = useEffectEvent(() => {
     const p = pending.current;
     pending.current = null;
-    if (p) openDay(p.date, p.ev);
+    if (p) openDayFresh(p.date, p.ev);
   });
 
   useEffect(() => {
@@ -417,8 +419,57 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     },
   });
 
+  /* ---------- 넓은 화면 일 상세 패널 (#331) ---------- */
+
+  // 일정 상세/빠른 추가에서 한 칸 되돌린 뒤 바꿀 날 (history.back 결과가 주소에 반영되면 아래 효과가 마저 한다)
+  const panelPending = useRef<{ date: DateKey; ev?: EventRef } | null>(null);
+  /** 열린 패널에서 다른 날(ev 가 있으면 그날의 그 일정 상세까지)로. 기록은 날짜 단계 한 칸(+ 일정 상세 한 칸)을 넘지 않는다 */
+  function showInPanel(date: DateKey, ev?: EventRef) {
+    const move = panelMove(urlStep, ownDepth);
+    if (move === "open") {
+      openDayFresh(date, ev);
+      return;
+    }
+    if (move === "back") {
+      panelPending.current = { date, ev };
+      window.history.back();
+      return;
+    }
+    if (move === "rewrite") {
+      // 새로 고침, 공유로 들어온 일정 상세(되돌릴 칸이 없다): 주소를 그날 날짜 단계로 바꿔 쓴다. 남의 칸은 이제 한 칸
+      setIgnoreAdd(false);
+      setForeign(1);
+      setDayTarget(date);
+      pick(date);
+      writeUrl(dayStepUrl(calendarSearch(), { step: "day", date }, today), "replace");
+    } else if (date !== openDate) {
+      changeDay(date);
+    }
+    if (ev !== undefined) forward(eventStep(date, ev));
+  }
+  const runPanelPending = useEffectEvent(() => {
+    const p = panelPending.current;
+    panelPending.current = null;
+    if (p) showInPanel(p.date, p.ev);
+  });
+  useEffect(() => {
+    if (panelPending.current && urlStep.open && urlStep.step === "day") queueMicrotask(runPanelPending);
+    // 되돌리다 패널이 닫혔으면(다른 경로) 기다리던 것은 버린다
+    if (!urlStep.open) panelPending.current = null;
+  }, [urlStep]);
+
+  /** 날짜 상세를 연다. (#331) 넓은 화면 패널이 열려 있으면 닫지 않고 내용만 바꾼다 */
+  function openDay(date: DateKey, ev?: EventRef) {
+    if (wide && urlStep.open) showInPanel(date, ev);
+    else openDayFresh(date, ev);
+  }
+
   function onCell(key: DateKey) {
-    // 열린 팝오버의 그 날짜를 다시 누르면 닫는다. 다른 날짜면 닫고 그 날짜로 다시 연다 (5-4)
+    // (#331) 넓은 화면: 패널이 열려 있으면 내용만 그날로 (같은 날이면 일정 상세에서 그날 목록으로 돌아온다)
+    if (wide && visible) {
+      showInPanel(key);
+      return;
+    }
     if (visible && urlStep.date === key) {
       close();
       return;
@@ -429,8 +480,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   function onQuickSaved(ev: Event) {
     toast.show("일정을 추가했어요");
     reload();
-    // phone 은 일 상세로 돌아간다 (그날 목록에 바로 보이게)
-    if (dayView) {
+    // phone 은 일 상세로, 넓은 화면은 패널의 그날 목록으로 돌아간다 (그날 목록에 바로 보이게)
+    if (dayView || wide) {
       back();
       return;
     }
@@ -627,18 +678,23 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       eventsError={eventsError}
       onRetry={reload}
       anniversaries={anniversariesOn(anniversaries, surfaceDate)}
-      free={freeHint}
       event={surfaceEvent}
       onClose={dayView ? back : close}
       onBack={back}
       onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
+      onPickDay={changeDay}
       onSaved={onQuickSaved}
       onDelete={askDelete}
     />
   ) : null;
-  // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175). 빠른 추가, 상세는 자기 버튼이 있다
+  // 날짜 단계만 비는 시간 줄과 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다
   const dayFooter =
-    surfaceDate && (!urlStep.open || urlStep.step === "day") ? <DayAddButton onAdd={() => forward({ step: "add", date: surfaceDate })} /> : null;
+    surfaceDate && (!urlStep.open || urlStep.step === "day") ? (
+      <>
+        {freeHint && <DayFreeRow free={freeHint} newEventHref={newEventLink} />}
+        <DayAddButton onAdd={() => forward({ step: "add", date: surfaceDate })} />
+      </>
+    ) : null;
 
   /* ---------- 넓은 화면 요약 카드 (디자인규칙.md 2-2, 5: 3열 × 84, 라벨 13 --mute / 값 20/700) ---------- */
 
@@ -717,8 +773,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   );
 
   return (
-    // 넓은 화면은 AppShell 본문 바깥 여백(28 32) 안에서 화면 높이를 채운다 (제목줄 → 요약 카드 → 달력)
-    <div className="fold:flex fold:h-[calc(100dvh-56px)] fold:min-h-[540px] fold:flex-col">
+    // 넓은 화면은 AppShell 본문 바깥 여백(28 32) 안에서 화면 높이를 채운다 (제목줄 → 요약 카드 → 달력).
+    // (#331) 가로로 [달력 칸 | 일 상세 패널 400]. 패널은 본문 760 이상에서만 이 줄에 들어오고(main-panel), 그보다 좁으면 fixed 시트
+    <div className="fold:flex fold:h-[calc(100dvh-56px)] fold:min-h-[540px]">
       {/* phone 일 상세: 달력 자리를 대신한다 (#212) */}
       {dayView && surfaceDate && (
         <DayView
@@ -738,8 +795,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           newEventHref={newEventLink}
         />
       )}
-      {/* 왼쪽: 월 헤더 + 달력 */}
-      <section className={`${dayView ? "hidden" : "flex"} flex-col fold:min-h-0 fold:flex-1`}>
+      {/* 왼쪽: 월 헤더 + 달력. (#331) 이 칸도 컨테이너 main 이라 안쪽 main-* 변형(좁은 제목줄, 요약 카드 3열/세로)은
+          패널이 붙어 좁아진 달력 폭으로 갈린다 */}
+      <section className={`${dayView ? "hidden" : "flex"} @container/main min-w-0 flex-col fold:min-h-0 fold:flex-1`}>
         {/* phone: 같이 쓰기 입구(있을 때만) → "11월" 제목줄 32 (제목 18/700 / 오늘 알약 + ‹ ›).
             넓은 화면도 입구는 제목줄 위에 같은 카드로 */}
         {together && (
@@ -828,7 +886,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                     inMonth={parseKey(key).m === m}
                     isToday={key === today}
                     isSelected={key === selected}
-                    isAnchor={wide && visible && urlStep.date === key}
+                    isAnchor={wide && surfaceDate === key}
                     events={byDay.get(key) ?? []}
                     anniversaries={annByDay.get(key) ?? []}
                     week={w.packed}
@@ -871,13 +929,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
         </div>
       </section>
 
-      {/* 날짜 상세: phone 바텀 시트, 넓은 화면 날짜 칸 옆 팝오버. 폭이 바뀌면 같은 상태로 표면만 바뀐다 */}
+      {/* 날짜 상세: phone 바텀 시트, 넓은 화면 오른쪽 패널(#331). 폭이 바뀌면 같은 상태로 표면만 바뀐다 */}
       {visible &&
         panel &&
+        surfaceDate &&
         (wide ? (
-          <DayPopover anchorDate={urlStep.date} titleId={titleId} onClose={close} paused={confirmDelete || scopeOpen} footer={dayFooter}>
+          <DayDock date={surfaceDate} titleId={titleId} onClose={close} paused={confirmDelete || scopeOpen} footer={dayFooter}>
             {panel}
-          </DayPopover>
+          </DayDock>
         ) : urlStep.open && urlStep.step !== "day" ? (
           <DaySheet titleId={titleId} onClose={back} paused={confirmDelete || scopeOpen}>
             {panel}
@@ -975,7 +1034,7 @@ function DayCell({
   inMonth: boolean;
   isToday: boolean;
   isSelected: boolean;
-  /** 팝오버가 붙어 있는 칸 (--pri 2px 테두리) */
+  /** 일 상세 패널이 보여 주는 날 (--pri 2px 테두리, #331) */
   isAnchor: boolean;
   events: Event[];
   /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
