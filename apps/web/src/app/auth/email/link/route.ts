@@ -1,5 +1,5 @@
 // (#245) 메일 링크 확인 화면의 [로그인 계속하기] form POST (이메일-로그인.md 6-1, 6-4, D-113).
-// 결과는 code 와 같고 응답은 303 이동. 실패면 토큰 없이 /auth/email?error=<reason> 으로 (토큰이 주소, 기록에 남지 않게)
+// 결과는 code 와 같고 응답은 303 이동. 세션이면 착지 화면(/auth/landing?next=)으로 (#307, 앱 링크 경로로 바로 303 하면 Android 가 앱으로 넘긴다). 실패면 토큰 없이 /auth/email?error=<reason> 으로 (토큰이 주소, 기록에 남지 않게)
 import { type NextRequest, NextResponse } from "next/server";
 import { LINK_TOKEN_RE, readEmailErrorDetails } from "@/lib/email-login";
 import {
