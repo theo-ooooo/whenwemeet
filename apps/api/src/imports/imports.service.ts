@@ -4,9 +4,9 @@ import type { ParticipantSet } from '../events/participants.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { importPayload } from '../push/push-copy.js';
-import type { ImportOptionsDto } from './dto/import.dto.js';
+import type { ImportCreateDto, ImportOptionsDto } from './dto/import.dto.js';
 import { ICS_READ_FAILED_MESSAGE, parseIcs } from './ics-parse.js';
-import { buildCandidates, finalizePlan, type ImportPlan, type ImportPreview, type PlannedEvent, type SkipReason } from './import-plan.js';
+import { buildCandidates, finalizePlan, selectEvents, type ImportPlan, type ImportPreview, type PlannedEvent, type SkipReason } from './import-plan.js';
 import { ImportsRepository, isDuplicateItemError } from './imports.repository.js';
 
 /** 한 트랜잭션에 넣는 일정 수 (기획 3장) */
@@ -45,11 +45,11 @@ export class ImportsService {
     return (await this.plan(groupId, file, options, now)).preview;
   }
 
-  async import(userId: number, groupId: number, file: UploadedIcs | undefined, options: ImportOptionsDto, now: Date = new Date()): Promise<ImportResult> {
+  async import(userId: number, groupId: number, file: UploadedIcs | undefined, options: ImportCreateDto, now: Date = new Date()): Promise<ImportResult> {
     const me = await this.memberships.assertMember(userId, groupId);
     const group = await this.imports.findGroup(groupId);
     if (!group) throw new ApiException('FORBIDDEN');
-    const plan = await this.plan(groupId, file, options, now);
+    const plan = selectEvents(await this.plan(groupId, file, options, now), options.include);
     const skipped = new Map(plan.preview.skipped.map((skip) => [skip.reason, skip.count]));
     if (plan.events.length === 0) return { importId: null, created: 0, skipped: toSkipList(skipped) };
 

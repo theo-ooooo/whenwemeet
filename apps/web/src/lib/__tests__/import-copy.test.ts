@@ -13,6 +13,7 @@ const base: ImportPreview = {
   lastStartsAt: "2026-12-31T00:00:00.000Z",
   warnings: [],
   sample: [],
+  items: [],
 };
 
 describe("import-copy (#279)", () => {

@@ -471,8 +471,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'` (기본 future) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
-| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
+| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'\|'all'` (기본 future. all 은 #314, 파일 전체) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
+| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME), `include?` (#314, 아래) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
 
 ```ts
 SkipReason   = 'DUPLICATE'|'CANCELLED'|'TOO_OLD'|'TOO_LONG'|'INVALID'|'OVER_LIMIT'
@@ -482,8 +482,13 @@ ImportPreview = { total: number,          // 파일 안 VEVENT 수
                   recurringKept: number, expanded: number, expandedSeries: number,
                   skipped: SkipCount[], firstStartsAt: ISO|null, lastStartsAt: ISO|null,
                   warnings: ('UNKNOWN_TZID'|'TRUNCATED_TITLE')[],
-                  sample: { title, startsAt, endsAt, allDay, repeat }[] }   // 시작 순 앞 5개
+                  sample: { title, startsAt, endsAt, allDay, repeat }[],   // 시작 순 앞 5개 (옛 웹용)
+                  items: ImportItem[] }                                     // (#314) 넣을 일정 전부, 시작 순, 최대 1,000
+ImportItem   = { key: string,            // 64자 hex. 중복 방지 해시(uidHash)와 같은 값
+                 title, startsAt, endsAt, allDay, repeat }
 ```
+
+- (#314, D-194) `include`: 넣을 `items[].key` 의 **JSON 문자열 배열** (multipart 텍스트 필드 하나, 예 `'["ab12…", …]'`). 생략하면 전부. `[]` 는 400 VALIDATION_FAILED `field: 'include'` "넣을 일정을 하나 이상 골라 주세요". JSON 배열이 아니거나 64자 소문자 hex 가 아닌 값, 1,000개 초과도 400 (`field: 'include'`). 이번 파일의 넣을 일정에 없는 키는 무시(모두 없으면 0개, importId null). 뺀 일정은 skipped 에 세지 않고 기록하지 않아 다음에 같은 파일을 올리면 다시 넣을 일정으로 나온다. 미리보기는 include 를 받지 않는다(400)
 
 - 파일은 저장하지 않는다. 미리보기와 넣기에서 두 번 올린다 (서버 상태 없음). 넣기는 같은 계산을 다시 한다
 - 오류: 파일 없음, 못 읽음, 2MB 초과, 다른 이름의 파일 필드 → 400 VALIDATION_FAILED `field: 'file'` ("캘린더 파일(.ics)을 읽지 못했어요" / "파일이 너무 커요. 2MB 까지 올릴 수 있어요"). VEVENT 3,000개 초과 → 400 IMPORT_TOO_LARGE. range, participants 형식, 모르는 필드 → 400. 멤버 아님 403. 중간 실패 500 IMPORT_INCOMPLETE
