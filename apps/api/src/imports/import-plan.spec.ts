@@ -10,6 +10,7 @@ import {
   type ImportRange,
   importWindow,
   type PlannedEvent,
+  selectEvents,
   sha256Hex,
   toMemo,
   toTitle,
@@ -392,6 +393,22 @@ describe('기간', () => {
     expect(plan(bytes, 'year').preview.toCreate).toBe(1);
   });
 
+  it('전체(#314)는 아래 끝이 없다: 몇 년 전 일정과 반복도 넣고 TOO_OLD 가 없다', () => {
+    const bytes = ics(
+      ...vevent('UID:old', 'DTSTART;VALUE=DATE:20150301', 'DTEND;VALUE=DATE:20150302'),
+      ...vevent('UID:p', 'DTSTART;TZID=Asia/Seoul:20260301T100000', 'DTEND;TZID=Asia/Seoul:20260301T110000'),
+      ...vevent('UID:w', 'DTSTART;TZID=Asia/Seoul:20200106T100000', 'DTEND;TZID=Asia/Seoul:20200106T110000', 'RRULE:FREQ=WEEKLY;COUNT=3'),
+    );
+    expect(iso(importWindow('all', NOW).lo)).toBe('1899-12-31T15:00:00.000Z');
+    expect(plan(bytes, 'year').preview.skipped).toEqual([{ reason: 'TOO_OLD', count: 2 }]);
+    const all = plan(bytes, 'all');
+    expect(all.preview.skipped).toEqual([]);
+    expect(all.preview.toCreate).toBe(3);
+    // 옮긴 반복은 원래 첫 회차 그대로
+    expect(iso(all.events[0].startsAt)).toBe('2015-02-28T15:00:00.000Z');
+    expect(all.events.find((event) => event.repeat === 'WEEKLY')!.startsAt.toISOString()).toBe('2020-01-06T01:00:00.000Z');
+  });
+
   it('오늘 시작해 진행 중인 일정은 넣는다 (끝이 오늘 00:00 뒤)', () => {
     const bytes = ics(...vevent('UID:n', 'DTSTART;VALUE=DATE:20261110', 'DTEND;VALUE=DATE:20261112'));
     expect(plan(bytes).preview.toCreate).toBe(1);
@@ -424,6 +441,46 @@ describe('중복과 상한', () => {
     const result = plan(ics(...one, ...one));
     expect(result.preview.toCreate).toBe(1);
     expect(result.events[0].uidHash).toBe(sha256Hex('~같음|2026-12-01T00:00:00.000Z|2026-12-01T01:00:00.000Z'));
+  });
+});
+
+describe('골라서 넣기 (#314)', () => {
+  it('items 는 넣을 일정 전부(시작 순)이고 key 는 중복 방지 해시와 같다', () => {
+    const result = plan(fixtureText('google'));
+    expect(result.preview.items).toHaveLength(result.preview.toCreate);
+    expect(result.preview.items.map((item) => item.key)).toEqual(result.events.map((event) => event.uidHash));
+    expect(new Set(result.preview.items.map((item) => item.key)).size).toBe(result.preview.items.length);
+    const first = result.events[0];
+    expect(result.preview.items[0]).toEqual({
+      key: first.uidHash,
+      title: first.title,
+      startsAt: first.startsAt,
+      endsAt: first.endsAt,
+      allDay: first.allDay,
+      repeat: first.repeat,
+    });
+    // 예시 5개는 옛 웹을 위해 그대로
+    expect(result.preview.sample).toHaveLength(5);
+  });
+
+  it('OVER_LIMIT 이면 items 도 1,000개까지', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < IMPORT_MAX_EVENTS + 3; i += 1) {
+      const start = new Date(Date.UTC(2026, 11, 1) + i * 3600_000).toISOString().replace(/[-:]/g, '').slice(0, 15);
+      lines.push(...vevent(`UID:${i}`, `DTSTART:${start}Z`));
+    }
+    expect(plan(ics(...lines)).preview.items).toHaveLength(IMPORT_MAX_EVENTS);
+  });
+
+  it('selectEvents: include 가 없으면 전부, 있으면 그 키만, 모르는 키는 무시', () => {
+    const result = plan(fixtureText('naver'));
+    expect(selectEvents(result, undefined)).toBe(result);
+    const keys = result.events.map((event) => event.uidHash);
+    const picked = selectEvents(result, [keys[0], keys[2], sha256Hex('없는 일정')]);
+    expect(picked.events.map((event) => event.uidHash)).toEqual([keys[0], keys[2]]);
+    // 미리보기 값(건너뜀 수 등)은 그대로. 뺀 일정은 건너뜀으로 세지 않는다
+    expect(picked.preview).toBe(result.preview);
+    expect(selectEvents(result, [sha256Hex('없는 일정')]).events).toEqual([]);
   });
 });
 

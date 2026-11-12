@@ -22,7 +22,8 @@ import {
 import { MAX_EVENT_DAYS } from '../events/events.service.js';
 import { hasFixedOffset, INVALID_START, instantOf, type IcsEvent, type IcsTime, type ParsedCalendar } from './ics-parse.js';
 
-export type ImportRange = 'future' | 'year';
+/** future 오늘 이후, year 지난 1년부터, all 파일 전체 (#314) */
+export type ImportRange = 'future' | 'year' | 'all';
 export type SkipReason = 'DUPLICATE' | 'CANCELLED' | 'TOO_OLD' | 'TOO_LONG' | 'INVALID' | 'OVER_LIMIT';
 export type ImportWarning = 'UNKNOWN_TZID' | 'TRUNCATED_TITLE';
 
@@ -32,6 +33,8 @@ export const SKIP_REASONS: readonly SkipReason[] = ['DUPLICATE', 'CANCELLED', 'T
 export const IMPORT_MAX_EVENTS = 1000;
 /** "지난 1년" 의 날 수 */
 export const PAST_YEAR_DAYS = 365;
+/** (#314) 기간 "전체" 의 아래 끝. 사실상 제한 없음 (DB DATETIME 범위 안) */
+export const ALL_RANGE_FROM = '1900-01-01';
 /** 옮길 수 없는 반복을 펼치는 끝: 오늘부터 1년 (D-163) */
 export const EXPAND_HORIZON_DAYS = 366;
 /** 반복 하나를 펼치며 도는 횟수 상한, 파일 전체 상한. 넘으면 그 반복은 INVALID (D-163) */
@@ -89,6 +92,11 @@ export interface ImportSample {
   repeat: Repeat | null;
 }
 
+/** (#314) 미리보기 목록의 한 줄. key 는 중복 방지 해시(uidHash)와 같은 값이라 넣기 요청의 include 로 그대로 돌려받는다 */
+export interface ImportItem extends ImportSample {
+  key: string;
+}
+
 /** 미리보기 응답 (api.md 2.9) */
 export interface ImportPreview {
   total: number;
@@ -101,6 +109,8 @@ export interface ImportPreview {
   lastStartsAt: Date | null;
   warnings: ImportWarning[];
   sample: ImportSample[];
+  /** (#314) 넣을 일정 전부 (시작 순, 최대 1,000). 화면이 골라서 넣는다 */
+  items: ImportItem[];
 }
 
 export interface ImportPlan {
@@ -116,16 +126,16 @@ interface Span {
 }
 
 interface Window {
-  /** 이 순간 이후에 끝나는 일정만 (오늘 또는 1년 전 KST 00:00) */
+  /** 이 순간 이후에 끝나는 일정만 (오늘, 1년 전 KST 00:00, 전체면 1900-01-01) */
   lo: Date;
   /** 펼치는 반복의 끝 (이 순간 전에 시작하는 회차만) */
   hi: Date;
 }
 
-/** 기간 창. 오늘(KST) 00:00 또는 365일 전 00:00 부터 */
+/** 기간 창. 오늘(KST) 00:00, 365일 전 00:00, 전체(1900-01-01) 부터. 펼치는 반복의 끝은 셋 다 오늘부터 366일 */
 export function importWindow(range: ImportRange, now: Date): Window {
   const today = kstDate(now);
-  const loDate = range === 'year' ? addDays(today, -PAST_YEAR_DAYS) : today;
+  const loDate = range === 'year' ? addDays(today, -PAST_YEAR_DAYS) : range === 'all' ? ALL_RANGE_FROM : today;
   return { lo: kstMidnight(loDate), hi: kstMidnight(addDays(today, EXPAND_HORIZON_DAYS)) };
 }
 
@@ -629,6 +639,24 @@ export function finalizePlan(candidates: ImportCandidates, existing: ReadonlySet
       allDay: event.allDay,
       repeat: event.repeat,
     })),
+    items: events.map((event) => ({
+      key: event.uidHash,
+      title: event.title,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      allDay: event.allDay,
+      repeat: event.repeat,
+    })),
   };
   return { preview, events };
+}
+
+/**
+ * (#314, D-194) 미리보기에서 고른 것만 넣는다. include 가 없으면 전부, 이번 파일에 없는 키는 무시.
+ * 뺀 일정은 건너뜀으로 세지 않고 기록도 남기지 않아 다음에 같은 파일을 올리면 다시 넣을 일정으로 나온다
+ */
+export function selectEvents(plan: ImportPlan, include: readonly string[] | undefined): ImportPlan {
+  if (!include) return plan;
+  const keys = new Set(include);
+  return { ...plan, events: plan.events.filter((event) => keys.has(event.uidHash)) };
 }
