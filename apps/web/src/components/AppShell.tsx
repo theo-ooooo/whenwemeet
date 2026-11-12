@@ -13,7 +13,8 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, readGroupCookie, rememberGroup } from "@/lib/group-cookie";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, CALENDAR_PATH, NEWS_PATH, newEventHref, parsePublicCode, routeInfo, stripTeam, TEAM_PARAM } from "@/lib/routes";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, newEventHref, parsePublicCode, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
+import { trackInputModality } from "@/lib/input-modality";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
@@ -111,6 +112,17 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   useEffect(() => {
     const t = window.setTimeout(() => void maybeOpenPushPrompt(), 800);
     return () => window.clearTimeout(t);
+  }, []);
+  // (#339) 키보드로 연 패널만 제목 포커스 테두리를 그리게 마지막 입력 방식을 지켜본다
+  useEffect(() => trackInputModality(), []);
+  // (#339) 메뉴(폰 독, 사이드바)를 누른 순간 칩을 옮긴다. 주소가 바뀌면 navTab 이 주소를 따른다
+  const [pendingNav, setPendingNav] = useState<PendingNav | null>(null);
+  const onMenuNavigate = useCallback((href: string) => setPendingNav({ from: window.location.pathname, to: href }), []);
+  // 도착 전에 뒤로 가기 등으로 떠나면 누른 칩을 버린다
+  useEffect(() => {
+    const drop = () => setPendingNav(null);
+    window.addEventListener("popstate", drop);
+    return () => window.removeEventListener("popstate", drop);
   }, []);
 
   const groups = groupsQ.data;
@@ -213,6 +225,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   }, []);
 
   const tab = activeTab(pathname);
+  const menuTab = navTab(pathname, pendingNav);
   const info = routeInfo(pathname);
   const unread = groups?.find((g) => g.id === groupId)?.unreadNewsCount ?? 0;
 
@@ -252,7 +265,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         <Sidebar
           groupId={groupId}
           group={shownGroup}
-          tab={tab}
+          tab={menuTab}
+          onNavigate={onMenuNavigate}
           unread={unread}
           enabled={wide && groupId !== null && !fold.collapsed}
           refreshKey={`${tab ?? ""}#${eventsVersion}`}
@@ -332,7 +346,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           }`}
         >
           {/* 선택된 메뉴만 먹색 칩 + 아이콘 + 이름, 나머지는 아이콘만 (디자인규칙.md 4-1, components/PhoneDock.tsx) */}
-          <DockTabs tab={tab} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
+          <DockTabs tab={menuTab} onNavigate={onMenuNavigate} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
           {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170) */}
           {fabAction ? (
             <button

@@ -36,6 +36,8 @@ type Props = {
   collapsed: boolean;
   /** (#315) 접기/펼치기 */
   onToggle: () => void;
+  /** (#339) 메뉴를 눌러 이동이 시작될 때(Link onNavigate). AppShell 이 선택 칩을 바로 옮긴다 */
+  onNavigate?: (href: string) => void;
 };
 
 const nowMs = () => Date.now();
@@ -88,7 +90,7 @@ export function Sidebar(props: Props) {
 }
 
 /** (#315) 접힌 72 레일. 칸 44, 먹색 칩은 폰 독과 같은 규칙 (디자인규칙.md 4-1, 4-3) */
-function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
+function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }: Props) {
   const calendarOn = tab === "calendar" || tab === "upcoming";
   const menu = [
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
@@ -142,6 +144,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
             <li key={it.key} className={cell}>
               <Link
                 href={it.href}
+                onNavigate={onNavigate ? () => onNavigate(it.href) : undefined}
                 aria-current={it.on ? "page" : undefined}
                 aria-label={it.badge ? `${it.label}, 새 소식 ${it.badge}개` : it.label}
                 className={`relative grid size-11 place-items-center rounded-[14px] ${it.on ? "bg-ink text-on-ink" : "text-ink-2 hover:bg-hover"}`}
@@ -171,7 +174,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
   );
 }
 
-function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle }: Props) {
+function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
   const annQ = useAnniversaries(groupId ?? 0, { enabled });
@@ -241,6 +244,7 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
             <li key={it.key}>
               <Link
                 href={it.href}
+                onNavigate={onNavigate ? () => onNavigate(it.href) : undefined}
                 aria-current={it.on ? "page" : undefined}
                 aria-label={it.badge ? `${it.label}, 새 소식 ${it.badge}개` : undefined}
                 className={`flex h-[46px] items-center gap-3 rounded-[14px] px-3 text-[15px] leading-5 ${

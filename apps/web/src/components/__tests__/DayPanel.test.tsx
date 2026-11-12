@@ -2,6 +2,7 @@
 // (#331) 넓은 화면 일 상세 패널: 머리(제목, ‹ 13 [14] 15 ›), 일정 줄, 비는 시간 줄 "만들기", Esc 와 포커스 복귀(DayDock)
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetInputModality, trackInputModality } from "@/lib/input-modality";
 import type { Event } from "@/lib/types";
 
 vi.mock("@/hooks", () => ({
@@ -73,6 +74,25 @@ describe("날짜 단계", () => {
     panel();
     const h = screen.getByRole("heading", { name: "11월 14일 토요일" });
     expect(document.activeElement).toBe(h);
+  });
+
+  it("(#339) 마우스나 주소로 열면 제목 포커스에 테두리를 그리지 않는다 (data-quiet-focus)", () => {
+    resetInputModality();
+    panel();
+    const h = screen.getByRole("heading", { name: "11월 14일 토요일" });
+    expect(document.activeElement).toBe(h);
+    expect(h.hasAttribute("data-quiet-focus")).toBe(true);
+  });
+
+  it("(#339) 키보드로 열면 테두리가 보이게 표시를 붙이지 않는다", () => {
+    const stop = trackInputModality(document);
+    fireEvent.keyDown(document, { key: "Enter" });
+    panel();
+    const h = screen.getByRole("heading", { name: "11월 14일 토요일" });
+    expect(document.activeElement).toBe(h);
+    expect(h.hasAttribute("data-quiet-focus")).toBe(false);
+    stop();
+    resetInputModality();
   });
 
   it("‹ 와 › 는 전날, 다음 날. 앞뒤 날짜 숫자도 그날로", () => {
