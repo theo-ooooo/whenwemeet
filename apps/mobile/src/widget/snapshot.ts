@@ -8,8 +8,8 @@ export const WIDGET_MESSAGE_MAX = 16_384;
 export const WIDGET_STALE_MS = 24 * 60 * 60 * 1000;
 /** 하루에 위젯이 보여 주는 일정 수 (중간 크기 3개) */
 export const WIDGET_ROWS = 3;
-/** 멤버 색 순번 개수 (웹 lib/colors.ts DISPLAY, --m1 ~ --m7) */
-export const WIDGET_COLOR_COUNT = 7;
+/** 멤버 색 순번 개수 (웹 lib/colors.ts DISPLAY, --m1 ~ --m8, #350 D-216) */
+export const WIDGET_COLOR_COUNT = 8;
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -22,6 +22,8 @@ export type SnapshotEvent = {
   title: string;
   /** 그날 기준 시각 글자: "10:00", "종일", "~18:00" */
   time: string;
+  /** (#350) 일정 색을 고른 일정만, 색 순번 0~7. 없으면 팀 색 */
+  c?: number;
 };
 
 export type SnapshotDay = {
@@ -34,7 +36,7 @@ export type SnapshotDay = {
 };
 
 /** (#311) code 는 누름 주소의 `?team=` 에 쓰는 팀 공개 코드 (소문자 영숫자 8자) */
-export type SnapshotGroup = { id: number; name: string; /** 멤버 색 순번 0~6 */ color: number; code: string };
+export type SnapshotGroup = { id: number; name: string; /** 멤버 색 순번 0~7 (#350: 새 웹은 c, 옛 웹은 color 0~6) */ color: number; code: string };
 
 export type SnapshotAnniversary = {
   g: number;
@@ -58,6 +60,11 @@ export type WidgetSnapshot = {
 
 function record(v: unknown): Record<string, unknown> | null {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** 색 순번 0~7 이면 그 값, 아니면 null */
+function colorIdx(v: unknown): number | null {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v < WIDGET_COLOR_COUNT ? v : null;
 }
 
 /** 1~max 자, 제어문자 없음 */
@@ -93,9 +100,11 @@ export function parseWidgetSnapshot(v: unknown): WidgetSnapshot | null {
     const r = record(raw);
     const gid = r && id(r.id);
     const name = r && text(r.name, 20);
-    const color = r?.color;
+    // (#350) 새 웹은 c(0~7, 핑크 포함)도 싣는다. 옛 셸 호환으로 color 는 0~6 그대로 온다
+    const base = colorIdx(r?.color);
+    const color = colorIdx(r?.c) ?? base;
     const code = r?.code;
-    if (!gid || !name || typeof color !== "number" || !Number.isInteger(color) || color < 0 || color >= WIDGET_COLOR_COUNT) return null;
+    if (!gid || !name || base === null || color === null) return null;
     if (typeof code !== "string" || !/^[a-z0-9]{8}$/.test(code)) return null;
     groups.push({ id: gid, name, color, code });
   }
@@ -119,7 +128,9 @@ export function parseWidgetSnapshot(v: unknown): WidgetSnapshot | null {
       const title = er && text(er.title, 30);
       const time = er && text(er.time, 16);
       if (!g || !title || !time) return null;
-      events.push({ g, title, time });
+      // (#350) 일정 색. 모르는 값은 버리고 팀 색으로 (스냅샷 전체를 버리지 않는다)
+      const c = colorIdx(er.c);
+      events.push(c === null ? { g, title, time } : { g, title, time, c });
     }
     const total = r.total;
     if (typeof total !== "number" || !Number.isInteger(total) || total < events.length || total > 999) return null;
@@ -183,7 +194,7 @@ export const APP_LINK = "whenwemeet://";
 export type WidgetRow = {
   title: string;
   time: string;
-  /** 멤버 색 순번 0~6 (위젯이 라이트/다크 값으로 바꾼다) */
+  /** 색 순번 0~7 (위젯이 라이트/다크 값으로 바꾼다). 일정 색이 있으면 그 색, 없으면 팀 색 */
   color: number;
   /** 팀이 둘 이상일 때만 팀 이름 */
   team: string | null;
@@ -233,7 +244,7 @@ export function widgetProps(s: WidgetSnapshot | null, now: number): WidgetProps 
 
   const rows: WidgetRow[] = (day?.events ?? []).map((e) => {
     const g = groups.get(e.g);
-    return { title: e.title, time: e.time, color: g?.color ?? 0, team: multi && g ? g.name : null };
+    return { title: e.title, time: e.time, color: e.c ?? g?.color ?? 0, team: multi && g ? g.name : null };
   });
 
   const codeOf = (g: number) => groups.get(g)?.code ?? null;
