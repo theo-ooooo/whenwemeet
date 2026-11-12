@@ -18,7 +18,8 @@ export const WIDGET_MESSAGE_MAX = 16_384;
 /** 한 번에 모으는 팀 수 상한 (팀마다 요청 2개) */
 export const WIDGET_MAX_GROUPS = 10;
 
-export type WidgetSnapshotEvent = { g: number; title: string; time: string };
+/** (#343) c: 일정 색을 고른 일정만, 화면 색 순번 0~7 (D-215). 자동이면 싣지 않는다(위젯은 팀 색) */
+export type WidgetSnapshotEvent = { g: number; title: string; time: string; c?: number };
 export type WidgetSnapshotDay = { date: DateKey; events: WidgetSnapshotEvent[]; total: number };
 export type WidgetSnapshot = {
   generatedAt: string;
@@ -49,10 +50,24 @@ export function clip(s: string, max: number, fallback: string): string {
   return `${out.trimEnd()}…`;
 }
 
-/** 서버 색(hex) → 멤버 색 순번 0~6 (lib/colors.ts memberColor 와 같은 규칙). 팔레트 밖은 마지막(슬레이트) */
+/** 슬레이트 순번. 팔레트 밖 값과, 팀 색에서 핑크를 모르는 셸 대신 쓰는 색 */
+const SLATE_INDEX = 6;
+
+/**
+ * 서버 색(hex) → 화면 색 순번 0~7 (lib/colors.ts memberColor 와 같은 규칙). 팔레트 밖은 슬레이트.
+ * (#343) 핑크(7)는 일정 색 c 에만 싣는다. 팀 색은 아래 groupColorIndex
+ */
 export function colorIndex(hex: string | null | undefined): number {
   const i = MEMBER_COLORS.findIndex((c) => c.toUpperCase() === (hex ?? "").toUpperCase());
-  return displayIndex(i < 0 ? MEMBER_COLORS.length - 1 : i);
+  return i < 0 ? SLATE_INDEX : displayIndex(i);
+}
+
+/**
+ * 팀 색 순번 0~6. 지금 셸(apps/mobile widget/snapshot.ts)은 팀 색이 7 이상이면 스냅샷 전체를 버리므로
+ * 핑크(7)는 예전처럼 슬레이트로 보낸다 (#343). 셸이 8색을 받게 되면 colorIndex 로 바꾼다
+ */
+export function groupColorIndex(hex: string | null | undefined): number {
+  return Math.min(colorIndex(hex), SLATE_INDEX);
 }
 
 /** 그날 기준 시각 글자. 종일(또는 그날을 통째로 걸친 일정) "종일", 전날 시작해 그날 끝 "~18:00", 그 밖은 시작 "10:00" */
@@ -101,7 +116,12 @@ export function buildWidgetSnapshot(src: WidgetSource, now: number): WidgetSnaps
       );
     days.push({
       date: day,
-      events: list.slice(0, WIDGET_DAY_ROWS).map(({ ev, time }) => ({ g: ev.groupId, title: clip(ev.title, 30, "제목 없음"), time })),
+      events: list.slice(0, WIDGET_DAY_ROWS).map(({ ev, time }) => ({
+        g: ev.groupId,
+        title: clip(ev.title, 30, "제목 없음"),
+        time,
+        ...(ev.color ? { c: colorIndex(ev.color) } : {}),
+      })),
       total: Math.min(list.length, 999),
     });
   }
@@ -114,7 +134,7 @@ export function buildWidgetSnapshot(src: WidgetSource, now: number): WidgetSnaps
 
   return {
     generatedAt: new Date(now).toISOString(),
-    groups: groups.map((g) => ({ id: g.id, name: clip(g.name, 20, "팀"), color: colorIndex(g.me.color), code: g.publicCode })),
+    groups: groups.map((g) => ({ id: g.id, name: clip(g.name, 20, "팀"), color: groupColorIndex(g.me.color), code: g.publicCode })),
     days,
     anniversaries: occ.map((o) => ({ g: o.anniversary.groupId, title: clip(occurrenceTitle(o), 40, "기념일"), date: o.date })),
   };

@@ -73,7 +73,8 @@ export type EventRow = {
   /** (#248) true(또는 없음) = "모두". 기존 시드는 DB 기본값처럼 모두 (설계 2-1) */
   allMembers?: boolean;
   /** (#248) allMembers 가 false 일 때 참여자 userId. 비면 "참여자 없음" */
-  participantIds?: number[];
+  participantIds?: number[];  /** (#343) 일정 색 (MEMBER_COLORS 키). 없거나 null 이면 자동 (D-215) */
+  color?: string | null;
 };
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
 export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string };

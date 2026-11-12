@@ -26,7 +26,7 @@ export function DotCluster({
   plusClass = "text-[9px] font-bold leading-none text-ink-2",
   className = "",
 }: {
-  event: Pick<Event, "creator" | "participants">;
+  event: Pick<Event, "creator" | "participants" | "color">;
   size?: number;
   gap?: number;
   plusClass?: string;

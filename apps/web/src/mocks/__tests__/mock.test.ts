@@ -333,6 +333,54 @@ describe("목 일정 참여자 (#248, 설계 3-2, 4장, 6장)", () => {
   });
 });
 
+describe("목 일정 색 (#343, D-215)", () => {
+  const logs = () => (globalThis as unknown as { __wwmMockStore: { logs: unknown[] } }).__wwmMockStore.logs.length;
+  const base = { title: "색테스트", startsAt: "2027-08-04T10:00:00+09:00", endsAt: "2027-08-04T11:00:00+09:00", allDay: false };
+  type Err = { status: number; body: { error: { details: { field: string; message: string }[] } } };
+
+  it("생성: 생략 = null, 팔레트 키는 대문자, 밖은 400 field color", () => {
+    expect(call("POST", "/groups/2/events", base).body.data.color).toBeNull();
+    expect(call("POST", "/groups/2/events", { ...base, color: "#f279b5" }).body.data.color).toBe("#F279B5");
+    const bad = call("POST", "/groups/2/events", { ...base, color: "#123456" }) as unknown as Err;
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.details[0]).toEqual({ field: "color", message: "색은 정해진 8색 중 하나여야 해요" });
+  });
+
+  it("한 번짜리: 색만 바꾸면 새 소식 없음, 다른 값과 같이면 하나", () => {
+    const ev = call("POST", "/groups/2/events", base).body.data;
+    const before = logs();
+    // 웹은 폼 값 전체를 같이 보낸다
+    const pink = call("PATCH", `/groups/2/events/${ev.id}`, { ...base, memo: "", color: "#F279B5" });
+    expect(pink.body.data.color).toBe("#F279B5");
+    expect(logs()).toBe(before);
+    expect(call("PATCH", `/groups/2/events/${ev.id}`, { color: null }).body.data.color).toBeNull();
+    expect(logs()).toBe(before);
+    call("PATCH", `/groups/2/events/${ev.id}`, { title: "바뀜", color: "#F26D6D" });
+    expect(logs()).toBe(before + 1);
+  });
+
+  it("반복: 이 일정만 + color 는 400, 이후 모두 색만은 새 소식 없이 그날부터", () => {
+    const id = call("POST", "/groups/2/events", { ...base, repeat: "WEEKLY" }).body.data.id as number;
+    const bad = call("PATCH", `/groups/2/events/${id}`, { color: "#F279B5" }, "occurrence=2027-08-11&scope=this") as unknown as Err;
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.details[0].field).toBe("color");
+    const before = logs();
+    const split = call("PATCH", `/groups/2/events/${id}`, { title: "색테스트", color: "#F279B5" }, "occurrence=2027-08-11&scope=following");
+    expect(split.body.data.color).toBe("#F279B5");
+    expect(logs()).toBe(before);
+    const list = call("GET", "/groups/2/events", null, "from=2027-08-04T00:00:00%2B09:00&to=2027-08-19T00:00:00%2B09:00").body.data as unknown as {
+      title: string;
+      occurrence: string;
+      color: string | null;
+    }[];
+    expect(list.filter((e) => e.title === "색테스트" && e.occurrence !== null).map((e) => [e.occurrence, e.color])).toEqual([
+      ["2027-08-04", null],
+      ["2027-08-11", "#F279B5"],
+      ["2027-08-18", "#F279B5"],
+    ]);
+  });
+});
+
 describe("목 기념일 알림 시점 (#269)", () => {
   type Row = { id: number; reminders: string[] };
   const groupId = TEAM_ID;
