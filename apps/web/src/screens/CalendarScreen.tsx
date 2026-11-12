@@ -839,10 +839,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             <IconChevronRight size={20} />
           </button>
           <span className="flex-1" />
+          {/* (#339) 오른쪽 일 상세 패널이 열려 있으면 패널의 "이 날 일정 추가" 가 주 버튼이다. 한 화면 코랄 주 버튼 하나(디자인규칙.md 1-3, 2-4)라
+              여기는 보조(테두리) 버튼으로 낮춘다 */}
           <Link
             href={newHref}
             aria-label="일정 추가"
-            className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-btn px-4 text-[14px] font-bold text-on-btn hover:brightness-95 main-narrow:px-3"
+            className={`flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] font-bold hover:brightness-95 main-narrow:px-3 ${
+              surfaceDate ? "border border-line bg-paper text-ink" : "bg-btn text-on-btn"
+            }`}
           >
             <IconPlus size={18} strokeWidth={2.2} />
             <span>

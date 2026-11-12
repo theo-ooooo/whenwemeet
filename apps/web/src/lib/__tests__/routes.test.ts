@@ -7,6 +7,7 @@ import {
   eventCopyHref,
   eventEditHref,
   eventHref,
+  navTab,
   newEventHref,
   parsePublicCode,
   routeInfo,
@@ -91,5 +92,23 @@ describe("routeInfo, activeTab, afterTeamSwitch", () => {
     expect(afterTeamSwitch("/events/evntcode")).toBe("/calendar");
     expect(afterTeamSwitch("/events/evntcode/edit")).toBe("/calendar");
     expect(afterTeamSwitch("/unknown")).toBe("/calendar");
+  });
+});
+
+describe("(#339) navTab: 메뉴를 누른 순간 칩을 옮긴다", () => {
+  it("누를 때의 주소에 있는 동안은 가는 곳의 칸을 켠다", () => {
+    expect(navTab("/calendar", { from: "/calendar", to: "/free" })).toBe("free");
+    expect(navTab("/free", { from: "/free", to: "/team" })).toBe("team");
+  });
+
+  it("주소가 바뀌면(도착, 다른 곳으로 이동) pending 을 버리고 주소를 따른다", () => {
+    expect(navTab("/free", { from: "/calendar", to: "/free" })).toBe("free");
+    expect(navTab("/news", { from: "/calendar", to: "/free" })).toBe("news");
+  });
+
+  it("pending 이 없으면 activeTab 과 같다. 쿼리, 해시는 보지 않는다", () => {
+    expect(navTab("/events/abcd1234", null)).toBe("calendar");
+    expect(navTab("/calendar", { from: "/calendar", to: "/team?invite=1" })).toBe("team");
+    expect(navTab("/todos", { from: "/todos", to: "/calendar#x" })).toBe("calendar");
   });
 });

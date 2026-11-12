@@ -17,6 +17,7 @@ import { panelDays, panelTitle } from "@/lib/day-panel";
 import { timeColumn } from "@/lib/day-view";
 import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
+import { lastInputWasKeyboard } from "@/lib/input-modality";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import type { Event } from "@/lib/types";
 import { eventKey } from "@/lib/recurrence";
@@ -62,7 +63,12 @@ export function DayPanel(props: Props) {
   // 단계가 바뀌면 그 단계 제목으로 포커스 (빠른 추가는 제목 입력이 autoFocus)
   useEffect(() => {
     if (step === "add") return;
-    box.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: true });
+    const el = box.current?.querySelector<HTMLElement>("[data-autofocus]");
+    if (!el) return;
+    // (#339) 마우스, 터치로 열었거나 주소로 바로 열었으면 테두리 없이 (globals.css [data-quiet-focus]). 키보드로 열었으면 보인다
+    if (lastInputWasKeyboard()) delete el.dataset.quietFocus;
+    else el.dataset.quietFocus = "";
+    el.focus({ preventScroll: true });
   }, [step, evKey]);
 
   return (

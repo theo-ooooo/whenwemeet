@@ -143,3 +143,15 @@ export function afterTeamSwitch(pathname: string): string | null {
   if (todoCode !== null) return TODOS_PATH;
   return eventCode !== null ? CALENDAR_PATH : null;
 }
+
+/** (#339) 메뉴(폰 독, 사이드바)를 눌러 이동 중인 곳. from 은 누를 때의 주소 */
+export type PendingNav = { from: string; to: string };
+
+/**
+ * (#339) 메뉴에서 켤 항목. 메뉴를 누른 순간 칩을 옮기고(낙관적), 서버 응답 뒤 주소가 바뀌면 주소를 따른다.
+ * 누를 때의 주소에 머물러 있는 동안만 pending 을 쓴다: 주소가 바뀌면(도착, 다른 곳으로 이동) 저절로 버려진다
+ */
+export function navTab(pathname: string, pending: PendingNav | null): ReturnType<typeof activeTab> {
+  const path = pending !== null && pending.from === pathname ? pending.to : pathname;
+  return activeTab(path.split(/[?#]/, 1)[0]);
+}

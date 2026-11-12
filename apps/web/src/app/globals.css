@@ -292,6 +292,12 @@ body {
   outline-offset: 2px;
 }
 
+/* (#339) 화면이 스스로 옮긴 포커스(일 상세 패널 제목)는 마우스, 터치, 주소로 열었을 때 테두리를 그리지 않는다.
+   키보드로 열면 이 표시가 없어 위 규칙대로 보인다 (lib/input-modality.ts, DayPanel) */
+[data-quiet-focus]:focus-visible {
+  outline: none;
+}
+
 /* 요소 기본값은 base 레이어에 둬야 Tailwind 유틸리티(text-[26px] 등)가 이긴다 */
 @layer base {
   input,
