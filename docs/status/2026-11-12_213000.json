@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-11-12T21:30:00+09:00",
+  "session_topic": "#343 일정 색 지정 + 핑크(--m8) 색 정책 D-215",
+  "command": "(코디네이터 지시) #343 구현 → PR(develop), 머지 금지",
+  "agent": "agents/backend.md + frontend.md",
+  "status": "구현, 테스트, 로컬 API + 운영 빌드 실제 흐름 QA 완료. PR 생성",
+  "tasks": [
+    {"id": 1, "subject": "API: 마이그레이션 20261112200000_event_color, color 검증, 색만 수정은 로그/푸시 없음, 반복 this 400, 공유 미리보기 color, 8색 배정", "status": "completed"},
+    {"id": 2, "subject": "웹: --m8 핑크, 폼 색 줄(EventColorPicker), 표시 경로 eventColors, 위젯 c, 공유 화면 점, 목", "status": "completed"},
+    {"id": 3, "subject": "문서: 디자인토큰, 디자인규칙, api.md, 결정기록 D-215, schema.prisma, QA 결과", "status": "completed"},
+    {"id": 4, "subject": "PR → 리뷰 → 머지 (사용자)", "status": "pending"}
+  ],
+  "artifacts": ["apps/api/prisma/migrations/20261112200000_event_color", "apps/api/test/event-color.e2e-spec.ts", "apps/web/src/components/EventColorPicker.tsx", "docs/QA/결과_2026-11-12_343.md"],
+  "key_findings": "앱 셸 widget/snapshot.ts 는 팀 color >= 7 이면 스냅샷 전체를 버린다. 웹은 팀 색을 0~6 으로 막고(핑크 → 슬레이트) 일정 색은 항목 c(0~7)로 싣는다. 셸이 c 를 그리려면 apps/mobile 수정과 앱 출시가 필요",
+  "recommended_actions": "API 를 웹보다 먼저 배포(웹은 색을 고를 때만 color 를 보내지만 옛 API 는 forbidNonWhitelisted 로 400). 셸 후속 이슈: 팀 색 8개 허용 + 일정 c 그리기",
+  "pending_user_input": null
+}
