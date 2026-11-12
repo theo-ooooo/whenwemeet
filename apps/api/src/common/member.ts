@@ -1,6 +1,6 @@
 import { FILE_LOCATION_SELECT, type FileLocation, type FileUrlBuilder } from '../files/file-url.builder.js';
 
-/** 합류 시 자동 배정하는 멤버 색 팔레트 (api.md 2.2) */
+/** 멤버 색, 일정 색 팔레트 (api.md 2.2). 화면은 순서대로 블루, 머스터드, 틸, 바이올렛, 그린, 브라운, 슬레이트, 핑크로 그린다 (D-57, D-215) */
 export const MEMBER_COLORS = [
   '#F26D6D',
   '#F2994A',
@@ -116,18 +116,24 @@ export class MemberResolver {
 }
 
 /**
- * 새로 배정하는 색 후보: 팔레트 앞 7개. 화면은 멤버 색을 7개로 그리므로(디자인토큰.md "2026-11 확정", D-57)
- * 8번째 키(#F279B5)를 새로 주지 않는다. 이미 그 값을 가진 멤버는 그대로 둔다 (화면이 따로 매핑)
+ * (#343) 팔레트 키를 대문자로 돌려준다. 팔레트 밖 값이면 null (일정 색 검증, D-215)
  */
-export const ASSIGNABLE_COLORS = MEMBER_COLORS.slice(0, 7);
+export function paletteColorOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const upper = value.toUpperCase();
+  return (MEMBER_COLORS as readonly string[]).includes(upper) ? upper : null;
+}
 
-/** 팀에서 가장 적게 쓰인 색(앞 7개 중). 동률이면 팔레트 순서 (결정기록 D-21) */
+/**
+ * 팀에서 가장 적게 쓰인 색. 동률이면 팔레트 순서 (결정기록 D-21).
+ * (#343) 8색 모두 배정한다. 8번째 키(#F279B5)는 화면에서 핑크(--m8)라 앞 7개를 다 쓴 뒤에야 나온다 (D-215)
+ */
 export function pickLeastUsedColor(usedColors: readonly string[]): string {
   const counts = new Map<string, number>();
   for (const color of usedColors) counts.set(color.toUpperCase(), (counts.get(color.toUpperCase()) ?? 0) + 1);
-  let best: string = ASSIGNABLE_COLORS[0];
+  let best: string = MEMBER_COLORS[0];
   let bestCount = Number.POSITIVE_INFINITY;
-  for (const color of ASSIGNABLE_COLORS) {
+  for (const color of MEMBER_COLORS) {
     const count = counts.get(color) ?? 0;
     if (count < bestCount) {
       best = color;

@@ -7,6 +7,7 @@ import {
   clip,
   colorIndex,
   fitWidgetSnapshot,
+  groupColorIndex,
   widgetMessageLength,
   widgetRange,
   widgetTimeText,
@@ -203,11 +204,34 @@ describe("도우미", () => {
     expect(r.length).toBeLessThanOrEqual(30);
     expect(r).toBe(`${"😀".repeat(14)}…`);
   });
-  it("colorIndex: 화면 색 순번, 팔레트 밖은 슬레이트", () => {
+  it("colorIndex: 화면 색 순번 0~7 (핑크 7), 팔레트 밖은 슬레이트 (#343)", () => {
     expect(colorIndex("#F26D6D")).toBe(0);
-    expect(colorIndex("#f279b5")).toBe(6);
+    expect(colorIndex("#f279b5")).toBe(7);
     expect(colorIndex("#000000")).toBe(6);
     expect(colorIndex(null)).toBe(6);
+  });
+  it("groupColorIndex: 팀 색은 지금 셸이 받는 0~6. 핑크는 슬레이트 (#343)", () => {
+    expect(groupColorIndex("#F26D6D")).toBe(0);
+    expect(groupColorIndex("#A66CF4")).toBe(6);
+    expect(groupColorIndex("#F279B5")).toBe(6);
+  });
+  it("일정 색을 고른 일정만 c (화면 색 순번), 자동은 싣지 않는다. 팀 색이 핑크여도 팀 color 는 0~6 (#343)", () => {
+    const s = buildWidgetSnapshot(
+      source([group(1, "우리 둘", "#F279B5")], {
+        1: [
+          ev(1, at(TODAY, "08:00"), at(TODAY, "09:00"), { title: "핑크", color: "#F279B5" }),
+          ev(1, at(TODAY, "10:00"), at(TODAY, "11:00"), { title: "자동", color: null }),
+          ev(1, at(TODAY, "12:00"), at(TODAY, "13:00"), { title: "블루", color: "#f26d6d" }),
+        ],
+      }),
+      NOW,
+    );
+    expect(s.groups[0].color).toBe(6);
+    expect(s.days[0].events).toEqual([
+      { g: 1, title: "핑크", time: "08:00", c: 7 },
+      { g: 1, title: "자동", time: "10:00" },
+      { g: 1, title: "블루", time: "12:00", c: 0 },
+    ]);
   });
   it("Widget/1 토큰이 있는 앱 UA 만", () => {
     const base = "Mozilla/5.0 WhenwemeetApp/1.2.0 (ios) EmailLogin/1";

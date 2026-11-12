@@ -145,6 +145,20 @@ function applyParticipants(e: EventRow, p: { all: boolean; ids: number[] }) {
   e.participantIds = p.all ? [] : [...p.ids];
 }
 
+/* ---------- (#343) 일정 색 (D-215) ---------- */
+
+const colorErr = (message: string): MockResult => ({
+  status: 400,
+  body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "color", message }]),
+});
+
+/** 본문 color 읽기. 생략 = undefined, null = 자동, 팔레트 키는 대문자로. 그 밖은 400 (API EventColorConstraint) */
+function colorIn(v: unknown): string | null | undefined | MockResult {
+  if (v === undefined || v === null) return v;
+  const key = typeof v === "string" ? MEMBER_COLORS.find((c) => c === v.toUpperCase()) : undefined;
+  return key ?? colorErr("색은 정해진 8색 중 하나여야 해요");
+}
+
 /** 빈 시간 (4장 isBusyForAny): 모두면 바쁨, 아니면 참여자 중 요청 팀 멤버가 있으면. 참여자 없음은 안 바쁨 */
 function isBusyForAny(e: EventRow, memberIds: ReadonlySet<number>): boolean {
   if (e.allMembers !== false) return true;
@@ -174,6 +188,7 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     repeatAnchor: e.repeat ? (e.repeatAnchor ?? null) : null,
     reminder: occ?.reminder ?? e.reminder ?? "NONE",
     participants: participantsOut(s, e),
+    color: e.color ?? null,
   };
 }
 
@@ -855,6 +870,8 @@ export function mockHandle(ctx: Ctx): MockResult {
         // (#248) 생략 = [요청자]
         const pIn = participantsIn(s, groupId, (body ?? {}).participants) ?? { all: false, ids: [userId] };
         if (isResult(pIn)) return pIn;
+        const cIn = colorIn((body ?? {}).color);
+        if (isResult(cIn)) return cIn;
         const v =
           reminderFit(reminder, Boolean(input.allDay)) ??
           validateEvent(input, false) ??
@@ -876,6 +893,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           repeatUntil: repeat ? until : null,
           exceptions: [],
           reminder,
+          color: cIn ?? null,
         };
         applyParticipants(row, pIn);
         s.events.push(row);
@@ -906,6 +924,10 @@ export function mockHandle(ctx: Ctx): MockResult {
           // (#248) 생략 = 그대로
           const pIn = participantsIn(s, groupId, (body ?? {}).participants);
           if (isResult(pIn)) return pIn;
+          const cIn = colorIn((body ?? {}).color);
+          if (isResult(cIn)) return cIn;
+          // (#343) 색 말고 바뀐 값이 있는지 (색만 바꾸면 새 소식 없음, D-215)
+          const before = JSON.stringify(eventOut(s, { ...e, color: null }));
           applyInput(e, input);
           if (pIn) applyParticipants(e, pIn);
           e.reminder = reminder;
@@ -914,8 +936,11 @@ export function mockHandle(ctx: Ctx): MockResult {
             e.repeat = repeat;
             e.repeatUntil = until;
           }
+          if (cIn !== undefined) e.color = cIn;
           e.updatedAt = nowIso();
-          log(e, { action: "UPDATED", eventId: e.id, repeat: e.repeat, scope: null, occurrence: null });
+          if (JSON.stringify(eventOut(s, { ...e, color: null, updatedAt: JSON.parse(before).updatedAt })) !== before) {
+            log(e, { action: "UPDATED", eventId: e.id, repeat: e.repeat, scope: null, occurrence: null });
+          }
           return ok(eventOut(s, e));
         }
         if (method === "DELETE") {
@@ -968,6 +993,8 @@ export function mockHandle(ctx: Ctx): MockResult {
           if ("repeat" in input || "repeatUntil" in input) return err(400, "VALIDATION_FAILED", "이 일정만 수정할 때는 반복을 바꿀 수 없어요");
           // (#248 D-135) 같은 값이어도 400
           if (body && "participants" in body) return participantErr("이 일정만 수정할 때는 참여자를 바꿀 수 없어요");
+          // (#343) 색도 원본 단위 (D-215)
+          if (body && "color" in body) return colorErr("반복 일정의 색은 이후 모두로만 바꿀 수 있어요");
           // 예외는 바꾼 최종 값을 통째로 저장 (목은 "원래 값과 다른 필드만" 을 생략한다)
           series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
           // 원래 회차 값(원본 알림)과 같으면 null (4-1)
@@ -988,10 +1015,26 @@ export function mockHandle(ctx: Ctx): MockResult {
         // (#248) 생략이면 원본 참여자를 이어받는다 (새 원본은 아래 복사)
         const pIn = participantsIn(s, groupId, (body ?? {}).participants);
         if (isResult(pIn)) return pIn;
+        const cIn = colorIn((body ?? {}).color);
+        if (isResult(cIn)) return cIn;
+        const color = cIn === undefined ? (series.color ?? null) : cIn;
+        // (#343) 색 말고 바뀐 값이 없으면 새 소식을 남기지 않는다 (API 와 같은 기준: 규칙, 참여자, 회차 값이 같고 그날부터 예외 없음)
+        const sameMembers = !pIn || (pIn.all ? series.allMembers !== false : series.allMembers === false && JSON.stringify(pIn.ids) === JSON.stringify(series.participantIds ?? []));
+        const onlyColor =
+          repeat === series.repeat &&
+          until === series.repeatUntil &&
+          sameMembers &&
+          !series.exceptions.some((x) => x.occurrence >= date) &&
+          next.title === base.title &&
+          next.startsAt === new Date(base.startsAt).toISOString() &&
+          next.endsAt === new Date(base.endsAt).toISOString() &&
+          next.allDay === base.allDay &&
+          (next.memo || "") === (base.memo || "") &&
+          reminder === (series.reminder ?? "NONE");
         // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
         const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
         const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
-        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, updatedAt: nowIso() };
+        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, updatedAt: nowIso() };
         let target: EventRow;
         if (date === first) {
           // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)
@@ -1006,7 +1049,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           if (pIn) applyParticipants(target, pIn);
           s.events.push(target);
         }
-        log(eventOut(s, target), { action: "UPDATED", eventId: target.id, repeat: series.repeat, scope: logScope, occurrence: date });
+        if (!onlyColor) log(eventOut(s, target), { action: "UPDATED", eventId: target.id, repeat: series.repeat, scope: logScope, occurrence: date });
         return ok(eventOut(s, target));
       }
       if (method === "DELETE") {

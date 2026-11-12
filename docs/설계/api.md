@@ -182,7 +182,8 @@ InvitePreview = { groupName, memberCount,
 - `by` 가 10자 base64url 이 아니거나 어떤 현재 멤버와도 맞지 않으면(나간 멤버, 다른 팀 표식, 위조) `inviter: null`. 오류를 내지 않는다
 - `unreadNewsCount` = 그 팀 EventLog 중 `createdAt > me.lastSeenAt` 이고 `actorId != me` 인 건수. 팀 수만큼 count 쿼리 (사용자당 팀 수가 작아 허용)
 - 초대 코드: 알파벳 `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (혼동 문자 제외) 6자. 충돌 시 재생성. 입력은 대문자로 정규화
-- 멤버 색: 합류 시 아래 팔레트 중 그 팀에서 가장 적게 쓰인 색을 자동 배정. 검증은 `^#[0-9A-Fa-f]{6}$` 만 (팔레트 밖 값도 허용)
+- 멤버 색: 합류 시 아래 팔레트 8색 중 그 팀에서 가장 적게 쓰인 색을 자동 배정(동률은 순서, #343 부터 8번째 `#F279B5` = 핑크 포함, D-215). 검증은 `^#[0-9A-Fa-f]{6}$` 만 (팔레트 밖 값도 허용)
+- 같은 팔레트를 일정 색(`Event.color`)에도 쓴다. 화면 이름은 순서대로 블루, 머스터드, 틸, 바이올렛, 그린, 브라운, 슬레이트, 핑크
 
 ```
 MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A66CF4','#F279B5']
@@ -204,14 +205,16 @@ EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean,
                repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
                reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
-               participants?: 'ALL'|number[] }                         // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
+               participants?: 'ALL'|number[],                          // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
+               color?: string|null }                                   // (#343) MEMBER_COLORS 키 하나(대소문자 무시, 대문자로 저장). null = 자동. 생성에서 생략 = null, 수정에서 생략 = 그대로
 Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,   // publicCode: (#311) 주소용 공개 코드 (`/events/<코드>`)
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
                seriesStartsAt: ISO|null,        // 반복이면 원본 첫 회차 시작
                repeatAnchor: 'YYYY-MM-DD'|null,  // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
                reminder: EventReminder,          // (#188) 그 회차의 실제 알림 (예외 반영)
-               participants: { all: boolean, members: Member[] } }   // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
+               participants: { all: boolean, members: Member[] },    // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
+               color: string|null }                                  // (#343) 일정 색. null = 자동(화면은 참여자 색). 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 ```
 
@@ -230,6 +233,11 @@ Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, c
     | `null`, 다른 문자열, 숫자 아닌 원소 | participants 는 'ALL' 또는 멤버 id 배열이어야 해요 |
   - 참여자만 바꿔도 수정: UPDATED 로그 + 팀원 변경 알림. 같은 참여자(순서 무관)면 #62 규칙대로 저장 안 함
   - `EventLog.participantsAll`, `participantIds`(오름차순, 모두면 null): CREATED, UPDATED 는 저장 후 값, "이 일정만" 은 원본 값, DELETED 는 null. 새 소식 응답과 문구는 그대로
+- (#343) 일정 색 (D-215). 저장은 `Event.color CHAR(7) NULL`
+  - 팔레트 키 8개 밖 값(형식이 맞는 다른 hex, 문자열 아닌 값, 빈 문자열)은 400 VALIDATION_FAILED `field: 'color'` "색은 정해진 8색 중 하나여야 해요"
+  - **색만 바꾼 수정은 EventLog(새 소식)와 푸시를 만들지 않는다.** 색과 다른 값을 같이 바꾸면 보통 수정(UPDATED 한 줄, 색 포함). 같은 색이면 #62 규칙대로 저장 안 함
+  - 반복 일정은 원본 단위(예외에 색 없음). `scope=this` 본문에 `color` 가 있으면(같은 값, null 이어도) 400 `field: 'color'` "반복 일정의 색은 이후 모두로만 바꿀 수 있어요". `following` 첫 회차는 원본 색, 그 뒤 회차는 새 원본에(생략이면 원본 색 복사). 색만 바꿨고 그 회차부터 예외가 없으면 첫 회차는 색만 저장(예외 유지), 그 뒤 회차는 로그 없이 나눈다
+  - ICS 가져오기는 null(자동). 공유 미리보기 `EventSharePreview.event.color`
 - 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
@@ -518,7 +526,7 @@ ImportItem   = { key: string,            // 64자 hex. 중복 방지 해시(uidH
 EventShareLink    = { token, url, expiresAt }       // url = `${WEB_ORIGIN}/join/e/${token}`, token = 16바이트 base64url 22자
 EventSharePreview = { groupName, memberCount,
                       sharer: { displayName } | null,  // 만든 사람의 팀 표시 이름 ?? 닉네임. 팀에 없으면 null. 사진 없음
-                      event: { title, startsAt, endsAt, allDay, repeat, occurrence },  // 그 회차의 지금 값(예외 반영, 스냅샷 아님)
+                      event: { title, startsAt, endsAt, allDay, repeat, occurrence, color },  // 그 회차의 지금 값(예외 반영, 스냅샷 아님). (#343) color = 일정 색, null 이면 자동
                       expiresAt,
                       viewer: { member: true, groupId, eventId, groupCode, eventCode, occurrence, date } | { member: false } }  // 유효한 토큰 + 멤버일 때만 id 와 (#311) 공개 코드
 ```
@@ -580,6 +588,7 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 | 알림 설정 (종류별, 팀별) (#188) | `GET/PATCH /me/notification-settings`, `PATCH /groups/:id/me { notify }`, `GroupDetail.me.notify` |
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
+| 일정 색 (#343) | `EventInput.color`, `Event.color`, `EventSharePreview.event.color` |
 | 일정 카드 공유 (#274) | 2.10 전부 |
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |

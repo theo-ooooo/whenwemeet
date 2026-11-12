@@ -23,6 +23,10 @@ describe("cellDensity — 폰 달력 칸 참여자 점 (#139, #248 D-140)", () =
     expect(cellDensity([ev(0, 1), ev(2)])).toEqual({ dots: [c(0), c(1), c(2)], more: 0, cut: false });
   });
 
+  it("일정 색(#343)을 고른 일정은 참여자 수와 무관하게 그 색 점 하나", () => {
+    expect(cellDensity([{ ...ev(0, 1, 2), color: MEMBER_COLORS[7] }, ev(3)])).toEqual({ dots: ["var(--m8)", c(3)], more: 0, cut: false });
+  });
+
   it("점을 하나도 못 그린 일정이 있으면 +N (그 일정 수)", () => {
     expect(cellDensity([ev(0, 1, 2), ev(3), ev(4)])).toEqual({ dots: [c(0), c(1), c(2)], more: 2, cut: false });
     expect(cellDensity([ev(0), ev(0), ev(0), ev(0), ev(0), ev(0), ev(0)])).toEqual({ dots: [c(0), c(0), c(0)], more: 4, cut: false });

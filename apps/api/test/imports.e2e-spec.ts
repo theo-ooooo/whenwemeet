@@ -124,6 +124,8 @@ describe('일정 가져오기 (e2e, #279)', () => {
     const events = await prisma.event.findMany({ where: { groupId }, include: { exceptions: true, participants: true }, orderBy: { startsAt: 'asc' } });
     expect(events).toHaveLength(4);
     expect(events.every((event) => event.allMembers && event.reminder === 'NONE' && event.remindAt === null && event.creatorId === minji.userId)).toBe(true);
+    // (#343) 가져온 일정의 색은 자동 (D-215)
+    expect(events.every((event) => event.color === null)).toBe(true);
     expect(events.find((event) => event.title === '둘')!.memo).toBe('장소: 성수동\n메모');
     const weekly = events.find((event) => event.title === '매주')!;
     expect(weekly.repeat).toBe('WEEKLY');

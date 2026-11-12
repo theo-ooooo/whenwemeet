@@ -1,6 +1,7 @@
 // 일정 참여자 (#248, 설계 docs/설계/일정-참여자.md 7장, D-140 ~ D-142). React 를 import 하지 않는다 (단위 테스트 대상)
 // - 응답 participants = { all, members } (가입순). all 이면 members 는 그 팀 지금 멤버 전원, 아니면 참여자 (0 = 참여자 없음)
 // - 색은 모두 memberColor() 를 거친다. 참여자 없음과 넘친 색은 --mute (새 색 없음, 디자인규칙 7장)
+// - (#343) 일정 색(ev.color)을 골랐으면 막대, 점, 칩 모두 그 색 하나 (D-215). 참여자 이름 표기는 그대로
 import { memberColor } from "./colors";
 import type { Event, Member } from "./types";
 
@@ -9,7 +10,7 @@ export type Participants = { all: boolean; members: Member[] };
 /** 폼에서 고른 값 = 보낼 값 ("ALL" 또는 멤버 userId 배열) */
 export type ParticipantPick = "ALL" | number[];
 
-type HasParticipants = Pick<Event, "creator"> & { participants?: Participants | null };
+type HasParticipants = Pick<Event, "creator"> & { participants?: Participants | null; color?: string | null };
 
 export const MUTE = "var(--mute)";
 
@@ -26,9 +27,14 @@ export function participantColors(ev: HasParticipants): string[] {
   return participantsOf(ev).members.map((m) => memberColor(m.color));
 }
 
-/** 막대용 색: 0명 → [--mute], 1~3명 → 그 색, 4명 이상 → 앞 3색 + --mute */
+/** (#343) 일정을 그리는 색. 일정 색을 골랐으면 그 색 하나, 자동(null)이면 참여자 색 (D-215) */
+export function eventColors(ev: HasParticipants): string[] {
+  return ev.color ? [memberColor(ev.color)] : participantColors(ev);
+}
+
+/** 막대용 색: 일정 색이면 그 색 하나. 자동은 0명 → [--mute], 1~3명 → 그 색, 4명 이상 → 앞 3색 + --mute */
 export function barColors(ev: HasParticipants): string[] {
-  const colors = participantColors(ev);
+  const colors = eventColors(ev);
   if (colors.length === 0) return [MUTE];
   if (colors.length <= MAX_COLORS) return colors;
   return [...colors.slice(0, MAX_COLORS), MUTE];
@@ -44,16 +50,16 @@ export function splitBackground(colors: readonly string[], dir: "to bottom" | "t
   return `linear-gradient(${dir}, ${stops.join(", ")})`;
 }
 
-/** 점 묶음 (PC 칩, 다가오는 일정 카드): 앞 max 색 + 넘치면 more. 참여자 없음은 회색 점 하나 */
+/** 점 묶음 (PC 칩, 다가오는 일정 카드): 앞 max 색 + 넘치면 more. 참여자 없음은 회색 점 하나. 일정 색이면 그 점 하나 */
 export function dotCluster(ev: HasParticipants, max = MAX_COLORS): { dots: string[]; more: boolean } {
-  const colors = participantColors(ev);
+  const colors = eventColors(ev);
   if (colors.length === 0) return { dots: [MUTE], more: false };
   return { dots: colors.slice(0, max), more: colors.length > max };
 }
 
-/** 칩 면 색: 첫 참여자 색 (없으면 --mute) */
+/** 칩 면 색: 일정 색, 자동이면 첫 참여자 색 (없으면 --mute) */
 export function chipColor(ev: HasParticipants): string {
-  return participantColors(ev)[0] ?? MUTE;
+  return eventColors(ev)[0] ?? MUTE;
 }
 
 const nameOf = (m: Member, meId: number | null) => (meId !== null && m.userId === meId ? "나" : m.displayName);

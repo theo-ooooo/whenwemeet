@@ -28,6 +28,7 @@ const ROW = {
   creator: { nickname: '앨리스', profileImageUrl: null },
   allMembers: true,
   participantIds: [] as number[],
+  color: null,
 };
 
 describe('assertEventRange / parseRange', () => {
@@ -101,7 +102,7 @@ describe('EventsService', () => {
     const created = await service.create(1, 10, { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe(100);
     expect(events.createWithLogTx).toHaveBeenCalledWith(
-      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] } },
+      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null },
       1,
     );
   });
@@ -122,6 +123,27 @@ describe('EventsService', () => {
 
     events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.update(1, 10, 999, {})).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('update: (#343) 색만 바꾸면 updateColor 만 (로그 트랜잭션 없음), 소문자는 대문자로', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    events.updateColor.mockResolvedValue({ ...ROW, color: '#F279B5' });
+    const updated = await service.update(1, 10, 100, { color: '#f279b5' });
+    expect(updated.color).toBe('#F279B5');
+    expect(events.updateColor).toHaveBeenCalledWith(100, '#F279B5');
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+
+    // 같은 색이면 아무것도 저장하지 않는다
+    events.updateColor.mockClear();
+    events.findInGroup.mockResolvedValue({ ...ROW, color: '#F279B5' });
+    await service.update(1, 10, 100, { color: '#F279B5' });
+    expect(events.updateColor).not.toHaveBeenCalled();
+
+    // 다른 값과 같이 바꾸면 보통 수정에 색을 싣는다
+    events.updateWithLogTx.mockResolvedValue({ ...ROW, title: '변경', color: null });
+    await service.update(1, 10, 100, { title: '변경', color: null });
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ id: 100 }), expect.objectContaining({ title: '변경', color: null }), 1);
+    expect(events.updateColor).not.toHaveBeenCalled();
   });
 
   it('update: 빈 메모(\'\')를 보내면 메모를 지운다 (null 로 저장)', async () => {
