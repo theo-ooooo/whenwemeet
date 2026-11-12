@@ -12,6 +12,8 @@ import {
   routeInfo,
   stripTeam,
   teamHref,
+  todoListHref,
+  todosHref,
   withTeam,
 } from "../routes";
 
@@ -51,14 +53,27 @@ describe("주소 만들기", () => {
 
 describe("routeInfo, activeTab, afterTeamSwitch", () => {
   it("화면과 일정 코드, 작성 화면 여부", () => {
-    expect(routeInfo("/calendar")).toEqual({ screen: "calendar", eventCode: null, form: false, eventDetail: false });
-    expect(routeInfo("/team/import")).toEqual({ screen: "team", eventCode: null, form: true, eventDetail: false });
-    expect(routeInfo("/events/new")).toEqual({ screen: "events", eventCode: null, form: true, eventDetail: false });
-    expect(routeInfo("/events/evntcode")).toEqual({ screen: "events", eventCode: "evntcode", form: false, eventDetail: true });
-    expect(routeInfo("/events/evntcode/edit")).toEqual({ screen: "events", eventCode: "evntcode", form: true, eventDetail: false });
-    expect(routeInfo("/events/evntcode/x")).toEqual({ screen: "events", eventCode: "evntcode", form: false, eventDetail: false });
-    expect(routeInfo("/events/bad")).toEqual({ screen: "events", eventCode: null, form: false, eventDetail: false });
-    expect(routeInfo("/me")).toEqual({ screen: null, eventCode: null, form: false, eventDetail: false });
+    expect(routeInfo("/calendar")).toEqual({ screen: "calendar", eventCode: null, form: false, eventDetail: false, todoCode: null });
+    expect(routeInfo("/team/import")).toEqual({ screen: "team", eventCode: null, form: true, eventDetail: false, todoCode: null });
+    expect(routeInfo("/events/new")).toEqual({ screen: "events", eventCode: null, form: true, eventDetail: false, todoCode: null });
+    expect(routeInfo("/events/evntcode")).toEqual({ screen: "events", eventCode: "evntcode", form: false, eventDetail: true, todoCode: null });
+    expect(routeInfo("/events/evntcode/edit")).toEqual({ screen: "events", eventCode: "evntcode", form: true, eventDetail: false, todoCode: null });
+    expect(routeInfo("/events/evntcode/x")).toEqual({ screen: "events", eventCode: "evntcode", form: false, eventDetail: false, todoCode: null });
+    expect(routeInfo("/events/bad")).toEqual({ screen: "events", eventCode: null, form: false, eventDetail: false, todoCode: null });
+    expect(routeInfo("/me")).toEqual({ screen: null, eventCode: null, form: false, eventDetail: false, todoCode: null });
+  });
+  it("(#276) 할 일 목록과 상세 코드", () => {
+    expect(routeInfo("/todos")).toEqual({ screen: "todos", eventCode: null, form: false, eventDetail: false, todoCode: null });
+    expect(routeInfo("/todos/LIST2345")).toMatchObject({ screen: "todos", todoCode: "list2345" });
+    expect(routeInfo("/todos/bad")).toMatchObject({ screen: "todos", todoCode: null });
+    expect(activeTab("/todos")).toBe("todos");
+    expect(activeTab("/todos/list2345")).toBe("todos");
+    expect(todoListHref({ publicCode: "list2345" })).toBe("/todos/list2345");
+    expect(todosHref()).toBe("/todos");
+    expect(todosHref({ create: true })).toBe("/todos?new=1");
+    // 팀을 바꾸면 목록 화면은 그대로, 다른 팀 목록 상세는 목록 화면으로
+    expect(afterTeamSwitch("/todos")).toBeNull();
+    expect(afterTeamSwitch("/todos/list2345")).toBe("/todos");
   });
   it("켤 메뉴: 일정 화면과 다가오는 일정은 달력 쪽", () => {
     expect(activeTab("/events/evntcode")).toBe("calendar");

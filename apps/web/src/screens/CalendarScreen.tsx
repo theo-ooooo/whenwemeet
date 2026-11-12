@@ -69,6 +69,7 @@ import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, participantColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
+import { TodoHomeSection } from "@/components/TodoHomeSection";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
 import { haptic } from "@/lib/app-bridge";
@@ -862,10 +863,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </div>
         </div>
 
-        {/* phone: 다가오는 일정, 기념일 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
+        {/* phone: 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
         <div className="fold:hidden">
           {phoneUpcoming}
           {phoneAnniversaries}
+          <TodoHomeSection groupId={groupId} enabled={!wide} titleId={`${titleId}-ptodo`} />
         </div>
       </section>
 

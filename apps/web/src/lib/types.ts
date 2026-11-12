@@ -277,3 +277,44 @@ export type ImportResult = {
   created: number;
   skipped: { reason: ImportSkipReason; count: number }[];
 };
+
+/* ---------- (#276) 할 일 목록 (api.md 2.11) ---------- */
+
+/** 목록 화면 한 줄. 마지막으로 바꾼 사람(editor)은 탈퇴했으면 "탈퇴한 멤버" */
+export type TodoListSummary = {
+  id: number;
+  publicCode: string;
+  name: string;
+  openCount: number;
+  doneCount: number;
+  editor: Member;
+  updatedAt: string;
+};
+
+export type TodoList = {
+  id: number;
+  publicCode: string;
+  groupId: number;
+  groupCode: string;
+  name: string;
+  creator: Member;
+  editor: Member;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TodoItem = {
+  id: number;
+  listId: number;
+  text: string;
+  done: boolean;
+  doneAt: string | null;
+  /** 미완료면 null */
+  doneBy: Member | null;
+  creator: Member;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** GET /todo-lists/:code */
+export type TodoListDetail = { list: TodoList; items: TodoItem[] };

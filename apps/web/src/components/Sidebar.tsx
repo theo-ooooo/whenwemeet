@@ -2,7 +2,7 @@
 // 넓은 화면(≥600, fold 와 pc) 왼쪽 사이드바 264 (디자인규칙.md 2-2, 4-2, 4-3, 5, #212, D-69).
 // 위에서부터 심볼 34 → 팀 선택 상자 48 → 메뉴(줄 46) → 구분선 → 다가오는 일정 3줄 → 구분선 → 다음 기념일 2줄 → 맨 아래 내 정보.
 // D-58 의 레일과 개요 칸(다가오는 일정, D-day) 내용이 여기 아래 묶음으로 옮겨 왔다. 오늘 비는 시간은 달력 요약 카드가 맡는다.
-// (#315, D-200) 접으면 72 아이콘 레일: 심볼 → 팀 아바타(팀 바꾸기) → 메뉴 아이콘 5개(누르는 칸 44, 지금 화면은 먹색 칩) → 내 정보 아바타 → 펼치기.
+// (#315, D-200) 접으면 72 아이콘 레일: 심볼 → 팀 아바타(팀 바꾸기) → 메뉴 아이콘 6개(#276 할 일 포함)(누르는 칸 44, 지금 화면은 먹색 칩) → 내 정보 아바타 → 펼치기.
 // 접힌 아이콘은 마우스를 올리거나 키보드로 포커스하면 오른쪽에 이름 툴팁. 아래 묶음(다가오는 일정, 기념일)은 접힌 동안 받지 않는다
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
@@ -14,10 +14,10 @@ import { dayBadge, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences } from "@/lib/day-view";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
 import { eventKey } from "@/lib/recurrence";
-import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, UPCOMING_PATH } from "@/lib/routes";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, TODOS_PATH, UPCOMING_PATH } from "@/lib/routes";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
-import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconTeam } from "./icons";
+import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconTeam, IconTodo } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -61,6 +61,8 @@ function MenuIcon({ name, active, unread }: { name: string; active: boolean; unr
       return <IconFree size={24} active={active} />;
     case "anniversaries":
       return <IconHeart size={24} active={active} />;
+    case "todos":
+      return <IconTodo size={24} active={active} />;
     case "news":
       return <IconBell size={24} unread={unread} />;
     default:
@@ -92,6 +94,8 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
     { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
     { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
+    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독에는 없다
+    { key: "todos", href: TODOS_PATH, label: "할 일", on: tab === "todos" },
     { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
     { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
   ];
@@ -198,6 +202,8 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
     { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
     { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
+    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독에는 없다
+    { key: "todos", href: TODOS_PATH, label: "할 일", on: tab === "todos" },
     { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
     { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
   ];
