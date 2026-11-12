@@ -320,8 +320,10 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
 
           <main
             // 넓은 화면 본문 바깥 여백 28 32 (디자인규칙.md 2-2). 달력은 남은 높이를 채우고, 다른 화면도 본문 폭을 다 쓴다.
-            // 폭 상한(예전 760)은 두지 않고 lg(≥1024) 에서 화면마다 2단, 격자로 나눈다 (#244, D-100)
-            className={`flex-1 px-5 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-8 fold:py-7 ${
+            // 폭 상한(예전 760)은 두지 않고 본문 폭이 넉넉하면 화면마다 2단, 격자로 나눈다 (#244, D-100).
+            // (#323) 그 판단은 뷰포트(lg)가 아니라 이 본문의 폭으로 한다: 컨테이너 main(안쪽 폭 = 본문 폭) + globals.css main-* 변형.
+            // 사이드바를 72 레일로 접든 264 로 펼치든 화면이 실제로 받은 폭으로 1단/2단을 고른다
+            className={`@container/main min-w-0 flex-1 px-5 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-8 fold:py-7 ${
               isCalendar ? "" : "fold:w-full fold:min-w-0"
             }`}
           >

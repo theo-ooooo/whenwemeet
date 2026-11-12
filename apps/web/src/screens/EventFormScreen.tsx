@@ -448,8 +448,8 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          {/* lg(≥1024): 왼쪽 제목, 날짜와 시각 | 오른쪽 알림, 반복, 메모. 저장 줄은 두 칸 아래 전체 폭 (#244) */}
-          <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+          {/* 본문 폭 main-lg(≥696, #323): 왼쪽 제목, 날짜와 시각 | 오른쪽 알림, 반복, 메모. 저장 줄은 두 칸 아래 전체 폭 (#244) */}
+          <div className="space-y-2 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
             <div className="space-y-2">
               {/* 제목은 빠른 추가와 같은 44 상자 + 16/600 (#174 L3) */}
               <div className="rounded-xl bg-paper px-3.5 py-3">
