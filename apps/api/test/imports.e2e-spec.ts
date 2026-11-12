@@ -165,6 +165,40 @@ describe('일정 가져오기 (e2e, #279)', () => {
     expect(personal.body.data.toCreate).toBe(4);
   });
 
+  it('TimeTree 1.0.0 모양(VALUE=DATE 없는 날짜, LF 줄 끝)은 종일로 들어가고 다시 올리면 0개 (#309)', async () => {
+    const allDay = (uid: string, start: number, end: number | null, title: string) => [
+      'BEGIN:VEVENT',
+      `SUMMARY:${title}`,
+      `DTSTART:${dayAfter(start)}`,
+      ...(end === null ? [] : [`DTEND:${dayAfter(end)}`]),
+      'DTSTAMP:20261112T010203Z',
+      `UID:${uid}`,
+      'COLOR:#2ecc87',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER:-PT15H',
+      'END:VALARM',
+      'END:VEVENT',
+    ];
+    const file = Buffer.from(
+      ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TimeTree Exporter 1.0.0//EN', ...allDay('tt1', 2, 3, '하루'), ...allDay('tt2', 3, 6, '사흘'), ...allDay('tt3', 4, 4, '끝같음'), ...allDay('tt4', 5, null, '끝없음'), 'END:VCALENDAR', ''].join('\n'),
+    );
+    const res = await preview(minji, groupId, file).expect(200);
+    expect(res.body.data).toMatchObject({ total: 4, toCreate: 4, skipped: [] });
+
+    await importFile(minji, groupId, file).expect(201);
+    const events = await prisma.event.findMany({ where: { groupId }, orderBy: { startsAt: 'asc' } });
+    expect(events.map((event) => [event.title, event.allDay, kstDate(event.startsAt), (event.endsAt.getTime() - event.startsAt.getTime()) / DAY_MS])).toEqual([
+      ['하루', true, kstDate(new Date(Date.now() + 2 * DAY_MS)), 1],
+      ['사흘', true, kstDate(new Date(Date.now() + 3 * DAY_MS)), 3],
+      ['끝같음', true, kstDate(new Date(Date.now() + 4 * DAY_MS)), 1],
+      ['끝없음', true, kstDate(new Date(Date.now() + 5 * DAY_MS)), 1],
+    ]);
+
+    const again = await importFile(minji, groupId, file).expect(201);
+    expect(again.body.data).toMatchObject({ importId: null, created: 0, skipped: [{ reason: 'DUPLICATE', count: 4 }] });
+  });
+
   it('[나만] 은 참여자 행, 개인 달력은 기본 나이고 푸시를 만들지 않는다', async () => {
     await importFile(minji, groupId, ics(...vevent('me@test', dayAfter(2), '나만')), { participants: 'ME' }).expect(201);
     const mine = await prisma.event.findFirstOrThrow({ where: { title: '나만' }, include: { participants: true } });
