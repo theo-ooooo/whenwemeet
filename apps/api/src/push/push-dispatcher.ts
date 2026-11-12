@@ -1,10 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
-import { changePayload, DELETED_MEMBER_NAME, joinPayload, toExpoMessage, type PushPayload } from './push-copy.js';
+import { changePayload, DELETED_MEMBER_NAME, joinPayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
 import { type ClaimedDelivery, type DueNotification, PushRepository } from './push.repository.js';
+import { mondayOfKey, WEEKLY_CATCH_UP_MS, WeeklyPlanner } from './weekly-planner.js';
 
 /** 예약 시각이 이만큼 넘게 지난 알림은 보내지 않는다 (D-88) */
 export const CATCH_UP_MS = 10 * 60 * 1000;
+
+/** 종류별 늦음 허용. (#277) WEEKLY 만 3시간 (D-203) */
+export const catchUpFor = (kind: PushKindName): number => (kind === 'WEEKLY' ? WEEKLY_CATCH_UP_MS : CATCH_UP_MS);
+const isLate = (row: { kind: PushKindName; scheduledAt: Date }, now: Date) => row.scheduledAt.getTime() < now.getTime() - catchUpFor(row.kind);
 /** 한 틱에 펼치는 예약 수 */
 export const EXPAND_LIMIT = 500;
 /** 한 틱에 보내는 기기별 발송 수 */
@@ -23,6 +28,8 @@ export interface ExpandStats {
   dispatched: number;
   skipped: number;
   deliveries: number;
+  /** (#277) 주간 알림을 보내지 않기로 판정한 수 */
+  cancelled: number;
 }
 
 export interface SendStats {
@@ -42,17 +49,22 @@ export class PushDispatcher {
   constructor(
     private readonly push: PushRepository,
     private readonly expo: ExpoPushClient,
+    private readonly weekly: WeeklyPlanner,
   ) {}
 
-  /** A. 예약 시각이 된 PENDING 을 받을 기기로 펼친다. 10분 넘게 늦은 것은 SKIPPED */
+  /** A. 예약 시각이 된 PENDING 을 받을 기기로 펼친다. 10분(WEEKLY 3시간) 넘게 늦은 것은 SKIPPED */
   async expandDue(now: Date): Promise<ExpandStats> {
-    const stats: ExpandStats = { dispatched: 0, skipped: 0, deliveries: 0 };
+    const stats: ExpandStats = { dispatched: 0, skipped: 0, deliveries: 0, cancelled: 0 };
     const due = await this.push.listDuePending(now, EXPAND_LIMIT);
-    const late = due.filter((row) => row.scheduledAt.getTime() < now.getTime() - CATCH_UP_MS);
+    const late = due.filter((row) => isLate(row, now));
     stats.skipped += await this.push.markSkipped(late.map((row) => row.id));
 
     for (const row of due) {
-      if (row.scheduledAt.getTime() < now.getTime() - CATCH_UP_MS) continue;
+      if (isLate(row, now)) continue;
+      if (row.kind === 'WEEKLY') {
+        await this.expandWeekly(row, now, stats);
+        continue;
+      }
       const payload = await this.payloadFor(row, now);
       if (!payload) {
         stats.skipped += await this.push.markSkipped([row.id]);
@@ -74,6 +86,26 @@ export class PushDispatcher {
       }
     }
     return stats;
+  }
+
+  /**
+   * (#277) 주간 알림: 펼치는 순간 변형(SUMMARY, NUDGE)과 문구를 정하고 변형의 토글로 받는 사람을 고른다 (D-204).
+   * 보낼 것이 없거나 받는 사람이 0명이면 CANCELLED (깨우기 4주 간격을 쓰지 않는다). 앞날 알림이라 joinedAt 조건 없음 (D-180)
+   */
+  private async expandWeekly(row: DueNotification, now: Date, stats: ExpandStats): Promise<void> {
+    const monday = mondayOfKey(row.dedupeKey);
+    const built = monday ? await this.weekly.build(row.groupId, monday, now) : null;
+    const recipients = built
+      ? await this.push.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'notifyWeeklyNudge' : 'notifyWeekly')
+      : [];
+    if (!built || recipients.length === 0) {
+      stats.cancelled += await this.push.markCancelled([row.id]);
+      return;
+    }
+    if (await this.push.dispatchTx(row.id, now, built.payload, recipients)) {
+      stats.dispatched += 1;
+      stats.deliveries += recipients.length;
+    }
   }
 
   /** B. QUEUED 를 SENDING 으로 바꿔 100개씩 Expo 로 (최대 한 번, D-89) */
@@ -179,9 +211,9 @@ export class PushDispatcher {
     await this.requeueOrExpire(retry, now, stats);
   }
 
-  /** 다시 보낼 것: 시도 3번째이거나 예약 시각이 10분 넘게 지났으면 FAILED EXPIRED, 아니면 QUEUED (다음 틱) */
+  /** 다시 보낼 것: 시도 3번째이거나 예약 시각이 10분(WEEKLY 3시간) 넘게 지났으면 FAILED EXPIRED, 아니면 QUEUED (다음 틱) */
   private async requeueOrExpire(rows: ClaimedDelivery[], now: Date, stats: SendStats): Promise<void> {
-    const expired = rows.filter((row) => row.attempts >= MAX_ATTEMPTS || row.notification.scheduledAt.getTime() < now.getTime() - CATCH_UP_MS);
+    const expired = rows.filter((row) => row.attempts >= MAX_ATTEMPTS || isLate(row.notification, now));
     const again = rows.filter((row) => !expired.includes(row));
     await this.fail(expired.map((row) => row.id), 'EXPIRED', stats);
     await this.push.requeue(again.map((row) => row.id));

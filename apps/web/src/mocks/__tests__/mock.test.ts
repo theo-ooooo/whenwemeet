@@ -252,8 +252,8 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
   });
 
   it("알림 설정: 기본 모두 켬, 바꾼 키만, 불리언 아니면 400", () => {
-    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true });
-    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true });
+    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false });
+    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false });
     expect(call("PATCH", "/me/notification-settings", {}).body.data.change).toBe(false);
     expect(call("PATCH", "/me/notification-settings", { join: "no" }).status).toBe(400);
   });

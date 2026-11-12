@@ -79,7 +79,7 @@ function myMember(s: Store, groupId: number, userId: number) {
 /* ---------- (#188) 알림 (푸시-알림.md 4-1, 7-1) ---------- */
 
 const REMINDERS: readonly EventReminder[] = ["NONE", "AT_START", "MIN_10", "HOUR_1", "DAY_1", "DAY_OF_0900", "DAY_BEFORE_0900"];
-const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true };
+const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false };
 const NOTIFY_KEYS = Object.keys(DEFAULT_NOTIFY) as (keyof NotificationSettings)[];
 
 /** 본문의 reminder 를 읽는다. 없으면 undefined, 모르는 값이면 오류 */

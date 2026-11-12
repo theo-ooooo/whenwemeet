@@ -54,6 +54,10 @@ model User {
   notifyChange      Boolean   @default(true)
   notifyAnniversary Boolean   @default(true)
   notifyJoin        Boolean   @default(true)
+  /// (#277) 내 정보 > 알림 "주간 요약". 기본 켬 (D-204)
+  notifyWeekly      Boolean   @default(true)
+  /// (#277) 내 정보 > 알림 "다 같이 비는 시간" (조용한 팀 깨우기). 법률 확인 전이라 기본 끔 (D-204)
+  notifyWeeklyNudge Boolean   @default(false)
   /// (#188) 마지막 앱 로그인 (handoff 교환 성공). 권한 허용률 지표의 분모 (D-97)
   lastAppLoginAt    DateTime?
   /// (#300) 처음 여는 달력. 기본 LAST(마지막에 본 달력). GROUP 이면 startGroupId 의 팀 (D-191)
@@ -563,15 +567,17 @@ enum DevicePlatform {
   ANDROID
 }
 
-/// (#188) 알림 종류. 내 정보 > 알림 의 토글 4개와 1:1
+/// (#188) 알림 종류. 내 정보 > 알림 의 토글과 대응 (WEEKLY 는 변형마다 토글이 따로, D-204)
 enum PushKind {
   REMINDER
   CHANGE
   ANNIVERSARY
   JOIN
+  /// (#277) 주간 요약과 조용한 팀 깨우기. payload.variant = 'SUMMARY' | 'NUDGE' (D-203)
+  WEEKLY
 }
 
-/// (#188) PENDING 예약 → DISPATCHED 받을 기기로 펼침 / CANCELLED 묶음으로 취소 / SKIPPED 10분 넘게 늦어 버림
+/// (#188) PENDING 예약 → DISPATCHED 받을 기기로 펼침 / CANCELLED 묶음으로 취소, (#277) 주간 알림을 보내지 않기로 판정 / SKIPPED 10분(주간은 3시간) 넘게 늦어 버림
 enum PushNotificationStatus {
   PENDING
   DISPATCHED
@@ -665,7 +671,7 @@ model PushDelivery {
   @@index([status, receiptCheckedAt, sentAt])
 }
 
-/// (#188) 프로세스 안 예약 작업의 임대와 진행 위치. 행 1개('push') (D-87)
+/// (#188) 프로세스 안 예약 작업의 임대와 진행 위치. 행 'push' (D-87), (#277) 행 'weekly' 는 dailyDoneOn 에 주간 알림을 예약한 월요일만 적는다 (임대는 'push' 행, D-203)
 model SchedulerLease {
   name        String    @id @db.VarChar(40)
   /// 임대를 가진 프로세스 id (기동 때 랜덤)

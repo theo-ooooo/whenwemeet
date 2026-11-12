@@ -45,7 +45,8 @@ export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
 export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" | "DAY_OF_0900" | "DAY_BEFORE_0900";
 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean };
+/** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";

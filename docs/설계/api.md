@@ -440,7 +440,9 @@ ActivityPayload =
 | PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로 |
 
 ```ts
-NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean }   // 기본 모두 true
+NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean,   // 기본 true
+                         weekly: boolean,        // (#277) 주간 요약, 기본 true
+                         weeklyNudge: boolean }  // (#277) 다 같이 비는 시간(조용한 팀 깨우기), 기본 false (D-204)
 EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_BEFORE_0900'
 ```
 

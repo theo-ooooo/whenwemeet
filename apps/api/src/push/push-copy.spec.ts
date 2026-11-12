@@ -12,6 +12,8 @@ import {
   reminderPayload,
   type ReminderTarget,
   toExpoMessage,
+  weeklyNudgePayload,
+  weeklySummaryPayload,
 } from './push-copy.js';
 
 const kst = (value: string) => new Date(`${value}+09:00`);
@@ -228,5 +230,70 @@ describe('importPayload (#279)', () => {
       url: '/calendar?team=teamcode',
       expiration: Math.floor(now.getTime() / 1000) + 86_400,
     });
+  });
+});
+
+describe('주간 알림 문구 (#277, 설계 6장 WEEKLY)', () => {
+  const base = { groupName: '우리', groupCode: 'abcd2345', monday: '2026-11-16' };
+  /** 그 주 월요일 KST 24:00 */
+  const EXP = Math.floor(kst('2026-11-17T00:00:00').getTime() / 1000);
+  const item = (title: string, at: string) => ({ title, startsAt: kst(at) });
+
+  it.each([
+    ['1개', 1, [item('저녁 약속', '2026-11-18T19:00:00')], null, '이번 주 일정 1개', '수 저녁 약속'],
+    ['2개, 외 없음', 2, [item('점심', '2026-11-16T12:00:00'), item('영화', '2026-11-22T20:00:00')], null, '이번 주 일정 2개', '월 점심, 일 영화'],
+    ['3개, 외 1개', 3, [item('점심', '2026-11-16T12:00:00'), item('저녁', '2026-11-18T19:00:00')], null, '이번 주 일정 3개', '월 점심, 수 저녁 외 1개'],
+    [
+      '기념일 받침 있음',
+      1,
+      [item('저녁', '2026-11-18T19:00:00')],
+      { date: '2026-11-20', title: '처음 만난 날 1주년' },
+      '이번 주 일정 1개',
+      '수 저녁. 금요일은 처음 만난 날 1주년이에요',
+    ],
+    ['기념일 받침 없음', 1, [item('저녁', '2026-11-18T19:00:00')], { date: '2026-11-22', title: '하늘 생일 파티' }, '이번 주 일정 1개', '수 저녁. 일요일은 하늘 생일 파티예요'],
+  ])('SUMMARY %s', (_name, count, items, anniversary, title, body) => {
+    expect(weeklySummaryPayload({ ...base, count, items, anniversary })).toEqual({
+      title,
+      subtitle: '우리',
+      body,
+      url: '/upcoming?team=abcd2345',
+      expiration: EXP,
+      variant: 'SUMMARY',
+    });
+  });
+
+  it('요일은 KST (UTC 로는 전날인 월요일 오전 8시도 월)', () => {
+    const payload = weeklySummaryPayload({ ...base, count: 1, items: [item('아침', '2026-11-16T08:00:00')], anniversary: null });
+    expect(payload.body).toBe('월 아침');
+  });
+
+  it('NUDGE: 첫 빈 시간과 나머지 수, 빈 시간 찾기로', () => {
+    const slot = (a: string, b: string) => ({ startsAt: kst(a), endsAt: kst(b) });
+    expect(weeklyNudgePayload({ ...base, slots: [slot('2026-11-18T19:00:00', '2026-11-18T23:00:00')] })).toEqual({
+      title: '2주 동안 같이 잡은 일정이 없어요',
+      subtitle: '우리',
+      body: '이번 주 다 같이 비는 시간: 수 오후 7:00~오후 11:00',
+      url: '/free?team=abcd2345',
+      expiration: EXP,
+      variant: 'NUDGE',
+    });
+    const many = weeklyNudgePayload({ ...base, slots: [slot('2026-11-16T09:30:00', '2026-11-16T12:00:00'), slot('2026-11-17T09:00:00', '2026-11-17T23:00:00'), slot('2026-11-18T09:00:00', '2026-11-18T23:00:00')] });
+    expect(many.body).toBe('이번 주 다 같이 비는 시간: 월 오전 9:30~오후 12:00 외 2개');
+  });
+
+  it('권유형 문구가 없다 (D-204 문구 규칙)', () => {
+    const texts = [
+      weeklyNudgePayload({ ...base, slots: [{ startsAt: kst('2026-11-18T19:00:00'), endsAt: kst('2026-11-18T23:00:00') }] }),
+      weeklySummaryPayload({ ...base, count: 3, items: [item('a', '2026-11-16T12:00:00'), item('b', '2026-11-17T12:00:00')], anniversary: null }),
+    ].flatMap((p) => [p.title, p.body ?? '']);
+    for (const text of texts) expect(text).not.toMatch(/보세요|마세요|하세요|광고|이벤트|혜택/);
+  });
+
+  it('Expo 메시지에 variant 는 싣지 않는다', () => {
+    const payload = weeklySummaryPayload({ ...base, count: 1, items: [item('저녁', '2026-11-18T19:00:00')], anniversary: null });
+    const message = toExpoMessage('WEEKLY', 9, payload, { token: 't', platform: 'ANDROID' }, NOW);
+    expect(message).toMatchObject({ title: '[우리] 이번 주 일정 1개', body: '수 저녁', data: { url: '/upcoming?team=abcd2345', kind: 'WEEKLY', nid: 9 }, expiration: EXP });
+    expect(JSON.stringify(message)).not.toContain('variant');
   });
 });

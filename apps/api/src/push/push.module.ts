@@ -6,6 +6,7 @@ import { NotificationSettingsController, PushDevicesController } from './push.co
 import { PushDispatcher } from './push-dispatcher.js';
 import { PushRepository } from './push.repository.js';
 import { PushScheduler } from './push.scheduler.js';
+import { WeeklyPlanner } from './weekly-planner.js';
 import { ReminderPlanner } from './reminder-planner.js';
 
 /**
@@ -14,7 +15,7 @@ import { ReminderPlanner } from './reminder-planner.js';
  */
 @Module({
   controllers: [PushDevicesController, NotificationSettingsController],
-  providers: [PushRepository, PushDevicesService, ExpoPushClient, ReminderPlanner, AnniversaryPlanner, PushDispatcher, PushScheduler],
+  providers: [PushRepository, PushDevicesService, ExpoPushClient, ReminderPlanner, AnniversaryPlanner, WeeklyPlanner, PushDispatcher, PushScheduler],
   exports: [PushRepository, PushScheduler],
 })
 export class PushModule {}

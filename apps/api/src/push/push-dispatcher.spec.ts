@@ -13,6 +13,7 @@ const PAYLOAD: PushPayload = { title: '저녁 약속', subtitle: '우리', body:
 const due = (overrides: Partial<DueNotification> = {}): DueNotification => ({
   id: 1,
   kind: 'REMINDER',
+  dedupeKey: 'R:5:-:0',
   groupId: 10,
   scheduledAt: NOW,
   createdAt: CREATED,
@@ -37,11 +38,13 @@ describe('PushDispatcher', () => {
   let push: RepositoryMock<PushRepository>;
   let expo: { send: ReturnType<typeof vi.fn>; getReceipts: ReturnType<typeof vi.fn> };
   let dispatcher: PushDispatcher;
+  let build: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     push = mockRepository(PushRepository);
     expo = { send: vi.fn(), getReceipts: vi.fn() };
-    dispatcher = new PushDispatcher(push as never, expo as unknown as ExpoPushClient);
+    dispatcher = new PushDispatcher(push as never, expo as unknown as ExpoPushClient, { build: (build = vi.fn()) } as never);
+    push.markCancelled.mockImplementation(async (ids) => ids.length);
     push.markSkipped.mockImplementation(async (ids) => ids.length);
     push.dispatchTx.mockResolvedValue(true);
     push.listRecipients.mockResolvedValue([]);
@@ -135,6 +138,66 @@ describe('PushDispatcher', () => {
       push.listDuePending.mockResolvedValue([due()]);
       push.dispatchTx.mockResolvedValue(false);
       expect(await dispatcher.expandDue(NOW)).toMatchObject({ dispatched: 0 });
+    });
+  });
+
+  describe('(#277) 주간 알림 펼치기 (5-9, D-203, D-204)', () => {
+    const H = 60 * MIN;
+    const weeklyDue = (overrides: Partial<DueNotification> = {}) =>
+      due({ kind: 'WEEKLY', dedupeKey: 'W:10:2026-11-16', eventId: null, payload: null, ...overrides });
+    const SUMMARY = { ...PAYLOAD, title: '이번 주 일정 2개', variant: 'SUMMARY' as const };
+    const recipient = { userId: 1, token: 'ExponentPushToken[a]', platform: 'IOS' as const };
+
+    it('WEEKLY 만 늦음 허용 3시간: 2시간 59분은 펼치고 3시간 1분은 SKIPPED', async () => {
+      build.mockResolvedValue({ variant: 'SUMMARY', payload: SUMMARY });
+      push.listRecipients.mockResolvedValue([recipient]);
+      push.listDuePending.mockResolvedValue([
+        weeklyDue({ id: 1, scheduledAt: new Date(NOW.getTime() - 3 * H - MIN) }),
+        weeklyDue({ id: 2, scheduledAt: new Date(NOW.getTime() - 3 * H + MIN) }),
+      ]);
+      const stats = await dispatcher.expandDue(NOW);
+      expect(push.markSkipped).toHaveBeenCalledWith([1]);
+      expect(push.dispatchTx).toHaveBeenCalledWith(2, NOW, SUMMARY, [recipient]);
+      expect(stats).toMatchObject({ dispatched: 1, skipped: 1, deliveries: 1, cancelled: 0 });
+      expect(build).toHaveBeenCalledWith(10, '2026-11-16', NOW);
+    });
+
+    it('SUMMARY 는 notifyWeekly, NUDGE 는 notifyWeeklyNudge 로 받는 사람을 고른다. joinedAt 조건 없음', async () => {
+      push.listRecipients.mockResolvedValue([recipient]);
+      push.listDuePending.mockResolvedValue([weeklyDue()]);
+      build.mockResolvedValue({ variant: 'SUMMARY', payload: SUMMARY });
+      await dispatcher.expandDue(NOW);
+      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'notifyWeekly');
+      build.mockResolvedValue({ variant: 'NUDGE', payload: { ...SUMMARY, variant: 'NUDGE' } });
+      await dispatcher.expandDue(NOW);
+      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'notifyWeeklyNudge');
+    });
+
+    it('보낼 것이 없거나(판정 null) 받는 사람이 0명이면 CANCELLED', async () => {
+      push.listDuePending.mockResolvedValue([weeklyDue({ id: 1 })]);
+      build.mockResolvedValue(null);
+      expect(await dispatcher.expandDue(NOW)).toMatchObject({ cancelled: 1, dispatched: 0 });
+      build.mockResolvedValue({ variant: 'NUDGE', payload: SUMMARY });
+      push.listRecipients.mockResolvedValue([]);
+      expect(await dispatcher.expandDue(NOW)).toMatchObject({ cancelled: 1, dispatched: 0 });
+      expect(push.dispatchTx).not.toHaveBeenCalled();
+      expect(push.markCancelled).toHaveBeenCalledWith([1]);
+    });
+
+    it('키에서 월요일을 못 읽으면 CANCELLED (방어)', async () => {
+      push.listDuePending.mockResolvedValue([weeklyDue({ dedupeKey: 'W:bad' })]);
+      expect(await dispatcher.expandDue(NOW)).toMatchObject({ cancelled: 1 });
+      expect(build).not.toHaveBeenCalled();
+    });
+
+    it('다시 보내기도 3시간 안이면 QUEUED (WEEKLY)', async () => {
+      push.claimQueued.mockResolvedValue([
+        claimed(1, { notification: { id: 1, kind: 'WEEKLY', scheduledAt: new Date(NOW.getTime() - H), payload: SUMMARY } }),
+      ]);
+      expo.send.mockResolvedValue({ type: 'retry', reason: '429' } satisfies ExpoSendResult);
+      const stats = await dispatcher.sendQueued(NOW);
+      expect(push.requeue).toHaveBeenCalledWith([1]);
+      expect(stats.requeued).toBe(1);
     });
   });
 

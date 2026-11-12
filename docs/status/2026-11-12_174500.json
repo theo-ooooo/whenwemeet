@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-12T17:45:00+09:00",
+  "session_topic": "#277 주간 요약 알림과 조용한 팀 깨우기",
+  "command": "기능 구현 (기획, 설계, API, 웹, QA)",
+  "agent": "agents/planning.md, agents/design.md, agents/backend.md, agents/frontend.md",
+  "status": "구현과 QA 완료, PR 대기",
+  "tasks": [
+    {"id": 1, "subject": "기획 3-8, 설계 5-9, 결정 D-203 ~ D-205", "status": "completed"},
+    {"id": 2, "subject": "마이그레이션 20261112140000_push_weekly, WeeklyPlanner, 디스패처, 문구", "status": "completed"},
+    {"id": 3, "subject": "웹 설정 토글 2줄, 개인정보처리방침 이용 목적", "status": "completed"},
+    {"id": 4, "subject": "단위, e2e(가짜 시계), 화면 QA", "status": "completed"},
+    {"id": 5, "subject": "PR, CI, squash 머지 (릴리스 제외)", "status": "in_progress"}
+  ],
+  "artifacts": ["apps/api/src/push/weekly-planner.ts", "apps/api/test/weekly-push.e2e-spec.ts", "docs/QA/결과_2026-11-12_277.md"],
+  "key_findings": "깨우기는 별도 토글 notifyWeeklyNudge 기본 끔(법률 확인 전, 주인 결정). PushModule 은 FreeSlotsModule 을 쓰면 순환이라 순수 함수 재사용(D-205).",
+  "recommended_actions": "배포 전 운영 MySQL 수동 백업, 첫 월요일 push.tick 로그 확인, 법률 확인 결과로 깨우기 기본값 재검토",
+  "pending_user_input": "법률 확인(정보통신망법 제50조) 결과"
+}
