@@ -42,7 +42,7 @@ describe("parseWidgetSnapshot", () => {
 
   it.each([
     ["generatedAt 없음", { generatedAt: "아님" }],
-    ["팀 색 범위 밖", { groups: [{ id: 1, name: "a", color: 7, code: "team1xxx" }] }],
+    ["팀 색 범위 밖", { groups: [{ id: 1, name: "a", color: 8, code: "team1xxx" }] }],
     ["(#311) 팀 코드 없음", { groups: [{ id: 1, name: "a", color: 0, code: "team1xxx" }] }],
     ["(#311) 팀 코드 모양 틀림", { groups: [{ id: 1, name: "a", color: 0, code: "TEAM-1" }] }],
     ["팀 이름 21자", { groups: [{ id: 1, name: "가".repeat(21), color: 0, code: "team1xxx" }] }],
@@ -143,5 +143,38 @@ describe("timeline", () => {
     expect(midnight?.props.dateText).toBe("11월 13일 금");
     const last = e[e.length - 1];
     expect(last.props.known).toBe(false);
+  });
+});
+
+describe("(#350) 8색과 일정 색", () => {
+  it("팀 색 7(핑크)을 받는다", () => {
+    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 7, code: "team1xxx" }, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    expect(s?.groups[0].color).toBe(7);
+  });
+
+  it("팀 c 가 있으면 color 보다 c", () => {
+    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 7, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    expect(s?.groups[0].color).toBe(7);
+  });
+
+  it("팀 c 가 틀리면 color 로", () => {
+    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 99, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    expect(s?.groups[0].color).toBe(6);
+  });
+
+  it("일정 c 가 있으면 그 색, 틀린 c 는 버리고 팀 색", () => {
+    const raw = sample();
+    raw.days[0].events = [
+      { g: 1, title: "핑크 데이트", time: "10:00", c: 7 },
+      { g: 2, title: "이상한 색", time: "11:00", c: "x" } as never,
+    ];
+    raw.days[0].total = 2;
+    const s = parseWidgetSnapshot(raw);
+    expect(s?.days[0].events).toEqual([
+      { g: 1, title: "핑크 데이트", time: "10:00", c: 7 },
+      { g: 2, title: "이상한 색", time: "11:00" },
+    ]);
+    const p = widgetProps(s, Date.parse(`${raw.days[0].date}T12:00:00+09:00`));
+    expect(p.rows.map((r) => r.color)).toEqual([7, 3]);
   });
 });

@@ -73,8 +73,8 @@ describe("buildWidgetSnapshot", () => {
       NOW,
     );
     expect(s.groups).toEqual([
-      { id: 1, name: "우리 둘", color: 5, code: "team1xxx" },
-      { id: 2, name: "가족", color: 1, code: "team2xxx" },
+      { id: 1, name: "우리 둘", color: 5, c: 5, code: "team1xxx" },
+      { id: 2, name: "가족", color: 1, c: 1, code: "team2xxx" },
     ]);
     expect(s.days.map((d) => d.date)).toEqual(["2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18"]);
     expect(s.days[0]).toEqual({
