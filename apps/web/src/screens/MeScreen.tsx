@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
+import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
@@ -35,7 +36,8 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
   async function saveNickname(next: string): Promise<string | null> {
     const r = await updateMe({ nickname: next });
     if (!r.ok) return messageOf(r.error, "닉네임을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
-    onChange(r.data);
+    // (#300) PATCH /me 응답에는 startCalendar 가 없어 앞 값을 이어 쓴다
+    onChange({ ...me, ...r.data });
     return null;
   }
 
@@ -271,6 +273,9 @@ export function MeScreen() {
           )}
 
           <ThemePicker />
+
+          {/* (#300) 처음 여는 달력 (D-191) */}
+          <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
 
           {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
           <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">

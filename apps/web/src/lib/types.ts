@@ -181,11 +181,17 @@ export type NewsEntry = NewsItem | ActivityNewsItem;
 
 export type News = { items: NewsEntry[]; lastSeenAt: string | null };
 
+/** (#300) 처음 여는 달력. LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 (groupId 는 GROUP 일 때만) */
+export type StartCalendarMode = "LAST" | "PERSONAL" | "GROUP";
+export type StartCalendar = { mode: StartCalendarMode; groupId: number | null };
+
 export type Me = {
   id: number;
   nickname: string;
   profileImageUrl: string | null;
   createdAt: string;
+  /** (#300) GET /me 에만 있다. PATCH /me 응답에는 없어 화면이 앞 값을 이어 쓴다 */
+  startCalendar?: StartCalendar;
 };
 
 export type InvitePreview = {

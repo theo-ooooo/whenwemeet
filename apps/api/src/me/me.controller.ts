@@ -5,7 +5,8 @@ import { AvatarsService, type UploadedImage } from '../avatars/avatars.service.j
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { AvatarFileInterceptor } from './avatar-file.interceptor.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
-import { MeService } from './me.service.js';
+import { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
+import { MeProfile, MeService, StartCalendar } from './me.service.js';
 
 @Controller('me')
 export class MeController {
@@ -14,9 +15,16 @@ export class MeController {
     private readonly avatars: AvatarsService,
   ) {}
 
+  /** (#300) 처음 여는 달력 `startCalendar` 포함 */
   @Get()
-  get(@CurrentUser() user: AuthUser): AuthUser {
-    return user;
+  get(@CurrentUser() user: AuthUser): Promise<MeProfile> {
+    return this.me.getProfile(user);
+  }
+
+  /** (#300) 처음 여는 달력 변경 (D-191) */
+  @Patch('start-calendar')
+  updateStartCalendar(@CurrentUser() user: AuthUser, @Body() dto: UpdateStartCalendarDto): Promise<StartCalendar> {
+    return this.me.updateStartCalendar(user.id, dto);
   }
 
   /** 닉네임 변경 (D-36) */

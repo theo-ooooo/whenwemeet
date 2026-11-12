@@ -106,4 +106,62 @@ describe('MeService', () => {
     expect(await service.updateNickname(1, '새닉')).toBe(user);
     expect(users.updateNickname).toHaveBeenCalledWith(1, '새닉');
   });
+  describe('처음 여는 달력 (#300)', () => {
+    const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
+
+    beforeEach(() => {
+      users.updateStartCalendar.mockImplementation(async (_id, value) => value);
+    });
+
+    it('GET /me 는 저장값을 붙인다. 행이 없거나 GROUP 인데 팀이 없으면 LAST, GROUP 이 아니면 groupId 는 null', async () => {
+      users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: 31 });
+      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 } });
+      users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: null });
+      expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
+      users.findStartCalendar.mockResolvedValueOnce({ mode: 'PERSONAL', groupId: 31 });
+      expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'PERSONAL', groupId: null });
+      users.findStartCalendar.mockResolvedValueOnce(null);
+      expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
+      expect(users.findStartCalendar).toHaveBeenCalledWith(1);
+    });
+
+    it('LAST, PERSONAL 은 groupId 없음 또는 null 로 저장한다', async () => {
+      expect(await service.updateStartCalendar(1, { mode: 'PERSONAL' })).toEqual({ mode: 'PERSONAL', groupId: null });
+      expect(await service.updateStartCalendar(1, { mode: 'LAST', groupId: null })).toEqual({ mode: 'LAST', groupId: null });
+      expect(users.updateStartCalendar).toHaveBeenNthCalledWith(1, 1, { mode: 'PERSONAL', groupId: null });
+      expect(users.updateStartCalendar).toHaveBeenNthCalledWith(2, 1, { mode: 'LAST', groupId: null });
+      expect(membershipsRepo.listByUserWithGroupType).not.toHaveBeenCalled();
+    });
+
+    it('LAST, PERSONAL 에 groupId 가 있으면 400', async () => {
+      await expect(service.updateStartCalendar(1, { mode: 'LAST', groupId: 31 })).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'groupId', message: '팀을 고를 때만 팀 ID 를 보내 주세요' }],
+      });
+      await expect(service.updateStartCalendar(1, { mode: 'PERSONAL', groupId: 31 })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(users.updateStartCalendar).not.toHaveBeenCalled();
+    });
+
+    it('GROUP 인데 groupId 가 없으면 400', async () => {
+      await expect(service.updateStartCalendar(1, { mode: 'GROUP' })).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'groupId', message: '고정할 팀을 골라 주세요' }],
+      });
+      await expect(service.updateStartCalendar(1, { mode: 'GROUP', groupId: null })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(users.updateStartCalendar).not.toHaveBeenCalled();
+    });
+
+    it('GROUP 은 내 팀이면 저장, 내 팀이 아니면 403, 개인 팀이면 400', async () => {
+      expect(await service.updateStartCalendar(1, { mode: 'GROUP', groupId: 32 })).toEqual({ mode: 'GROUP', groupId: 32 });
+      expect(users.updateStartCalendar).toHaveBeenCalledWith(1, { mode: 'GROUP', groupId: 32 });
+      users.updateStartCalendar.mockClear();
+
+      await expect(service.updateStartCalendar(1, { mode: 'GROUP', groupId: 99 })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(service.updateStartCalendar(1, { mode: 'GROUP', groupId: 21 })).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'groupId', message: '내 달력은 "내 달력" 으로 골라 주세요' }],
+      });
+      expect(users.updateStartCalendar).not.toHaveBeenCalled();
+    });
+  });
 });

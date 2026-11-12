@@ -56,6 +56,10 @@ model User {
   notifyJoin        Boolean   @default(true)
   /// (#188) 마지막 앱 로그인 (handoff 교환 성공). 권한 허용률 지표의 분모 (D-97)
   lastAppLoginAt    DateTime?
+  /// (#300) 처음 여는 달력. 기본 LAST(마지막에 본 달력). GROUP 이면 startGroupId 의 팀 (D-191)
+  startCalendarMode StartCalendarMode @default(LAST)
+  /// (#300) GROUP 일 때만 값. 그 팀에서 나가거나 팀이 지워지면 같은 트랜잭션에서 LAST 로 되돌린다 (D-192)
+  startGroupId      Int?
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -75,6 +79,15 @@ model User {
   eventParticipations EventParticipant[]
   /// (#274) 내가 만든 일정 공유 링크
   eventShares    EventShare[]
+  /// (#300) 처음 여는 달력으로 고정한 팀
+  startGroup     Group?        @relation("UserStartGroup", fields: [startGroupId], references: [id], onDelete: SetNull)
+}
+
+/// (#300) 처음 여는 달력. LAST 마지막에 본 달력(쿠키 wwm_group), PERSONAL 내 달력(개인 팀), GROUP 고정한 팀
+enum StartCalendarMode {
+  LAST
+  PERSONAL
+  GROUP
 }
 
 /// 소셜 로그인 제공자. DEV 는 개발 환경 전용(dev-login)
@@ -204,6 +217,8 @@ model Group {
   eventImports      EventImport[]
   /// (#274) 일정 공유 링크
   eventShares       EventShare[]
+  /// (#300) 이 팀을 처음 여는 달력으로 고정한 사용자
+  startUsers        User[]       @relation("UserStartGroup")
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다

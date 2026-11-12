@@ -33,6 +33,7 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
+export { useUpdateStartCalendar } from "./useUpdateStartCalendar";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
 export { useImportEvents, usePreviewImport, type ImportInput } from "./useImportEvents";
