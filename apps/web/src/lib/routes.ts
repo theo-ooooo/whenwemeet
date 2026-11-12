@@ -1,6 +1,6 @@
 // (#311) 주소 규칙. 주소에 팀 번호를 두지 않는다 (D-196 ~ D-199). React 를 import 하지 않는다 (단위 테스트 대상)
 //   /calendar /upcoming /free /anniversaries /news /team /team/import /events/new   ← 팀은 쿠키 wwm_group (지금 보는 팀)
-//   /events/<일정 공개 코드>[?occurrence=]        일정 상세 (달력 위 시트/팝오버, 새로 고침해도 같은 화면)
+//   /events/<일정 공개 코드>[?occurrence=]        일정 상세 (달력 위 시트/오른쪽 패널, 새로 고침해도 같은 화면)
 //   /events/<일정 공개 코드>/edit[?occurrence=&scope=]   일정 수정 화면
 //   /todos, /todos/<목록 공개 코드>                 (#276) 할 일 목록, 목록 상세
 //   ?team=<팀 공개 코드>  팀을 지정해야 할 때만 (알림, 위젯, 공유, 내 정보의 팀 목록). AppShell 이 쿠키를 바꾸고 주소에서 뗀다

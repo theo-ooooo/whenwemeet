@@ -1,7 +1,7 @@
 // 달력 주소 규칙 (#81, 폴더블.md 5-5, #311 D-198). React 를 import 하지 않는다 (단위 테스트 대상)
 //   /calendar?date=YYYY-MM-DD  선택 날짜. 오늘이면 생략
 //   ?month=YYYY-MM    보던 달. 선택 날짜의 달과 같으면 생략
-//   &day=1            날짜 상세(시트/팝오버) 열림. pushState 로 한 칸
+//   &day=1            날짜 상세(폰 일 상세, 넓은 화면 오른쪽 패널) 열림. pushState 로 한 칸
 //   &add=1            그 안에서 빠른 추가. 한 칸 더 (새로고침 시 무시)
 //   /events/<일정 공개 코드>[?occurrence=YYYY-MM-DD]  그 안에서 일정 상세. 한 칸 더. 경로가 바뀌지만 같은 달력 화면이 그린다 (pushState)
 //     반복 일정이면 occurrence 가 그 회차의 원래 날짜 (#187). 옛 `&event=<번호>` 는 받지 않는다 (옛 주소는 lib/legacy-routes.ts 가 바꾼다)

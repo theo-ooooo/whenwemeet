@@ -74,6 +74,10 @@
 @custom-variant main-lg (@container main (width >= 696px));
 @custom-variant main-xl (@container main (width >= 952px));
 @custom-variant main-2xl (@container main (width >= 1208px));
+/* (#331) 일 상세 패널: 본문 760 이상이면 달력 오른쪽 400 칸(달력은 약 348 이상 남는다), 그보다 좁으면 오른쪽에서 밀려 나와 덮는 시트.
+ * 패널이 붙으면 달력 칸(CalendarScreen 의 section)이 다시 컨테이너 main 이 되어, 그 안의 main-* 는 남은 달력 폭으로 갈린다 */
+@custom-variant main-panel (@container main (width >= 760px));
+@custom-variant main-sheet (@container main (width < 760px));
 
 /* 라이트 (기본) */
 :root {
@@ -329,6 +333,17 @@ body {
 }
 .anim-fade {
   animation: fade-in 200ms ease-out;
+}
+/* (#331) 일 상세 시트: 오른쪽에서 밀려 나온다 (DayDock 의 main-sheet:animate-[slide-in-right_…]) */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 /* 날짜 상세 단계 전환(날짜 ↔ 빠른 추가 ↔ 일정 상세): 내용만 120ms 교차 페이드 */
 .anim-swap {
