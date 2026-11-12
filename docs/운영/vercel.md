@@ -28,6 +28,7 @@ Project > Settings
   | `API_MOCK` | (절대 넣지 않음) | `1` | - |
   | `APPLE_LOGIN_ENABLED` | `1` (API 애플 설정 확인 후) | (넣지 않음) | - |
   | `APPLE_TEAM_ID` | Apple Team ID | (넣지 않음) | - |
+  | `EMAIL_APP_LINK_ENABLED` | iOS 앱 1.1.1 이 퍼진 뒤 `1` (#271, D-177) | (넣지 않음) | - |
   | `ANDROID_CERT_SHA256` | 서명 인증서 SHA-256, 쉼표 구분 | (넣지 않음) | - |
   | `APP_STORE_LIVE` | 스토어 출시 승인 후 `1` (또는 `ios`, `android`) | (넣지 않음) | - |
   - `APPLE_TEAM_ID`, `ANDROID_CERT_SHA256` 은 앱 딥링크 검증 파일(`/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`)에 쓰인다. 비어 있으면 두 주소가 404. 배포 후 `curl -i https://whenwemeet.day/.well-known/assetlinks.json` 이 리다이렉트 없이 200 `application/json` 인지 확인

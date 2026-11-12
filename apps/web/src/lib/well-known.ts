@@ -10,17 +10,35 @@ export const DEEP_LINK_COMPONENTS = [
   { "/": "/g/*", comment: "팀 달력" },
 ] as const;
 
+/**
+ * (#271) 메일 로그인 링크 `/auth/email?token=` (D-113 확인 화면). 정확히 이 경로 + token 쿼리만 (D-177).
+ * 셸 links/urls.ts EMAIL_LINK_PATH, app.config intentFilters `path` 와 같은 값.
+ * AASA 경로는 앱 버전을 가리지 않아 1.1.0 이하 iOS 앱도 이 링크를 받는다. 그 셸은 /auth/email 을 몰라 링크를 버리고
+ * 확인 화면이 안 열린다. 그래서 스위치(EMAIL_APP_LINK_ENABLED=1)가 켜졌을 때만 싣는다
+ */
+export const EMAIL_LINK_COMPONENT = {
+  "/": "/auth/email",
+  "?": { token: "?*" },
+  comment: "메일 로그인 링크 (앱 1.1.1~)",
+} as const;
+
+/** EMAIL_APP_LINK_ENABLED (Vercel). "1" 일 때만 켠다 */
+export function emailAppLinkEnabled(raw: string | null | undefined): boolean {
+  return raw?.trim() === "1";
+}
+
 /** Apple Team ID: 영문 대문자와 숫자 10자 */
 const TEAM_ID = /^[A-Z0-9]{10}$/;
 /** SHA-256 지문: 콜론으로 나뉜 16진수 32바이트 */
 const FINGERPRINT = /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/;
 
-export function buildAppleAppSiteAssociation(teamId: string | null | undefined) {
+export function buildAppleAppSiteAssociation(teamId: string | null | undefined, opts: { emailLink?: boolean } = {}) {
   const id = teamId?.trim().toUpperCase();
   if (!id || !TEAM_ID.test(id)) return null;
+  const components = opts.emailLink ? [...DEEP_LINK_COMPONENTS, EMAIL_LINK_COMPONENT] : DEEP_LINK_COMPONENTS;
   return {
     applinks: {
-      details: [{ appIDs: [`${id}.${APP_ID}`], components: DEEP_LINK_COMPONENTS }],
+      details: [{ appIDs: [`${id}.${APP_ID}`], components }],
     },
   };
 }

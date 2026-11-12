@@ -41,13 +41,19 @@ export default function App() {
     return () => clearTimeout(id);
   }, []);
 
-  // 유니버설 링크/앱 링크 (5.1): 콜드 스타트의 초기 링크와 실행 중 수신 모두 웹뷰로
+  // 유니버설 링크/앱 링크 (5.1): 콜드 스타트의 초기 링크와 실행 중 수신 모두 웹뷰로.
+  // (#271) 메일 로그인 링크 /auth/email?token= 도 같은 길: 웹뷰가 확인 화면(D-113)을 열고 [로그인 계속하기] 가 웹뷰 세션을 만든다.
+  // 링크를 열 때는 떠 있는 네이티브 로그인 화면을 닫는다. 콜드 스타트에 첫 주소(/)가 /login 으로 가 로그인 화면이 먼저 떴어도 (D-178)
+  // 링크 화면이 보이게
   useEffect(() => {
     if (!handledInitial.current) {
       handledInitial.current = true;
       Linking.getInitialURL().then((u) => {
         const target = u ? deepLinkToWebUrl(u, env.webOrigin) : null;
-        if (target) open(target);
+        if (target) {
+          setLogin(null);
+          open(target);
+        }
       });
     }
     const sub = Linking.addEventListener("url", ({ url }) => {
