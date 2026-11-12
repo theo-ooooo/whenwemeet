@@ -58,12 +58,15 @@ export class PushDispatcher {
         stats.skipped += await this.push.markSkipped([row.id]);
         continue;
       }
-      // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138)
+      // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
+      // (#297) 지난 일을 알리는 CHANGE, JOIN 은 그 일이 생긴 시각(예약 createdAt)까지 들어와 있던 팀원에게만 (D-180)
+      const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
       const recipients = await this.push.listRecipients(
         row.groupId,
         row.kind,
-        row.kind === 'CHANGE' || row.kind === 'JOIN' ? row.actorId : null,
+        reportsPast ? row.actorId : null,
         row.kind === 'REMINDER' ? row.eventId : null,
+        reportsPast ? row.createdAt : null,
       );
       if (await this.push.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
         stats.dispatched += 1;

@@ -10,6 +10,10 @@ describe('redactText', () => {
     expect(redactText(`jwt ${jwtLike} 끝`)).toBe(`jwt ${FILTERED} 끝`);
     expect(redactText('failed: /auth/email?token=abc123&x=1')).toBe(`failed: /auth/email?token=${FILTERED}&x=1`);
     expect(redactText('GET /v1/invites/AB12CD 404')).toBe(`GET /v1/invites/${FILTERED} 404`);
+    // (#274) 일정 링크 토큰
+    expect(redactText('GET /v1/event-shares/Ab3_-Ab3_-Ab3_-Ab3_-AB/join 404')).toBe(`GET /v1/event-shares/${FILTERED}/join 404`);
+    expect(redactText('/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB?auto=1')).toBe(`/join/e/${FILTERED}?auto=1`);
+    expect(redactText('/og/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB')).toBe(`/og/join/e/${FILTERED}`);
     expect(redactText('보통 문장 그대로')).toBe('보통 문장 그대로');
   });
 });

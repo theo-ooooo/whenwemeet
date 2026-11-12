@@ -26,9 +26,13 @@ function pathIs(pathname: string, seg: string): boolean {
 /** 웹 로그인 경로 — 웹뷰에서 열지 않고 네이티브 로그인 화면으로 */
 const WEB_LOGIN_PATHS = ["/auth/kakao", "/auth/apple"];
 
+/** (1.1.1) 웹 로그인 화면. 셸이 이 주소로 가는 문서 이동을 가로채 웹 화면을 그리지 않고 네이티브 로그인 화면을 바로 연다 (D-178).
+ *  `/login/email`(이메일 로그인 웹 화면)은 그대로 웹뷰에서 연다 */
+const WEB_LOGIN_PAGE = "/login";
+
 export type NavigationDecision =
   | { kind: "allow" }
-  | { kind: "nativeLogin"; next: string }
+  | { kind: "nativeLogin"; next: string; reason?: "expired" }
   | { kind: "external"; url: string }
   | { kind: "block" };
 
@@ -40,6 +44,17 @@ export function decideNavigation(raw: string, webOrigin: string): NavigationDeci
   if (isWebOrigin(raw, webOrigin)) {
     if (WEB_LOGIN_PATHS.some((p) => pathIs(u.pathname, p))) {
       return { kind: "nativeLogin", next: safeNext(u.searchParams.get("next")) };
+    }
+    // (D-178) /login 문서 이동(서버 리다이렉트 포함)은 웹 화면이 잠깐 보였다가 네이티브 화면이 덮는 깜빡임이 없게 바로 네이티브로.
+    // error 가 붙은 경우(handoff 실패 등)는 웹이 문구를 그리게 둔다 (웹은 그 뒤 login 메시지로 네이티브 화면을 연다)
+    if (
+      (u.pathname === WEB_LOGIN_PAGE || u.pathname === `${WEB_LOGIN_PAGE}/`) &&
+      !u.searchParams.has("error")
+    ) {
+      const next = safeNext(u.searchParams.get("next"));
+      return u.searchParams.get("reason") === "expired"
+        ? { kind: "nativeLogin", next, reason: "expired" }
+        : { kind: "nativeLogin", next };
     }
     return { kind: "allow" };
   }
@@ -63,6 +78,9 @@ export function safeNext(next: string | null | undefined): string {
 /** 앱 링크/유니버설 링크로 열 수 있는 경로 (5.1). AASA, intentFilters 와 같은 목록 */
 const DEEP_LINK_PATHS = ["/join", "/g"];
 
+/** (#271, 1.1.1) 메일 로그인 링크 `/auth/email?token=` (D-113 확인 화면). 정확히 이 경로만 (intentFilters `path`, AASA 와 같은 값, D-177) */
+export const EMAIL_LINK_PATH = "/auth/email";
+
 /**
  * whenwemeet://join/AB?x=1 → { path: "/join/AB", search: "?x=1" }. 커스텀 스킴이 아니면 null.
  * RN 의 URL 은 http(s) 가 아니면 host, pathname 을 못 읽어서(react-native/Libraries/Blob/URL.js) 문자열로 자른다.
@@ -80,10 +98,13 @@ export function parseSchemeLink(raw: string): { path: string; search: string } |
  * - whenwemeet://join/<code>?.. , whenwemeet://g/.. → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
  *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다)
  * - whenwemeet://auth?... 는 null (옛 Android 애플 웹 로그인 복귀 주소. #145 로 접고 #204 로 API 경로도 지웠다)
+ * - (#271) https://whenwemeet.day/auth/email?token=.. → 같은 경로. 웹뷰가 확인 화면(D-113)을 그리고 [로그인 계속하기] 가
+ *   웹뷰 쿠키로 세션을 만든다. 커스텀 스킴(whenwemeet://auth/email)은 받지 않는다 (메일 링크는 https 만)
  */
 export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whenwemeet.day"): string | null {
   let pathname: string;
   let search: string;
+  let https = false;
   const scheme = parseSchemeLink(raw);
   if (scheme) {
     ({ path: pathname, search } = scheme);
@@ -92,10 +113,12 @@ export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whe
     if (!u || u.protocol !== "https:" || u.hostname !== linkHost) return null;
     pathname = u.pathname;
     search = u.search;
+    https = true;
   }
   // 경로 조작(//evil, 백슬래시, 제어문자)은 버린다. safeNext 와 같은 규칙
   if (safeNext(pathname) !== pathname) return null;
-  if (!DEEP_LINK_PATHS.some((p) => pathIs(pathname, p) && pathname.length > p.length + 1)) return null;
+  const emailLink = https && pathname === EMAIL_LINK_PATH;
+  if (!emailLink && !DEEP_LINK_PATHS.some((p) => pathIs(pathname, p) && pathname.length > p.length + 1)) return null;
   return `${webOrigin.replace(/\/+$/, "")}${pathname}${search}`;
 }
 

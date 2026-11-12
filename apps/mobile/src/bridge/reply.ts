@@ -21,16 +21,22 @@ export type PushStatusReply = {
 
 export type AppEventDetail = PushStatusReply;
 
-/** OS 권한 응답(expo-notifications)을 브리지 값으로. iOS 임시(provisional) 허용도 알림이 오므로 granted */
+/**
+ * OS 권한 응답(expo-notifications)을 브리지 값으로. iOS 임시(provisional) 허용도 알림이 오므로 granted.
+ * (#288) Android 13+ 는 한 번도 묻지 않은 상태를 denied + canAskAgain true 로 준다(한 번 거부한 것과 구분되지 않음).
+ * OS 창을 다시 띄울 수 있으면 undetermined 로 보낸다. 웹 lib/push.ts canAskPermission 과 같은 규칙이라
+ * 웹은 어느 셸 버전이든 같은 화면을 그린다. denied 는 다시 물을 수 없을 때만 (iOS 거부, Android 두 번 거부)
+ */
 export function toPushPermission(p: {
   status: string;
   granted?: boolean;
+  canAskAgain?: boolean;
   ios?: { status?: number } | null;
 }): PushPermission {
   // IosAuthorizationStatus: 2 AUTHORIZED, 3 PROVISIONAL, 4 EPHEMERAL
   if (p.granted || p.status === "granted") return "granted";
   if (p.ios?.status === 3 || p.ios?.status === 4) return "granted";
-  if (p.status === "denied") return "denied";
+  if (p.status === "denied") return p.canAskAgain === true ? "undetermined" : "denied";
   return "undetermined";
 }
 

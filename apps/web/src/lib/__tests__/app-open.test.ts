@@ -83,6 +83,9 @@ describe("appPathOf", () => {
   it("경로와 쿼리를 두고 app=0 만 뗀다", () => {
     expect(appPathOf("/join/ABC123", "")).toBe("/join/ABC123");
     expect(appPathOf("/join/ABC123", "?auto=1")).toBe("/join/ABC123?auto=1");
+    // (#274) 일정 공유 링크도 경로 그대로 (대소문자, _ - 유지)
+    expect(appPathOf("/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB", "")).toBe("/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB");
+    expect(appSchemeUrl("/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB")).toBe("whenwemeet://join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB");
     expect(appPathOf("/join/ABC123", "?app=0")).toBe("/join/ABC123");
     expect(appPathOf("/join/ABC123", "?auto=1&app=0")).toBe("/join/ABC123?auto=1");
     expect(appPathOf("/g/12/events", "?date=2026-11-10")).toBe("/g/12/events?date=2026-11-10");

@@ -21,6 +21,7 @@ export { useUpdateEvent } from "./useUpdateEvent";
 export { useDeleteEvent } from "./useDeleteEvent";
 export { useCreateGroup } from "./useCreateGroup";
 export { useJoinGroup } from "./useJoinGroup";
+export { useCreateEventShare, useRevokeEventShare, useJoinEventShare } from "./useEventShare";
 export { useUpdateGroup } from "./useUpdateGroup";
 export { useRotateInviteCode } from "./useRotateInviteCode";
 export { useUpdateMembership } from "./useUpdateMembership";

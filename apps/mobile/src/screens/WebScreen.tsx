@@ -162,7 +162,8 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
         case "allow":
           return true;
         case "nativeLogin":
-          onLoginRequested(d.next);
+          // /auth/kakao, /auth/apple 이동과 (D-178) /login 문서 이동. 웹 로그인 화면을 그리지 않고 네이티브 화면으로
+          onLoginRequested(d.next, d.reason);
           return false;
         case "external":
           Linking.openURL(d.url).catch((err: unknown) => console.warn("[link] 열 수 없음", d.url, err));

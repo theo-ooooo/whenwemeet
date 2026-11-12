@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildAppleAppSiteAssociation, buildAssetLinks, parseFingerprints, wellKnownResponse } from "../well-known";
+import {
+  buildAppleAppSiteAssociation,
+  buildAssetLinks,
+  emailAppLinkEnabled,
+  parseFingerprints,
+  wellKnownResponse,
+} from "../well-known";
 
 const FP1 = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, "0").toUpperCase()).join(":");
 const FP2 = Array.from({ length: 32 }, () => "AB").join(":");
@@ -19,6 +25,26 @@ describe("buildAppleAppSiteAssociation", () => {
         ],
       },
     });
+  });
+
+  it("(#271) 스위치가 켜졌을 때만 메일 로그인 링크 /auth/email(token 쿼리 필수)을 덧붙인다", () => {
+    const comps = (on: boolean) => buildAppleAppSiteAssociation("ABCDE12345", { emailLink: on })!.applinks.details[0].components;
+    expect(comps(false)).toEqual([
+      { "/": "/join/*", comment: "초대 링크" },
+      { "/": "/g/*", comment: "팀 달력" },
+    ]);
+    expect(comps(true)).toEqual([
+      { "/": "/join/*", comment: "초대 링크" },
+      { "/": "/g/*", comment: "팀 달력" },
+      { "/": "/auth/email", "?": { token: "?*" }, comment: "메일 로그인 링크 (앱 1.1.1~)" },
+    ]);
+    expect(buildAppleAppSiteAssociation(undefined, { emailLink: true })).toBeNull();
+  });
+
+  it("(#271) EMAIL_APP_LINK_ENABLED 는 1 일 때만", () => {
+    expect(emailAppLinkEnabled("1")).toBe(true);
+    expect(emailAppLinkEnabled(" 1 ")).toBe(true);
+    for (const v of [undefined, null, "", "0", "true", "yes"]) expect(emailAppLinkEnabled(v)).toBe(false);
   });
 
   it("값이 없거나 형식이 틀리면 null", () => {

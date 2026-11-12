@@ -196,3 +196,25 @@ export function IconMail({ active, ...p }: PieceProps) {
     </Svg>
   );
 }
+
+/** (#274) 공유. 일정 상세 제목줄 (닫기 왼쪽). 겹침 조각 없음 (디자인규칙 3장 "하나 이하") */
+export function IconShare(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 14.5V3.5M8 7.5l4-4 4 4" />
+      <path d="M5 12.5V17a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-4.5" />
+    </Svg>
+  );
+}
+
+/** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양). 카카오 공유 버튼 안 (#195, #274) */
+export function KakaoSymbol() {
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" className="shrink-0">
+      <path
+        fill="#000000"
+        d="M12 3C6.48 3 2 6.58 2 10.9c0 2.78 1.84 5.22 4.62 6.6l-.94 3.48c-.08.3.26.54.52.37l4.15-2.76c.54.07 1.09.11 1.65.11 5.52 0 10-3.58 10-7.9S17.52 3 12 3z"
+      />
+    </svg>
+  );
+}

@@ -12,6 +12,28 @@ describe("toPushPermission", () => {
     expect(toPushPermission({ status: "undetermined", granted: false, ios: { status: 4 } })).toBe("granted");
     expect(toPushPermission({ status: "weird" })).toBe("undetermined");
   });
+  it("(#288) Android 13+ 묻지 않음(denied + canAskAgain true)은 물어볼 수 있는 상태(undetermined)", () => {
+    expect(toPushPermission({ status: "denied", granted: false, canAskAgain: true })).toBe("undetermined");
+    // 다시 물을 수 없을 때만 denied (iOS 거부, Android 두 번 거부). canAskAgain 이 없으면 지금처럼 denied
+    expect(toPushPermission({ status: "denied", granted: false, canAskAgain: false })).toBe("denied");
+    expect(toPushPermission({ status: "denied", granted: false })).toBe("denied");
+    // 허용, 미정은 canAskAgain 과 상관없음
+    expect(toPushPermission({ status: "granted", granted: true, canAskAgain: false })).toBe("granted");
+    expect(toPushPermission({ status: "undetermined", granted: false, canAskAgain: true })).toBe("undetermined");
+  });
+  it("(#288) 웹 canAskPermission 과 같은 판정: 물어볼 수 있음 ⇔ undetermined", () => {
+    // apps/web/src/lib/push.ts canAskPermission(permission, canAskAgain) 와 같은 식
+    const webCanAsk = (perm: string, again: boolean) => perm === "undetermined" || (perm === "denied" && again);
+    for (const status of ["granted", "denied", "undetermined"]) {
+      for (const canAskAgain of [true, false]) {
+        const p = { status, granted: status === "granted", canAskAgain };
+        const perm = toPushPermission(p);
+        if (perm !== "granted") expect(perm === "undetermined").toBe(webCanAsk(status, canAskAgain));
+        // 셸 값을 웹이 다시 판정해도 결과가 같다
+        expect(webCanAsk(perm, canAskAgain)).toBe(perm !== "granted" && webCanAsk(status, canAskAgain));
+      }
+    }
+  });
 });
 
 describe("validExpoToken", () => {

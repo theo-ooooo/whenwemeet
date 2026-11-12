@@ -80,6 +80,7 @@ describe("팀 활동 줄 (#191)", () => {
 
   it("activityPhrase: 멤버와 팀 이름", () => {
     expect(activityPhrase({ type: "MEMBER_JOINED", payload: {} })).toBe("팀에 들어왔어요");
+    expect(activityPhrase({ type: "MEMBER_JOINED", payload: { via: "EVENT_SHARE" } })).toBe("일정 링크로 팀에 들어왔어요");
     expect(activityPhrase({ type: "MEMBER_LEFT", payload: {} })).toBe("팀을 나갔어요");
     expect(activityPhrase({ type: "MEMBER_DELETED", payload: {} })).toBe("서비스를 떠났어요");
     expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리집", to: "우리 가족" } })).toBe("팀 이름을 '우리집'에서 '우리 가족'으로 바꿨어요");

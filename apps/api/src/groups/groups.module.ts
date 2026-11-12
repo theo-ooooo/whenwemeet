@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventSharesDataModule } from '../event-shares/event-shares-data.module.js';
 import { EventLogsModule } from '../event-logs/event-logs.module.js';
 import { GroupActivitiesModule } from '../group-activities/group-activities.module.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
@@ -9,9 +10,9 @@ import { GroupsService } from './groups.service.js';
 import { MembershipService } from './membership.service.js';
 
 @Module({
-  imports: [MembershipsModule, EventLogsModule, PushModule, GroupActivitiesModule],
+  imports: [MembershipsModule, EventLogsModule, PushModule, GroupActivitiesModule, EventSharesDataModule],
   controllers: [GroupsController, InvitesController],
   providers: [GroupsService, MembershipService, GroupsRepository],
-  exports: [GroupsService, MembershipService],
+  exports: [GroupsService, MembershipService, GroupsRepository],
 })
 export class GroupsModule {}

@@ -133,7 +133,7 @@ export function AnniversariesScreen({ groupId }: { groupId: number }) {
       <div className="mt-1.5 flex items-center justify-between gap-3">
         <div>
           <h1 className="t-title">기념일</h1>
-          <p className="t-sub mt-0.5">100일, 1주년, 생일이 달력에 자동으로 보여요</p>
+          <p className="t-sub mt-0.5">날짜를 등록하면 100일, 1주년, 매년 생일이 달력에 표시돼요</p>
         </div>
         <span className="hidden shrink-0 fold:block">
           <Button size="sm" onClick={() => open({ mode: "new" })}>

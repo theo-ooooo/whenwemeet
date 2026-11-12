@@ -48,6 +48,25 @@ export interface ActivityNewsItem {
 
 export type MergedNewsItem = EventNewsItem | ActivityNewsItem;
 
+/** 두 시각 중 늦은 쪽 */
+const later = (a: Date, b: Date): Date => (a.getTime() >= b.getTime() ? a : b);
+
+/**
+ * (#297) 새 소식 목록의 시작 시각. 최근 30일과 내가 팀에 들어온 시각 중 늦은 쪽 (D-180).
+ * 들어오기 전에 있었던 일은 보여 주지 않는다. 같은 시각(createdAt = joinedAt)은 포함
+ */
+export function newsSince(now: Date, joinedAt: Date): Date {
+  return later(new Date(now.getTime() - NEWS_DAYS * 24 * 60 * 60 * 1000), joinedAt);
+}
+
+/**
+ * (#297) 안 읽은 새 소식을 셀 기준 시각. lastSeenAt 과 joinedAt 중 늦은 쪽, 이 시각 "이후"(>) 만 센다 (D-180).
+ * 멤버십을 만들 때 둘 다 지금이라 보통 lastSeenAt 이지만, 규칙을 목록과 같은 근거(joinedAt)에 묶어 둔다
+ */
+export function unseenAfter(lastSeenAt: Date, joinedAt: Date): Date {
+  return later(lastSeenAt, joinedAt);
+}
+
 /** `v=2` 를 보낸 웹만 활동 항목을 받는다. 옛 웹은 예전 응답 그대로 (D-155) */
 export type NewsVersion = 1 | 2;
 
@@ -93,11 +112,12 @@ export class NewsService {
 
   /**
    * 내 변경 제외(탈퇴자 null 포함), 최근 30일, 최신순 50건. isNew = createdAt > me.lastSeenAt.
-   * version 2 면 일정 기록과 팀 활동 기록을 합친다 (#191)
+   * version 2 면 일정 기록과 팀 활동 기록을 합친다 (#191).
+   * (#297) 두 소스 모두 내가 팀에 들어온 뒤(createdAt >= joinedAt) 것만 (D-180)
    */
   async list(userId: number, groupId: number, now: Date = new Date(), version: NewsVersion = 1): Promise<{ items: NewsItem[] | MergedNewsItem[]; lastSeenAt: Date }> {
     const me = await this.memberships.assertMember(userId, groupId);
-    const since = new Date(now.getTime() - NEWS_DAYS * 24 * 60 * 60 * 1000);
+    const since = newsSince(now, me.joinedAt);
     const rows = await this.eventLogs.listRecentByOthers(groupId, userId, since, NEWS_LIMIT);
     const resolver = await this.memberships.resolverFor(groupId);
     const isNew = (createdAt: Date) => createdAt.getTime() > me.lastSeenAt.getTime();

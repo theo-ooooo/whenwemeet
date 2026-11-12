@@ -92,6 +92,12 @@ describe("deepLinkToWebUrl", () => {
       "https://staging.example.com/join/ABC",
     );
   });
+  it("(#274) 일정 공유 링크 /join/e/<토큰> 은 기존 /join 앱 링크로 열린다 (네이티브 변경 없음)", () => {
+    const token = "Ab3_-Ab3_-Ab3_-Ab3_-AB";
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/join/e/${token}`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}`);
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/join/e/${token}?auto=1`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}?auto=1`);
+    expect(deepLinkToWebUrl(`whenwemeet://join/e/${token}`, WEB)).toBe(`https://whenwemeet.day/join/e/${token}`);
+  });
   it("대상 밖 경로, 다른 호스트, 다른 스킴, auth 복귀는 null", () => {
     for (const u of [
       "https://whenwemeet.day/",
@@ -195,7 +201,7 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
     );
     expect(buildEmailLoginUrl("https://whenwemeet.day", "//evil.com")).toBe("https://whenwemeet.day/login/email");
   });
-  it("웹뷰가 /login/email 과 /auth/email 을 가로채지 않는다 (네이티브 로그인은 /auth/kakao, /auth/apple 만)", () => {
+  it("웹뷰가 /login/email 과 /auth/email 을 가로채지 않는다 (네이티브 로그인은 /auth/kakao, /auth/apple, /login 만)", () => {
     const W = "https://whenwemeet.day";
     expect(decideNavigation(`${W}/login/email?next=%2F`, W)).toEqual({ kind: "allow" });
     expect(decideNavigation(`${W}/login/email/nickname`, W)).toEqual({ kind: "allow" });
@@ -215,5 +221,56 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
     // 웹 apps/web/src/lib/app-bridge.ts 의 APP_UA, appSupportsEmailLogin 과 같은 식
     expect(/\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/.exec(`Mozilla/5.0 ${ua}`)?.[2]).toBe("ios");
     expect(/(?:^|\s)EmailLogin\/1(?:\s|$)/.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.1.0", "android")}`)).toBe(true);
+  });
+});
+
+describe("(D-178) /login 문서 이동은 웹 화면 대신 네이티브 로그인", () => {
+  it("next 는 safeNext, reason=expired 는 그대로", () => {
+    expect(decideNavigation(`${WEB}/login`, WEB)).toEqual({ kind: "nativeLogin", next: "/" });
+    expect(decideNavigation(`${WEB}/login/`, WEB)).toEqual({ kind: "nativeLogin", next: "/" });
+    expect(decideNavigation(`${WEB}/login?next=%2Fjoin%2FAB`, WEB)).toEqual({ kind: "nativeLogin", next: "/join/AB" });
+    expect(decideNavigation(`${WEB}/login?next=//evil.com`, WEB)).toEqual({ kind: "nativeLogin", next: "/" });
+    expect(decideNavigation(`${WEB}/login?next=%2F&reason=expired`, WEB)).toEqual({
+      kind: "nativeLogin",
+      next: "/",
+      reason: "expired",
+    });
+    expect(decideNavigation(`${WEB}/login?reason=other`, WEB)).toEqual({ kind: "nativeLogin", next: "/" });
+  });
+  it("오류 문구가 있는 /login, /login/email, 비슷한 경로, 다른 오리진은 가로채지 않는다", () => {
+    expect(decideNavigation(`${WEB}/login?error=HANDOFF_INVALID`, WEB)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${WEB}/login/email`, WEB)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${WEB}/loginx`, WEB)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${WEB}/me/login`, WEB)).toEqual({ kind: "allow" });
+    expect(decideNavigation("https://evil.com/login", WEB).kind).toBe("external");
+  });
+});
+
+describe("(#271) 메일 로그인 링크 /auth/email 은 웹뷰로", () => {
+  const TOKEN = "a".repeat(43);
+  it("https 링크는 같은 주소를 웹 오리진에서 (토큰 쿼리 유지)", () => {
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/auth/email?token=${TOKEN}`, WEB)).toBe(
+      `${WEB}/auth/email?token=${TOKEN}`,
+    );
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/auth/email?token=${TOKEN}`, "https://staging.whenwemeet.day/")).toBe(
+      `https://staging.whenwemeet.day/auth/email?token=${TOKEN}`,
+    );
+  });
+  it("정확히 /auth/email 만. 하위 경로, 비슷한 경로, 커스텀 스킴, 다른 호스트, http 는 null", () => {
+    for (const u of [
+      `https://whenwemeet.day/auth/email/link?token=${TOKEN}`,
+      `https://whenwemeet.day/auth/emailx?token=${TOKEN}`,
+      `https://whenwemeet.day/auth/kakao`,
+      `whenwemeet://auth/email?token=${TOKEN}`,
+      `whenwemeet:///auth/email?token=${TOKEN}`,
+      `https://evil.com/auth/email?token=${TOKEN}`,
+      `http://whenwemeet.day/auth/email?token=${TOKEN}`,
+    ]) {
+      expect(deepLinkToWebUrl(u, WEB)).toBeNull();
+    }
+  });
+  it("웹뷰가 연 /auth/email 과 확인 POST 는 가로채지 않는다", () => {
+    expect(decideNavigation(`${WEB}/auth/email?token=${TOKEN}`, WEB)).toEqual({ kind: "allow" });
+    expect(decideNavigation(`${WEB}/auth/email/link`, WEB)).toEqual({ kind: "allow" });
   });
 });
