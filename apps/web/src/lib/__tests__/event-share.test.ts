@@ -51,12 +51,9 @@ describe("토큰, 경로, 착지", () => {
     expect(safeNext(eventShareAutoNext(TOKEN))).toBe(eventShareAutoNext(TOKEN));
   });
 
-  it("달력 착지: 날짜 + 일 상세 + 일정, 반복이면 회차까지. 오늘이면 date 를 뗀다", () => {
-    expect(eventShareLandingHref({ groupId: 3, eventId: 9, occurrence: null, date: "2026-11-15" }, "2026-11-12")).toBe("/g/3/calendar?date=2026-11-15&day=1&event=9");
-    expect(eventShareLandingHref({ groupId: 3, eventId: 9, occurrence: "2026-11-18", date: "2026-11-19" }, "2026-11-12")).toBe(
-      "/g/3/calendar?date=2026-11-19&day=1&event=9&occurrence=2026-11-18",
-    );
-    expect(eventShareLandingHref({ groupId: 3, eventId: 9, occurrence: null, date: "2026-11-12" }, "2026-11-12")).toBe("/g/3/calendar?day=1&event=9");
+  it("착지: 일정 상세 /events/<일정 코드>?team=<팀 코드>, 반복이면 회차까지 (#311)", () => {
+    expect(eventShareLandingHref({ groupCode: "teamcode", eventCode: "evntcode", occurrence: null })).toBe("/events/evntcode?team=teamcode");
+    expect(eventShareLandingHref({ groupCode: "teamcode", eventCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/evntcode?occurrence=2026-11-18&team=teamcode");
   });
 });
 

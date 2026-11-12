@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
+import { generatePublicCode } from '../common/public-code.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { type CreatedLog, PushRepository } from '../push/push.repository.js';
 import { type ParticipantSet, participantsFailed, PARTICIPANTS_NOT_MEMBER_MESSAGE, participantsSnapshot } from './participants.js';
@@ -10,6 +11,7 @@ import { addDays, type EventReminderValue, type ExceptionRule, type Repeat, seri
 export const EVENT_SELECT = {
   id: true,
   groupId: true,
+  publicCode: true,
   title: true,
   startsAt: true,
   endsAt: true,
@@ -48,6 +50,8 @@ export const EVENT_EXCEPTION_SELECT = {
 export interface EventRow {
   id: number;
   groupId: number;
+  /** (#311) 주소용 공개 코드 (`/events/<코드>`) */
+  publicCode: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -149,6 +153,8 @@ export interface BusySeries extends SeriesRule, BusyParticipants {
 
 export interface EventCreateInput {
   groupId: number;
+  /** (#311) 공개 코드. 생략하면 저장할 때 만든다 */
+  publicCode?: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -236,10 +242,11 @@ function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: str
   };
 }
 
-/** (#248) 새 일정의 allMembers + 참여자 행 */
-function toCreateData({ participants, ...data }: EventCreateInput) {
+/** (#248) 새 일정의 allMembers + 참여자 행. (#311) 공개 코드가 없으면 여기서 만든다 (새 원본, 가져오기 포함 모든 생성 경로) */
+function toCreateData({ participants, publicCode, ...data }: EventCreateInput) {
   return {
     ...toEventData(data),
+    publicCode: publicCode ?? generatePublicCode(),
     allMembers: participants.allMembers,
     participants: { create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
   };
@@ -308,6 +315,12 @@ export class EventsRepository {
   /** 다른 팀 자원을 가리키는 ID 는 null */
   async findInGroup(groupId: number, eventId: number): Promise<EventRow | null> {
     const row = await this.prisma.event.findFirst({ where: { id: eventId, groupId }, select: EVENT_SELECT });
+    return row && toEventRow(row, this.urls);
+  }
+
+  /** (#311) 공개 코드로 찾는다 (팀 불문). 열 비교가 대소문자를 가리지 않으므로 호출자가 코드를 소문자로 맞춰 넘긴다 */
+  async findByPublicCode(publicCode: string): Promise<EventRow | null> {
+    const row = await this.prisma.event.findUnique({ where: { publicCode }, select: EVENT_SELECT });
     return row && toEventRow(row, this.urls);
   }
 

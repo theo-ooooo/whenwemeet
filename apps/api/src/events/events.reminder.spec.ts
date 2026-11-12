@@ -13,6 +13,7 @@ const SET_AT = new Date('2026-11-01T00:00:00.000Z');
 const ONCE: EventRow = {
   id: 100,
   groupId: 10,
+  publicCode: 'evntcode',
   title: '저녁',
   startsAt: kst('2026-12-01T18:00:00'),
   endsAt: kst('2026-12-01T20:00:00'),

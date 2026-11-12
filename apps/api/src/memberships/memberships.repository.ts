@@ -40,7 +40,7 @@ export interface MembershipGroupRow {
   /** (#297) 안 읽은 새 소식 수의 기준 */
   joinedAt: Date;
   user: { nickname: string };
-  group: { id: number; type: 'PERSONAL' | 'TEAM'; name: string; _count: { memberships: number } };
+  group: { id: number; type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string; _count: { memberships: number } };
 }
 
 /** 탈퇴 처리용. 멤버십마다 팀 종류만 */
@@ -94,7 +94,7 @@ export class MembershipsRepository {
         lastSeenAt: true,
         joinedAt: true,
         user: { select: { nickname: true } },
-        group: { select: { id: true, type: true, name: true, _count: { select: { memberships: true } } } },
+        group: { select: { id: true, type: true, name: true, publicCode: true, _count: { select: { memberships: true } } } },
       },
     });
   }

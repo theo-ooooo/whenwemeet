@@ -115,16 +115,17 @@ export class PushDispatcher {
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 
-    const groupName = await this.push.findGroupName(row.groupId);
-    if (groupName === null) return null;
+    const group = await this.push.findGroupRef(row.groupId);
+    if (group === null) return null;
+    const groupName = group.name;
     const actorName = row.actorId === null ? DELETED_MEMBER_NAME : ((await this.push.findPersonName(row.groupId, row.actorId)) ?? DELETED_MEMBER_NAME);
-    if (row.kind === 'JOIN') return joinPayload(row.groupId, groupName, actorName, now);
+    if (row.kind === 'JOIN') return joinPayload(group.publicCode, groupName, actorName, now);
 
     // CHANGE: 묶음이 가리키는 로그 스냅샷 (원본이 지워졌어도 로그는 남는다)
     if (row.eventLogId === null || row.changeAction === null) return null;
     const log = await this.push.findChangeLog(row.eventLogId);
     if (!log) return null;
-    return changePayload({ groupId: row.groupId, groupName, actorName, action: row.changeAction, eventId: row.eventId, log }, now);
+    return changePayload({ groupId: row.groupId, groupName, groupCode: group.publicCode, actorName, action: row.changeAction, log }, now);
   }
 
   private async sendChunk(chunk: ClaimedDelivery[], now: Date, stats: SendStats): Promise<void> {

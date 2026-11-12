@@ -3,6 +3,7 @@
 // 제목 "11월 10일 (화)" + "월 보기" 알약 → 주간 줄 7칸 → 그날 요약 카드(비는 시간, 기념일) → 이날 일정 목록.
 // 주소와 기록(?day=1, pushState, 뒤로가기 = 월 보기) 은 CalendarScreen 이 맡는다. 일정 상세, 빠른 추가는 그 위에 DaySheet 로 뜬다
 import Link from "next/link";
+import { ANNIVERSARIES_PATH, FREE_PATH } from "@/lib/routes";
 import { useEffect, useRef } from "react";
 import { IconCalendar, IconFree, IconHeart, IconPlus } from "./icons";
 import type { FreeHint } from "./DayPanel";
@@ -19,7 +20,6 @@ import { eventKey } from "@/lib/recurrence";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
 
 type Props = {
-  groupId: number;
   date: DateKey;
   today: DateKey;
   titleId: string;
@@ -41,7 +41,6 @@ type Props = {
 };
 
 export function DayView({
-  groupId,
   date,
   today,
   titleId,
@@ -147,7 +146,7 @@ export function DayView({
               {timeOf(free.slot.startsAt)}~{timeOf(free.slot.endsAt)}
             </Link>
           ) : (
-            <Link href={`/g/${groupId}/free`} className="hit text-[14px] text-ink-2 hover:underline underline-offset-2">
+            <Link href={FREE_PATH} className="hit text-[14px] text-ink-2 hover:underline underline-offset-2">
               없어요, 다른 날 찾기
             </Link>
           )}
@@ -155,7 +154,7 @@ export function DayView({
         <div aria-hidden="true" className="h-px bg-line" />
         <SummaryRow icon={<IconHeart size={20} />} label="기념일">
           {ann ? (
-            <Link href={`/g/${groupId}/anniversaries`} className="min-w-0 truncate text-[15px] font-bold text-acc-ink hover:underline underline-offset-2">
+            <Link href={ANNIVERSARIES_PATH} className="min-w-0 truncate text-[15px] font-bold text-acc-ink hover:underline underline-offset-2">
               {occurrenceTitle(ann)}
               {anniversaries.length > 1 ? ` 외 ${anniversaries.length - 1}개` : ""}
               {date !== today ? ` ${dayBadge(date, today)}` : ""}

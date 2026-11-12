@@ -16,6 +16,8 @@ export type GroupSummary = {
   id: number;
   type: GroupType;
   name: string;
+  /** (#311) 주소용 공개 코드 (`?team=`). 초대 권한 없음 */
+  publicCode: string;
   memberCount: number;
   me: { color: string; displayName: string };
   unreadNewsCount: number;
@@ -29,6 +31,8 @@ export type GroupDetail = {
   inviteUrl: string | null;
   /** (#196) inviteUrl + `?by=<내 표식>`. 복사, 공유는 이 주소 (lib/invite-share.ts) */
   inviteShareUrl: string | null;
+  /** (#311) 주소용 공개 코드 (`?team=`) */
+  publicCode: string;
   createdAt: string;
   members: Member[];
   me: Member;
@@ -66,6 +70,8 @@ export type EventInput = {
 export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "participants"> & {
   id: number;
   groupId: number;
+  /** (#311) 주소용 공개 코드 (`/events/<코드>`) */
+  publicCode: string;
   creator: Member;
   createdAt: string;
   updatedAt: string;
@@ -123,6 +129,8 @@ export type NewsItem = {
   id: number;
   action: NewsAction;
   eventId: number | null;
+  /** (#311) 원본의 공개 코드. 삭제됐으면 null */
+  eventCode: string | null;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -199,9 +207,11 @@ export type InvitePreview = {
   memberCount: number;
   /** (#196) 링크의 by 가 이 팀 현재 멤버의 표식일 때 그 사람의 팀 표시 이름 */
   inviter: { nickname: string } | null;
-  /** (#196) 로그인한 내가 이미 멤버. 그때만 groupId 가 있다 */
+  /** (#196) 로그인한 내가 이미 멤버. 그때만 groupId, groupCode 가 있다 */
   isMember: boolean;
   groupId: number | null;
+  /** (#311) `/calendar?team=<코드>` 로 간다 */
+  groupCode: string | null;
 };
 
 /** (#274) 보내는 쪽 일정 링크 (api.md 2.10). url = `${WEB_ORIGIN}/join/e/${token}` */
@@ -214,11 +224,11 @@ export type EventSharePreview = {
   sharer: { displayName: string } | null;
   event: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null; occurrence: string | null };
   expiresAt: string;
-  viewer: { member: true; groupId: number; eventId: number; occurrence: string | null; date: string } | { member: false };
+  viewer: { member: true; groupId: number; eventId: number; groupCode: string; eventCode: string; occurrence: string | null; date: string } | { member: false };
 };
 
-/** (#274) 일정 링크 합류 결과. 달력 착지 정보 */
-export type EventShareJoin = { group: GroupDetail; eventId: number; occurrence: string | null; date: string };
+/** (#274) 일정 링크 합류 결과. 착지 정보 (#311 eventCode 로 `/events/<코드>`) */
+export type EventShareJoin = { group: GroupDetail; eventId: number; eventCode: string; occurrence: string | null; date: string };
 
 // api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
 export const MEMBER_COLORS = [

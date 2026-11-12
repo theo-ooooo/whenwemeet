@@ -43,7 +43,7 @@ export function safeNext(raw: string | null | undefined): string {
 
 /**
  * (#307) 로그인 직후 착지 화면. 세션을 만든 응답(이메일 링크 303, 코드, 닉네임 가입)은 next 로 바로 가지 않고 여기로 온다.
- * next 가 앱 링크 경로(`/g/..`, `/join/..`)면 Android 브라우저가 그 문서 이동을 설치된 앱(세션 없음)으로 넘겨
+ * next 가 앱 링크 경로(`/join/..`, 옛 `/g/..`)면 Android 브라우저가 그 문서 이동을 설치된 앱(세션 없음)으로 넘겨
  * 앱 로그인 화면에서 끝난다. 착지 화면은 앱 링크가 아니고, 거기서 next 로는 클라이언트 이동(문서 이동 아님)으로 간다
  */
 export const LANDING_PATH = "/auth/landing";

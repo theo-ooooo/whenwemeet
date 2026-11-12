@@ -20,6 +20,7 @@ const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43
 // 1.1.1: 카카오톡 공유 (#195, @react-native-kakao/share). 웹은 UA 토큰 KakaoShare/1 로 판정한다 (D-169)
 // 1.2.0: 홈 화면 위젯 (#197, iOS 위젯 익스텐션 + App Group, Android AppWidget). 웹은 UA 토큰 Widget/1 로 판정한다 (D-187)
 //        메일 로그인 링크를 앱에서 열기 (#271, intentFilters /auth/email), 기동 때 업데이트 3초 대기 (D-179)
+//        앱 링크에서 `/g` 를 뺐다 (#311, D-199): 웹 주소가 /calendar 식으로 바뀌어 팀 달력 링크를 앱이 가로채지 않는다. 옛 /g 링크는 웹이 308 로 맞춘다
 // 빌드 번호는 eas.json appVersionSource=remote + autoIncrement 로 EAS 가 올린다
 const VERSION = "1.2.0";
 const BUNDLE_ID = "day.whenwemeet.app";
@@ -212,7 +213,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           category: ["BROWSABLE", "DEFAULT"],
           data: [
             { scheme: "https", host: WEB_HOST, pathPrefix: "/join" },
-            { scheme: "https", host: WEB_HOST, pathPrefix: "/g" },
+            // (#311) 1.1.x 까지 있던 `{ pathPrefix: "/g" }` 는 뺐다. 새 화면 주소(/calendar, /events/..)는 앱 링크가 아니다 (웹 lib/well-known.ts 와 같은 목록)
             // (#271, 1.1.1) 메일 로그인 링크 /auth/email?token=. 정확히 이 경로만 (pathPrefix 면 /auth/email/* 도 앱이 받아 버린다).
             // 셸 links/urls.ts EMAIL_LINK_PATH, 웹 AASA 와 같은 값 (D-177)
             { scheme: "https", host: WEB_HOST, path: "/auth/email" },

@@ -16,6 +16,8 @@ export interface NewsItem {
   id: number;
   action: 'CREATED' | 'UPDATED' | 'DELETED';
   eventId: number | null;
+  /** (#311) 원본의 공개 코드. 삭제됐으면 null. 웹은 `/events/<코드>/edit` 로 간다 */
+  eventCode: string | null;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -125,6 +127,7 @@ export class NewsService {
       id: row.id,
       action: row.action,
       eventId: row.eventId,
+      eventCode: row.eventCode,
       title: row.title,
       startsAt: row.startsAt,
       endsAt: row.endsAt,

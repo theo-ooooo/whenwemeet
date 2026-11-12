@@ -1,12 +1,12 @@
 // '페이지를 찾을 수 없어요' (#64). 잘못된 주소, 숫자가 아닌 ID(idParam 의 notFound) 에서 Next 기본 영어 404 대신 보여준다.
-// 전체 화면(app/not-found.tsx)은 점검 화면과 같은 뼈대, 팀 안(app/g/[groupId]/not-found.tsx)은 AppShell 안의 타일
+// 전체 화면(app/not-found.tsx)은 점검 화면과 같은 뼈대, 팀 안(app/(team)/not-found.tsx)은 AppShell 안의 타일
 import Link from "next/link";
 import { Symbol } from "./Logo";
 import { Button } from "./ui";
 
 const TITLE = "페이지를 찾을 수 없어요";
 /** 탭 제목 (#82). layout.tsx 의 title 템플릿("%s | 언제볼까")과 같은 모양.
- *  잘못된 팀 경로(/g/abc)는 layout 이 notFound() 를 던져 하위 페이지의 metadata("달력" 등)나 Next 기본 404 제목이 남으므로
+ *  잘못된 일정 코드(/events/abc)는 페이지가 notFound() 를 던져 하위 페이지의 metadata("일정" 등)나 Next 기본 404 제목이 남으므로
  *  화면에서 React <title> 로 직접 덮는다 (React 19 가 <head> 로 올린다) */
 export const NOT_FOUND_DOC_TITLE = `${TITLE} | 언제볼까`;
 

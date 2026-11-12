@@ -47,7 +47,7 @@ function ev(groupId: number, start: string, end: string, extra: Partial<Event> =
 }
 
 function group(id: number, name: string, color = "#F26D6D"): GroupSummary {
-  return { id, type: "TEAM", name, memberCount: 2, me: { color, displayName: "나" }, unreadNewsCount: 0 } as GroupSummary;
+  return { id, type: "TEAM", name, publicCode: `team${id}`.padEnd(8, "x"), memberCount: 2, me: { color, displayName: "나" }, unreadNewsCount: 0 } as GroupSummary;
 }
 
 function ann(groupId: number, id: number, name: string, date: string, kind: Anniversary["kind"] = "YEARLY"): Anniversary {
@@ -72,8 +72,8 @@ describe("buildWidgetSnapshot", () => {
       NOW,
     );
     expect(s.groups).toEqual([
-      { id: 1, name: "우리 둘", color: 5 },
-      { id: 2, name: "가족", color: 1 },
+      { id: 1, name: "우리 둘", color: 5, code: "team1xxx" },
+      { id: 2, name: "가족", color: 1, code: "team2xxx" },
     ]);
     expect(s.days.map((d) => d.date)).toEqual(["2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18"]);
     expect(s.days[0]).toEqual({

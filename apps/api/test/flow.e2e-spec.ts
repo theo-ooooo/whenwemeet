@@ -58,6 +58,8 @@ describe('핵심 흐름 (e2e)', () => {
       memberCount: 1,
       me: { color: '#F26D6D', displayName: '앨리스' },
       unreadNewsCount: 0,
+      // (#311) 주소용 공개 코드
+      publicCode: expect.stringMatching(/^[a-z0-9]{8}$/),
     });
   });
 
@@ -77,7 +79,7 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('GET /invites/:code 는 비로그인 미리보기, 소문자도 허용', async () => {
     const res = await api(app).get(`/v1/invites/${inviteCode.toLowerCase()}`).expect(200);
-    expect(res.body.data).toEqual({ groupName: '우리 모임', memberCount: 1, inviter: null, isMember: false, groupId: null });
+    expect(res.body.data).toEqual({ groupName: '우리 모임', memberCount: 1, inviter: null, isMember: false, groupId: null, groupCode: null });
     const missing = await api(app).get('/v1/invites/ZZZZZZ').expect(404);
     expect(missing.body.error.code).toBe('INVITE_NOT_FOUND');
   });
@@ -203,6 +205,21 @@ describe('핵심 흐름 (e2e)', () => {
 
     const one = await api(app).get(`/v1/groups/${groupId}/events/${eventId}`).set(auth(bob)).expect(200);
     expect(one.body.data.id).toBe(eventId);
+    expect(one.body.data.publicCode).toMatch(/^[a-z0-9]{8}$/);
+
+    // (#311) 공개 코드 조회 GET /events/:code: 멤버는 단건과 같은 응답(대문자도 허용), 비멤버와 틀린 코드는 모두 404 NOT_FOUND
+    const byCode = await api(app).get(`/v1/events/${one.body.data.publicCode.toUpperCase()}`).set(auth(bob)).expect(200);
+    expect(byCode.body.data).toEqual(one.body.data);
+    const stranger = await devLogin(app, '낯선이');
+    for (const [session, code] of [
+      [stranger, one.body.data.publicCode],
+      [bob, 'zzzzzzzz'],
+      [bob, 'bad'],
+      [bob, String(eventId)],
+    ] as const) {
+      const res = await api(app).get(`/v1/events/${code}`).set(auth(session)).expect(404);
+      expect(res.body.error.code).toBe('NOT_FOUND');
+    }
 
     const prisma = app.get(PrismaService);
     const personal = await prisma.group.findFirstOrThrow({ where: { type: 'PERSONAL', memberships: { some: { userId: bob.userId } } } });

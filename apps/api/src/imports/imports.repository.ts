@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
+import { generatePublicCode } from '../common/public-code.js';
 import { dateToDb, assertParticipantsTx } from '../events/events.repository.js';
 import type { ParticipantSet } from '../events/participants.js';
 import type { ActivityActor } from '../group-activities/activity.js';
@@ -24,8 +25,8 @@ export class ImportsRepository {
     private readonly push: PushRepository,
   ) {}
 
-  async findGroup(groupId: number): Promise<{ type: 'PERSONAL' | 'TEAM'; name: string } | null> {
-    return this.prisma.group.findUnique({ where: { id: groupId }, select: { type: true, name: true } });
+  async findGroup(groupId: number): Promise<{ type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string } | null> {
+    return this.prisma.group.findUnique({ where: { id: groupId }, select: { type: true, name: true, publicCode: true } });
   }
 
   /** 이 팀에 이미 가져온 해시 (일정을 지웠어도 남는다, 기획 Q5) */
@@ -60,6 +61,7 @@ export class ImportsRepository {
         const created = await tx.event.create({
           data: {
             groupId,
+            publicCode: generatePublicCode(),
             title: event.title,
             startsAt: event.startsAt,
             endsAt: event.endsAt,

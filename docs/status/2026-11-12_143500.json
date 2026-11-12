@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-11-12T14:35:00+09:00",
+  "session_topic": "#311 주소 형식 변경 (/g/<id>/... → /calendar 등, 공개 코드, 옛 주소 308) → #315 사이드바 접기 → #318 내 정보 넓게",
+  "command": "(코디네이터 지시) #311 구현 → PR → CI/QA → 머지 후 #315",
+  "agent": "agents/design.md + frontend.md + backend.md + mobile.md",
+  "status": "#311 구현, 테스트, 문서, ego-browser QA 완료. PR 생성 후 CI 대기. v0.12.0 (main 0e724ac) 릴리스 반영해 origin/develop 00b7230 위로 리베이스 완료",
+  "tasks": [
+    {"id": 1, "subject": "API 공개 코드(Group/Event publicCode) + 마이그레이션 백필 + GET /events/:code + 푸시 경로 새 형식", "status": "completed"},
+    {"id": 2, "subject": "웹 새 라우트 (team) 그룹, AppShell 쿠키 팀/?team=, /events/<코드> 상세, 옛 /g 308", "status": "completed"},
+    {"id": 3, "subject": "모바일 위젯 딥링크 새 형식, intentFilters /g 제거, 테스트", "status": "completed"},
+    {"id": 4, "subject": "문서 (화면흐름, api, 앱, 푸시-알림, 인증흐름, 결정기록 D-196~D-199)", "status": "completed"},
+    {"id": 5, "subject": "QA (실 API wwm_311 + 웹 프로덕션 빌드 + ego-browser, PC/폰)", "status": "completed"},
+    {"id": 6, "subject": "PR feat: 주소 형식 변경 (#311) → CI → 머지 (코디네이터 허가 받음)", "status": "in_progress"},
+    {"id": 7, "subject": "#315 사이드바 접기 (새 워크트리, develop 기준)", "status": "pending"},
+    {"id": 8, "subject": "#318 내 정보 넓은 레이아웃 (별도 PR, #315 뒤)", "status": "pending"}
+  ],
+  "artifacts": ["apps/api/prisma/migrations/20261112120000_public_codes", "apps/web/src/lib/routes.ts", "apps/web/src/lib/legacy-routes.ts", "apps/web/src/app/(team)/", "apps/web/src/app/g/[groupId]/[[...rest]]/page.tsx", "docs/설계/결정기록.md D-196~D-199"],
+  "key_findings": "QA 환경: API PORT 4311 (DATABASE_URL wwm_311), 웹 next start 3311 (API_URL 로컬). 쿠키의 옛 팀(비멤버)이 403 을 내면 GroupGone 이 남던 문제 → goneFor(팀별) 로 고침. ego-browser 세션은 nodejs 호출마다 Emulation 오버라이드가 풀리므로 스크립트마다 다시 건다",
+  "recommended_actions": "CI 통과 확인 → 머지(코디네이터가 허가) → 워크트리 whenwemeet-315 생성 → #315 → #318. 끝나면 wwm_311/wwm_311_test DB 삭제, 워크트리 제거, 로컬 서버(4311/3311) 종료",
+  "pending_user_input": null
+}

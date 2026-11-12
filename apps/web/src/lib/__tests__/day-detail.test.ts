@@ -7,6 +7,7 @@ const who: Member = { userId: 1, displayName: "지우", color: "#5B6CF4", profil
 const ev = (id: number, start: string, end: string, allDay = false): Event => ({
   id,
   groupId: 2,
+  publicCode: `ev${id}`.padEnd(8, "x"),
   title: `일정${id}`,
   startsAt: start,
   endsAt: end,

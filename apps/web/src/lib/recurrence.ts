@@ -34,15 +34,7 @@ export function repeatRuleError(
   return null;
 }
 
-/** 일정 수정 화면 주소. 반복 회차면 ?occurrence= 를 붙인다 */
-export function eventEditHref(groupId: number, ev: { id: number; occurrence?: string | null }): string {
-  return `/g/${groupId}/events/${ev.id}${ev.occurrence ? `?occurrence=${ev.occurrence}` : ""}`;
-}
-
-/** 일정 복제 주소. 반복 회차면 그 회차 값으로 채우게 occurrence 를 같이 */
-export function eventCopyHref(groupId: number, ev: { id: number; occurrence?: string | null }): string {
-  return `/g/${groupId}/events/new?copy=${ev.id}${ev.occurrence ? `&occurrence=${ev.occurrence}` : ""}`;
-}
+// 일정 수정, 복제 주소는 lib/routes.ts eventEditHref, eventCopyHref (#311)
 
 /**
  * "이후 모두" 저장 때 시작, 종료를 불러온 회차 값 그대로 두었는지 (같은 순간이면 같다). 그대로면 본문에서 빼서

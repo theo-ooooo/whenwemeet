@@ -11,6 +11,7 @@ const config = { getOrThrow: () => 'http://web' } as never;
 const ROW = {
   id: 100,
   groupId: 10,
+  publicCode: 'evntcode',
   title: '회의',
   startsAt: new Date('2026-12-01T10:00:00.000Z'),
   endsAt: new Date('2026-12-01T12:00:00.000Z'),

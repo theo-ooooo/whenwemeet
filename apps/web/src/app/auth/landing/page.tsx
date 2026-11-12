@@ -1,6 +1,6 @@
 // (#307) 로그인 직후 착지 화면 /auth/landing?next= (lib/auth.ts landingPath).
 // 이메일 링크 303, 코드, 닉네임 가입이 세션을 만든 뒤 여기로 문서 이동한다. 이 경로는 앱 링크가 아니라 Android 브라우저가
-// 앱으로 넘기지 않는다. 여기서 next(/g/.., /join/..) 로는 클라이언트 이동만 해서 로그인한 브라우저에 그대로 남는다
+// 앱으로 넘기지 않는다. 여기서 next(/join/.., 옛 /g/..) 로는 클라이언트 이동만 해서 로그인한 브라우저에 그대로 남는다
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";

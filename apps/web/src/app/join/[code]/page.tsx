@@ -10,6 +10,7 @@ import { parseAppUserAgent } from "@/lib/app-bridge";
 import { webEmailEnabled } from "@/lib/email-route";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
 import { invitePreviewPath, parseInviteBy } from "@/lib/invite-share";
+import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { clampTeamName, INVITER_NAME_MAX } from "@/lib/og";
 import { inviteOgImage, SITE_NAME } from "@/lib/site";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, joinAutoNext, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
@@ -110,7 +111,7 @@ export default async function JoinPage({
             이미 함께하는 팀이에요
           </h1>
           <p className="mt-3 text-[15px] leading-[22px] text-soft">달력에서 바로 이어서 볼 수 있어요</p>
-          <Link href={`/g/${data.groupId}/calendar`} className="mt-8 block">
+          <Link href={data.groupCode ? withTeam(CALENDAR_PATH, data.groupCode) : CALENDAR_PATH} className="mt-8 block">
             <Button size="xl" full tabIndex={-1}>
               달력 열기
             </Button>

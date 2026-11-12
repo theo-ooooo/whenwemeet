@@ -139,7 +139,7 @@ export class UsersRepository {
   }
 
   /** 사용자 + 연결 계정 + PERSONAL 팀 + 첫 멤버십을 한 트랜잭션으로 */
-  createWithAccountTx(input: NewAccountInput, personalGroup: { name: string; color: string }): Promise<UserSummary> {
+  createWithAccountTx(input: NewAccountInput, personalGroup: { name: string; color: string; publicCode: string }): Promise<UserSummary> {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -161,6 +161,7 @@ export class UsersRepository {
           type: 'PERSONAL',
           name: personalGroup.name,
           inviteCode: null,
+          publicCode: personalGroup.publicCode,
           memberships: { create: { userId: user.id, color: personalGroup.color } },
         },
       });

@@ -139,15 +139,18 @@ export function NotificationSettingsScreen() {
     toast.show(messageOf(r.error, "알림 설정을 바꾸지 못했어요. 다시 시도해 주세요"));
   }
 
+  // (#318) 내 정보와 같은 넓은 짜임: fold 이상 본문 폭, lg 는 2단(왼쪽 이 기기, 오른쪽 받을 알림)
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
-      <div className="mt-2 flex h-10 items-center justify-between lg:mt-0">
+    <main className="flex min-h-dvh w-full flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] fold:px-8 fold:pt-7">
+      <div className="mt-2 flex h-10 items-center justify-between fold:mt-0">
         <h1 className="t-title">알림</h1>
         <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           뒤로
         </button>
       </div>
 
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-3 lg:pt-3 lg:[&>*>*:first-child]:mt-0">
+      <div>
       {supported ? (
         <DeviceRow />
       ) : (
@@ -158,6 +161,8 @@ export function NotificationSettingsScreen() {
         )
       )}
 
+      </div>
+      <div>
       {settingsQ.error && !settings ? (
         <div className="mt-2">
           <ErrorState message={messageOf(settingsQ.error, "알림 설정을 불러오지 못했어요")} onRetry={settingsQ.refetch} />
@@ -185,6 +190,8 @@ export function NotificationSettingsScreen() {
         </section>
       )}
       <p className="t-sub mt-2 px-1">이 설정은 내 계정의 모든 기기에 적용돼요. 팀별로 끄려면 팀 설정에서 바꿔 주세요</p>
+      </div>
+      </div>
     </main>
   );
 }

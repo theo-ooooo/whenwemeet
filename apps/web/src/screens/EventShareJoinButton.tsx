@@ -7,7 +7,6 @@ import { Button } from "@/components/ui";
 import { messageOf, useJoinEventShare } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { JOIN_AUTO_PARAM } from "@/lib/auth";
-import { todayKey } from "@/lib/date";
 import { eventShareLandingHref, eventSharePath } from "@/lib/event-share";
 import { rememberGroup } from "@/lib/group-cookie";
 
@@ -39,7 +38,7 @@ export function EventShareJoinButton({ token, auto = false }: { token: string; a
     }
     haptic("success");
     rememberGroup(r.data.group.id);
-    router.replace(eventShareLandingHref({ groupId: r.data.group.id, eventId: r.data.eventId, occurrence: r.data.occurrence, date: r.data.date }, todayKey()));
+    router.replace(eventShareLandingHref({ groupCode: r.data.group.publicCode, eventCode: r.data.eventCode, occurrence: r.data.occurrence }));
   }
 
   useEffect(() => {

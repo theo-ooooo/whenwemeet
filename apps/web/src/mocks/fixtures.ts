@@ -141,6 +141,10 @@ export const FAMILY_ID = 4;
 export const MOM_ID = 3;
 export const DAD_ID = 4;
 
+/** (#311) 목 공개 코드. 실제 API 는 랜덤 소문자 영숫자 8자, 목은 id 로 정해지는 8자 ("team2xxx", "evnt12xx") */
+export const mockGroupCode = (id: number) => `team${id}`.padEnd(8, "x").slice(0, 8);
+export const mockEventCode = (id: number) => `evnt${id}`.padEnd(8, "x").slice(0, 8);
+
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
 

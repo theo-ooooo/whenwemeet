@@ -70,16 +70,19 @@ export function copula(word: string): string {
   return `${word}${batchim ? '이에요' : '예요'}`;
 }
 
-/** 일정 상세 경로 (웹 calendarEventHref 모양, 오늘이어도 date 를 붙인다) */
-export function eventUrl(groupId: number, eventId: number, date: string, occurrence: string | null): string {
-  const query = new URLSearchParams({ date, day: '1', event: String(eventId) });
+/**
+ * (#311) 알림이 여는 웹 경로. 팀은 `?team=<팀 공개 코드>` 로 지정하고(웹이 쿠키를 바꾸고 주소에서 뗀다) 일정은 `/events/<일정 공개 코드>`.
+ * 예전 `/g/<id>/...` 모양은 웹이 308 로 새 주소에 맞춰 주므로 이미 보낸 알림도 그대로 열린다
+ */
+export function eventUrl(groupCode: string, eventCode: string, occurrence: string | null): string {
+  const query = new URLSearchParams({ team: groupCode });
   if (occurrence) query.set('occurrence', occurrence);
-  return `/g/${groupId}/calendar?${query.toString()}`;
+  return `/events/${eventCode}?${query.toString()}`;
 }
 
-export const newsUrl = (groupId: number) => `/g/${groupId}/news`;
-export const anniversariesUrl = (groupId: number) => `/g/${groupId}/anniversaries`;
-export const calendarUrl = (groupId: number) => `/g/${groupId}/calendar`;
+export const newsUrl = (groupCode: string) => `/news?team=${groupCode}`;
+export const anniversariesUrl = (groupCode: string) => `/anniversaries?team=${groupCode}`;
+export const calendarUrl = (groupCode: string) => `/calendar?team=${groupCode}`;
 
 /** 종일 일정의 마지막 날 (끝은 배타적) */
 function lastAllDayDate(endsAt: Date): string {
@@ -89,7 +92,11 @@ function lastAllDayDate(endsAt: Date): string {
 export interface ReminderTarget {
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   eventId: number;
+  /** (#311) 일정 공개 코드 */
+  eventCode: string;
   /** 반복이면 회차의 원래 날짜, 한 번짜리는 null */
   occurrence: string | null;
   title: string;
@@ -118,13 +125,15 @@ export function reminderPayload(target: ReminderTarget, today: string): PushPayl
     title: target.title,
     subtitle: target.groupName,
     body,
-    url: eventUrl(target.groupId, target.eventId, date, target.occurrence),
+    url: eventUrl(target.groupCode, target.eventCode, target.occurrence),
     expiration: epochSeconds(expiresAt),
   };
 }
 
 export interface ChangeLogSnapshot {
   eventId: number | null;
+  /** (#311) 지금 남아 있는 원본의 공개 코드. 삭제됐으면 null (새 소식 화면으로) */
+  eventCode: string | null;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -138,12 +147,12 @@ export interface ChangeLogSnapshot {
 export interface ChangeTarget {
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   /** 변경한 사람의 그 팀 표시 이름 (나갔으면 닉네임, 탈퇴했으면 "탈퇴한 멤버") */
   actorName: string;
   /** 묶은 결과 동작 */
   action: ChangeAction;
-  /** 묶음이 가리키는 일정 (로그의 eventId 가 지워져 null 이면 이 값) */
-  eventId: number | null;
   log: ChangeLogSnapshot;
 }
 
@@ -163,15 +172,15 @@ export function changePayload(target: ChangeTarget, now: Date): PushPayload {
   const { log } = target;
   const startDate = kstDate(log.startsAt);
   const when = log.allDay ? '종일' : kstTimeLabel(log.startsAt);
-  const eventId = log.eventId ?? target.eventId;
   let url: string;
-  if (target.action === 'DELETED' || eventId === null) {
-    url = newsUrl(target.groupId);
+  // 원본이 지워졌으면(로그의 eventId SetNull) 코드가 없다 → 새 소식 화면
+  if (target.action === 'DELETED' || log.eventCode === null) {
+    url = newsUrl(target.groupCode);
   } else if (log.scope === 'THIS' && log.occurrence) {
-    url = eventUrl(target.groupId, eventId, startDate, log.occurrence);
+    url = eventUrl(target.groupCode, log.eventCode, log.occurrence);
   } else {
     // 그 밖의 반복은 스냅샷이 (새) 원본 첫 회차라 회차 날짜도 스냅샷 시작 날짜
-    url = eventUrl(target.groupId, eventId, startDate, log.repeat ? startDate : null);
+    url = eventUrl(target.groupCode, log.eventCode, log.repeat ? startDate : null);
   }
   return {
     title: `${target.actorName}님이 ${changePhrase(target.action, log)}`,
@@ -195,6 +204,8 @@ export function subjectParticle(word: string): string {
 export interface AnniversaryTarget {
   groupId: number;
   groupName: string;
+  /** (#311) 팀 공개 코드 */
+  groupCode: string;
   name: string;
   /** "300일", "1주년". 매년/원래 날짜는 null */
   label: string | null;
@@ -221,18 +232,18 @@ export function anniversaryPayload(target: AnniversaryTarget): PushPayload {
     title,
     subtitle: target.groupName,
     body,
-    url: anniversariesUrl(target.groupId),
+    url: anniversariesUrl(target.groupCode),
     expiration: epochSeconds(kstMidnight(addDays(sendDay, 1)).getTime()),
   };
 }
 
 /** 새 멤버 합류 (설계 6장 JOIN). 문장에 팀 이름이 있어 subtitle 을 두지 않는다 */
-export function joinPayload(groupId: number, groupName: string, memberName: string, now: Date): PushPayload {
+export function joinPayload(groupCode: string, groupName: string, memberName: string, now: Date): PushPayload {
   return {
     title: `${memberName}님이 '${groupName}' 에 들어왔어요`,
     subtitle: null,
     body: null,
-    url: calendarUrl(groupId),
+    url: calendarUrl(groupCode),
     expiration: epochSeconds(now.getTime() + DAY_MS),
   };
 }
@@ -241,12 +252,12 @@ export function joinPayload(groupId: number, groupName: string, memberName: stri
  * (#279) 일정 가져오기 한 번에 팀원 변경 알림 1건 (D-166). 제목은 새 소식 줄과 같은 문장, 누르면 그 팀 달력.
  * 일정마다 보내지 않는다 (가져오기는 EventLog 와 2분 묶음을 거치지 않는다)
  */
-export function importPayload(groupId: number, groupName: string, actorName: string, count: number, now: Date): PushPayload {
+export function importPayload(groupCode: string, groupName: string, actorName: string, count: number, now: Date): PushPayload {
   return {
     title: `${actorName}님이 일정 ${count.toLocaleString('en-US')}개를 가져왔어요`,
     subtitle: groupName,
     body: null,
-    url: calendarUrl(groupId),
+    url: calendarUrl(groupCode),
     expiration: epochSeconds(now.getTime() + DAY_MS),
   };
 }

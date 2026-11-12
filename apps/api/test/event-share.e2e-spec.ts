@@ -148,7 +148,16 @@ describe('일정 카드 공유 (e2e)', () => {
       expect(res.body.data.viewer).toEqual({ member: false });
     }
     const member = await api(app).get(`/v1/event-shares/${link.token}`).set(auth(alice)).expect(200);
-    expect(member.body.data.viewer).toEqual({ member: true, groupId, eventId: seriesId, occurrence: '2027-01-20', date: '2027-01-21' });
+    // (#311) 착지 정보에 팀, 일정 공개 코드 (웹이 `/events/<코드>?team=` 로 간다)
+    expect(member.body.data.viewer).toEqual({
+      member: true,
+      groupId,
+      eventId: seriesId,
+      groupCode: expect.stringMatching(/^[a-z0-9]{8}$/),
+      eventCode: expect.stringMatching(/^[a-z0-9]{8}$/),
+      occurrence: '2027-01-20',
+      date: '2027-01-21',
+    });
   });
 
   it('잘못된 토큰 모양, 없는 토큰, 대소문자 바꾼 토큰 → 404 EVENT_SHARE_NOT_FOUND', async () => {
@@ -164,7 +173,7 @@ describe('일정 카드 공유 (e2e)', () => {
     const link = (await api(app).post(shareOf(onceId)).set(auth(alice)).send({}).expect(200)).body.data;
     await api(app).post(`/v1/event-shares/${link.token}/join`).expect(401);
     const joined = await api(app).post(`/v1/event-shares/${link.token}/join`).set(auth(carol)).expect(200);
-    expect(joined.body.data).toMatchObject({ eventId: onceId, occurrence: null, date: '2027-01-09', group: { id: groupId, name: '저녁 모임' } });
+    expect(joined.body.data).toMatchObject({ eventId: onceId, eventCode: expect.stringMatching(/^[a-z0-9]{8}$/), occurrence: null, date: '2027-01-09', group: { id: groupId, name: '저녁 모임' } });
     expect(joined.body.data.group.members).toHaveLength(3);
     await api(app).post(`/v1/event-shares/${link.token}/join`).set(auth(carol)).expect(200);
     await api(app).post(`/v1/event-shares/${link.token}/join`).set(auth(alice)).expect(200);

@@ -3,6 +3,7 @@
 // 파일은 화면 메모리에만 두고 미리보기와 넣기에서 두 번 올린다 (서버는 저장하지 않는다).
 // (#314) 미리보기 달력에서 골라서 넣는다. 미리보기를 새로 받으면(파일, 팀, 기간) 다시 전부 선택
 import Link from "next/link";
+import { CALENDAR_PATH, TEAM_PATH, withTeam } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useId, useReducer, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
@@ -19,9 +20,9 @@ const NONE_EXCLUDED: ReadonlySet<string> = new Set();
 
 type Step = { kind: "pick" } | { kind: "preview"; preview: ImportPreview } | { kind: "done"; result: ImportResult; groupId: number; excluded: number };
 
-export function ImportScreen({ groupId }: { groupId: number }) {
+export function ImportScreen() {
   const router = useRouter();
-  const { groups, eventsChanged } = useGroupContext();
+  const { groupId, groups, eventsChanged } = useGroupContext();
   const inApp = useInApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -123,7 +124,7 @@ export function ImportScreen({ groupId }: { groupId: number }) {
     <div className="w-full space-y-2 pt-1">
       <div className="flex h-10 items-center justify-between">
         <h1 className="t-title">일정 가져오기</h1>
-        <Link href={`/g/${groupId}/settings`} className="hit flex h-8 items-center rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
+        <Link href={TEAM_PATH} className="hit flex h-8 items-center rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           팀 설정
         </Link>
       </div>
@@ -258,7 +259,10 @@ export function ImportScreen({ groupId }: { groupId: number }) {
             <Button variant="secondary" onClick={reset}>
               다른 파일 넣기
             </Button>
-            <Button onClick={() => router.push(`/g/${step.groupId}/calendar`)}>달력 보기</Button>
+            {/* (#311) 다른 팀에 넣었으면 `?team=` 으로 그 팀 달력을 연다 (AppShell 이 쿠키를 바꾼다) */}
+            <Button onClick={() => router.push(step.groupId === groupId ? CALENDAR_PATH : withTeam(CALENDAR_PATH, groups?.find((g) => g.id === step.groupId)?.publicCode ?? ""))}>
+              달력 보기
+            </Button>
           </div>
         </section>
       )}

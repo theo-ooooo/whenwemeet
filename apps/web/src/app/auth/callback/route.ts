@@ -1,5 +1,5 @@
 // API 가 넘긴 JWT 를 httpOnly 쿠키로 저장하고 착지 화면(/auth/landing?next=)으로 이동 (인증흐름.md 2-5, 2-6, #310).
-// 웹 카카오, 웹 애플 로그인이 여기로 온다. next(/g/.., /join/..) 로 바로 302 하면 Android 브라우저가 그 리다이렉트를
+// 웹 카카오, 웹 애플 로그인이 여기로 온다. next(/join/.., 옛 /g/..) 로 바로 302 하면 Android 브라우저가 그 리다이렉트를
 // 설치된 앱(세션 없음)으로 넘겨 앱 로그인 화면에서 끝난다 (#307 과 같은 원인). 착지 화면이 next 로 클라이언트 이동한다
 import { NextRequest, NextResponse } from "next/server";
 import { dropLegacyQueryMark, landingPath, looksLikeJwt, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";

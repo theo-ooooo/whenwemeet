@@ -55,5 +55,23 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/join", "/g/:path*", "/groups/:path*", "/me", "/me/:path*"],
+  // (#311) 팀 안 화면은 /calendar, /upcoming, /free, /anniversaries, /news, /team/*, /events/*. 옛 /g/* 도 로그인 뒤 새 주소로 보내야 하니 그대로 둔다
+  matcher: [
+    "/",
+    "/login",
+    "/join",
+    "/calendar",
+    "/upcoming",
+    "/free",
+    "/anniversaries",
+    "/news",
+    "/team",
+    "/team/:path*",
+    "/events",
+    "/events/:path*",
+    "/g/:path*",
+    "/groups/:path*",
+    "/me",
+    "/me/:path*",
+  ],
 };

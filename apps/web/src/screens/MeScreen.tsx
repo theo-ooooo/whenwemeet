@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
@@ -245,9 +246,11 @@ export function MeScreen() {
     );
   }
 
+  // (#318, D-201) 폰은 그대로 한 열. fold 이상은 본문 폭을 다 쓰고(바깥 여백 28 32, 다른 화면과 같은 줄), lg 이상은 2단:
+  // 왼쪽 프로필, 내 팀, 로그아웃 / 오른쪽 화면 테마, 처음 여는 달력, 알림, 약관, 탈퇴. 폰과 fold 의 순서는 order 로 지킨다
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
-      <div className="mt-2 flex h-10 items-center justify-between lg:mt-0">
+    <main className="flex min-h-dvh w-full flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] fold:px-8 fold:pt-7">
+      <div className="mt-2 flex h-10 items-center justify-between fold:mt-0">
         <h1 className="t-title">내 정보</h1>
         <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
           뒤로
@@ -259,7 +262,9 @@ export function MeScreen() {
           <ErrorState message={error} onRetry={load} />
         </div>
       ) : (
-        <>
+        <div className="flex flex-1 flex-col lg:grid lg:flex-none lg:grid-cols-2 lg:items-start lg:gap-x-3 lg:pt-3">
+        <div className="contents lg:flex lg:flex-col lg:gap-2 lg:[&>*>*]:mt-0">
+        <div className="order-1 lg:order-none">
           {me ? (
             <ProfileCard me={me} onChange={(next) => setMe(next)} />
           ) : (
@@ -271,26 +276,15 @@ export function MeScreen() {
               </div>
             </section>
           )}
-
-          <ThemePicker />
-
-          {/* (#300) 처음 여는 달력 (D-191) */}
-          <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
-
-          {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
-          <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">
-            <IconBell size={18} className="shrink-0 text-ink-2" />
-            <span className="min-w-0 flex-1 text-[15px] font-semibold">알림</span>
-            <IconChevronRight size={14} className="shrink-0 text-ink-2" />
-          </Link>
-
+        </div>
+        <div className="order-5 lg:order-none">
           <section className="mt-2 rounded-xl bg-paper px-3.5 py-3">
             <h2 className="text-[13px] font-bold leading-5">내 팀 {groups ? `${groups.length}개` : ""}</h2>
             <ul className="mt-1">
               {groups
                 ? groups.map((g, i) => (
                     <li key={g.id} className={i === 0 ? "" : "border-t border-line"}>
-                      <Link href={`/g/${g.id}/calendar`} className="flex min-h-11 items-center gap-2 py-2">
+                      <Link href={withTeam(CALENDAR_PATH, g.publicCode)} className="flex min-h-11 items-center gap-2 py-2">
                         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
                         <span className="shrink-0 text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
                         <IconChevronRight size={14} className="shrink-0 text-ink-2" />
@@ -309,7 +303,8 @@ export function MeScreen() {
               )}
             </ul>
           </section>
-
+        </div>
+        <div className="order-6 lg:order-none">
           <form
             method="POST"
             action="/auth/logout"
@@ -329,8 +324,27 @@ export function MeScreen() {
               로그아웃
             </Button>
           </form>
+        </div>
+        </div>
 
-          <p className="mt-6 text-center text-[12px] text-ink-2">
+        <div className="contents lg:flex lg:flex-col lg:gap-2 lg:[&>*>*]:mt-0">
+        <div className="order-2 lg:order-none">
+          <ThemePicker />
+        </div>
+        {/* (#300) 처음 여는 달력 (D-191) */}
+        <div className="order-3 lg:order-none">
+          <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
+        </div>
+        {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
+        <div className="order-4 lg:order-none">
+          <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">
+            <IconBell size={18} className="shrink-0 text-ink-2" />
+            <span className="min-w-0 flex-1 text-[15px] font-semibold">알림</span>
+            <IconChevronRight size={14} className="shrink-0 text-ink-2" />
+          </Link>
+        </div>
+        <div className="order-7 lg:order-none">
+          <p className="mt-6 text-center text-[12px] text-ink-2 lg:pt-4">
             <Link href="/terms" className="hit inline-block underline underline-offset-2">
               이용약관
             </Link>
@@ -347,8 +361,8 @@ export function MeScreen() {
               고객 지원
             </Link>
           </p>
-
-          <div className="mt-auto pt-10 text-center">
+        </div>
+          <div className="order-8 mt-auto pt-10 text-center lg:order-none lg:mt-0 lg:pt-2">
             <button
               type="button"
               onClick={() => setLeaving(true)}
@@ -357,7 +371,8 @@ export function MeScreen() {
               회원 탈퇴
             </button>
           </div>
-        </>
+        </div>
+        </div>
       )}
     </main>
   );

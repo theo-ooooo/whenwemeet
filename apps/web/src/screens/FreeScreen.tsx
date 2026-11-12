@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useGroupContext } from "@/components/AppShell";
+import { newEventHref } from "@/lib/routes";
 import { useMemo, useState } from "react";
 import { IconArrowRight, IconClock } from "@/components/icons";
 import { DatePicker, TimePicker } from "@/components/pickers";
@@ -40,7 +42,8 @@ const MIN_OPTIONS = [
 // 시간대 시각 피커 범위(분). 시작은 00:00~23:30, 끝은 00:30~24:00 (24:00 = 자정까지, #58)
 const DAY_END_MAX = 24 * 60;
 
-export function FreeScreen({ groupId }: { groupId: number }) {
+export function FreeScreen() {
+  const { groupId } = useGroupContext();
   const today = todayKey();
   const [period, setPeriod] = useState<Period>("thisWeek");
   const [customFrom, setCustomFrom] = useState(today);
@@ -206,7 +209,7 @@ export function FreeScreen({ groupId }: { groupId: number }) {
                           return (
                             <li key={s.startsAt}>
                               <Link
-                                href={`/g/${groupId}/events/new?start=${encodeURIComponent(s.startsAt)}&end=${encodeURIComponent(s.endsAt)}`}
+                                href={newEventHref({ start: s.startsAt, end: s.endsAt })}
                                 className="-mx-1.5 flex min-h-10 items-center justify-between rounded-sm px-1.5 hover:bg-hover"
                               >
                                 <span className="text-[14px] tabular-nums">

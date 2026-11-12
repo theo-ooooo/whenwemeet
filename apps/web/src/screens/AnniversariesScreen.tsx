@@ -22,7 +22,8 @@ import type { Anniversary, AnniversaryInput, AnniversaryKind, AnniversaryReminde
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 
-export function AnniversariesScreen({ groupId }: { groupId: number }) {
+export function AnniversariesScreen() {
+  const { groupId } = useGroupContext();
   const toast = useToast();
   const today = todayKey();
   const listQ = useAnniversaries(groupId);
