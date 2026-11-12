@@ -24,6 +24,8 @@ import { IconBell, IconCalendar, IconChevronDown, IconFree, IconHeart, IconPlus,
 import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
 import { useLayout } from "@/lib/useLayout";
+import { useSidebarFold } from "@/lib/useSidebarFold";
+import { SIDEBAR_EXPANDED_W, SIDEBAR_RAIL_W } from "@/lib/sidebar-fold";
 import { usePushSync } from "@/lib/usePushSync";
 import { useWidgetSync } from "@/lib/useWidgetSync";
 import { maybeOpenPushPrompt } from "@/lib/push";
@@ -223,6 +225,13 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
     [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, setFabAction],
   );
   const wide = useLayout() !== "phone";
+  // (#315) 사이드바 접기. 처음 그린 뒤에만 너비 전환을 켠다 (저장값을 읽어 첫 화면이 바로 접힌 폭이 될 때 애니메이션이 보이지 않게)
+  const fold = useSidebarFold();
+  const [animate, setAnimate] = useState(false);
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setAnimate(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   const tab = activeTab(pathname);
   const info = routeInfo(pathname);
@@ -254,15 +263,22 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
 
   return (
     <Ctx.Provider value={value}>
-      <div className="min-h-dvh fold:grid fold:grid-cols-[264px_minmax(0,1fr)]">
+      {/* 사이드바 폭 264, 접으면 72 (#315). 열 너비를 200ms 로 옮긴다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
+      <div
+        className={`min-h-dvh fold:grid fold:grid-cols-[var(--side-w)_minmax(0,1fr)] ${animate ? "transition-[grid-template-columns] duration-200 ease-out" : ""}`}
+        style={{ "--side-w": `${fold.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_EXPANDED_W}px` } as React.CSSProperties}
+        data-sidebar={fold.collapsed ? "collapsed" : "expanded"}
+      >
         <Sidebar
           groupId={groupId}
           group={shownGroup}
           tab={tab}
           unread={unread}
-          enabled={wide && groupId !== null}
+          enabled={wide && groupId !== null && !fold.collapsed}
           refreshKey={`${tab ?? ""}#${eventsVersion}`}
           onSwitchTeam={() => setSwitcher(true)}
+          collapsed={fold.collapsed}
+          onToggle={fold.toggle}
         />
 
         <div className="flex min-h-dvh w-full flex-col">
