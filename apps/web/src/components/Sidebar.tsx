@@ -94,7 +94,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
     { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
     { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
-    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독에는 없다
+    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독은 빈 시간과 기념일 사이 (#332, 4-1)
     { key: "todos", href: TODOS_PATH, label: "할 일", on: tab === "todos" },
     { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
     { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
@@ -202,7 +202,7 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
     { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
     { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
-    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독에는 없다
+    // (#276) 할 일은 기념일과 새 소식 사이 (디자인규칙.md 4-2). 폰 독은 빈 시간과 기념일 사이 (#332, 4-1)
     { key: "todos", href: TODOS_PATH, label: "할 일", on: tab === "todos" },
     { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
     { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
