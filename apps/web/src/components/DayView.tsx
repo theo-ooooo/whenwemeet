@@ -117,7 +117,7 @@ export function DayView({
                 </span>
                 <span aria-hidden="true" className="flex h-[5px] items-center gap-[3px]">
                   {density.dots.map((c, i) => (
-                    <i key={i} className="block size-[5px] rounded-full" style={{ background: c }} />
+                    <i key={i} className="block size-[6px] rounded-full" style={{ background: c }} />
                   ))}
                   {/* 달력 칸과 같은 규칙: +N = 점을 못 그린 일정 수, + = 참여자 점만 잘림 (#248 D-140) */}
                   {(density.more > 0 || density.cut) && (
