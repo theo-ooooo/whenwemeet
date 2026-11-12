@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || "",
   },
   agentRules: false,
+  experimental: {
+    // (#339) 한 번 받은 팀 화면(RSC)은 30초 동안 다시 받지 않는다. 기본 0 이면 같은 탭을 다시 눌러도 매번 서버(sin1)를 왕복했다.
+    // 화면 데이터는 클라이언트 훅이 따로 받으므로 오래된 RSC 를 써도 보이는 값은 낡지 않는다
+    staleTimes: { dynamic: 30 },
+  },
   // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 를 그 route 함수에만 넣는다 (#204: app/og 로 옮김)
   outputFileTracingIncludes: {
     "/og": ["./src/app/_og/fonts/*.otf"],

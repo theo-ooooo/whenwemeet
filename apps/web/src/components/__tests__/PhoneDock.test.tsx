@@ -1,10 +1,24 @@
 // @vitest-environment happy-dom
 // (#332) 폰 아래 독 5칸: 순서, 주소, 선택 칩(이름 표시, aria-current), 아이콘만인 칸의 aria-label, 누르는 영역 44
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { activeTab } from "@/lib/routes";
 
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  // (#339) onNavigate 는 Next Link 처럼 누를 때 부른다 (a 에 그대로 넘기지 않는다)
+  default: ({ href, children, onNavigate, ...rest }: { href: string; children: React.ReactNode; onNavigate?: () => void }) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(e) => {
+        e.preventDefault();
+        onNavigate?.();
+      }}
+    >
+      {children}
+    </a>
+  ),
+}));
 
 const { DockTabs, DOCK_TABS, isDockActive } = await import("../PhoneDock");
 
@@ -63,5 +77,12 @@ describe("폰 독 칸", () => {
     expect(isDockActive("calendar", activeTab("/upcoming"))).toBe(true);
     expect(isDockActive("todos", activeTab("/calendar"))).toBe(false);
     expect(isDockActive("calendar", activeTab("/news"))).toBe(false);
+  });
+
+  it("(#339) 칸을 누르면 onNavigate 로 그 주소를 알린다 (AppShell 이 칩을 바로 옮긴다)", () => {
+    const onNavigate = vi.fn();
+    render(<DockTabs tab="calendar" onNavigate={onNavigate} />);
+    fireEvent.click(links()[1]);
+    expect(onNavigate).toHaveBeenCalledWith("/free");
   });
 });

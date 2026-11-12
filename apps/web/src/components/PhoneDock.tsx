@@ -37,7 +37,14 @@ export function isDockActive(key: DockKey, tab: ReturnType<typeof activeTab>): b
   return tab === key || (key === "calendar" && tab === "upcoming");
 }
 
-export function DockTabs({ tab, className = "" }: { tab: ReturnType<typeof activeTab>; className?: string }) {
+type DockTabsProps = {
+  tab: ReturnType<typeof activeTab>;
+  /** (#339) 칸을 눌러 이동이 시작될 때(Link onNavigate). AppShell 이 칩을 바로 옮긴다 */
+  onNavigate?: (href: string) => void;
+  className?: string;
+};
+
+export function DockTabs({ tab, onNavigate, className = "" }: DockTabsProps) {
   return (
     <nav aria-label="주요 화면" className={`glass-dock h-16 min-w-0 rounded-full px-1.5 ${className}`}>
       <ul className="flex h-full items-center justify-between">
@@ -47,6 +54,7 @@ export function DockTabs({ tab, className = "" }: { tab: ReturnType<typeof activ
             <li key={t.key} className="flex h-full shrink-0 items-center">
               <Link
                 href={t.href}
+                onNavigate={onNavigate ? () => onNavigate(t.href) : undefined}
                 aria-current={active ? "page" : undefined}
                 aria-label={active ? undefined : t.label}
                 className="grid h-full min-w-11 place-items-center"
