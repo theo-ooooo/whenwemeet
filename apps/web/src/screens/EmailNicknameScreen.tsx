@@ -1,6 +1,7 @@
 "use client";
 // (#245) 처음 가입 닉네임 (이메일-로그인.md 6-3, D-114). 기본값 없음, 앞뒤 공백 뺀 2~20자일 때만 [시작하기].
-// 성공하면 서버가 준 next 로 전체 이동 (초대로 왔으면 /join/<코드>?auto=1 이 바로 합류시킨다)
+// 성공하면 서버가 준 착지 화면(/auth/landing?next=, #307)으로 전체 이동. 착지 화면이 next 로 보낸다
+// (초대로 왔으면 /join/<코드>?auto=1 이 바로 합류시킨다)
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { Symbol } from "@/components/Logo";

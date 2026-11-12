@@ -42,6 +42,17 @@ export function safeNext(raw: string | null | undefined): string {
 }
 
 /**
+ * (#307) 로그인 직후 착지 화면. 세션을 만든 응답(이메일 링크 303, 코드, 닉네임 가입)은 next 로 바로 가지 않고 여기로 온다.
+ * next 가 앱 링크 경로(`/g/..`, `/join/..`)면 Android 브라우저가 그 문서 이동을 설치된 앱(세션 없음)으로 넘겨
+ * 앱 로그인 화면에서 끝난다. 착지 화면은 앱 링크가 아니고, 거기서 next 로는 클라이언트 이동(문서 이동 아님)으로 간다
+ */
+export const LANDING_PATH = "/auth/landing";
+export function landingPath(next: string | null | undefined): string {
+  const n = safeNext(next);
+  return n === "/" ? LANDING_PATH : `${LANDING_PATH}?next=${encodeURIComponent(n)}`;
+}
+
+/**
  * PR #69 시절 API 가 쿼리를 받지 않아 `<경로>/_q_/<base64url>` 로 싸서 보내던 next (#65).
  * 배포 직전에 로그인을 시작한 사람의 state 에 남아 있을 수 있어, 꼬리를 떼고 경로만 살린다 (쿼리는 버림, D-41)
  */

@@ -22,6 +22,17 @@ export const EMAIL_LINK_COMPONENT = {
   comment: "메일 로그인 링크 (앱 1.1.1~)",
 } as const;
 
+/**
+ * (#307) 설치된 앱이 가로챌 수 있는 웹 경로인가. Android intentFilters 가 `pathPrefix` 라 가장 넓게 본다
+ * (`/g` 는 `/groups/new` 도 잡는다). `/auth/email` 은 1.1.1 의 정확한 경로.
+ * Android Chrome(Gmail 인앱 브라우저 Custom Tab 포함)은 폼 제출 뒤 리다이렉트나 사용자 제스처로 시작한 문서 이동이
+ * 이 경로에 닿으면 앱으로 넘긴다. 그래서 로그인 직후의 문서 이동은 이 경로로 가면 안 된다 (세션은 브라우저에만 있다)
+ */
+export function opensInstalledApp(path: string): boolean {
+  const pathname = path.split(/[?#]/, 1)[0];
+  return pathname.startsWith("/join") || pathname.startsWith("/g") || pathname === "/auth/email";
+}
+
 /** EMAIL_APP_LINK_ENABLED (Vercel). "1" 일 때만 켠다 */
 export function emailAppLinkEnabled(raw: string | null | undefined): boolean {
   return raw?.trim() === "1";
