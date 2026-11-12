@@ -167,13 +167,13 @@ describe('핵심 흐름 (e2e)', () => {
     const unknown = await api(app)
       .post(`/v1/groups/${groupId}/events`)
       .set(auth(alice))
-      .send({ title: 'x', startsAt: '2026-12-01T00:00:00.000Z', endsAt: '2026-12-01T01:00:00.000Z', allDay: false, color: '#fff' })
+      .send({ title: 'x', startsAt: '2026-12-01T00:00:00.000Z', endsAt: '2026-12-01T01:00:00.000Z', allDay: false, location: '성수동' })
       .expect(400);
     expect(unknown.body).toEqual({
       status: 400,
       data: null,
-      message: 'color 은(는) 허용되지 않는 항목이에요',
-      error: { code: 'VALIDATION_FAILED', details: [{ field: 'color', message: 'color 은(는) 허용되지 않는 항목이에요' }] },
+      message: 'location 은(는) 허용되지 않는 항목이에요',
+      error: { code: 'VALIDATION_FAILED', details: [{ field: 'location', message: 'location 은(는) 허용되지 않는 항목이에요' }] },
     });
   });
 

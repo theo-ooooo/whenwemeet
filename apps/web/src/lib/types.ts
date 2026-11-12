@@ -66,6 +66,9 @@ export type EventInput = {
   /** (#248) "ALL" = 모두(나중 합류자 포함), 배열 = 멤버 userId. 생성에서 생략 = [나], 수정에서 생략 = 그대로.
    *  "이 일정만" 수정에는 싣지 않는다 (서버 400) */
   participants?: "ALL" | number[];
+  /** (#343) 일정 색 (MEMBER_COLORS 키 하나). null = 자동(참여자 색). 생성에서 생략 = 자동, 수정에서 생략 = 그대로.
+   *  반복 "이 일정만" 수정에는 싣지 않는다 (서버 400, D-215). 옛 API 응답에는 없음 = 자동 */
+  color?: string | null;
 };
 
 export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "participants"> & {
@@ -223,7 +226,8 @@ export type EventSharePreview = {
   groupName: string;
   memberCount: number;
   sharer: { displayName: string } | null;
-  event: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null; occurrence: string | null };
+  /** (#343) color: 일정 색. null(자동)이나 옛 API(없음)면 카드는 기본 강조색 */
+  event: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null; occurrence: string | null; color?: string | null };
   expiresAt: string;
   viewer: { member: true; groupId: number; eventId: number; groupCode: string; eventCode: string; occurrence: string | null; date: string } | { member: false };
 };
@@ -231,7 +235,7 @@ export type EventSharePreview = {
 /** (#274) 일정 링크 합류 결과. 착지 정보 (#311 eventCode 로 `/events/<코드>`) */
 export type EventShareJoin = { group: GroupDetail; eventId: number; eventCode: string; occurrence: string | null; date: string };
 
-// api.md 2.2 멤버 색 팔레트 (자동 배정, 설정 화면 팔레트)
+// api.md 2.2 멤버 색, 일정 색 팔레트 (자동 배정, 설정 화면, 일정 폼). 화면 이름은 lib/colors COLOR_NAMES (8번째 = 핑크, D-215)
 export const MEMBER_COLORS = [
   "#F26D6D",
   "#F2994A",

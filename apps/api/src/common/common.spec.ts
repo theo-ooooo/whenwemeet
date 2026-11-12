@@ -12,7 +12,7 @@ import { firstValueFrom, of } from 'rxjs';
 import { ApiException, DEFAULT_MESSAGE } from './errors.js';
 import { HttpExceptionFilter, MALFORMED_REQUEST_MESSAGE } from './http-exception.filter.js';
 import { parseIdParam } from './id-param.js';
-import { DELETED_MEMBER, MEMBER_COLORS, MemberResolver, pickLeastUsedColor, toMember } from './member.js';
+import { DELETED_MEMBER, MEMBER_COLORS, MemberResolver, paletteColorOf, pickLeastUsedColor, toMember } from './member.js';
 import { ResponseInterceptor } from './response.interceptor.js';
 import { collectViolations, createValidationPipe, firstValidationMessage, isCalendarDate, parseIsoDate } from './validation.js';
 
@@ -183,17 +183,27 @@ describe('member', () => {
     expect(pickLeastUsedColor(['#123456'])).toBe(MEMBER_COLORS[0]);
   });
 
-  it('pickLeastUsedColor 는 앞 7개만 배정하고 8번째 키(#F279B5)는 주지 않는다 (D-57)', () => {
+  it('pickLeastUsedColor 는 8색 모두 배정하고 핑크(8번째 키 #F279B5)는 앞 7개를 다 쓴 뒤에 준다 (D-215)', () => {
     const firstSeven = MEMBER_COLORS.slice(0, 7);
-    // 앞 7개가 한 번씩 쓰였으면 8번째가 아니라 첫 색으로 돌아간다
-    expect(pickLeastUsedColor([...firstSeven])).toBe(MEMBER_COLORS[0]);
-    // 8번째 키를 가진 기존 멤버가 있어도 후보에서 빠진다
-    expect(pickLeastUsedColor([...firstSeven, MEMBER_COLORS[7]])).toBe(MEMBER_COLORS[0]);
-    // 7명이 지나도록 배정해도 8번째 키는 한 번도 나오지 않는다
+    // 앞 7개가 한 번씩 쓰였으면 8번째(핑크)
+    expect(pickLeastUsedColor([...firstSeven])).toBe(MEMBER_COLORS[7]);
+    expect(MEMBER_COLORS[7]).toBe('#F279B5');
+    // 7개 중 하나가 비어 있으면 핑크보다 그 색이 먼저
+    expect(pickLeastUsedColor(firstSeven.slice(1))).toBe(MEMBER_COLORS[0]);
+    // 차례로 배정하면 팔레트 순서대로 8개, 9번째는 다시 첫 색
     const used: string[] = [];
-    for (let i = 0; i < 20; i++) used.push(pickLeastUsedColor(used));
-    expect(used).not.toContain(MEMBER_COLORS[7]);
-    expect(new Set(used.slice(0, 7))).toEqual(new Set(firstSeven));
+    for (let i = 0; i < 9; i++) used.push(pickLeastUsedColor(used));
+    expect(used.slice(0, 8)).toEqual([...MEMBER_COLORS]);
+    expect(used[8]).toBe(MEMBER_COLORS[0]);
+  });
+
+  it('paletteColorOf 는 팔레트 키를 대문자로, 밖이면 null (#343)', () => {
+    expect(paletteColorOf('#f279b5')).toBe('#F279B5');
+    expect(paletteColorOf('#5B6CF4')).toBe('#5B6CF4');
+    expect(paletteColorOf('#123456')).toBeNull();
+    expect(paletteColorOf('pink')).toBeNull();
+    expect(paletteColorOf(null)).toBeNull();
+    expect(paletteColorOf(7)).toBeNull();
   });
 
   it('toMember 는 displayName ?? nickname', () => {

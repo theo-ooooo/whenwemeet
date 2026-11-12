@@ -68,7 +68,7 @@ import { fitWeek, packWeek, phoneDayLanes, type BarPiece, type DayFit, type Pack
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
-import { barColors, chipColor, participantColors, splitBackground, withWho } from "@/lib/participants";
+import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
 import { TodoHomeSection } from "@/components/TodoHomeSection";
@@ -986,8 +986,8 @@ const FIRST_ROW_TOP = 30;
 function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; className: string; onOpen: () => void }) {
   const ev = piece.event;
   const who = useWho();
-  // 글자가 있는 막대라 칩 규칙 (#248 D-141): 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음
-  const cluster = participantColors(ev).length >= 2;
+  // 글자가 있는 막대라 칩 규칙 (#248 D-141): 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음. 일정 색(#343)이면 그 색 면, 점 없음
+  const cluster = eventColors(ev).length >= 2;
   const l = piece.roundStart ? 4 : 0;
   const r = piece.roundEnd ? 4 : 0;
   return (
@@ -1200,7 +1200,7 @@ function DayCell({
               style={{ background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)` }}
             >
               {/* 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음 (#248 7-2) */}
-              {participantColors(ev).length >= 2 && <DotCluster event={ev} />}
+              {eventColors(ev).length >= 2 && <DotCluster event={ev} />}
               <span className="truncate">
                 {ev.title}
                 {!ev.allDay && dateKeyOf(ev.startsAt) === dateKey ? ` ${timeOf(ev.startsAt)}` : ""}

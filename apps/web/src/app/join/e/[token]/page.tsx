@@ -10,6 +10,7 @@ import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
+import { memberColor } from "@/lib/colors";
 import { webEmailEnabled } from "@/lib/email-route";
 import {
   eventShareAutoNext,
@@ -106,7 +107,11 @@ export default async function EventSharePage({
           <h1 className="mt-3 line-clamp-2 break-keep text-[28px] font-bold leading-9 tracking-[-0.03em] [overflow-wrap:anywhere]">
             {data.event.title}
           </h1>
-          <p className="mt-3 text-[15px] font-semibold leading-[22px]">{eventShareTimeLabel(data.event)}</p>
+          {/* (#343) 일정 색을 골랐으면 시각 줄 앞에 그 색 점 (D-215). 자동이면 점 없음 (참여자는 미리보기에 없다) */}
+          <p className="mt-3 flex items-center gap-2 text-[15px] font-semibold leading-[22px]">
+            {data.event.color && <i aria-hidden="true" className="block size-2.5 shrink-0 rounded-full" style={{ background: memberColor(data.event.color) }} />}
+            {eventShareTimeLabel(data.event)}
+          </p>
           {repeat && <p className="mt-0.5 text-[13px] leading-5 text-soft">{repeat}</p>}
           <p className="mt-2 truncate text-[13px] font-medium leading-5 text-ink-2">
             {clampTeamName(data.groupName)} 팀, 멤버 {data.memberCount}명

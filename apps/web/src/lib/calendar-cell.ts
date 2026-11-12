@@ -2,11 +2,11 @@
 // 일정 순서대로 참여자마다 점(참여자 없음은 회색 점 1개)을 이어 붙여 앞 max 개만 그린다.
 // - 점을 하나도 못 그린 일정이 있으면 "+N" (그 일정 수)
 // - 일정은 다 보였지만 참여자 점이 잘렸으면 숫자 없는 "+" (cut)
-// 예전(#139)에는 일정 하나에 등록자 색 점 하나였다
-import { MUTE, participantColors } from "./participants";
+// 예전(#139)에는 일정 하나에 등록자 색 점 하나였다. 일정 색(#343)을 고른 일정은 그 색 점 하나
+import { MUTE, eventColors } from "./participants";
 import type { Event } from "./types";
 
-type CellEvent = Pick<Event, "creator" | "participants">;
+type CellEvent = Pick<Event, "creator" | "participants"> & { color?: string | null };
 
 /** dots 는 화면 색(CSS 값) */
 export type CellDensity = { dots: string[]; more: number; cut: boolean };
@@ -16,7 +16,8 @@ export function cellDensity(events: readonly CellEvent[], max = 3): CellDensity 
   let more = 0;
   let cut = false;
   for (const ev of events) {
-    const colors = participantColors(ev);
+    // (#343) 일정 색을 골랐으면 점 하나 (D-215)
+    const colors = eventColors(ev);
     const own = colors.length ? colors : [MUTE];
     const room = max - dots.length;
     if (room <= 0) {

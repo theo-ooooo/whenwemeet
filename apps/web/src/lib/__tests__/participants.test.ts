@@ -5,6 +5,7 @@ import {
   chipColor,
   copyPick,
   dotCluster,
+  eventColors,
   normalizePick,
   participantColors,
   participantLabel,
@@ -91,6 +92,24 @@ describe("dotCluster, chipColor — PC 칩, 다가오는 일정 카드", () => {
   });
   it("칩 면은 첫 참여자 색", () => {
     expect(chipColor(ev(3, 1))).toBe(c(3));
+  });
+});
+
+describe("일정 색 (#343, D-215)", () => {
+  const PINK = MEMBER_COLORS[7];
+  it("고른 색이 있으면 막대, 점, 칩 모두 그 색 하나 (참여자 수와 무관)", () => {
+    const colored = { ...all(0, 1, 2, 3, 4), color: PINK };
+    expect(eventColors(colored)).toEqual(["var(--m8)"]);
+    expect(barColors(colored)).toEqual(["var(--m8)"]);
+    expect(dotCluster(colored)).toEqual({ dots: ["var(--m8)"], more: false });
+    expect(chipColor(colored)).toBe("var(--m8)");
+    // 참여자 없음이어도 고른 색
+    expect(chipColor({ ...ev(), color: MEMBER_COLORS[0] })).toBe("var(--m1)");
+  });
+  it("null, 생략(옛 API)이면 자동 = 참여자 색. 이름 표기는 그대로", () => {
+    expect(eventColors({ ...ev(1, 2), color: null })).toEqual([c(1), c(2)]);
+    expect(eventColors(ev(1, 2))).toEqual([c(1), c(2)]);
+    expect(participantLabel({ ...ev(1, 2), color: PINK }, ME)).toBe(participantLabel(ev(1, 2), ME));
   });
 });
 

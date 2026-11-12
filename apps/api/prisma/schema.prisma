@@ -289,6 +289,9 @@ model Event {
   /// (#248) true 면 "모두": 그 팀 멤버 전체 (동적). false 면 participants 행, 0 이면 "참여자 없음" (D-130)
   /// DB 기본값 true 는 기존 행 이전과 배포 겹침용. 새 일정의 기본 "나" 는 서비스가 정한다 (D-131)
   allMembers    Boolean       @default(true)
+  /// (#343) 일정 색. 멤버 색 키 8개(common/member.ts MEMBER_COLORS) 중 하나. null 이면 자동(참여자 색) (D-215).
+  /// 반복 일정은 원본 단위 (회차 예외 없음)
+  color         String?       @db.Char(7)
 
   group        Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator      User?              @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)

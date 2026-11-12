@@ -3,6 +3,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { IconChevronRight } from "@/components/icons";
+import { EventColorPicker } from "@/components/EventColorPicker";
 import { ParticipantSheet, ParticipantValue } from "@/components/Participants";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
 import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
@@ -30,6 +31,7 @@ import {
   showParticipantRow,
   type ParticipantPick,
 } from "@/lib/participants";
+import { eventColorBody, eventColorChanged, memberColor } from "@/lib/colors";
 import { CALENDAR_PATH, calendarHref } from "@/lib/routes";
 import type { Event, EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "@/lib/types";
 
@@ -94,6 +96,9 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const [pick, setPick] = useState<ParticipantPick | null>(null);
   const [initialPick, setInitialPick] = useState<ParticipantPick | null>(null);
   const [participantOpen, setParticipantOpen] = useState(false);
+  // (#343) 일정 색. null = 자동(참여자 색). 수정은 응답 값, 복제도 원본 색 (D-215)
+  const [color, setColor] = useState<string | null>(null);
+  const [initialColor, setInitialColor] = useState<string | null>(null);
   // 범위 시트 (저장/삭제), 고른 범위의 요청 중 표시, "이후 모두" 확인 창
   const [scopeSheet, setScopeSheet] = useState<"save" | "delete" | null>(null);
   const [scopePending, setScopePending] = useState<EventScope | null>(null);
@@ -106,7 +111,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const [confirmDelete, setConfirmDelete] = useState(false);
   // 처음 채운 값. 지금 값과 다르면 작성 중으로 보고 이탈 전에 묻는다 (#137)
   const [baseline, setBaseline] = useState<string | null>(() =>
-    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null, draftReminder, null),
+    sourceId ? null : formSnapshot(draftTitle, draftAllDay, dateKeyOf(defaultStart), timeOf(defaultStart), dateKeyOf(defaultEnd), timeOf(defaultEnd), "", null, null, draftReminder, null, null),
   );
 
   // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
@@ -146,6 +151,9 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
       const evPick = pickOf(ev);
       setPick(evPick);
       if (eventId) setInitialPick(evPick);
+      const evColor = ev.color ?? null;
+      setColor(evColor);
+      if (eventId) setInitialColor(evColor);
       setBaseline(
         formSnapshot(
           ev.title,
@@ -159,6 +167,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
           formRepeat.until,
           reminderOf(ev.reminder),
           evPick,
+          evColor,
         ),
       );
       if (eventId) setCreator(ev.creator);
@@ -244,12 +253,16 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
     pick === null ? (meId !== null ? [meId] : null) : copyFrom && !eventId && meId !== null ? copyPick(pick, memberIds, meId) : pick;
   const pickChanged = participantsChanged({ editing, current: currentPick, initial: initialPick });
   const participantsShown = group && currentPick ? participantsFromPick(currentPick, group.members) : null;
+  // (#343) 색 줄. "이 일정만" 으로 들어온 반복 수정은 막고 안내 (참여자 줄과 같은 규칙, D-215)
+  const thisOnlyPreset = Boolean(series && presetScope === "this");
+  const colorChanged = eventColorChanged({ editing, current: color, initial: initialColor });
+  const autoColors = participantsShown ? participantsShown.members.map((m) => memberColor(m.color)) : [];
   const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !remindError && !saving && scopePending === null;
 
   // 저장, 삭제가 끝나 화면을 떠나는 중이면 확인하지 않는다
   const [done, setDone] = useState(false);
   const dirty =
-    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until, reminder, pick) !== baseline;
+    !done && loaded && baseline !== null && formSnapshot(title, allDay, startDate, startTime, endDate, endTime, memo, repeat, until, reminder, pick, color) !== baseline;
   const leave = useLeaveGuard(dirty);
   const untilLabelId = useId();
   const cancel = useCallback(() => leave.request(() => router.back()), [leave, router]);
@@ -331,7 +344,13 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
     const sentParticipants = showParticipants
       ? participantsBody({ editing, personal, scope: series ? scope : null, current: currentPick, initial: initialPick })
       : undefined;
-    const withParticipants = sentParticipants === undefined ? payload : { ...payload, participants: sentParticipants };
+    // (#343) 색: 생성은 고른 색만, 수정은 바꿨을 때만. "이 일정만" 은 싣지 않는다 (서버 400)
+    const sentColor = eventColorBody({ editing, thisOnly: Boolean(series) && scope === "this", current: color, initial: initialColor });
+    const withParticipants = {
+      ...payload,
+      ...(sentParticipants === undefined ? {} : { participants: sentParticipants }),
+      ...(sentColor === undefined ? {} : { color: sentColor }),
+    };
     if (series && scope === "following") {
       const { startsAt, endsAt, ...rest } = withParticipants;
       return {
@@ -546,6 +565,15 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
                 </div>
               )}
 
+              {/* (#343) 일정 색: 자동(참여자 색) + 8색. 반복 "이 일정만" 은 막는다 */}
+              <EventColorPicker
+                value={color}
+                onChange={setColor}
+                autoColors={autoColors}
+                disabled={thisOnlyPreset}
+                note={thisOnlyPreset ? "반복 일정의 색은 이후 모두에서 바꿀 수 있어요" : undefined}
+              />
+
               {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
               <div className="rounded-xl bg-paper px-3.5 py-1">
                 <button
@@ -697,7 +725,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
           open={scopeSheet !== null}
           mode={scopeSheet ?? "save"}
           occurrence={series.occurrence ?? startDate}
-          onlyFollowing={scopeSheet === "save" && (ruleChanged || pickChanged)}
+          onlyFollowing={scopeSheet === "save" && (ruleChanged || pickChanged || colorChanged)}
           pending={scopePending}
           onPick={pickScope}
           onClose={() => setScopeSheet(null)}
@@ -745,6 +773,7 @@ function formSnapshot(
   until: string | null,
   reminder: EventReminder,
   participants: ParticipantPick | null,
+  color: string | null,
 ): string {
   return JSON.stringify([
     title.trim(),
@@ -758,5 +787,6 @@ function formSnapshot(
     until,
     reminder,
     participants === null ? null : normalizePick(participants),
+    color === null ? null : color.toUpperCase(),
   ]);
 }
