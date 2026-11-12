@@ -6,6 +6,7 @@ import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
+import { useToast } from "@/components/Toast";
 import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
@@ -15,6 +16,7 @@ import { forgetPushToken, storedPushToken } from "@/lib/push";
 import { usePushSync } from "@/lib/usePushSync";
 import { readTheme, setTheme, subscribeTheme, type ThemeChoice } from "@/lib/theme";
 import type { Me } from "@/lib/types";
+import { currentVersionInfo } from "@/lib/version-info";
 
 const NICKNAME_MAX = 20;
 
@@ -152,6 +154,38 @@ function ThemePicker() {
       </div>
       <p className="mt-2 text-[12px] text-ink-2">시스템을 고르면 기기의 라이트/다크 설정을 따라가요</p>
     </section>
+  );
+}
+
+const subscribeNothing = () => () => {};
+
+/** (#333) 맨 아래 버전 한 줄. 누르면 복사 (문의할 때 붙여 넣게). 앱 버전은 UA 라 브라우저에서만 읽는다 */
+function VersionInfo() {
+  const toast = useToast();
+  const text = useSyncExternalStore(
+    subscribeNothing,
+    () => currentVersionInfo(navigator.userAgent),
+    () => currentVersionInfo(null),
+  );
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.show("버전을 복사했어요");
+    } catch {
+      toast.show("복사하지 못했어요");
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={`${text}, 눌러서 복사`}
+      className="hit mt-1 max-w-full break-keep rounded-sm px-3 py-1 text-[11px] leading-4 text-ink-2 hover:text-soft"
+    >
+      {text}
+    </button>
   );
 }
 
@@ -370,6 +404,10 @@ export function MeScreen() {
             >
               회원 탈퇴
             </button>
+            {/* (#333) 회원 탈퇴 아래 작은 글씨 */}
+            <div>
+              <VersionInfo />
+            </div>
           </div>
         </div>
         </div>
