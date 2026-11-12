@@ -175,7 +175,7 @@ function multiDay(item: CalItem): boolean {
 }
 
 /**
- * 날짜 칸. 폰(52)은 실제 달력처럼 여러 날 4px 막대(2줄) + 점(최대 3 + "+N"), 폴드(76)는 제목 두 줄, lg(92)는 세 줄 + "+N개 더".
+ * 날짜 칸. 폰(52)은 실제 달력처럼 여러 날 4px 막대(2줄) + 점(최대 3 + "+N"), 폴드(76)는 제목 두 줄, 본문 main-lg(92)는 세 줄 + "+N개 더".
  * 고른 일정은 먹색, 뺀 일정은 테두리만 남은 점, 옅은 막대, 취소선 제목
  */
 const DayCell = memo(function DayCell({
@@ -207,7 +207,7 @@ const DayCell = memo(function DayCell({
   const on = (item: ImportItem) => !excluded.has(item.key);
 
   return (
-    <li className="relative h-[52px] border-t border-line fold:h-[76px] lg:h-[92px]">
+    <li className="relative h-[52px] border-t border-line fold:h-[76px] main-lg:h-[92px]">
       {items.length > 0 ? (
         <button type="button" onClick={() => onOpen(day)} aria-haspopup="dialog" aria-label={label} className="absolute inset-0 hover:bg-hover/50" />
       ) : null}
@@ -244,18 +244,18 @@ const DayCell = memo(function DayCell({
             </span>
           )}
         </span>
-        {/* 넓은 화면: 제목 두 줄(폴드), 세 줄(lg) */}
+        {/* 넓은 화면: 제목 두 줄(폴드), 세 줄(본문 main-lg) */}
         <span aria-hidden="true" className="mt-0.5 hidden min-w-0 fold:block">
           {items.slice(0, 3).map((ev, i) => (
             <span
               key={ev.key}
-              className={`${i < 2 ? "block" : "hidden lg:block"} truncate text-[11px] leading-4 font-medium ${on(ev) ? "text-ink" : "text-ink-2 line-through"}`}
+              className={`${i < 2 ? "block" : "hidden main-lg:block"} truncate text-[11px] leading-4 font-medium ${on(ev) ? "text-ink" : "text-ink-2 line-through"}`}
             >
               {ev.title}
             </span>
           ))}
-          {items.length > 2 && <span className="block text-[11px] leading-4 font-medium text-ink-2 lg:hidden">+{items.length - 2}개 더</span>}
-          {items.length > 3 && <span className="hidden text-[11px] leading-4 font-medium text-ink-2 lg:block">+{items.length - 3}개 더</span>}
+          {items.length > 2 && <span className="block text-[11px] leading-4 font-medium text-ink-2 main-lg:hidden">+{items.length - 2}개 더</span>}
+          {items.length > 3 && <span className="hidden text-[11px] leading-4 font-medium text-ink-2 main-lg:block">+{items.length - 3}개 더</span>}
         </span>
       </div>
     </li>

@@ -154,18 +154,18 @@ export function AnniversariesScreen() {
             첫 기념일을 추가하면 100일, 1주년이 달력에 자동으로 보여요
           </EmptyState>
         ) : (
-          // lg(≥1024): 한 장 목록 대신 기념일마다 카드 하나, 2열(2xl 3열) 격자 (#244, 디자인규칙.md 2-2)
-          <ul className="rounded-xl bg-paper px-3.5 py-1 lg:grid lg:grid-cols-2 lg:gap-3 lg:bg-transparent lg:p-0 2xl:grid-cols-3">
+          // 본문 폭 main-lg(≥696, #323): 한 장 목록 대신 기념일마다 카드 하나, 2열(main-2xl 3열) 격자 (#244, 디자인규칙.md 2-2)
+          <ul className="rounded-xl bg-paper px-3.5 py-1 main-lg:grid main-lg:grid-cols-2 main-lg:gap-3 main-lg:bg-transparent main-lg:p-0 main-2xl:grid-cols-3">
             {sorted.map((a, i) => {
               // 오른쪽 값은 모두 '다음 날까지' (D-n, 오늘), 누적 일수와 다음 라벨은 보조 줄 (#173)
               const row = listValue(a, today);
               return (
-                <li key={a.id} className={`lg:rounded-xl lg:bg-paper lg:px-4 lg:py-2 ${i === 0 ? "" : "border-t border-line lg:border-t-0"}`}>
+                <li key={a.id} className={`main-lg:rounded-xl main-lg:bg-paper main-lg:px-4 main-lg:py-2 ${i === 0 ? "" : "border-t border-line main-lg:border-t-0"}`}>
                   <button
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
                     aria-haspopup="dialog"
-                    className="flex min-h-11 w-full items-center gap-3 py-2 text-left lg:h-full"
+                    className="flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full"
                   >
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-semibold leading-5">{a.name}</b>

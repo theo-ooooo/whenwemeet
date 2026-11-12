@@ -22,10 +22,17 @@ export function layoutOf(width: number): Layout {
 export const SIDEBAR_W = 264;
 const MAIN_PAD_X = 64;
 
-/** 넓은 화면(≥600) 본문 폭(CSS px). 달력 타일과 요약 카드 3열이 이 폭을 나눠 쓴다 */
-export function mainWidthOf(width: number): number {
-  return width - SIDEBAR_W - MAIN_PAD_X;
+/** 넓은 화면(≥600) 본문 폭(CSS px). 달력 타일과 요약 카드 3열이 이 폭을 나눠 쓴다. 사이드바를 72 레일로 접으면(#315) 그만큼 넓다 */
+export function mainWidthOf(width: number, sidebarWidth: number = SIDEBAR_W): number {
+  return width - sidebarWidth - MAIN_PAD_X;
 }
+
+// (#323) 본문 폭 구간(px). 화면 안 2단, 격자는 뷰포트가 아니라 이 폭으로 고른다 (globals.css main-* 변형과 같은 값).
+// 펼친 사이드바에서 예전 뷰포트 경계(lg 1024, xl 1280, 2xl 1536, 좁은 제목줄 712)와 같은 본문 폭이다
+export const MAIN_NARROW = mainWidthOf(712);
+export const MAIN_LG = mainWidthOf(PC_MIN);
+export const MAIN_XL = mainWidthOf(1280);
+export const MAIN_2XL = mainWidthOf(1536);
 
 /** matchMedia 두 개의 결과 → 배치 (useLayout 이 쓴다) */
 export function layoutFromMatches(fold: boolean, pc: boolean): Layout {

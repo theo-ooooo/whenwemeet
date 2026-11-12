@@ -61,6 +61,16 @@
  * tall ≥84: 멤버 색 칩 2줄, taller ≥110: 칩 3줄. 그 아래(아이폰 듀오 가로 등)는 점 + 제목 한 줄 */
 @custom-variant tall (@container (min-height: 84px));
 @custom-variant taller (@container (min-height: 110px));
+/* (#323) 본문 폭 구간. 팀 화면의 2단, 격자, 좁은 제목줄은 뷰포트(lg/xl/2xl, max-[711px]) 가 아니라 실제 본문 폭으로 고른다.
+ * 사이드바가 264 로 펼쳐졌는지 72 레일로 접혔는지에 따라 같은 뷰포트에서도 본문 폭이 192 달라지기 때문이다.
+ * 기준은 펼친 사이드바에서 예전 뷰포트 경계와 같은 본문 폭(뷰포트 - 264 - 64): lg 1024 → 696, xl 1280 → 952, 2xl 1536 → 1208,
+ * 좁은 제목줄 712 → 384. 컨테이너는 AppShell 의 <main>(@container main, 안쪽 폭 = 본문 폭). 값은 px 로 둔다(rem 은 브라우저 글자 크기 설정에 따라 바뀐다).
+ * lib/layout.ts MAIN_LG/MAIN_XL/MAIN_2XL/MAIN_NARROW 와 같은 값 (layout.test.ts 가 맞춰 본다). 정의 순서 = CSS 순서라 작은 것부터 */
+@custom-variant main-roomy (@container main (width >= 384px));
+@custom-variant main-narrow (@container main (width < 384px));
+@custom-variant main-lg (@container main (width >= 696px));
+@custom-variant main-xl (@container main (width >= 952px));
+@custom-variant main-2xl (@container main (width >= 1208px));
 
 /* 라이트 (기본) */
 :root {

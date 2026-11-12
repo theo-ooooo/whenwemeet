@@ -120,7 +120,7 @@ export function ImportScreen() {
   }
 
   return (
-    // (#314) 다른 팀 화면처럼 본문 폭을 다 쓴다 (D-100). lg 는 왼쪽 조건 340(xl 400) + 오른쪽 달력, 그 아래는 위아래 1단
+    // (#314) 다른 팀 화면처럼 본문 폭을 다 쓴다 (D-100). 본문 폭 main-lg(≥696, #323) 는 왼쪽 조건 340(main-xl 400) + 오른쪽 달력, 그 아래는 위아래 1단
     <div className="w-full space-y-2 pt-1">
       <div className="flex h-10 items-center justify-between">
         <h1 className="t-title">일정 가져오기</h1>
@@ -139,7 +139,7 @@ export function ImportScreen() {
       />
 
       {step.kind === "pick" && (
-        <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0">
+        <div className="space-y-2 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
           <section className="rounded-xl bg-paper px-3.5 py-3.5">
             <p className="text-[14px] leading-5 text-soft">
               다른 캘린더에서 내보낸 .ics 파일을 올리면 일정을 한 번에 넣어요. 같은 파일을 다시 올려도 이미 넣은 일정은 다시 들어가지 않아요
@@ -158,9 +158,9 @@ export function ImportScreen() {
       )}
 
       {step.kind === "preview" && (
-        // lg: 1열 1행 조건, 1열 2행 넣기 줄(위에 붙어 따라옴), 2열 달력. 폰과 폴드는 DOM 순서대로 조건 → 달력 → 바닥 넣기 줄
-        <div className="space-y-2 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-5 lg:gap-y-2 lg:space-y-0 xl:grid-cols-[400px_minmax(0,1fr)]">
-          <div className="space-y-2 lg:col-start-1 lg:row-start-1">
+        // main-lg: 1열 1행 조건, 1열 2행 넣기 줄(위에 붙어 따라옴), 2열 달력. 본문이 좁으면 DOM 순서대로 조건 → 달력 → 바닥 넣기 줄
+        <div className="space-y-2 main-lg:grid main-lg:grid-cols-[340px_minmax(0,1fr)] main-lg:grid-rows-[auto_1fr] main-lg:items-start main-lg:gap-x-5 main-lg:gap-y-2 main-lg:space-y-0 main-xl:grid-cols-[400px_minmax(0,1fr)]">
+          <div className="space-y-2 main-lg:col-start-1 main-lg:row-start-1">
             <PreviewSection preview={step.preview} loading={previewQ.isPending} fileName={file?.name ?? ""} onOtherFile={() => fileRef.current?.click()}>
               <div className="space-y-3">
                 <div>
@@ -217,14 +217,14 @@ export function ImportScreen() {
           </div>
 
           {step.preview.items.length > 0 && (
-            <section className="rounded-xl bg-paper px-2 pb-1.5 fold:px-3.5 lg:col-start-2 lg:row-span-2 lg:row-start-1" aria-label="넣을 일정">
+            <section className="rounded-xl bg-paper px-2 pb-1.5 fold:px-3.5 main-lg:col-start-2 main-lg:row-span-2 main-lg:row-start-1" aria-label="넣을 일정">
               {/* 미리보기마다 새로 만들어 첫 달부터 (key = 미리보기 객체가 바뀔 때마다 늘어나는 번호) */}
               <ImportCalendar key={previewSeq} items={step.preview.items} excluded={excluded} dispatch={dispatch} />
             </section>
           )}
 
-          {/* 폰은 독을 숨긴 자리에 넣기 줄을 바닥에 붙인다 (일정 작성과 같다). 폴드도 달력 아래 바닥에, lg 는 왼쪽 조건 아래에서 위에 붙어 따라온다 */}
-          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:mx-0 fold:px-0 lg:top-7 lg:bottom-auto lg:col-start-1 lg:row-start-2 lg:bg-transparent lg:p-0">
+          {/* 폰은 독을 숨긴 자리에 넣기 줄을 바닥에 붙인다 (일정 작성과 같다). 본문이 좁으면 달력 아래 바닥에, main-lg 는 왼쪽 조건 아래에서 위에 붙어 따라온다 */}
+          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:mx-0 fold:px-0 main-lg:top-7 main-lg:bottom-auto main-lg:col-start-1 main-lg:row-start-2 main-lg:bg-transparent main-lg:p-0">
             {error && (
               <p role="alert" className="mb-2 text-[13px] leading-5 text-danger">
                 {error}
