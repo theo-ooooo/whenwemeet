@@ -67,11 +67,34 @@ export function unfoldBytes(bytes: Buffer): Buffer {
   return Buffer.from(bytes.toString('latin1').replace(/\r?\n[ \t]/g, ''), 'latin1');
 }
 
+/** 날짜만 쓰는 시각 속성. RDATE 와 EXDATE 는 쉼표로 여러 개 */
+const BARE_DATE_LINE = /^(DTSTART|DTEND|EXDATE|RDATE|RECURRENCE-ID)((?:;[^\r\n]*)?):(\d{8}(?:,\d{8})*)(\r?)$/gim;
+
+/** 'YYYYMMDD' 가 달력에 있는 날인지 (ical.js 는 13월, 2월 30일을 다음 달로 넘겨 읽는다) */
+function isCalendarDate(value: string): boolean {
+  const y = Number(value.slice(0, 4));
+  const mo = Number(value.slice(4, 6));
+  const d = Number(value.slice(6, 8));
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return y >= 1 && date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+}
+
+/**
+ * (#309) `VALUE=DATE` 없이 날짜만 쓴 시각 속성(`DTSTART:20261112`)에 `VALUE=DATE` 를 붙인다. TimeTree 내보내기(1.0.0)가 하루 종일을
+ * 이렇게 쓰고, 구글과 애플은 하루 종일로 받는다. ical.js 는 기본 형식(DATE-TIME)으로 읽다 실패하므로 읽기 전에 고친다 (D-193).
+ * `VALUE=` 를 이미 적은 줄(`VALUE=DATE-TIME:20261112` 포함)과 달력에 없는 날(`20261340`)은 건드리지 않아 그대로 못 읽음이 된다
+ */
+export function markBareDates(text: string): string {
+  return text.replace(BARE_DATE_LINE, (line, name: string, params: string, value: string, cr: string) =>
+    /;VALUE=/i.test(params) || !value.split(',').every(isCalendarDate) ? line : `${name}${params};VALUE=DATE:${value}${cr}`,
+  );
+}
+
 /** ICS 파일을 읽는다. 못 읽으면 400 VALIDATION_FAILED(file), VEVENT 가 3,000 개를 넘으면 400 IMPORT_TOO_LARGE */
 export function parseIcs(bytes: Buffer): ParsedCalendar {
   if (bytes.length === 0) throw readFailed();
   if (bytes.length > ICS_MAX_BYTES) throw readFailed('파일이 너무 커요. 2MB 까지 올릴 수 있어요');
-  const text = unfoldBytes(bytes).toString('utf8').replace(/^﻿/, '');
+  const text = markBareDates(unfoldBytes(bytes).toString('utf8').replace(/^﻿/, ''));
   if (!/BEGIN:VCALENDAR/i.test(text)) throw readFailed();
 
   let root: ICAL.Component;

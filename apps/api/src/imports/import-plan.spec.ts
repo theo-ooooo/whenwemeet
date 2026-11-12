@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import ICAL from 'ical.js';
 import { expand, kstDate } from '../events/recurrence.js';
-import { parseIcs } from './ics-parse.js';
+import { markBareDates, parseIcs } from './ics-parse.js';
 import {
   buildCandidates,
   clip,
@@ -179,6 +179,47 @@ describe('TimeTree 도구 산출물', () => {
   });
 });
 
+describe('TimeTree 도구 1.0.0 산출물 (#309, VALUE=DATE 없는 종일)', () => {
+  const result = plan(fixtureText('timetree-1.0'));
+  const span = (title: string) => {
+    const [event] = byTitle(result.events, title);
+    return { allDay: event.allDay, startsAt: iso(event.startsAt), endsAt: iso(event.endsAt) };
+  };
+
+  it('못 읽음 없이 모두 넣는다', () => {
+    expect(result.preview).toMatchObject({ total: 8, skipped: [], warnings: [] });
+    // 한 번짜리 7 + 매주 반복 1 (옮김)
+    expect(result.preview.toCreate).toBe(8);
+  });
+
+  it('DTEND 는 배타: 하루, 사흘, 열하루가 KST 00:00 ~ 끝 날 다음 날 00:00', () => {
+    expect(span('하루 종일')).toEqual({ allDay: true, startsAt: '2026-11-19T15:00:00.000Z', endsAt: '2026-11-20T15:00:00.000Z' });
+    expect(span('사흘 여행')).toEqual({ allDay: true, startsAt: '2026-11-24T15:00:00.000Z', endsAt: '2026-11-27T15:00:00.000Z' });
+    expect(span('열하루 출장')).toEqual({ allDay: true, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-11T15:00:00.000Z' });
+  });
+
+  it('DTEND 가 DTSTART 와 같거나 없으면 하루', () => {
+    expect(span('끝이 시작과 같음')).toEqual({ allDay: true, startsAt: '2026-12-04T15:00:00.000Z', endsAt: '2026-12-05T15:00:00.000Z' });
+    expect(span('끝 없음')).toEqual({ allDay: true, startsAt: '2026-12-05T15:00:00.000Z', endsAt: '2026-12-06T15:00:00.000Z' });
+  });
+
+  it('시간 일정: TZID 와 UTC', () => {
+    expect(span('저녁 약속')).toEqual({ allDay: false, startsAt: '2026-12-07T10:00:00.000Z', endsAt: '2026-12-07T12:00:00.000Z' });
+    expect(span('UTC 회의')).toEqual({ allDay: false, startsAt: '2026-12-08T01:00:00.000Z', endsAt: '2026-12-08T02:00:00.000Z' });
+  });
+
+  it('종일 매주 + 날짜만 쓴 UNTIL, EXDATE 는 WEEKLY 와 취소 예외', () => {
+    const [weekly] = byTitle(result.events, '매주 목요일 종일');
+    expect(weekly).toMatchObject({ allDay: true, repeat: 'WEEKLY', repeatUntil: '2026-12-31' });
+    expect(weekly.exceptions.map((exception) => [exception.occurrence, exception.cancelled])).toEqual([['2026-12-17', true]]);
+  });
+
+  it('진짜 잘못된 날짜는 여전히 INVALID', () => {
+    const bytes = ics(...vevent('UID:bad1', 'DTSTART:20261340', 'DTEND:20261341'), ...vevent('UID:bad2', 'DTSTART:2026111'));
+    expect(plan(bytes).preview).toMatchObject({ toCreate: 0, skipped: [{ reason: 'INVALID', count: 2 }] });
+  });
+});
+
 describe('손으로 만든 엣지', () => {
   const result = plan(Buffer.from(fixtureText('edge')));
 
@@ -310,10 +351,10 @@ describe('반복 옮기기 표', () => {
   });
 
   it('반복으로 옮긴 회차는 ical.js 가 펼친 회차와 같다 (EXDATE 반영)', () => {
-    for (const name of ['google', 'naver', 'timetree']) {
+    for (const name of ['google', 'naver', 'timetree', 'timetree-1.0']) {
       const bytes = fixtureText(name);
       const kept = plan(bytes).events.filter((event) => event.source === 'KEPT');
-      const root = new ICAL.Component(ICAL.parse(bytes.toString('utf8').replace(/\r\n[ \t]/g, '')) as unknown[]);
+      const root = new ICAL.Component(ICAL.parse(markBareDates(bytes.toString('utf8').replace(/\r\n[ \t]/g, ''))) as unknown[]);
       for (const event of kept) {
         const from = event.startsAt;
         const to = new Date(from.getTime() + 400 * 24 * 60 * 60 * 1000);
