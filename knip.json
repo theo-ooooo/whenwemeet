@@ -21,6 +21,8 @@
         "@prisma/client"
       ]
     },
-    "apps/mobile": {}
+    "apps/mobile": {
+      "entry": ["src/**/*.{ios,android}.{ts,tsx}"]
+    }
   }
 }

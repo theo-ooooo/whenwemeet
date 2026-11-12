@@ -23,6 +23,7 @@ import { buildUserAgentSuffix, decideNavigation, isWebOrigin } from "../links/ur
 import { readPushStatus, requestPush } from "../push/notifications";
 import { clearNativeSessions, kakaoAvailable } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
+import { clearWidget, publishWidgetSnapshot } from "../widget/native";
 import { OfflineScreen } from "./OfflineScreen";
 import { useTheme } from "../ui/theme";
 
@@ -103,9 +104,12 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
           return;
         case "logout":
           void clearNativeSessions();
+          // (#197) 이전 사용자 일정이 홈 화면에 남지 않게 위젯을 로그인 안내로
+          clearWidget();
           return;
         case "accountDeleted":
           void clearNativeSessions();
+          clearWidget();
           onLoginRequested("/");
           return;
         case "share":
@@ -139,6 +143,13 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
           return;
         case "openSettings":
           Linking.openSettings().catch((e: unknown) => console.warn("[push] 설정 열기 실패", e));
+          return;
+        // (#197) 홈 화면 위젯 (앱.md 4.7). 기기 안에만 두고 서버로 보내지 않는다
+        case "widgetSnapshot":
+          publishWidgetSnapshot(msg.snapshot);
+          return;
+        case "widgetClear":
+          clearWidget();
           return;
       }
     },

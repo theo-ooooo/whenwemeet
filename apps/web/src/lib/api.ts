@@ -83,7 +83,19 @@ export async function api<T>(
   if (!env.ok) {
     throw new ApiError(res.status, env.error?.code ?? "INTERNAL", env.error?.message ?? "", env.error?.details);
   }
+  // (#197) 팀, 일정, 기념일을 바꾸는 요청이 성공하면 위젯 스냅샷을 다시 보내게 알린다 (lib/useWidgetSync.ts 가 2초 모아서)
+  if (init.method && init.method !== "GET" && isWidgetPath(path) && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(WIDGET_DIRTY_EVENT));
+  }
   return env.data as T;
+}
+
+/** (#197) 위젯 스냅샷을 다시 만들 때 window 에 쏘는 이벤트 */
+export const WIDGET_DIRTY_EVENT = "wwm:widget-dirty";
+
+/** 위젯 내용(팀 목록, 이름, 내 색, 일정, 기념일)에 닿는 변경 경로: /groups 아래 전부 (합류, 나가기, 팀 만들기 포함) */
+export function isWidgetPath(path: string): boolean {
+  return path === "/groups" || path.startsWith("/groups/") || path.startsWith("/groups?");
 }
 
 /**

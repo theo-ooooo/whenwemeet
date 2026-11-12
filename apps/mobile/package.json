@@ -1,6 +1,6 @@
 {
   "name": "@whenwemeet/mobile",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -13,6 +13,7 @@
     "icons": "node scripts/gen-icons.mjs && node scripts/gen-login-icons.mjs"
   },
   "dependencies": {
+    "@expo/ui": "~58.0.28",
     "@react-native-kakao/core": "^3.2.0",
     "@react-native-kakao/share": "^3.2.0",
     "@react-native-kakao/user": "^3.2.0",
@@ -22,6 +23,7 @@
     "expo-constants": "~58.0.15",
     "expo-crypto": "~58.0.7",
     "expo-dev-client": "~58.0.18",
+    "expo-file-system": "~58.0.13",
     "expo-font": "~58.0.11",
     "expo-haptics": "~58.0.7",
     "expo-linking": "~58.0.16",
@@ -32,8 +34,10 @@
     "expo-system-ui": "~58.0.7",
     "expo-updates": "~58.0.21",
     "expo-web-browser": "~58.0.7",
+    "expo-widgets": "~58.0.28",
     "react": "19.3.0",
     "react-native": "0.88.1",
+    "react-native-android-widget": "^0.26.0",
     "react-native-safe-area-context": "~5.11.1",
     "react-native-webview": "14.0.1"
   },

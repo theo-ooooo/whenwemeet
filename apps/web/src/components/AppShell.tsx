@@ -20,6 +20,7 @@ import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
 import { useLayout } from "@/lib/useLayout";
 import { usePushSync } from "@/lib/usePushSync";
+import { useWidgetSync } from "@/lib/useWidgetSync";
 import { maybeOpenPushPrompt } from "@/lib/push";
 
 type GroupCtx = {
@@ -96,6 +97,8 @@ export function AppShell({ groupId, children }: { groupId: number; children: Rea
   const [switcher, setSwitcher] = useState(false);
   // (#188) 푸시 지원 앱이면 이 기기 토큰을 등록, 정리 (처음 그릴 때와 앱이 앞으로 올 때)
   usePushSync();
+  // (#197) 홈 화면 위젯 스냅샷 (위젯을 아는 앱 셸에서만)
+  useWidgetSync();
   // (#291) 앱을 열면 알림 안내를 띄운다. 첫 화면이 그려진 뒤 잠깐 두고 묻는다 (웹, 1.0.x 앱, 이미 답한 기기는 아무것도 안 함)
   useEffect(() => {
     const t = window.setTimeout(() => void maybeOpenPushPrompt(), 800);
