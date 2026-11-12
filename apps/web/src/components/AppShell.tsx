@@ -13,14 +13,15 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, readGroupCookie, rememberGroup } from "@/lib/group-cookie";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, ANNIVERSARIES_PATH, CALENDAR_PATH, FREE_PATH, NEWS_PATH, newEventHref, parsePublicCode, routeInfo, stripTeam, TEAM_PARAM, TEAM_PATH } from "@/lib/routes";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, NEWS_PATH, newEventHref, parsePublicCode, routeInfo, stripTeam, TEAM_PARAM } from "@/lib/routes";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconBell, IconCalendar, IconChevronDown, IconFree, IconHeart, IconPlus, IconTeam } from "./icons";
+import { IconBell, IconChevronDown, IconPlus } from "./icons";
+import { DockTabs } from "./PhoneDock";
 import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
 import { useLayout } from "@/lib/useLayout";
@@ -61,28 +62,6 @@ export function useGroupContext() {
 
 /** 이 팀에 더 이상 접근할 수 없음(403 멤버 아님, 404 팀 없음) */
 const isGone = (f: ApiFailure | null) => f !== null && (f.status === 403 || f.status === 404);
-
-const TABS = [
-  { key: "calendar", label: "달력", href: CALENDAR_PATH },
-  { key: "free", label: "빈 시간", href: FREE_PATH },
-  { key: "anniversaries", label: "기념일", href: ANNIVERSARIES_PATH },
-  { key: "team", label: "팀", href: TEAM_PATH },
-] as const;
-
-/** 독 아이콘: 선택 칩 안은 24, 아이콘만 있는 항목은 26 (디자인규칙.md 3-1, 4-1). 선택이면 겹침 조각만 코랄 */
-function TabIcon({ name, active }: { name: (typeof TABS)[number]["key"]; active: boolean }) {
-  const size = active ? 24 : 26;
-  switch (name) {
-    case "calendar":
-      return <IconCalendar size={size} active={active} />;
-    case "free":
-      return <IconFree size={size} active={active} />;
-    case "anniversaries":
-      return <IconHeart size={size} active={active} />;
-    case "team":
-      return <IconTeam size={size} active={active} />;
-  }
-}
 
 /** 사이드바 팀 점 색: 개인 달력은 먹색, 팀은 목록 순서대로 멤버 색 순환 (목업 PC) */
 function teamDotColors(groups: GroupSummary[]): Map<number, string> {
@@ -324,7 +303,11 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             // 폭 상한(예전 760)은 두지 않고 본문 폭이 넉넉하면 화면마다 2단, 격자로 나눈다 (#244, D-100).
             // (#323) 그 판단은 뷰포트(lg)가 아니라 이 본문의 폭으로 한다: 컨테이너 main(안쪽 폭 = 본문 폭) + globals.css main-* 변형.
             // 사이드바를 72 레일로 접든 264 로 펼치든 화면이 실제로 받은 폭으로 1단/2단을 고른다
-            className={`@container/main min-w-0 flex-1 px-5 ${isForm ? "pb-[calc(24px+env(safe-area-inset-bottom))]" : "pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"} fold:px-8 fold:py-7 ${
+            className={`@container/main min-w-0 flex-1 px-5 ${
+              isForm
+                ? "pb-[calc(24px+env(safe-area-inset-bottom))]"
+                : "pb-[calc(64px+12px+64px+16px+24px+env(safe-area-inset-bottom))] dock:pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"
+            } fold:px-8 fold:py-7 ${
               isCalendar ? "" : "fold:w-full fold:min-w-0"
             }`}
           >
@@ -340,51 +323,23 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           </main>
         </div>
 
-        {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원) */}
-        <div className={`fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 items-center gap-2 fold:hidden ${isForm ? "hidden" : "flex"}`}>
-          {/* 선택된 메뉴만 먹색 칩(높이 44, 모서리 22) + 아이콘 + 이름 14/700, 나머지는 아이콘만 (디자인규칙.md 4-1).
-              칩은 폭과 면이 200ms 로 옮겨 간다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
-          <nav aria-label="주요 화면" className="glass-dock h-16 min-w-0 flex-1 rounded-full px-2">
-            <ul className="flex h-full items-center justify-between">
-              {TABS.map((t) => {
-                // 다가오는 일정 목록(#222)과 일정 화면은 달력에 딸린 화면이라 달력 칩을 켠다
-                const active = tab === t.key || (t.key === "calendar" && tab === "upcoming");
-                return (
-                  <li key={t.key} className="flex h-full items-center">
-                    <Link
-                      href={t.href}
-                      aria-current={active ? "page" : undefined}
-                      aria-label={active ? undefined : t.label}
-                      className="grid h-full min-w-12 place-items-center"
-                    >
-                      <span
-                        className={`flex h-11 items-center justify-center rounded-[22px] transition-[background-color,color,padding] duration-200 ease-out ${
-                          active ? "bg-ink pl-3 pr-4 text-on-ink" : "px-0 text-ink-2"
-                        }`}
-                      >
-                        <TabIcon name={t.key} active={active} />
-                        <span
-                          className={`overflow-hidden whitespace-nowrap text-[14px] font-bold leading-5 transition-[max-width,opacity,margin] duration-200 ease-out ${
-                            active ? "ml-1.5 max-w-16 opacity-100" : "ml-0 max-w-0 opacity-0"
-                          }`}
-                          aria-hidden={active ? undefined : true}
-                        >
-                          {t.label}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+        {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원).
+            (#332, D-212) 독이 5칸이라 + 와 한 줄에 칸 44 다섯 + 이름 칩이 들어가는 폭은 390 부터다(dock 구간).
+            그보다 좁으면(360, 320) 독이 줄 폭을 다 쓰고 + 는 독 위 오른쪽에 12 띄워 얹는다. 빈 왼쪽은 아래 본문을 누를 수 있게 둔다 */}
+        <div
+          className={`pointer-events-none fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 flex-col-reverse items-end gap-3 dock:flex-row dock:items-center dock:gap-2 fold:hidden ${
+            isForm ? "hidden" : "flex"
+          }`}
+        >
+          {/* 선택된 메뉴만 먹색 칩 + 아이콘 + 이름, 나머지는 아이콘만 (디자인규칙.md 4-1, components/PhoneDock.tsx) */}
+          <DockTabs tab={tab} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
           {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170) */}
           {fabAction ? (
             <button
               type="button"
               onClick={fabAction.run}
               aria-label={fabAction.label}
-              className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+              className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
             >
               <IconPlus size={26} strokeWidth={2.2} />
             </button>
@@ -392,7 +347,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             <Link
               href={newHref}
               aria-label="일정 추가"
-              className="grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+              className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
             >
               <IconPlus size={26} strokeWidth={2.2} />
             </Link>

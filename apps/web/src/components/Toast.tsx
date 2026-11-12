@@ -33,10 +33,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
+      {/* 폰 독 위. (#332) 390 미만은 + 가 독 위로 올라가 그 위(16 + 64 + 12 + 64 + 12)에 띄운다 */}
       <div
         aria-live="polite"
         role="status"
-        className="pointer-events-none fixed inset-x-0 bottom-[calc(134px+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 fold:bottom-6"
+        className="pointer-events-none fixed inset-x-0 bottom-[calc(168px+env(safe-area-inset-bottom))] dock:bottom-[calc(134px+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 fold:bottom-6"
       >
         {toast && (
           <div
