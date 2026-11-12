@@ -123,6 +123,7 @@ describe('일정 카드 공유 (e2e)', () => {
         allDay: false,
         repeat: 'WEEKLY',
         occurrence: '2027-01-20',
+        color: null,
       },
       expiresAt: link.expiresAt,
       viewer: { member: false },

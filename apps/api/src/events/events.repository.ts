@@ -29,6 +29,8 @@ export const EVENT_SELECT = {
   /** (#248) 참여자 (D-130). 행은 PK (eventId, userId) 로 읽는다 */
   allMembers: true,
   participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
+  /** (#343) 일정 색. null 이면 자동 (D-215) */
+  color: true,
 } as const;
 
 /** (#248) 빈 시간 판정용 참여자 필드 (D-137) */
@@ -75,6 +77,8 @@ export interface EventRow {
   allMembers: boolean;
   /** (#248) allMembers = false 일 때의 참여자 userId, 오름차순. 비면 "참여자 없음" */
   participantIds: number[];
+  /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색 (D-215) */
+  color: string | null;
 }
 
 /** 반복 원본 + 예외 (일정 목록 펼치기용) */
@@ -174,6 +178,8 @@ export interface EventCreateInput {
   reminderSetAt?: Date;
   /** (#248) 참여자. 멤버 검사는 저장 트랜잭션 안에서 (D-133) */
   participants: ParticipantSet;
+  /** (#343) 일정 색. 생략하면 null(자동). 가져오기(ICS)는 늘 생략 (D-215) */
+  color?: string | null;
 }
 
 export interface EventUpdateInput {
@@ -193,6 +199,8 @@ export interface EventUpdateInput {
   reminderSetAt?: Date;
   /** (#248) 생략하면 바꾸지 않는다. 주면 행을 모두 바꾸고 멤버를 검사한다 */
   participants?: ParticipantSet;
+  /** (#343) 생략하면 바꾸지 않는다 */
+  color?: string | null;
 }
 
 /** 회차 예외로 저장할 값. null 은 원본 값 */
@@ -406,6 +414,28 @@ export class EventsRepository {
       const log = await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED'), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(updated, this.urls);
+    });
+  }
+
+  /**
+   * (#343) 색만 바꾼다. 로그, 새 소식, 푸시를 만들지 않는다 (D-215). 반복 원본이면 모든 회차의 색이 바뀐다 (예외는 그대로)
+   */
+  async updateColor(eventId: number, color: string | null): Promise<EventRow> {
+    const updated = await this.prisma.event.update({ where: { id: eventId }, data: { color }, select: EVENT_SELECT });
+    return toEventRow(updated, this.urls);
+  }
+
+  /**
+   * (#343) 그 뒤 회차 "이후 모두" 에서 색만 바꿨을 때: splitSeriesTx 와 같이 나누되 로그, 새 소식, 푸시를 만들지 않는다 (D-215).
+   * 호출자는 그 회차부터 예외가 없을 때만 부른다 (나눠도 펼친 일정은 색 말고 같다)
+   */
+  splitSeriesQuietTx(event: SeriesRef, occurrence: string, next: EventCreateInput): Promise<EventRow> {
+    return this.prisma.$transaction(async (tx) => {
+      await assertParticipantsTx(tx, next.groupId, next.participants);
+      await tx.event.update({ where: { id: event.id }, data: { repeatUntil: dateToDb(addDays(occurrence, -1)) } });
+      await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: { gte: dateToDb(occurrence) } } });
+      const created = await tx.event.create({ data: toCreateData(next), select: EVENT_SELECT });
+      return toEventRow(created, this.urls);
     });
   }
 

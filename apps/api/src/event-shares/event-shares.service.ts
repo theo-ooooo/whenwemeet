@@ -43,7 +43,8 @@ export interface EventSharePreview {
   groupName: string;
   memberCount: number;
   sharer: { displayName: string } | null;
-  event: { title: string; startsAt: Date; endsAt: Date; allDay: boolean; repeat: Repeat | null; occurrence: string | null };
+  /** (#343) color: 일정 색(팔레트 키). null 이면 자동이라 카드는 기본 강조색 (D-215) */
+  event: { title: string; startsAt: Date; endsAt: Date; allDay: boolean; repeat: Repeat | null; occurrence: string | null; color: string | null };
   expiresAt: Date;
   viewer: ({ member: true } & EventShareLanding) | { member: false };
 }
@@ -64,6 +65,8 @@ interface LiveShare {
   repeat: Repeat | null;
   /** (#311) 일정 공개 코드 */
   eventCode: string;
+  /** (#343) 일정 색. null 이면 자동 */
+  color: string | null;
 }
 
 const NOT_FOUND = () => new ApiException('EVENT_SHARE_NOT_FOUND');
@@ -132,7 +135,7 @@ export class EventSharesService {
 
   /** 로그인 없이 보는 미리보기. 로그인했고 이미 멤버면 viewer 에 착지 정보 (D-184) */
   async preview(token: string, viewerId: number | null): Promise<EventSharePreview> {
-    const { share, occurrence, repeat, eventCode } = await this.findLive(token);
+    const { share, occurrence, repeat, eventCode, color } = await this.findLive(token);
     const members = await this.memberships.listMembers(share.groupId);
     const sharer = share.createdById === null ? undefined : members.find((m) => m.userId === share.createdById);
     const isMember = viewerId !== null && members.some((m) => m.userId === viewerId);
@@ -147,6 +150,7 @@ export class EventSharesService {
         allDay: occurrence.allDay,
         repeat,
         occurrence: occurrence.occurrence,
+        color,
       },
       expiresAt: share.expiresAt,
       viewer: isMember ? { member: true, ...landing(share, occurrence, eventCode) } : { member: false },
@@ -173,7 +177,7 @@ export class EventSharesService {
     const exceptions = row.repeat ? await this.events.listExceptions(row.id) : [];
     const occurrence = resolveSharedOccurrence(row, exceptions, share.occurrence);
     if (!occurrence) throw NOT_FOUND();
-    return { share, occurrence, repeat: row.repeat, eventCode: row.publicCode };
+    return { share, occurrence, repeat: row.repeat, eventCode: row.publicCode, color: row.color };
   }
 
   /** 조회, 끊기의 회차 키. 반복이면 occurrence 필수(형식만 검사), 한 번짜리 null */

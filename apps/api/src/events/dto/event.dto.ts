@@ -12,6 +12,7 @@ import {
   ValidatorConstraint,
   type ValidatorConstraintInterface,
 } from 'class-validator';
+import { paletteColorOf } from '../../common/member.js';
 import { IsIsoDateTime, Trim } from '../../common/validation.js';
 import { CalendarDateConstraint } from '../../anniversaries/dto/anniversary.dto.js';
 import { EVENT_REMINDERS, type EventReminder } from '../../push/remind-at.js';
@@ -30,6 +31,21 @@ export class ParticipantsConstraint implements ValidatorConstraintInterface {
 
   defaultMessage(args: ValidationArguments): string {
     return participantsProblem(args.value) ?? '';
+  }
+}
+
+/** (#343) 일정 색 오류 문구 (D-215) */
+export const EVENT_COLOR_MESSAGE = '색은 정해진 8색 중 하나여야 해요';
+
+/** (#343) color: 팔레트 키 8개 중 하나 (대소문자 무시). null 은 자동이라 이 검사 전에 거른다 */
+@ValidatorConstraint({ name: 'eventColor', async: false })
+export class EventColorConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return paletteColorOf(value) !== null;
+  }
+
+  defaultMessage(): string {
+    return EVENT_COLOR_MESSAGE;
   }
 }
 
@@ -73,6 +89,11 @@ export class EventInputDto {
   @ValidateIf((_object, value) => value !== undefined)
   @Validate(ParticipantsConstraint)
   participants?: ParticipantsInput;
+
+  /** (#343) 일정 색 (D-215). 팔레트 키 8개 중 하나, null 이면 자동(참여자 색). 생성에서 생략하면 null, 수정에서 생략하면 그대로 */
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @Validate(EventColorConstraint)
+  color?: string | null;
 }
 
 export class EventPatchDto {
@@ -119,6 +140,11 @@ export class EventPatchDto {
   @ValidateIf((_object, value) => value !== undefined)
   @Validate(ParticipantsConstraint)
   participants?: ParticipantsInput;
+
+  /** (#343) 일정 색 (D-215). 팔레트 키 8개 중 하나, null 이면 자동(참여자 색). 생성에서 생략하면 null, 수정에서 생략하면 그대로 */
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @Validate(EventColorConstraint)
+  color?: string | null;
 }
 
 export class EventRangeQueryDto {

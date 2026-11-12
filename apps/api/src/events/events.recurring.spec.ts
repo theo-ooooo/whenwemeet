@@ -32,6 +32,7 @@ const SERIES: EventRow = {
   creator: { nickname: '밥', profileImageUrl: null },
   allMembers: true,
   participantIds: [] as number[],
+  color: null,
 };
 const ONCE: EventRow = { ...SERIES, id: 100, title: '한 번', memo: null, repeat: null, startsAt: kst('2026-11-18T19:00:00'), endsAt: kst('2026-11-18T20:00:00') };
 
@@ -73,7 +74,7 @@ describe('EventsService 반복 일정', () => {
       events.createWithLogTx.mockResolvedValue({ ...SERIES, creatorId: 1, repeatUntil: '2026-12-31' });
       const view = await service.create(1, 10, { ...input, repeat: 'WEEKLY', repeatUntil: '2026-12-31' });
       expect(events.createWithLogTx).toHaveBeenCalledWith(
-        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] } },
+        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null },
         1,
       );
       expect(view).toMatchObject({ repeat: 'WEEKLY', repeatUntil: '2026-12-31', occurrence: '2026-11-11', seriesStartsAt: SERIES.startsAt });
@@ -352,6 +353,7 @@ describe('EventsService 반복 일정', () => {
           remindAt: null,
           reminderSetAt: expect.any(Date),
           participants: { allMembers: true, ids: [] },
+          color: null,
         },
       );
       expect(view).toMatchObject({ id: 201, occurrence: '2026-11-25', seriesStartsAt: created.startsAt });

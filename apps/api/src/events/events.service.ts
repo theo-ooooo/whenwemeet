@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
-import { Member, MemberResolver } from '../common/member.js';
+import { Member, MemberResolver, paletteColorOf } from '../common/member.js';
 import { parsePublicCode } from '../common/public-code.js';
 import { isCalendarDate, parseIsoDate } from '../common/validation.js';
 import { MembershipService } from '../groups/membership.service.js';
@@ -74,6 +74,8 @@ export interface EventView {
   reminder: EventReminder;
   /** (#248) 참여자 (D-134). 반복 회차는 원본 값 */
   participants: ParticipantsView;
+  /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색. 반복 회차는 원본 값 (D-215) */
+  color: string | null;
 }
 
 /** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67) */
@@ -210,6 +212,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     repeatAnchor: row.repeat ? row.repeatAnchor : null,
     reminder: row.reminder,
     participants: toParticipantsView(row, resolver),
+    color: row.color,
   };
 }
 
@@ -276,6 +279,17 @@ function mergeValues(base: EventValues, dto: EventPatchDto): EventValues {
     memo: dto.memo !== undefined ? (dto.memo === '' ? null : dto.memo) : base.memo,
     reminder: resolveReminder(dto.reminder, base.reminder, allDay),
   };
+}
+
+/** (#343) 색만 이 일정만 범위로 바꾸려 할 때 (참여자와 같은 규칙, D-215) */
+export const COLOR_THIS_SCOPE_MESSAGE = '반복 일정의 색은 이후 모두로만 바꿀 수 있어요';
+
+/**
+ * (#343) 본문의 색 → 저장할 값. undefined 는 그대로(생략), null 은 자동. DTO 가 팔레트 키만 통과시키므로 대문자로만 맞춘다 (D-215)
+ */
+export function colorInput(raw: string | null | undefined): string | null | undefined {
+  if (raw === undefined || raw === null) return raw;
+  return paletteColorOf(raw) ?? raw;
 }
 
 function validationFailed(field: string, message: string): ApiException {
@@ -378,6 +392,7 @@ export class EventsService {
         remindAt: repeat ? null : remindAt(startsAt, dto.allDay, reminder),
         reminderSetAt: new Date(),
         participants,
+        color: colorInput(dto.color) ?? null,
       },
       userId,
     );
@@ -403,6 +418,8 @@ export class EventsService {
     }
     // (#248) 참여자는 원본에만 붙는다 (기획 3-5, D-135)
     if (scope === 'this' && participants !== undefined) throw participantsFailed(PARTICIPANTS_THIS_SCOPE_MESSAGE);
+    // (#343) 색도 원본 단위 (D-215)
+    if (scope === 'this' && dto.color !== undefined) throw validationFailed('color', COLOR_THIS_SCOPE_MESSAGE);
     const exceptions = await this.events.listExceptions(current.id);
     const occurrence = this.resolveOccurrence(current, exceptions, date);
     return scope === 'this'
@@ -447,14 +464,18 @@ export class EventsService {
     const participantsChanged = !sameParticipants(participantsOf(current), participants);
     if (participantsChanged) next.participants = participants;
 
+    const color = colorInput(dto.color);
+    const colorChanged = color !== undefined && color !== current.color;
+
     const unchanged = !repeat && !participantsChanged && isUnchanged(current, next);
-    if (!unchanged) {
-      // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
-      next.remindAt = storedRemindAt(next, repeat);
-      if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();
-    }
-    const row = unchanged ? current : await this.events.updateWithLogTx(current, next, userId);
     const resolver = await this.memberships.resolverFor(current.groupId);
+    // (#343) 색만 바꾸면 로그, 새 소식, 푸시 없이 색만 저장 (D-215)
+    if (unchanged) return toEventView(colorChanged ? await this.events.updateColor(current.id, color) : current, resolver);
+    if (colorChanged) next.color = color;
+    // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
+    next.remindAt = storedRemindAt(next, repeat);
+    if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();
+    const row = await this.events.updateWithLogTx(current, next, userId);
     return toEventView(row, resolver);
   }
 
@@ -526,11 +547,20 @@ export class EventsService {
     // (#248) 본문에 없으면 원본 참여자 (첫 회차는 그대로, 그 뒤 회차는 새 원본에 복사, D-135)
     const participants = resolveParticipants(input, participantsOf(series), userId, false);
     const sameMembers = sameParticipants(participantsOf(series), participants);
+    // (#343) 본문에 없으면 원본 색 (새 원본에 복사)
+    const inputColor = colorInput(dto.color);
+    const color = inputColor === undefined ? series.color : inputColor;
+    const colorChanged = color !== series.color;
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };
     const resolver = await this.memberships.resolverFor(series.groupId);
 
     if (isFirst) {
-      if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) return toOccurrenceView(series, occurrence, resolver);
+      if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) {
+        // (#343) 색만 바꾸면 원본 색만 저장. 로그, 새 소식, 푸시 없음 (D-215)
+        if (!colorChanged) return toOccurrenceView(series, occurrence, resolver);
+        const row = await this.events.updateColor(series.id, color);
+        return toOccurrenceView(row, occurrence, resolver);
+      }
       // (#188) 예외를 모두 지우면 옮긴 회차의 시각도 바뀌므로 반복 규칙, 예외 유무까지 기준 시각 대상 (D-86)
       const timing = !sameRule || exceptions.length > 0 || reminderTimingChanged(series, next);
       const row = await this.events.updateSeriesFromStartTx(
@@ -543,6 +573,7 @@ export class EventsService {
           remindAt: storedRemindAt(next, repeat),
           ...(timing ? { reminderSetAt: new Date() } : {}),
           ...(sameMembers ? {} : { participants }),
+          ...(colorChanged ? { color } : {}),
         },
         log,
       );
@@ -551,7 +582,8 @@ export class EventsService {
 
     // 원래 회차 값과 같고 이 회차부터 예외가 없으면 나눠도 펼친 결과가 같다 (#62)
     const hasFollowingExceptions = exceptions.some((exception) => exception.occurrence >= occurrence.occurrence);
-    if (sameRule && sameMembers && !hasFollowingExceptions && isUnchanged(original, next)) return toOccurrenceView(series, occurrence, resolver);
+    const onlyColor = sameRule && sameMembers && !hasFollowingExceptions && isUnchanged(original, next);
+    if (onlyColor && !colorChanged) return toOccurrenceView(series, occurrence, resolver);
 
     const created: EventCreateInput = {
       groupId: series.groupId,
@@ -564,8 +596,12 @@ export class EventsService {
       remindAt: storedRemindAt(next, repeat),
       reminderSetAt: new Date(),
       participants,
+      color,
     };
-    const row = await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
+    // (#343) 색만 바꾸면 나누되 로그, 새 소식, 푸시 없음 (D-215)
+    const row = onlyColor
+      ? await this.events.splitSeriesQuietTx(series, occurrence.occurrence, created)
+      : await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
     return toEventView(row, resolver);
   }
 
