@@ -19,14 +19,14 @@ export const IOS_WIDGET_NAME = "WwmToday";
 
 const TodayWidget = (p: WidgetProps, env: WidgetEnvironment) => {
   "widget";
-  // 디자인토큰.md 라이트/다크 (--tile, --ink, --mute, --today-ink, --pri, --m1 ~ --m7)
+  // 디자인토큰.md 라이트/다크 (--tile, --ink, --mute, --today-ink, --pri, --m1 ~ --m8, #350 D-216)
   const dark = env.colorScheme === "dark";
   const c = dark
     ? { bg: "#1D1D21", ink: "#ECECEF", mute: "#8E8E93", today: "#FFB4A5", pri: "#FF8670" }
     : { bg: "#FFFFFF", ink: "#26252A", mute: "#6C6C70", today: "#C2412C", pri: "#E0533D" };
   const members = dark
-    ? ["#6B9BFF", "#F2C14E", "#3CC6D6", "#A78BFA", "#4ADE80", "#C9A27A", "#9AA8BA"]
-    : ["#2563EB", "#A16207", "#0B7A8A", "#7C3AED", "#15803D", "#8B6B4A", "#64748B"];
+    ? ["#60A5FA", "#FACC15", "#2DD4BF", "#A78BFA", "#4ADE80", "#FDBA74", "#38BDF8", "#F472B6"]
+    : ["#3B82F6", "#EAB308", "#14B8A6", "#8B5CF6", "#22C55E", "#FB923C", "#0EA5E9", "#EC4899"];
   const medium = env.widgetFamily === "systemMedium";
 
   const header = (
