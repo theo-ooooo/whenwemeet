@@ -3,10 +3,11 @@
 import { KIND_OPTIONS } from "./anniversary";
 import { dateKeyOf, formatDateKo, parseKey, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, TEAM_PATH } from "./routes";
 import { euroJosa, hasBatchim } from "./text";
 import type { ActivityNewsItem, ActivityType, AnniversaryField, NewsEntry, NewsItem } from "./types";
 
-type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventId">;
+type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventCode">;
 
 const md = (key: string) => {
   const { m, d } = parseKey(key);
@@ -26,15 +27,14 @@ export function newsPhrase(item: Item): string {
 }
 
 /**
- * 누르면 갈 주소. 일정이 없거나 삭제 기록이면 null (지금 규칙).
+ * 누르면 갈 주소 (일정 수정 화면 `/events/<코드>/edit`, #311). 일정이 없거나 삭제 기록이면 null (지금 규칙).
  * "이 일정만" 은 그 회차로(occurrence 는 원래 날짜라 옮긴 회차도 찾는다).
  * "이후 모두" 는 그 회차가 (새) 원본의 첫 회차가 되므로 occurrence 없이 연다. 시작 날짜를 옮겼으면
  * 원래 날짜가 새 규칙의 회차가 아니라 occurrence 를 붙이면 404 가 난다
  */
-export function newsHref(groupId: number, item: Item): string | null {
-  if (!item.eventId || item.action === "DELETED") return null;
-  const base = `/g/${groupId}/events/${item.eventId}`;
-  return item.scope === "THIS" && item.occurrence ? `${base}?occurrence=${item.occurrence}` : base;
+export function newsHref(item: Item): string | null {
+  if (!item.eventCode || item.action === "DELETED") return null;
+  return eventEditHref({ publicCode: item.eventCode, occurrence: item.scope === "THIS" && item.occurrence ? item.occurrence : null });
 }
 
 /** 시각 줄 앞 날짜 "2월 29일 (목)". 올해(KST) 가 아닌 회차는 연도를 붙인다 ("2024년 2월 29일 (목)", QA3-L6) */
@@ -110,16 +110,16 @@ export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">)
 }
 
 /** 누르면 갈 곳. 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름 변경은 팀 설정. 삭제, 나가기, 탈퇴는 없음 */
-export function activityHref(groupId: number, item: Pick<ActivityNewsItem, "type">): string | null {
+export function activityHref(item: Pick<ActivityNewsItem, "type">): string | null {
   switch (item.type) {
     case "ANNIVERSARY_CREATED":
     case "ANNIVERSARY_UPDATED":
-      return `/g/${groupId}/anniversaries`;
+      return ANNIVERSARIES_PATH;
     case "MEMBER_JOINED":
     case "GROUP_RENAMED":
-      return `/g/${groupId}/settings`;
+      return TEAM_PATH;
     case "EVENTS_IMPORTED":
-      return `/g/${groupId}/calendar`;
+      return CALENDAR_PATH;
     default:
       return null;
   }

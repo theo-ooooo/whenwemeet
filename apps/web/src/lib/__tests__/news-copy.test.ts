@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { activityHref, activityPhrase, activitySubline, knownNewsItems, newsDateLabel, newsHref, newsKey, newsPhrase } from "../news-copy";
 import type { ActivityNewsItem, ActivityType, NewsItem } from "../types";
 
-type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventId">;
-const it0: Item = { action: "CREATED", repeat: null, scope: null, occurrence: null, eventId: 7 };
+type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventCode">;
+const it0: Item = { action: "CREATED", repeat: null, scope: null, occurrence: null, eventCode: "evntcode" };
 
 describe("newsPhrase (설계 4-3)", () => {
   it("한 번짜리는 예전 문구", () => {
     expect(newsPhrase(it0)).toBe("일정을 추가했어요");
     expect(newsPhrase({ ...it0, action: "UPDATED" })).toBe("일정을 수정했어요");
-    expect(newsPhrase({ ...it0, action: "DELETED", eventId: null })).toBe("일정을 삭제했어요");
+    expect(newsPhrase({ ...it0, action: "DELETED", eventCode: null })).toBe("일정을 삭제했어요");
   });
   it("새 반복 일정은 주기 이름", () => {
     expect(newsPhrase({ ...it0, repeat: "WEEKLY" })).toBe("매주 반복 일정을 추가했어요");
@@ -31,13 +31,16 @@ describe("newsPhrase (설계 4-3)", () => {
 
 describe("newsHref", () => {
   it("삭제, 일정 없음은 이동 없음", () => {
-    expect(newsHref(2, { ...it0, action: "DELETED" })).toBeNull();
-    expect(newsHref(2, { ...it0, eventId: null })).toBeNull();
+    expect(newsHref({ ...it0, action: "DELETED" })).toBeNull();
+    expect(newsHref({ ...it0, eventCode: null })).toBeNull();
   });
   it("이 일정만은 그 회차로, 이후 모두와 새 반복은 첫 회차로", () => {
-    expect(newsHref(2, it0)).toBe("/g/2/events/7");
-    expect(newsHref(2, { ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "THIS", occurrence: "2026-11-18" })).toBe("/g/2/events/7?occurrence=2026-11-18");
-    expect(newsHref(2, { ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "FOLLOWING", occurrence: "2026-11-18" })).toBe("/g/2/events/7");
+    expect(newsHref(it0)).toBe("/events/evntcode/edit");
+    expect(newsHref({ ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "THIS", occurrence: "2026-11-18" })).toBe("/events/evntcode/edit?occurrence=2026-11-18");
+    expect(newsHref({ ...it0, action: "UPDATED", repeat: "WEEKLY", scope: "FOLLOWING", occurrence: "2026-11-18" })).toBe("/events/evntcode/edit");
+    // 원본이 지워졌거나 삭제 기록이면 이동 없음
+    expect(newsHref({ ...it0, action: "UPDATED", eventCode: null })).toBeNull();
+    expect(newsHref({ ...it0, action: "DELETED" })).toBeNull();
   });
 });
 
@@ -90,14 +93,14 @@ describe("팀 활동 줄 (#191)", () => {
   });
 
   it("activityHref: 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름은 팀 설정, 삭제와 나가기는 이동 없음", () => {
-    expect(activityHref(2, { type: "ANNIVERSARY_CREATED" })).toBe("/g/2/anniversaries");
-    expect(activityHref(2, { type: "ANNIVERSARY_UPDATED" })).toBe("/g/2/anniversaries");
-    expect(activityHref(2, { type: "ANNIVERSARY_DELETED" })).toBeNull();
-    expect(activityHref(2, { type: "MEMBER_JOINED" })).toBe("/g/2/settings");
-    expect(activityHref(2, { type: "GROUP_RENAMED" })).toBe("/g/2/settings");
-    expect(activityHref(2, { type: "EVENTS_IMPORTED" })).toBe("/g/2/calendar");
-    expect(activityHref(2, { type: "MEMBER_LEFT" })).toBeNull();
-    expect(activityHref(2, { type: "MEMBER_DELETED" })).toBeNull();
+    expect(activityHref({ type: "ANNIVERSARY_CREATED" })).toBe("/anniversaries");
+    expect(activityHref({ type: "ANNIVERSARY_UPDATED" })).toBe("/anniversaries");
+    expect(activityHref({ type: "ANNIVERSARY_DELETED" })).toBeNull();
+    expect(activityHref({ type: "MEMBER_JOINED" })).toBe("/team");
+    expect(activityHref({ type: "GROUP_RENAMED" })).toBe("/team");
+    expect(activityHref({ type: "EVENTS_IMPORTED" })).toBe("/calendar");
+    expect(activityHref({ type: "MEMBER_LEFT" })).toBeNull();
+    expect(activityHref({ type: "MEMBER_DELETED" })).toBeNull();
   });
 
   it("activitySubline: 기념일만 날짜와 종류, 다른 해는 연도", () => {

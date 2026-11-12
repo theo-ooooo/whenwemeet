@@ -21,6 +21,8 @@ describe('푸시 알림 (e2e)', () => {
   let minji: Session;
   let jihun: Session;
   let groupId: number;
+  /** (#311) 팀 공개 코드. 알림 경로의 `?team=` */
+  let groupCode: string;
   let inviteCode: string;
 
   const MINJI_TOKEN = 'ExponentPushToken[minji-ios]';
@@ -39,6 +41,7 @@ describe('푸시 알림 (e2e)', () => {
   const createEvent = async (session: Session, body: Record<string, unknown>) =>
     (await api(app).post(`/v1/groups/${groupId}/events`).set(auth(session)).send({ participants: 'ALL', ...body }).expect(201)).body.data as {
       id: number;
+      publicCode: string;
       reminder: string;
     };
 
@@ -71,6 +74,7 @@ describe('푸시 알림 (e2e)', () => {
     jihun = await devLogin(app, '지훈');
     const created = await api(app).post('/v1/groups').set(auth(minji)).send({ name: '우리' }).expect(201);
     groupId = created.body.data.id as number;
+    groupCode = created.body.data.publicCode as string;
     inviteCode = created.body.data.inviteCode as string;
     await api(app).post('/v1/groups/join').set(auth(jihun)).send({ code: inviteCode }).expect(200);
     await registerDevice(minji, MINJI_TOKEN, 'IOS');
@@ -199,7 +203,8 @@ describe('푸시 알림 (e2e)', () => {
       const result = await scheduler.tick(at('17:00:10'));
       expect(result).toMatchObject({ ran: true, planned: 1 });
       expect(fake.messages).toHaveLength(2);
-      const url = `/g/${groupId}/calendar?date=${day}&day=1&event=${event.id}`;
+      // (#311) 알림 경로는 번호 대신 공개 코드
+      const url = `/events/${event.publicCode}?team=${groupCode}`;
       expect(fake.messages.find((m) => m.to === MINJI_TOKEN)).toMatchObject({ title: '저녁 약속', subtitle: '우리', body: '1시간 뒤 오후 6:00', data: { kind: 'REMINDER', url } });
       const android = fake.messages.find((m) => m.to === JIHUN_TOKEN)!;
       expect(android).toMatchObject({ title: '[우리] 저녁 약속', body: '1시간 뒤 오후 6:00', data: { url } });
@@ -225,8 +230,8 @@ describe('푸시 알림 (e2e)', () => {
       expect(fake.messages).toHaveLength(0);
       await scheduler.tick(at('06:50:05', next));
       expect(fake.messages.map((m) => m.data.url)).toEqual([
-        `/g/${groupId}/calendar?date=${next}&day=1&event=${series.id}&occurrence=${next}`,
-        `/g/${groupId}/calendar?date=${next}&day=1&event=${series.id}&occurrence=${next}`,
+        `/events/${series.publicCode}?team=${groupCode}&occurrence=${next}`,
+        `/events/${series.publicCode}?team=${groupCode}&occurrence=${next}`,
       ]);
     });
 
@@ -243,7 +248,7 @@ describe('푸시 알림 (e2e)', () => {
       await scheduler.tick(afterCoalesce());
       expect(fake.messages).toHaveLength(1);
       expect(fake.messages[0]).toMatchObject({ to: JIHUN_TOKEN, title: '[우리] 민지님이 일정을 수정했어요', body: expect.stringMatching(/^점심 3, /) });
-      expect(fake.messages[0].data.url).toBe(`/g/${groupId}/calendar?date=${day}&day=1&event=${event.id}`);
+      expect(fake.messages[0].data.url).toBe(`/events/${event.publicCode}?team=${groupCode}`);
       fake.reset();
 
       const temp = await createEvent(minji, timed('잘못 만듦', '15:00:00', '16:00:00'));
@@ -263,7 +268,7 @@ describe('푸시 알림 (e2e)', () => {
       await scheduler.tick(afterCoalesce());
       const toJihun = fake.messages.filter((m) => m.to === JIHUN_TOKEN);
       const toMinji = fake.messages.filter((m) => m.to === MINJI_TOKEN);
-      expect(toJihun).toEqual([expect.objectContaining({ title: '[우리] 민지님이 일정을 삭제했어요', data: expect.objectContaining({ url: `/g/${groupId}/news` }) })]);
+      expect(toJihun).toEqual([expect.objectContaining({ title: '[우리] 민지님이 일정을 삭제했어요', data: expect.objectContaining({ url: `/news?team=${groupCode}` }) })]);
       expect(toMinji).toEqual([expect.objectContaining({ title: '지훈님이 일정을 수정했어요', body: expect.stringMatching(/^회의 3, /) })]);
     });
 
@@ -320,7 +325,7 @@ describe('푸시 알림 (e2e)', () => {
       expect(await prisma.pushNotification.count({ where: { kind: 'JOIN', status: 'PENDING' } })).toBe(1);
       await scheduler.tick(new Date(Date.now() + 1_000));
       expect(fake.messages.map((m) => m.to).sort()).toEqual([JIHUN_TOKEN, MINJI_TOKEN].sort());
-      expect(fake.messages.find((m) => m.to === MINJI_TOKEN)).toMatchObject({ title: "캐롤님이 '우리' 에 들어왔어요", data: { url: `/g/${groupId}/calendar`, kind: 'JOIN' } });
+      expect(fake.messages.find((m) => m.to === MINJI_TOKEN)).toMatchObject({ title: "캐롤님이 '우리' 에 들어왔어요", data: { url: `/calendar?team=${groupCode}`, kind: 'JOIN' } });
       expect(fake.messages.find((m) => m.to === MINJI_TOKEN)).not.toHaveProperty('subtitle');
       expect(fake.messages.find((m) => m.to === JIHUN_TOKEN)?.title).toBe("캐롤님이 '우리' 에 들어왔어요");
 
@@ -365,7 +370,7 @@ describe('푸시 알림 (e2e)', () => {
       await prisma.anniversary.updateMany({ data: { updatedAt: new Date(Date.now() - DAY_MS) } });
       await scheduler.tick(at('09:00:20'));
       expect(fake.messages.map((m) => m.body)).toEqual(['오늘은 처음 만난 날 100일이에요', '오늘은 처음 만난 날 100일이에요']);
-      expect(fake.messages[0].data).toMatchObject({ kind: 'ANNIVERSARY', url: `/g/${groupId}/anniversaries` });
+      expect(fake.messages[0].data).toMatchObject({ kind: 'ANNIVERSARY', url: `/anniversaries?team=${groupCode}` });
     });
 
     it('기념일 알림 시점 (#269): 하루 전, 일주일 전은 그날 앞서 09:00, 100일 단위는 일주일 전 없음, 알림 없음은 0건', async () => {

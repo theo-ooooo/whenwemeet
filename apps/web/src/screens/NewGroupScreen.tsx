@@ -6,6 +6,7 @@ import { Symbol } from "@/components/Logo";
 import { Button, Field, inputClass } from "@/components/ui";
 import { messageOf, useCreateGroup } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
+import { teamHref } from "@/lib/routes";
 
 export function NewGroupScreen() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export function NewGroupScreen() {
     const r = await mutate({ name: trimmed });
     if (!r.ok) return;
     rememberGroup(r.data.id);
-    router.replace(`/g/${r.data.id}/settings?invite=1`);
+    router.replace(teamHref({ invite: true }));
   }
 
   return (

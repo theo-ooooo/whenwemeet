@@ -114,11 +114,11 @@ export class ImportsService {
     groupId: number,
     actor: { id: number; name: string },
     count: number,
-    group: { type: 'PERSONAL' | 'TEAM'; name: string },
+    group: { type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string },
     now: Date,
     done: boolean,
   ): Promise<void> {
-    const push = group.type === 'TEAM' && count > 0 ? importPayload(groupId, group.name, actor.name, count, now) : null;
+    const push = group.type === 'TEAM' && count > 0 ? importPayload(group.publicCode, group.name, actor.name, count, now) : null;
     return this.imports.finishTx({ importId, groupId, actor, count, push, done });
   }
 }

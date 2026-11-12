@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { CALENDAR_PATH } from "@/lib/routes";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
@@ -39,7 +40,7 @@ export function JoinButton({ code, auto = false }: { code: string; auto?: boolea
     }
     haptic("success");
     rememberGroup(r.data.id);
-    router.replace(`/g/${r.data.id}/calendar`);
+    router.replace(CALENDAR_PATH);
   }
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calendarEventHref, dateParam, missingEventTarget, monthParam, parseDayStep, stepDepth, withDayStep, withSelection } from "../calendar-url";
+import {  dateParam, missingEventTarget, monthParam, parseDayStep, stepDepth, withDayStep, withSelection , parseRouteStep, dayStepUrl } from "../calendar-url";
+import { eventHref } from "../routes";
 
 const TODAY = "2026-11-10";
 const p = (s: string) => new URLSearchParams(s);
@@ -26,14 +27,8 @@ describe("parseDayStep", () => {
   it("잘못된 date 는 오늘로", () => {
     expect(parseDayStep(p("date=2026-02-31&day=1"), TODAY)).toEqual({ open: true, date: TODAY, step: "day" });
   });
-  it("event, add 단계", () => {
-    expect(parseDayStep(p("date=2026-11-12&day=1&event=7"), TODAY)).toEqual({ open: true, date: "2026-11-12", step: "event", eventId: 7, occurrence: null });
+  it("add 단계", () => {
     expect(parseDayStep(p("date=2026-11-12&day=1&add=1"), TODAY)).toEqual({ open: true, date: "2026-11-12", step: "add" });
-  });
-  it("event 가 add 보다 앞서고, 숫자가 아닌 event 는 무시", () => {
-    expect(parseDayStep(p("day=1&event=7&add=1"), TODAY)).toMatchObject({ step: "event", eventId: 7 });
-    expect(parseDayStep(p("day=1&event=abc"), TODAY)).toMatchObject({ step: "day" });
-    expect(parseDayStep(p("day=1&event=0"), TODAY)).toMatchObject({ step: "day" });
   });
 });
 
@@ -41,7 +36,7 @@ describe("stepDepth", () => {
   it("닫힘 0, 날짜 1, 일정/추가 2", () => {
     expect(stepDepth({ open: false })).toBe(0);
     expect(stepDepth({ open: true, date: TODAY, step: "day" })).toBe(1);
-    expect(stepDepth({ open: true, date: TODAY, step: "event", eventId: 1, occurrence: null })).toBe(2);
+    expect(stepDepth({ open: true, date: TODAY, step: "event", code: "evntcode", occurrence: null })).toBe(2);
     expect(stepDepth({ open: true, date: TODAY, step: "add" })).toBe(2);
   });
 });
@@ -51,21 +46,45 @@ describe("withDayStep", () => {
     expect(withDayStep("", { step: "day", date: "2026-11-12" }, TODAY)).toBe("?date=2026-11-12&day=1");
     expect(withDayStep("?date=2026-11-12", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
-  it("한 단계 더: event, add 는 둘 중 하나만", () => {
-    expect(withDayStep("?date=2026-11-12&day=1&add=1", { step: "event", date: "2026-11-12", eventId: 3, occurrence: null }, TODAY)).toBe(
-      "?date=2026-11-12&day=1&event=3",
-    );
-    expect(withDayStep("?date=2026-11-12&day=1&event=3", { step: "add", date: "2026-11-12" }, TODAY)).toBe("?date=2026-11-12&day=1&add=1");
+  it("한 단계 더: add. 옛 주소의 event, occurrence 는 뗀다 (#311)", () => {
+    expect(withDayStep("?date=2026-11-12&day=1&event=3&occurrence=2026-11-18", { step: "add", date: "2026-11-12" }, TODAY)).toBe("?date=2026-11-12&day=1&add=1");
+    expect(withDayStep("?day=1&add=1", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
-  it("반복 회차는 occurrence 를 같이 싣고, 다른 단계로 가면 뗀다 (#187)", () => {
-    expect(parseDayStep(p("day=1&event=7&occurrence=2026-11-18"), TODAY)).toMatchObject({ step: "event", eventId: 7, occurrence: "2026-11-18" });
-    expect(parseDayStep(p("day=1&event=7&occurrence=2026-02-31"), TODAY)).toMatchObject({ step: "event", occurrence: null });
-    expect(withDayStep("?day=1", { step: "event", date: TODAY, eventId: 7, occurrence: "2026-11-18" }, TODAY)).toBe("?day=1&event=7&occurrence=2026-11-18");
-    expect(withDayStep("?day=1&event=7&occurrence=2026-11-18", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
-  });
-  it("닫기: day, event, add 만 떼고 date, month 는 둔다", () => {
-    expect(withDayStep("?date=2026-11-12&month=2026-12&day=1&event=3", { step: "closed" }, TODAY)).toBe("?date=2026-11-12&month=2026-12");
+  it("닫기: day, add 만 떼고 date, month 는 둔다", () => {
+    expect(withDayStep("?date=2026-11-12&month=2026-12&day=1&add=1", { step: "closed" }, TODAY)).toBe("?date=2026-11-12&month=2026-12");
     expect(withDayStep("?day=1", { step: "closed" }, TODAY)).toBe("");
+  });
+  it("옛 주소의 ?event=<번호> 는 일정 단계로 보지 않는다 (옛 주소는 legacy-routes 가 바꾼다)", () => {
+    expect(parseDayStep(p("day=1&event=7"), TODAY)).toEqual({ open: true, date: TODAY, step: "day" });
+  });
+});
+
+describe("parseRouteStep, dayStepUrl — 일정 상세는 경로 /events/<코드> (#311)", () => {
+  const dateOf = (code: string, occurrence: string | null) => (code === "evntcode" ? (occurrence ?? "2026-11-20") : null);
+  it("/events/<코드> 는 일정 단계. 날짜는 호출자가 알려 주고 모르면 오늘", () => {
+    expect(parseRouteStep("/events/evntcode", p(""), TODAY, dateOf)).toEqual({ open: true, date: "2026-11-20", step: "event", code: "evntcode", occurrence: null });
+    expect(parseRouteStep("/events/evntcode", p("occurrence=2026-11-18"), TODAY, dateOf)).toEqual({
+      open: true,
+      date: "2026-11-18",
+      step: "event",
+      code: "evntcode",
+      occurrence: "2026-11-18",
+    });
+    expect(parseRouteStep("/events/zzzzzzzz", p(""), TODAY, dateOf)).toMatchObject({ step: "event", code: "zzzzzzzz", date: TODAY });
+    // 대문자는 소문자로
+    expect(parseRouteStep("/events/EVNTCODE", p(""), TODAY, dateOf)).toMatchObject({ step: "event", code: "evntcode" });
+  });
+  it("/calendar, /events/new, /events/<코드>/edit 는 쿼리로만 본다", () => {
+    expect(parseRouteStep("/calendar", p("day=1"), TODAY, dateOf)).toEqual({ open: true, date: TODAY, step: "day" });
+    expect(parseRouteStep("/events/new", p("day=1"), TODAY, dateOf)).toEqual({ open: true, date: TODAY, step: "day" });
+    expect(parseRouteStep("/events/evntcode/edit", p(""), TODAY, dateOf)).toEqual({ open: false });
+  });
+  it("dayStepUrl: 일정 단계는 /events/<코드>[?occurrence=], 그 밖은 /calendar + 달력 쿼리", () => {
+    expect(dayStepUrl("?date=2026-11-12&day=1", { step: "event", date: "2026-11-12", code: "evntcode", occurrence: null }, TODAY)).toBe("/events/evntcode");
+    expect(dayStepUrl("", { step: "event", date: "2026-11-18", code: "evntcode", occurrence: "2026-11-18" }, TODAY)).toBe("/events/evntcode?occurrence=2026-11-18");
+    expect(dayStepUrl("?month=2026-12", { step: "day", date: "2026-11-12" }, TODAY)).toBe("/calendar?month=2026-12&date=2026-11-12&day=1");
+    expect(dayStepUrl("?date=2026-11-12&day=1", { step: "closed" }, TODAY)).toBe("/calendar?date=2026-11-12");
+    expect(dayStepUrl("", { step: "closed" }, TODAY)).toBe("/calendar");
   });
 });
 
@@ -84,38 +103,46 @@ describe("withSelection (#81)", () => {
   });
 });
 
-describe("calendarEventHref (#222)", () => {
-  it("그날 상세 → 일정 상세 주소. 오늘이면 date 를 뗀다", () => {
-    expect(calendarEventHref(3, "2026-11-12", { id: 7, occurrence: null }, "2026-11-11")).toBe("/g/3/calendar?date=2026-11-12&day=1&event=7");
-    expect(calendarEventHref(3, "2026-11-11", { id: 7 }, "2026-11-11")).toBe("/g/3/calendar?day=1&event=7");
-  });
-  it("반복 회차는 occurrence 를 붙이고, 주소를 다시 읽으면 같은 단계", () => {
-    const href = calendarEventHref(3, "2026-11-19", { id: 7, occurrence: "2026-11-19" }, "2026-11-11");
-    expect(href).toBe("/g/3/calendar?date=2026-11-19&day=1&event=7&occurrence=2026-11-19");
-    const q = new URLSearchParams(href.split("?")[1]);
-    expect(parseDayStep(q, "2026-11-11")).toEqual({ open: true, date: "2026-11-19", step: "event", eventId: 7, occurrence: "2026-11-19" });
+describe("eventHref (#222, #311)", () => {
+  it("일정 상세 주소 /events/<코드>. 반복 회차는 occurrence 를 붙이고, 주소를 다시 읽으면 같은 단계", () => {
+    expect(eventHref({ publicCode: "evntcode", occurrence: null })).toBe("/events/evntcode");
+    const href = eventHref({ publicCode: "evntcode", occurrence: "2026-11-19" });
+    expect(href).toBe("/events/evntcode?occurrence=2026-11-19");
+    const [path, search] = href.split("?");
+    expect(parseRouteStep(path, new URLSearchParams(search), "2026-11-11", () => "2026-11-19")).toEqual({
+      open: true,
+      date: "2026-11-19",
+      step: "event",
+      code: "evntcode",
+      occurrence: "2026-11-19",
+    });
   });
 });
 
 describe("missingEventTarget — 일정 404 일 때 (QA3-L7)", () => {
   const today = "2026-11-11";
   it("회차 주소이고 원본이 살아 있으면 그 날짜 일 상세 (삭제 안내 없음)", () => {
-    expect(missingEventTarget(5, "2026-11-27", true, today)).toEqual({ href: "/g/5/calendar?date=2026-11-27&day=1", deleted: false });
+    expect(missingEventTarget("2026-11-27", true, today)).toEqual({ href: "/calendar?date=2026-11-27&day=1", deleted: false });
     // 오늘이면 date 를 뗀다
-    expect(missingEventTarget(5, today, true, today)).toEqual({ href: "/g/5/calendar?day=1", deleted: false });
+    expect(missingEventTarget(today, true, today)).toEqual({ href: "/calendar?day=1", deleted: false });
   });
 
   it("원본도 없거나 회차 주소가 아니면 삭제 안내 + 달력", () => {
-    expect(missingEventTarget(5, "2026-11-27", false, today)).toEqual({ href: "/g/5/calendar", deleted: true });
-    expect(missingEventTarget(5, null, true, today)).toEqual({ href: "/g/5/calendar", deleted: true });
-    expect(missingEventTarget(5, undefined, false, today)).toEqual({ href: "/g/5/calendar", deleted: true });
+    expect(missingEventTarget("2026-11-27", false, today)).toEqual({ href: "/calendar", deleted: true });
+    expect(missingEventTarget(null, true, today)).toEqual({ href: "/calendar", deleted: true });
+    expect(missingEventTarget(undefined, false, today)).toEqual({ href: "/calendar", deleted: true });
   });
 });
 
-describe("알림을 누르면 여는 주소 (#188, 푸시-알림.md 6장)", () => {
-  it("일정 상세 경로는 기존 달력 주소로 그 회차 상세를 연다", () => {
-    const q = new URLSearchParams("date=2026-11-12&day=1&event=42&occurrence=2026-11-12");
-    expect(parseDayStep(q, "2026-11-11")).toEqual({ open: true, date: "2026-11-12", step: "event", eventId: 42, occurrence: "2026-11-12" });
-    expect(parseDayStep(new URLSearchParams("date=2026-11-11&day=1&event=7"), "2026-11-11")).toEqual({ open: true, date: "2026-11-11", step: "event", eventId: 7, occurrence: null });
+describe("알림을 누르면 여는 주소 (#188, 푸시-알림.md 6장, #311)", () => {
+  it("API push-copy eventUrl 모양 /events/<코드>?team=&occurrence= 을 읽으면 그 회차 상세", () => {
+    const url = new URL("https://whenwemeet.day/events/evntcode?team=teamcode&occurrence=2026-11-12");
+    expect(parseRouteStep(url.pathname, url.searchParams, "2026-11-11", () => "2026-11-12")).toEqual({
+      open: true,
+      date: "2026-11-12",
+      step: "event",
+      code: "evntcode",
+      occurrence: "2026-11-12",
+    });
   });
 });

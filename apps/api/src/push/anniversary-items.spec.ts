@@ -70,6 +70,7 @@ describe('기념일 예약 (설계 5-5)', () => {
     id: 5,
     groupId: 10,
     groupName: '우리',
+    groupCode: 'teamcode',
     name: '처음 만난 날',
     date: '2026-08-03',
     kind: 'COUNT_UP',
@@ -88,7 +89,7 @@ describe('기념일 예약 (설계 5-5)', () => {
       dedupeKey: 'A:5:2026-11-10',
       scheduledAt: new Date('2026-11-10T00:00:00Z'),
       anniversaryId: 5,
-      payload: { title: '처음 만난 날 100일', body: '오늘은 처음 만난 날 100일이에요', subtitle: '우리', url: '/g/10/anniversaries' },
+      payload: { title: '처음 만난 날 100일', body: '오늘은 처음 만난 날 100일이에요', subtitle: '우리', url: '/anniversaries?team=teamcode' },
     });
   });
 
@@ -104,6 +105,7 @@ describe('기념일 알림 시점 (#269, 설계 5-5, D-144 ~ D-147)', () => {
     id: 7,
     groupId: 10,
     groupName: '우리',
+    groupCode: 'teamcode',
     name: '처음 만난 날',
     date: '2026-08-03',
     kind: 'COUNT_UP',

@@ -30,11 +30,13 @@ import {
   showParticipantRow,
   type ParticipantPick,
 } from "@/lib/participants";
-import type { Event, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "@/lib/types";
+import { CALENDAR_PATH, calendarHref } from "@/lib/routes";
+import type { Event, EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "@/lib/types";
 
 type Props = {
-  groupId: number;
   eventId?: number;
+  /** (#311) `/events/<코드>/edit`, `?copy=` 페이지가 서버에서 미리 받은 일정. 있으면 스켈레톤 없이 채우고 뒤에서 다시 받는다 */
+  initialEvent?: EventDetailData | null;
   /** 복제할 일정 ID. 값만 채우고 새 일정으로 저장한다. 반복 회차를 복제해도 한 번짜리로 시작한다 (QA3-L2) */
   copyFrom?: number;
   /** 반복 일정의 회차 날짜 (?occurrence=, #187). 없으면 첫 회차 */
@@ -51,7 +53,7 @@ const HOUR_MS = 3_600_000;
 const TITLE_MAX = 50;
 const MEMO_MAX = 500;
 
-export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, presetScope = null, initialStart, initialEnd }: Props) {
+export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurrence, presetScope = null, initialStart, initialEnd }: Props) {
   const router = useRouter();
   const toast = useToast();
   const editing = Boolean(eventId);
@@ -66,8 +68,8 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   // 빠른 추가에서 고른 알림 (#188). 종일 여부와 맞지 않으면 없음
   const draftReminder = sourceId ? "NONE" : reminderAfterAllDayChange(reminderOf(query.get("reminder")), draftAllDay);
 
-  // (#248) 참여자: 팀 멤버, 내 id, 개인 팀 여부는 AppShell 이 받은 팀 정보에서
-  const { group } = useGroupContext();
+  // (#248) 참여자: 팀 멤버, 내 id, 개인 팀 여부는 AppShell 이 받은 팀 정보에서. (#311) 팀 번호도 (주소에 없다)
+  const { groupId, group } = useGroupContext();
   const meId = group?.me.userId ?? null;
   const personal = group?.type === "PERSONAL";
 
@@ -115,7 +117,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
   const deleting = remove.isPending;
 
   // 수정(또는 복제)이면 기존 일정을 받아 폼에 채운다
-  const eventQ = useEvent(groupId, sourceId, occurrence);
+  const eventQ = useEvent(groupId, sourceId, occurrence, { initialData: initialEvent });
   const loadedEvent = eventQ.data;
   useEffect(() => {
     if (!loadedEvent) return;
@@ -176,7 +178,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (loadError.status === 404) {
       if (!seriesSettled || goneHandled.current) return;
       goneHandled.current = true;
-      const target = missingEventTarget(groupId, occurrence, seriesAlive, todayKey());
+      const target = missingEventTarget(occurrence, seriesAlive, todayKey());
       queueMicrotask(() => {
         toast.show(target.deleted ? "이미 삭제된 일정이에요" : "일정이 바뀌어서 그날 일정을 열었어요");
         router.replace(target.href);
@@ -384,12 +386,12 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
       haptic("success");
       // 권한 안내 시트 계기 ① 일정 저장 성공 직후 (푸시 지원 앱에서 한 번만, 8-1). 시트는 루트에 있어 화면이 바뀌어도 남는다
       void maybeOpenPushPrompt();
-      router.push(`/g/${groupId}/calendar?date=${dateKeyOf(payload.startsAt)}`);
+      router.push(calendarHref({ date: dateKeyOf(payload.startsAt) }));
       return;
     }
     if (r.error.status === 404) {
       toast.show("이미 삭제된 일정이에요");
-      router.replace(`/g/${groupId}/calendar`);
+      router.replace(CALENDAR_PATH);
       return;
     }
     // 참여자 검증 실패(멤버가 방금 나감 등)는 참여자 줄 아래에 (#248 7-3)
@@ -411,7 +413,7 @@ export function EventFormScreen({ groupId, eventId, copyFrom, occurrence, preset
     if (r.ok) {
       setDone(true);
       toast.show("일정을 삭제했어요");
-      router.replace(`/g/${groupId}/calendar?date=${startDate}`);
+      router.replace(calendarHref({ date: startDate }));
       return;
     }
     setConfirmDelete(false);

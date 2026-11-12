@@ -1,7 +1,7 @@
 // (#274) 일정 카드 공유의 순수 규칙 (D-186). 보내는 쪽 문구와 카카오 카드, 받는 쪽 시각 줄과 달력 착지 주소.
 // React 를 import 하지 않는다 (단위 테스트 대상). 주소와 문구는 여기 한 곳에서 만들어 복사, OS 공유, 앱 공유 브리지, 카카오톡이 같이 쓴다
-import { calendarEventHref } from "./calendar-url";
 import { addDays, dateKeyOf, parseKey, toKst, WEEKDAYS, dowOf, type DateKey } from "./date";
+import { eventHref, withTeam } from "./routes";
 import type { KakaoFeedInput } from "./kakao-share";
 import { clampTeamName } from "./og";
 import { REPEAT_NAME } from "./recurrence";
@@ -85,12 +85,9 @@ export function eventShareExpiryLabel(expiresAt: string): string {
   return `이 링크는 ${m}월 ${d}일까지 열려요`;
 }
 
-/** 멤버가 링크를 열거나 합류한 뒤 갈 달력 주소 (calendar-url.ts 규칙, 반복이면 회차까지). 지난 날짜여도 그대로 */
-export function eventShareLandingHref(
-  landing: { groupId: number; eventId: number; occurrence: string | null; date: string },
-  today: DateKey,
-): string {
-  return calendarEventHref(landing.groupId, landing.date, { id: landing.eventId, occurrence: landing.occurrence }, today);
+/** 멤버가 링크를 열거나 합류한 뒤 갈 곳: 그 일정 상세 `/events/<일정 코드>?team=<팀 코드>` (반복이면 회차까지, #311). 지난 날짜여도 그대로 */
+export function eventShareLandingHref(landing: { groupCode: string; eventCode: string; occurrence: string | null }): string {
+  return withTeam(eventHref({ publicCode: landing.eventCode, occurrence: landing.occurrence }), landing.groupCode);
 }
 
 export const EVENT_SHARE_TITLE = "언제볼까 일정";

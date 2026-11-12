@@ -2,6 +2,7 @@
 // 같이 쓰기 입구 (#172): 혼자인 팀은 '초대하기', 개인 달력만 있는 사용자는 '팀 만들기 / 초대 코드 입력'.
 // 달력 위 정보 카드의 첫 줄(아이콘 16 + 13/500 + --acc-ink 링크). 닫으면 이 브라우저에서 다시 안 보인다
 import Link from "next/link";
+import { teamHref } from "@/lib/routes";
 import { IconChevronRight, IconClose, IconTeam } from "./icons";
 import { dismissHint, useHintDismissed } from "@/lib/hint";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
@@ -29,7 +30,7 @@ export function TogetherHint({ hint }: { hint: TogetherHintKind }) {
         {hint.kind === "invite" ? (
           <>
             <span className="min-w-0 truncate text-soft">아직 나 혼자예요</span>
-            <Link href={`/g/${hint.groupId}/settings?invite=1`} className={link}>
+            <Link href={teamHref({ invite: true })} className={link}>
               초대하기
               <IconChevronRight size={14} />
             </Link>

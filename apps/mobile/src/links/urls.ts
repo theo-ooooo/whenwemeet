@@ -75,8 +75,17 @@ export function safeNext(next: string | null | undefined): string {
   return next;
 }
 
-/** 앱 링크/유니버설 링크로 열 수 있는 경로 (5.1). AASA, intentFilters 와 같은 목록 */
-const DEEP_LINK_PATHS = ["/join", "/g"];
+/**
+ * 앱 링크/유니버설 링크(https)로 열 수 있는 경로 (5.1). 1.2.0 부터 AASA, intentFilters 는 `/join` 뿐이다 (#311, D-199).
+ * 옛 `/g` 는 1.1.x 가 아직 가로채므로 받으면 그대로 연다 (웹이 308 로 새 주소에 맞춘다)
+ */
+const UNIVERSAL_LINK_PATHS = ["/join", "/g"];
+
+/**
+ * (#311) 커스텀 스킴 `whenwemeet://<경로>` 로 열 수 있는 웹 화면. 위젯 누름(`whenwemeet://calendar?date=&day=1&team=<팀 코드>`),
+ * 웹 초대 화면의 앱 열기(`whenwemeet://join/<코드>`). 새 화면 주소는 팀을 `?team=` 으로 지정한다
+ */
+const SCHEME_LINK_PATHS = ["/join", "/g", "/calendar", "/upcoming", "/free", "/anniversaries", "/news", "/team", "/events"];
 
 /** (#271, 1.1.1) 메일 로그인 링크 `/auth/email?token=` (D-113 확인 화면). 정확히 이 경로만 (intentFilters `path`, AASA 와 같은 값, D-177) */
 export const EMAIL_LINK_PATH = "/auth/email";
@@ -94,9 +103,9 @@ export function parseSchemeLink(raw: string): { path: string; search: string } |
 
 /**
  * 들어온 링크 → 웹뷰가 열 주소. 대상이 아니면 null
- * - https://whenwemeet.day/join/<code>?.. , /g/.. → 같은 경로를 webOrigin 에서 (스테이징 빌드면 스테이징 웹)
- * - whenwemeet://join/<code>?.. , whenwemeet://g/.. → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
- *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다)
+ * - https://whenwemeet.day/join/<code>?.. , 옛 /g/.. → 같은 경로를 webOrigin 에서 (스테이징 빌드면 스테이징 웹)
+ * - whenwemeet://join/<code>?.. , whenwemeet://calendar?team=.. 등 화면 주소 → 같은 규칙 (#154. 카카오톡 인앱 브라우저가 유니버설 링크를 타지 않아
+ *   웹 초대 화면이 커스텀 스킴/intent 로 앱을 연다. #311 위젯 누름도 이 모양)
  * - whenwemeet://auth?... 는 null (옛 Android 애플 웹 로그인 복귀 주소. #145 로 접고 #204 로 API 경로도 지웠다)
  * - (#271) https://whenwemeet.day/auth/email?token=.. → 같은 경로. 웹뷰가 확인 화면(D-113)을 그리고 [로그인 계속하기] 가
  *   웹뷰 쿠키로 세션을 만든다. 커스텀 스킴(whenwemeet://auth/email)은 받지 않는다 (메일 링크는 https 만)
@@ -118,7 +127,11 @@ export function deepLinkToWebUrl(raw: string, webOrigin: string, linkHost = "whe
   // 경로 조작(//evil, 백슬래시, 제어문자)은 버린다. safeNext 와 같은 규칙
   if (safeNext(pathname) !== pathname) return null;
   const emailLink = https && pathname === EMAIL_LINK_PATH;
-  if (!emailLink && !DEEP_LINK_PATHS.some((p) => pathIs(pathname, p) && pathname.length > p.length + 1)) return null;
+  // https 는 앱 링크 목록(코드가 뒤따라야 한다), 커스텀 스킴은 화면 주소 자체(`/calendar`)도 받는다
+  const allowed = https
+    ? UNIVERSAL_LINK_PATHS.some((p) => pathIs(pathname, p) && pathname.length > p.length + 1)
+    : SCHEME_LINK_PATHS.some((p) => pathIs(pathname, p) && (pathname.length > p.length + 1 || !(p === "/join" || p === "/g")));
+  if (!emailLink && !allowed) return null;
   return `${webOrigin.replace(/\/+$/, "")}${pathname}${search}`;
 }
 

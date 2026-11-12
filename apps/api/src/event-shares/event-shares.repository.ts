@@ -17,7 +17,7 @@ export interface EventShareRow {
 
 /** 링크로 찾은 행 + 팀 이름과 종류 */
 export interface EventShareWithGroup extends EventShareRow {
-  group: { name: string; type: 'PERSONAL' | 'TEAM' };
+  group: { name: string; type: 'PERSONAL' | 'TEAM'; publicCode: string };
 }
 
 export interface EventShareCreateInput {
@@ -112,7 +112,7 @@ export class EventSharesRepository {
   async findByToken(token: string): Promise<EventShareWithGroup | null> {
     const row = await this.prisma.eventShare.findUnique({
       where: { token },
-      select: { ...SHARE_SELECT, group: { select: { name: true, type: true } } },
+      select: { ...SHARE_SELECT, group: { select: { name: true, type: true, publicCode: true } } },
     });
     return row && { ...toRow(row), group: row.group };
   }

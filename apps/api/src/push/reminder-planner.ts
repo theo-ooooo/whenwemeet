@@ -34,7 +34,9 @@ export function planOnceReminders(rows: OnceReminderRow[], lo: Date, hi: Date, n
         {
           groupId: row.groupId,
           groupName: row.groupName,
+          groupCode: row.groupCode,
           eventId: row.id,
+          eventCode: row.publicCode,
           occurrence: null,
           title: row.title,
           startsAt: row.startsAt,
@@ -85,7 +87,9 @@ export function planSeriesReminders(series: ReminderSeriesRow, lo: Date, hi: Dat
         {
           groupId: series.groupId,
           groupName: series.groupName,
+          groupCode: series.groupCode,
           eventId: series.id,
+          eventCode: series.publicCode,
           occurrence: occurrence.occurrence,
           title: occurrence.title ?? series.title,
           startsAt: occurrence.startsAt,

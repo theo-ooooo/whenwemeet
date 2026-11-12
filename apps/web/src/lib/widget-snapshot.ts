@@ -22,7 +22,8 @@ export type WidgetSnapshotEvent = { g: number; title: string; time: string };
 export type WidgetSnapshotDay = { date: DateKey; events: WidgetSnapshotEvent[]; total: number };
 export type WidgetSnapshot = {
   generatedAt: string;
-  groups: { id: number; name: string; color: number }[];
+  /** (#311) code 는 누름 주소의 `?team=` 에 쓰는 팀 공개 코드 */
+  groups: { id: number; name: string; color: number; code: string }[];
   days: WidgetSnapshotDay[];
   anniversaries: { g: number; title: string; date: DateKey }[];
 };
@@ -113,7 +114,7 @@ export function buildWidgetSnapshot(src: WidgetSource, now: number): WidgetSnaps
 
   return {
     generatedAt: new Date(now).toISOString(),
-    groups: groups.map((g) => ({ id: g.id, name: clip(g.name, 20, "팀"), color: colorIndex(g.me.color) })),
+    groups: groups.map((g) => ({ id: g.id, name: clip(g.name, 20, "팀"), color: colorIndex(g.me.color), code: g.publicCode })),
     days,
     anniversaries: occ.map((o) => ({ g: o.anniversary.groupId, title: clip(occurrenceTitle(o), 40, "기념일"), date: o.date })),
   };

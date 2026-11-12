@@ -8,9 +8,10 @@
 // 날짜 칸을 누르면 어느 폭이든 그날 상세가 먼저 뜬다: phone 일 상세 화면, fold/pc 날짜 칸 옆 팝오버 (5장).
 // phone 의 일정 상세, 빠른 추가는 일 상세 위 바텀 시트(DaySheet)로 뜨고, 닫으면 일 상세로 돌아간다.
 // 그 안에서 "이 날 일정 추가" → 빠른 추가, 일정 → 일정 상세로 같은 자리에서 바뀐다. 바로 추가는 + 버튼만 맡는다.
-// 주소: ?date / ?month 는 replaceState(#81), 날짜 상세 단계는 pushState 로 ?day=1, &event=, &add=1 (5-5)
+// 주소: /calendar?date / ?month 는 replaceState(#81), 날짜 상세 단계는 pushState 로 ?day=1, &add=1, 일정 상세는 경로 /events/<코드> (5-5, #311 D-198).
+// /events/<코드> 로 바로 들어오면(새로 고침, 알림, 공유) 그 페이지가 서버에서 일정을 찾아 initialEvent 로 넘기고 같은 이 화면을 그린다
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { DayAddButton, DayPanel, type FreeHint } from "@/components/DayPanel";
@@ -26,13 +27,17 @@ import { ConfirmDialog, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
 import {
   dateParam,
+  dayStepUrl,
+  type EventRouteTarget,
   monthParam,
   parseDayStep,
+  parseRouteStep,
   stepDepth,
   withDayStep,
   withSelection,
   type StepTarget,
 } from "@/lib/calendar-url";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, FREE_PATH, newEventHref, routeInfo, UPCOMING_PATH } from "@/lib/routes";
 import {
   occurrenceCellText,
   occurrencesByDay,
@@ -68,42 +73,83 @@ import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
 import { haptic } from "@/lib/app-bridge";
 
-type Props = { groupId: number };
+type Props = {
+  /** `/events/<코드>` 페이지가 넘기는 일정 자리. `/calendar` 는 없음 */
+  initialEvent?: EventRouteTarget | null;
+};
 
-const newEventHref = (groupId: number, start: string, end: string) =>
-  `/g/${groupId}/events/new?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+const newEventLink = (start: string, end: string) => newEventHref({ start, end });
 
 const nowMs = () => Date.now();
 
-/** 일정 상세를 여는 데 필요한 것. 반복 회차는 회차 날짜까지 (#187) */
-type EventRef = { id: number; occurrence: DateKey | null };
-const eventStep = (date: DateKey, ev: EventRef): StepTarget => ({ step: "event", date, eventId: ev.id, occurrence: ev.occurrence ?? null });
+/** 일정 상세를 여는 데 필요한 것. 반복 회차는 회차 날짜까지 (#187). 주소에는 공개 코드가 실린다 (#311) */
+type EventRef = { publicCode: string; occurrence: DateKey | null };
+const eventStep = (date: DateKey, ev: EventRef): StepTarget => ({ step: "event", date, code: ev.publicCode, occurrence: ev.occurrence ?? null });
+const routeKey = (code: string, occurrence: DateKey | null) => `${code}:${occurrence ?? ""}`;
 
-/** 지금 주소의 search 를 바꿔 기록에 쓴다. state 는 null (#57: Next 가 내부 state 를 붙이고 useSearchParams 를 맞춘다) */
-function writeSearch(search: string, mode: "push" | "replace") {
-  const url = `${window.location.pathname}${search}${window.location.hash}`;
-  if (mode === "push") window.history.pushState(null, "", url);
-  else window.history.replaceState(null, "", url);
+/** 주소(경로 + search)를 기록에 쓴다. state 는 null (#57: Next 가 내부 state 를 붙이고 usePathname, useSearchParams 를 맞춘다) */
+function writeUrl(url: string, mode: "push" | "replace") {
+  const full = `${url}${window.location.hash}`;
+  if (mode === "push") window.history.pushState(null, "", full);
+  else window.history.replaceState(null, "", full);
 }
 
-export function CalendarScreen({ groupId }: Props) {
+/** 지금 일정 상세 경로(`/events/<코드>`) 위에 있는가. 그러면 달력 쿼리(date, month)는 주소에 없다 */
+const onEventRoute = () => routeInfo(window.location.pathname).eventDetail;
+
+export function CalendarScreen({ initialEvent = null }: Props) {
   const toast = useToast();
   const layout = useLayout();
   const wide = layout !== "phone";
-  const { group, groups, eventsChanged } = useGroupContext();
+  const { groupId, group, groups, eventsChanged } = useGroupContext();
   const together = togetherHintOf(group, groups);
   const who = useWho();
   const today = todayKey();
   // 처음 값은 서버 props 가 아니라 지금 주소에서 읽는다 (#81). 뒤로가기는 Next 가 캐시해 둔 처음 렌더(쿼리 없는 주소)를
   // 다시 쓰므로 서버가 넘긴 날짜는 오늘로 돌아가지만, useSearchParams 는 replaceState 로 바꿔 둔 주소를 돌려준다
   const searchParams = useSearchParams();
-  const [selected, setSelected] = useState(() => dateParam(searchParams.get("date")) ?? today);
+  const pathname = usePathname();
+  const [selected, setSelected] = useState(() => initialEvent?.date ?? dateParam(searchParams.get("date")) ?? today);
   const [{ y, m }, setMonth] = useState(() => monthParam(searchParams.get("month")) ?? parseKey(selected));
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   /* ---------- 날짜 상세 단계 (주소가 원본, 5-5) ---------- */
 
-  const rawStep = useMemo(() => parseDayStep(searchParams, today), [searchParams, today]);
+  // 일정 상세 주소(/events/<코드>)에는 날짜가 없다. 연 순간 기억한 날짜(뒤로가기, 앞으로가기 복원) → 서버가 넘긴 자리 → 받아 둔 목록의 그 회차 순
+  // (상태로 둔 Map. 연 순간 기록하고 렌더에서 읽기만 한다. 바뀐다고 다시 그릴 필요는 없다)
+  const [routeDates] = useState(() => new Map<string, DateKey>());
+
+  // 6주 그리드. 마지막 주가 통째로 다음 달이면 5주만 그린다 (목업처럼)
+  const grid42 = useMemo(() => monthGrid(y, m), [y, m]);
+  const grid = useMemo(() => (parseKey(grid42[35]).m !== m ? grid42.slice(0, 35) : grid42), [grid42, m]);
+
+  // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
+  // 늦게 온 응답이 최신 상태를 덮지 않는 것, 오류에도 직전 값을 유지하는 것은 훅이 보장한다 (#18)
+  const eventsQ = useEvents(groupId, { from: kstToIso(grid42[0]), to: kstToIso(addDays(grid42[41], 1)) });
+  const events = eventsQ.data;
+  const eventsError = eventsQ.error ? messageOf(eventsQ.error, "일정을 불러오지 못했어요") : null;
+  const loadEvents = eventsQ.refetch;
+
+  // 다가오는 일정 (개요). 보는 달과 상관없이 오늘부터 한 달
+  const upcomingQ = useEvents(groupId, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) });
+  const loadUpcoming = upcomingQ.refetch;
+  const upcomingData = upcomingQ.data;
+
+  const rawStep = useMemo(() => {
+    const dateOf = (code: string, occurrence: DateKey | null): DateKey | null => {
+      const remembered = routeDates.get(routeKey(code, occurrence));
+      if (remembered) return remembered;
+      if (initialEvent && initialEvent.code === code) return initialEvent.date;
+      const found = [...(events ?? []), ...(upcomingData ?? [])].find((e) => e.publicCode === code && (e.occurrence ?? null) === occurrence);
+      return found ? dateKeyOf(found.startsAt) : null;
+    };
+    const step = parseRouteStep(pathname, searchParams, today, dateOf);
+    // 반복 일정을 `?occurrence=` 없이 열면(공유, 알림) 서버가 알아낸 첫 회차
+    if (step.open && step.step === "event" && step.occurrence === null && initialEvent?.code === step.code && initialEvent.occurrence) {
+      return { ...step, occurrence: initialEvent.occurrence };
+    }
+    return step;
+  }, [pathname, searchParams, today, initialEvent, events, upcomingData, routeDates]);
   // 새로고침, 공유 주소로 add=1 에 들어오면 빈 폼을 띄우지 않고 날짜 상세로 본다 (5-5). 주소는 아래 효과가 고친다.
   // Next 가 history 를 붙잡기 전의 replaceState 는 useSearchParams 에 안 잡히므로 화면은 이 값으로 정한다
   const [ignoreAdd, setIgnoreAdd] = useState(() => rawStep.open && rawStep.step === "add");
@@ -142,37 +188,28 @@ export function CalendarScreen({ groupId }: Props) {
   // 자식 효과는 Next 앱 라우터의 효과보다 먼저 돌아서, 바로 replaceState 하면 Next 가 그 칸을 모른다. 한 틱 미룬다
   useEffect(() => {
     const t = setTimeout(() => {
+      if (onEventRoute()) return;
       const first = parseDayStep(new URLSearchParams(window.location.search), todayKey());
-      if (first.open && first.step === "add") writeSearch(withDayStep(window.location.search, { step: "day", date: first.date }, todayKey()), "replace");
+      if (first.open && first.step === "add") writeUrl(`${CALENDAR_PATH}${withDayStep(window.location.search, { step: "day", date: first.date }, todayKey())}`, "replace");
     }, 0);
     return () => clearTimeout(t);
   }, []);
 
-
   // 선택 날짜와 보던 달을 URL 에 남긴다 (새로고침, 공유, 뒤로가기 복원 #81, + 버튼의 기준 날짜 #57)
   // router.replace 대신 history.replaceState 를 쓴다. router.replace 는 날짜를 누를 때마다 서버 렌더를 다시 받는다.
-  // 뒤로가기로 주소가 바뀐 뒤에도 다시 맞추도록 searchParams 를 같이 본다. day, event, add 는 건드리지 않는다
+  // 뒤로가기로 주소가 바뀐 뒤에도 다시 맞추도록 searchParams 를 같이 본다. day, add 는 건드리지 않는다.
+  // 일정 상세 경로(/events/<코드>) 위에서는 쓰지 않는다 (그 주소에는 달력 쿼리가 없다)
   useEffect(() => {
+    if (onEventRoute()) return;
     const next = withSelection(window.location.search, selected, today, { y, m });
-    if (next !== null) writeSearch(next, "replace");
-  }, [selected, today, y, m, searchParams]);
+    if (next !== null) writeUrl(`${CALENDAR_PATH}${next}`, "replace");
+  }, [selected, today, y, m, searchParams, pathname]);
+
+  /** 달력 쿼리의 바탕. 일정 상세 경로 위에서는 주소에 없으니 지금 선택 날짜와 보는 달로 만든다 */
+  const calendarSearch = useCallback(() => (onEventRoute() ? (withSelection("", selected, today, { y, m }) ?? "") : window.location.search), [selected, today, y, m]);
 
   /* ---------- 데이터 ---------- */
 
-  // 6주 그리드. 마지막 주가 통째로 다음 달이면 5주만 그린다 (목업처럼)
-  const grid42 = useMemo(() => monthGrid(y, m), [y, m]);
-  const grid = useMemo(() => (parseKey(grid42[35]).m !== m ? grid42.slice(0, 35) : grid42), [grid42, m]);
-
-  // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
-  // 늦게 온 응답이 최신 상태를 덮지 않는 것, 오류에도 직전 값을 유지하는 것은 훅이 보장한다 (#18)
-  const eventsQ = useEvents(groupId, { from: kstToIso(grid42[0]), to: kstToIso(addDays(grid42[41], 1)) });
-  const events = eventsQ.data;
-  const eventsError = eventsQ.error ? messageOf(eventsQ.error, "일정을 불러오지 못했어요") : null;
-  const loadEvents = eventsQ.refetch;
-
-  // 다가오는 일정 (개요). 보는 달과 상관없이 오늘부터 한 달
-  const upcomingQ = useEvents(groupId, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) });
-  const loadUpcoming = upcomingQ.refetch;
   // 넓은 화면 요약 카드 "이번 주 일정" (월요일 시작 KST 한 주, 보는 달과 상관없이)
   const weekQ = useEvents(groupId, weekQueryOf(today), { enabled: wide });
   const loadWeek = weekQ.refetch;
@@ -247,10 +284,7 @@ export function CalendarScreen({ groupId }: Props) {
     }
     return out;
   }, [grid, byDay]);
-  const upcomingList = useMemo(
-    () => (upcomingQ.data ? upcomingEvents(upcomingQ.data, nowMs(), 10) : null),
-    [upcomingQ.data],
-  );
+  const upcomingList = useMemo(() => (upcomingData ? upcomingEvents(upcomingData, nowMs(), 10) : null), [upcomingData]);
 
   // 기념일 항목 (#107): 보이는 그리드 날짜별
   const gridFrom = grid[0];
@@ -270,12 +304,11 @@ export function CalendarScreen({ groupId }: Props) {
   /* ---------- 상세에 넣을 것 ---------- */
 
   const surfaceEvents = surfaceDate && events ? (byDay.get(surfaceDate) ?? []) : null;
-  // 반복 회차는 (id, occurrence) 로 찾는다 (#187). 한 번짜리는 occurrence 가 둘 다 null
-  const surfaceRef = visible && urlStep.step === "event" ? { id: urlStep.eventId, occurrence: urlStep.occurrence } : null;
-  const surfaceEventId = surfaceRef?.id ?? null;
-  const isSurface = (e: Event) => surfaceRef !== null && e.id === surfaceRef.id && (e.occurrence ?? null) === surfaceRef.occurrence;
-  const surfaceEvent = surfaceRef === null ? undefined : (events?.find(isSurface) ?? upcomingQ.data?.find(isSurface));
-  const eventMissing = surfaceEventId !== null && surfaceEvent === undefined && events !== null && !eventsError && upcomingQ.data !== null;
+  // 반복 회차는 (공개 코드, occurrence) 로 찾는다 (#187, #311). 한 번짜리는 occurrence 가 둘 다 null
+  const surfaceRef = visible && urlStep.step === "event" ? { code: urlStep.code, occurrence: urlStep.occurrence } : null;
+  const isSurface = (e: Event) => surfaceRef !== null && e.publicCode === surfaceRef.code && (e.occurrence ?? null) === surfaceRef.occurrence;
+  const surfaceEvent = surfaceRef === null ? undefined : (events?.find(isSurface) ?? upcomingData?.find(isSurface));
+  const eventMissing = surfaceRef !== null && surfaceEvent === undefined && events !== null && !eventsError && upcomingData !== null;
 
   /* ---------- 동작 ---------- */
 
@@ -306,7 +339,7 @@ export function CalendarScreen({ groupId }: Props) {
     if (!urlStep.open) return;
     setClosing(true);
     if (ownDepth > 0) window.history.go(-ownDepth);
-    else writeSearch(withDayStep(window.location.search, { step: "closed" }, today), "replace");
+    else writeUrl(dayStepUrl(calendarSearch(), { step: "closed" }, today), "replace");
   }
 
   /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다 */
@@ -317,12 +350,15 @@ export function CalendarScreen({ groupId }: Props) {
       return;
     }
     pick(date);
-    // 바탕 칸에 고른 날짜를 먼저 남긴다. 뒤로가기로 닫혀도 같은 날짜가 선택돼 있게
+    // 바탕 칸에 고른 날짜를 먼저 남긴다. 뒤로가기로 닫혀도 같은 날짜가 선택돼 있게 (여기 올 때 주소는 늘 /calendar 다)
     const p = parseKey(date);
     const base = withSelection(window.location.search, date, today, { y: p.y, m: p.m });
-    if (base !== null) writeSearch(base, "replace");
-    writeSearch(withDayStep(window.location.search, { step: "day", date }, today), "push");
-    if (ev !== undefined) writeSearch(withDayStep(window.location.search, eventStep(date, ev), today), "push");
+    if (base !== null) writeUrl(`${CALENDAR_PATH}${base}`, "replace");
+    writeUrl(dayStepUrl(window.location.search, { step: "day", date }, today), "push");
+    if (ev !== undefined) {
+      routeDates.set(routeKey(ev.publicCode, ev.occurrence ?? null), date);
+      writeUrl(dayStepUrl(window.location.search, eventStep(date, ev), today), "push");
+    }
   }
 
   // 닫힘이 주소에 반영된 뒤 기다리던 열기를 지금 렌더의 openDay 로 (옛 렌더의 urlStep 을 보지 않게)
@@ -339,13 +375,14 @@ export function CalendarScreen({ groupId }: Props) {
       return;
     }
     // 우리가 쌓은 칸을 다 되돌렸는데 남의 칸(새로고침 주소)이 남아 있으면 떼어 낸다
-    if (closing && ownDepth === 0) writeSearch(withDayStep(window.location.search, { step: "closed" }, today), "replace");
-  }, [urlStep, closing, ownDepth, today]);
+    if (closing && ownDepth === 0) writeUrl(dayStepUrl(calendarSearch(), { step: "closed" }, today), "replace");
+  }, [urlStep, closing, ownDepth, today, calendarSearch]);
 
-  /** 날짜 상세 안에서 한 단계 더 (일정 상세, 빠른 추가) */
+  /** 날짜 상세 안에서 한 단계 더 (일정 상세, 빠른 추가). 날짜 단계 위에서만 부르므로 주소는 /calendar 다 */
   function forward(target: StepTarget) {
     setIgnoreAdd(false);
-    writeSearch(withDayStep(window.location.search, target, today), "push");
+    if (target.step === "event") routeDates.set(routeKey(target.code, target.occurrence), target.date);
+    writeUrl(dayStepUrl(window.location.search, target, today), "push");
   }
 
   /** ← : 일정 상세/빠른 추가 → 날짜 상세. 우리가 쌓은 칸이면 history.back, 아니면 주소만 바꾼다 */
@@ -353,14 +390,13 @@ export function CalendarScreen({ groupId }: Props) {
     if (!urlStep.open) return;
     // 맨 위 칸(일정 상세/빠른 추가)을 우리가 쌓았으면 되돌리고, 새로고침 주소면 바꿔 쓴다
     if (ownDepth >= 1 && stepDepth(urlStep) === 2) window.history.back();
-    else writeSearch(withDayStep(window.location.search, { step: "day", date: urlStep.date }, today), "replace");
+    else writeUrl(dayStepUrl(calendarSearch(), { step: "day", date: urlStep.date }, today), "replace");
   }
-
 
   // 일정이 없어졌으면(다른 사람이 삭제) 날짜 상세로
   useEffect(() => {
-    if (eventMissing && urlStep.open) writeSearch(withDayStep(window.location.search, { step: "day", date: urlStep.date }, today), "replace");
-  }, [eventMissing, urlStep, today]);
+    if (eventMissing && urlStep.open) writeUrl(dayStepUrl(calendarSearch(), { step: "day", date: urlStep.date }, today), "replace");
+  }, [eventMissing, urlStep, today, calendarSearch]);
 
   // phone 일 상세 (#212). 날짜 단계만 달력 자리를 대신하고, 일정 상세/빠른 추가는 그 위 시트
   const dayView = !wide && visible;
@@ -369,7 +405,7 @@ export function CalendarScreen({ groupId }: Props) {
     if (!urlStep.open || urlStep.step !== "day" || date === openDate) return;
     setDayTarget(date);
     pick(date);
-    writeSearch(withDayStep(window.location.search, { step: "day", date }, today), "replace");
+    writeUrl(dayStepUrl(window.location.search, { step: "day", date }, today), "replace");
   }
   // 주간 줄 좌우 스와이프: 왼쪽으로 밀면 다음 주 같은 요일 (달력 스와이프와 같은 판단, #162)
   const stripRef = useMonthSwipe<HTMLUListElement>({
@@ -432,7 +468,7 @@ export function CalendarScreen({ groupId }: Props) {
     reload();
   }
 
-  const newHref = newEventHref(groupId, kstToIso(selected, "10:00"), kstToIso(selected, "11:00"));
+  const newHref = newEventLink(kstToIso(selected, "10:00"), kstToIso(selected, "11:00"));
   const thisYear = parseKey(today).y;
   const titleId = useId();
 
@@ -475,7 +511,7 @@ export function CalendarScreen({ groupId }: Props) {
       {sectionHead(
         `${titleId}-pup`,
         "다가오는 일정",
-        <Link href={`/g/${groupId}/upcoming`} className={moreCls}>
+        <Link href={UPCOMING_PATH} className={moreCls}>
           전체보기
           <IconChevronRight size={14} />
         </Link>,
@@ -537,7 +573,7 @@ export function CalendarScreen({ groupId }: Props) {
       {sectionHead(
         `${titleId}-pann`,
         "기념일",
-        <Link href={`/g/${groupId}/anniversaries`} className={moreCls}>
+        <Link href={ANNIVERSARIES_PATH} className={moreCls}>
           전체보기
           <IconChevronRight size={14} />
         </Link>,
@@ -547,7 +583,7 @@ export function CalendarScreen({ groupId }: Props) {
       ) : annCards.length === 0 ? (
         emptyLine(
           "기념일을 등록하면 D-day 가 보여요.",
-          <Link href={`/g/${groupId}/anniversaries`} className="font-bold text-btn">
+          <Link href={ANNIVERSARIES_PATH} className="font-bold text-btn">
             기념일 추가
           </Link>,
         )
@@ -621,13 +657,13 @@ export function CalendarScreen({ groupId }: Props) {
         <Skeleton className="h-6 w-28" />
       </div>
     ) : todayFree === null ? (
-      <Link href={`/g/${groupId}/free`} className={`${sumCard} hover:bg-hover`}>
+      <Link href={FREE_PATH} className={`${sumCard} hover:bg-hover`}>
         <span className={sumLabel}>{freeLabel}</span>
         <span className={`${sumValue} text-ink-2`}>없어요</span>
       </Link>
     ) : (
       <Link
-        href={newEventHref(groupId, todayFree.startsAt, todayFree.endsAt)}
+        href={newEventLink(todayFree.startsAt, todayFree.endsAt)}
         aria-label={`${freeLabel} ${timeOf(todayFree.startsAt)}부터 ${timeOf(todayFree.endsAt)}까지, 눌러서 바로 약속 잡기`}
         className={`${sumCard} hover:bg-hover`}
       >
@@ -645,7 +681,7 @@ export function CalendarScreen({ groupId }: Props) {
         <Skeleton className="h-6 w-24" />
       </div>
     ) : (
-      <Link href={`/g/${groupId}/anniversaries`} className={`${sumCard} hover:bg-hover`}>
+      <Link href={ANNIVERSARIES_PATH} className={`${sumCard} hover:bg-hover`}>
         <span className={sumLabel}>{annToday ? "오늘 기념일" : "다음 기념일"}</span>
         {nearest === null ? (
           <span className={`${sumValue} text-ink-2`}>없어요</span>
@@ -685,7 +721,6 @@ export function CalendarScreen({ groupId }: Props) {
       {/* phone 일 상세: 달력 자리를 대신한다 (#212) */}
       {dayView && surfaceDate && (
         <DayView
-          groupId={groupId}
           date={surfaceDate}
           today={today}
           titleId={`${titleId}-dv`}
@@ -699,7 +734,7 @@ export function CalendarScreen({ groupId }: Props) {
           onMonth={close}
           onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
           onAdd={() => forward({ step: "add", date: surfaceDate })}
-          newEventHref={(start, end) => newEventHref(groupId, start, end)}
+          newEventHref={newEventLink}
         />
       )}
       {/* 왼쪽: 월 헤더 + 달력 */}

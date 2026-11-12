@@ -10,7 +10,6 @@ import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
 import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
-import { todayKey } from "@/lib/date";
 import { webEmailEnabled } from "@/lib/email-route";
 import {
   eventShareAutoNext,
@@ -80,7 +79,7 @@ export default async function EventSharePage({
   const sp = await searchParams;
   const { token, data, error } = await loadShare(raw);
   // 이미 멤버면 화면 없이 그 일정이 열린 달력으로 (D-184). 페이지를 여는 것만으로 합류하지 않는다 (D-41)
-  if (data?.viewer.member) redirect(eventShareLandingHref(data.viewer, todayKey()));
+  if (data?.viewer.member) redirect(eventShareLandingHref(data.viewer));
 
   const session = (await cookies()).get(SESSION_COOKIE)?.value;
   const loggedIn = Boolean(session);

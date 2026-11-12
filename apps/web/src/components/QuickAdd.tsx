@@ -3,6 +3,7 @@
 // 날짜 칸을 누르면 바로 열리던 경로(모바일 재탭, PC 빈 곳 클릭)는 없앴다. 바로 추가는 + 버튼이 맡는다.
 // 필드: 제목, 종일, 시작/종료 시각. 저장은 useCreateEvent, "자세히" 는 새 일정 폼으로 값을 넘긴다.
 import { useRouter } from "next/navigation";
+import { newEventHref } from "@/lib/routes";
 import { useId, useState } from "react";
 import { IconChevronLeft, IconClose } from "./icons";
 import { TimeList, TimePicker } from "./pickers";
@@ -100,7 +101,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId 
     if (title.trim()) q.set("title", title.trim());
     if (allDay) q.set("allDay", "1");
     if (reminder !== "NONE") q.set("reminder", reminder);
-    router.push(`/g/${groupId}/events/new?${q.toString()}`);
+    router.push(newEventHref(q));
   }
 
   return (

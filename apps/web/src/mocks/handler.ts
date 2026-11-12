@@ -15,8 +15,7 @@ import {
   memberOf,
   type EventLogRow,
   type EventRow,
-  type Store,
-} from "./fixtures";
+  type Store, mockEventCode, mockGroupCode } from "./fixtures";
 import { mockEmailLogin } from "./email-login";
 import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence } from "./recurrence";
 
@@ -64,6 +63,7 @@ function groupDetail(s: Store, groupId: number, userId: number) {
     inviteCode: grp.inviteCode,
     inviteUrl: grp.inviteCode ? inviteUrlOf(grp.inviteCode) : null,
     inviteShareUrl: grp.inviteCode ? `${inviteUrlOf(grp.inviteCode)}?by=${inviteMarkerOf(groupId, userId)}` : null,
+    publicCode: mockGroupCode(grp.id),
     createdAt: grp.createdAt,
     members,
     me: myMember(s, groupId, userId),
@@ -158,6 +158,7 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
   return {
     id: e.id,
     groupId: e.groupId,
+    publicCode: mockEventCode(e.id),
     title: occ?.title ?? e.title,
     startsAt: occ?.startsAt ?? e.startsAt,
     endsAt: occ?.endsAt ?? e.endsAt,
@@ -339,6 +340,7 @@ export function mockHandle(ctx: Ctx): MockResult {
       inviter: inviter ? { nickname: memberOf(s, grp.id, inviter.userId).displayName } : null,
       isMember,
       groupId: isMember ? grp.id : null,
+      groupCode: isMember ? mockGroupCode(grp.id) : null,
     });
   }
 
@@ -468,6 +470,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           id: grp.id,
           type: grp.type,
           name: grp.name,
+          publicCode: mockGroupCode(grp.id),
           memberCount: s.memberships.filter((x) => x.groupId === grp.id).length,
           me: { color: m.color, displayName: memberOf(s, grp.id, userId).displayName },
           unreadNewsCount: unread(s, grp.id, userId),
@@ -511,6 +514,15 @@ export function mockHandle(ctx: Ctx): MockResult {
       });
     }
     return ok(groupDetail(s, grp.id, userId));
+  }
+
+  // (#311) 공개 코드로 일정 하나 GET /events/:code?occurrence= (api.md 2.3). 내 팀 일정이 아니거나 없으면 모두 404.
+  // 찾은 뒤에는 단건 조회와 같은 응답이라 그 경로로 다시 처리한다
+  if (seg[0] === "events" && seg.length === 2 && method === "GET") {
+    const code = seg[1].toLowerCase();
+    const e = s.events.find((x) => mockEventCode(x.id) === code);
+    if (!e || !s.memberships.some((m) => m.groupId === e.groupId && m.userId === userId)) return err(404, "NOT_FOUND", "일정을 찾을 수 없어요");
+    return mockHandle({ ...ctx, path: `/groups/${e.groupId}/events/${e.id}` });
   }
 
   // /groups/:groupId/...
@@ -929,6 +941,7 @@ export function mockHandle(ctx: Ctx): MockResult {
             id: l.id,
             action: l.action,
             eventId: l.eventId,
+            eventCode: l.eventId !== null && s.events.some((e) => e.id === l.eventId) ? mockEventCode(l.eventId) : null,
             title: l.title,
             startsAt: l.startsAt,
             endsAt: l.endsAt,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { eventCopyHref, eventEditHref, eventKey, followingUntil, formRepeatOf, keepsLoadedTimes, repeatRuleError } from "../recurrence";
+import { eventKey, followingUntil, formRepeatOf, keepsLoadedTimes, repeatRuleError } from "../recurrence";
+import { eventCopyHref, eventEditHref } from "../routes";
 import { kstToIso } from "../date";
 
 const ms = (k: string, t = "00:00") => Date.parse(kstToIso(k, t));
@@ -33,9 +34,11 @@ describe("repeatRuleError (설계 4-1)", () => {
 
 describe("수정, 복제 주소", () => {
   it("회차면 occurrence 를 싣는다", () => {
-    expect(eventEditHref(2, { id: 5, occurrence: null })).toBe("/g/2/events/5");
-    expect(eventEditHref(2, { id: 5, occurrence: "2026-11-18" })).toBe("/g/2/events/5?occurrence=2026-11-18");
-    expect(eventCopyHref(2, { id: 5, occurrence: "2026-11-18" })).toBe("/g/2/events/new?copy=5&occurrence=2026-11-18");
+    expect(eventEditHref({ publicCode: "evntcode", occurrence: null })).toBe("/events/evntcode/edit");
+    expect(eventEditHref({ publicCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/evntcode/edit?occurrence=2026-11-18");
+    expect(eventEditHref({ publicCode: "evntcode", occurrence: "2026-11-18" }, "following")).toBe("/events/evntcode/edit?occurrence=2026-11-18&scope=following");
+    expect(eventCopyHref({ publicCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/new?copy=evntcode&occurrence=2026-11-18");
+    expect(eventCopyHref({ publicCode: "evntcode", occurrence: null })).toBe("/events/new?copy=evntcode");
   });
 });
 

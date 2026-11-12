@@ -1,4 +1,5 @@
-// (#300) 처음 여는 달력 (D-191, D-192). 맨 `/` 진입에서만 쓴다. 딥링크(/g/..., /join/..., 알림 누름)는 이 규칙을 거치지 않는다
+// (#300) 처음 여는 달력 (D-191, D-192). 맨 `/` 진입에서만 쓴다 (app/route.ts). 딥링크(/calendar?team=, /events/..., /join/..., 알림 누름)는 이 규칙을 거치지 않는다.
+// (#311) 쿠키 없이 /calendar 를 바로 열면 (team) 레이아웃이 remembered=null 로 이 함수를 불러 LAST 규칙(개인 팀, 없으면 첫 팀)을 쓴다
 import type { GroupSummary, StartCalendar, StartCalendarMode } from "./types";
 
 /** 설정을 못 읽었을 때(GET /me 실패)와 기본값 */

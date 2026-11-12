@@ -70,7 +70,7 @@ describe('AuthService', () => {
         rawProfile: kakaoProfile.raw,
         nickname: '카카오닉',
       },
-      { name: PERSONAL_GROUP_NAME, color: '#F26D6D' },
+      { name: PERSONAL_GROUP_NAME, color: '#F26D6D', publicCode: expect.stringMatching(/^[a-z0-9]{8}$/) },
     );
   });
 

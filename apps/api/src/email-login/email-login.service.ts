@@ -3,6 +3,7 @@ import { AuthService, PERSONAL_GROUP_NAME } from '../auth/auth.service.js';
 import { sanitizeNext } from '../auth/next-path.js';
 import { ApiException } from '../common/errors.js';
 import { MEMBER_COLORS } from '../common/member.js';
+import { generatePublicCode } from '../common/public-code.js';
 import { isUniqueViolation } from '../groups/invite-code.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { hashCode, hmacHex, maskEmail, newCode, newToken, normalizeEmail, safeEqualHex, sha256hex, TOKEN_PATTERN } from './email-crypto.js';
@@ -171,7 +172,7 @@ export class EmailLoginService {
     try {
       const user = await this.users.createWithAccountTx(
         { provider: 'EMAIL', providerUserId: ticket.email, email: ticket.email, rawProfile: null, nickname },
-        { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] },
+        { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0], publicCode: generatePublicCode() },
       );
       userId = user.id;
     } catch (error) {

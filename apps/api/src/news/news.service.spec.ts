@@ -35,8 +35,8 @@ describe('NewsService', () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ lastSeenAt: new Date('2026-11-05T00:00:00.000Z'), joinedAt: new Date('2026-09-01T00:00:00.000Z') }));
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     eventLogs.listRecentByOthers.mockResolvedValue([
-      { id: 301, action: 'UPDATED', eventId: 100, actorId: 2, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: new Date('2026-11-06T00:00:00.000Z'), repeat: null, scope: null, occurrence: null, actor: { nickname: '밥', profileImageUrl: null } },
-      { id: 302, action: 'DELETED', eventId: null, actorId: null, title: 't2', startsAt: now, endsAt: now, allDay: true, createdAt: new Date('2026-11-04T00:00:00.000Z'), repeat: null, scope: null, occurrence: null, actor: null },
+      { id: 301, action: 'UPDATED', eventId: 100, eventCode: 'ev100code', actorId: 2, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: new Date('2026-11-06T00:00:00.000Z'), repeat: null, scope: null, occurrence: null, actor: { nickname: '밥', profileImageUrl: null } },
+      { id: 302, action: 'DELETED', eventId: null, eventCode: null, actorId: null, title: 't2', startsAt: now, endsAt: now, allDay: true, createdAt: new Date('2026-11-04T00:00:00.000Z'), repeat: null, scope: null, occurrence: null, actor: null },
     ]);
     const result = await service.list(1, 10, now);
     expect(eventLogs.listRecentByOthers).toHaveBeenCalledWith(10, 1, new Date('2026-10-10T00:00:00.000Z'), 50);
@@ -69,8 +69,8 @@ describe('NewsService', () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     eventLogs.listRecentByOthers.mockResolvedValue([
-      { id: 303, action: 'UPDATED', eventId: 200, actorId: null, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: now, repeat: 'WEEKLY', scope: 'FOLLOWING', occurrence: '2026-11-18', actor: null },
-      { id: 304, action: 'CREATED', eventId: 201, actorId: null, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: now, repeat: 'MONTHLY', scope: null, occurrence: null, actor: null },
+      { id: 303, action: 'UPDATED', eventId: 200, eventCode: 'ev200code', actorId: null, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: now, repeat: 'WEEKLY', scope: 'FOLLOWING', occurrence: '2026-11-18', actor: null },
+      { id: 304, action: 'CREATED', eventId: 201, eventCode: 'ev201code', actorId: null, title: 't', startsAt: now, endsAt: now, allDay: false, createdAt: now, repeat: 'MONTHLY', scope: null, occurrence: null, actor: null },
     ]);
     const { items } = await service.list(1, 10, now);
     expect(items[0]).toMatchObject({ repeat: 'WEEKLY', scope: 'FOLLOWING', occurrence: '2026-11-18' });
@@ -82,7 +82,7 @@ describe('NewsService', () => {
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     eventLogs.listRecentByOthers.mockResolvedValue([eventLog(301, '2026-11-06T00:00:00.000Z')]);
     const { items } = await service.list(1, 10, now);
-    expect(Object.keys(items[0]).sort()).toEqual(['action', 'actor', 'allDay', 'createdAt', 'endsAt', 'eventId', 'id', 'isNew', 'occurrence', 'repeat', 'scope', 'startsAt', 'title']);
+    expect(Object.keys(items[0]).sort()).toEqual(['action', 'actor', 'allDay', 'createdAt', 'endsAt', 'eventCode', 'eventId', 'id', 'isNew', 'occurrence', 'repeat', 'scope', 'startsAt', 'title']);
     expect(activities.listRecentByOthers).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe('NewsService', () => {
 
 function eventLog(id: number, createdAt: string) {
   const at = new Date('2026-11-09T00:00:00.000Z');
-  return { id, action: 'UPDATED' as const, eventId: 100, actorId: 2, title: 't', startsAt: at, endsAt: at, allDay: false, createdAt: new Date(createdAt), repeat: null, scope: null, occurrence: null, actor: { nickname: '밥', profileImageUrl: null } };
+  return { id, action: 'UPDATED' as const, eventId: 100, eventCode: 'ev100code', actorId: 2, title: 't', startsAt: at, endsAt: at, allDay: false, createdAt: new Date(createdAt), repeat: null, scope: null, occurrence: null, actor: { nickname: '밥', profileImageUrl: null } };
 }
 
 function activity(id: number, type: ActivityNewsItem['type'], createdAt: string, overrides: Partial<{ actorId: number | null; actorName: string; payload: unknown; actor: { nickname: string; profileImageUrl: string | null } | null }> = {}) {

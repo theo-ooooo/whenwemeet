@@ -4,6 +4,7 @@
 // "이 날 일정 추가" 는 목록과 같이 스크롤되면 바쁜 날 잘리므로 표면(시트, 팝오버)의 고정 바닥 바에 둔다: DayAddButton (#175)
 // 단계 전환은 같은 표면 안에서 내용만 바꾼다. 주소(?day, &event, &add) 는 CalendarScreen 이 맡는다
 import Link from "next/link";
+import { ANNIVERSARIES_PATH } from "@/lib/routes";
 import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
 import { IconCalendar, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
@@ -99,7 +100,7 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onOpenEvent }: Props) {
+function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, free, onClose, onOpenEvent }: Props) {
   const who = useWho();
   const holiday = holidayOf(date);
   const empty = events !== null && !eventsError && events.length === 0 && anniversaries.length === 0;
@@ -142,7 +143,7 @@ function DayBody({ groupId, date, today, titleId, events, eventsError, onRetry, 
           {anniversaries.map((o) => (
             <li key={`${o.anniversary.id}-${o.type}`}>
               <Link
-                href={`/g/${groupId}/anniversaries`}
+                href={ANNIVERSARIES_PATH}
                 className="-mx-1.5 flex h-9 items-center gap-2 rounded-sm px-1.5 text-[14px] hover:bg-hover"
               >
                 <IconHeart size={16} className="shrink-0 text-acc-ink" />

@@ -15,6 +15,7 @@ const config = { getOrThrow: () => 'http://web' } as never;
 const SERIES: EventRow = {
   id: 200,
   groupId: 10,
+  publicCode: 'srescode',
   title: '저녁',
   startsAt: kst('2026-11-11T19:00:00'),
   endsAt: kst('2026-11-11T21:00:00'),

@@ -55,6 +55,7 @@ export function planAnniversaries(rows: AnniversaryPlanRow[], day: string): Plan
         payload: anniversaryPayload({
           groupId: row.groupId,
           groupName: row.groupName,
+          groupCode: row.groupCode,
           name: row.name,
           label: first.label,
           date: target,

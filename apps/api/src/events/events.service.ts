@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { Member, MemberResolver } from '../common/member.js';
+import { parsePublicCode } from '../common/public-code.js';
 import { isCalendarDate, parseIsoDate } from '../common/validation.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { type EventReminder, remindAt, reminderFits, reminderMismatchMessage } from '../push/remind-at.js';
@@ -49,6 +50,8 @@ export const MAX_RANGE_DAYS = 62;
 export interface EventView {
   id: number;
   groupId: number;
+  /** (#311) 주소용 공개 코드 (`/events/<코드>`) */
+  publicCode: string;
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -191,6 +194,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
   return {
     id: row.id,
     groupId: row.groupId,
+    publicCode: row.publicCode,
     title: row.title,
     startsAt: row.startsAt,
     endsAt: row.endsAt,
@@ -335,6 +339,17 @@ export class EventsService {
       ...toOccurrenceView(row, occurrence, resolver),
       hasLaterExceptions: exceptions.some((exception) => exception.occurrence > date),
     };
+  }
+
+  /**
+   * (#311) 공개 코드로 일정 하나 (`GET /events/:code`). 웹의 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다.
+   * 코드가 틀리거나 없거나 그 팀 멤버가 아니면 모두 같은 NOT_FOUND (코드의 존재를 드러내지 않는다, D-197)
+   */
+  async getByCode(userId: number, codeRaw: unknown, occurrenceRaw?: unknown): Promise<EventDetailView> {
+    const code = parsePublicCode(codeRaw);
+    const row = code === null ? null : await this.events.findByPublicCode(code);
+    if (!row || !(await this.memberships.isMember(userId, row.groupId))) throw NOT_FOUND();
+    return this.get(userId, row.groupId, row.id, occurrenceRaw);
   }
 
   async create(userId: number, groupId: number, dto: EventInputDto): Promise<EventView> {

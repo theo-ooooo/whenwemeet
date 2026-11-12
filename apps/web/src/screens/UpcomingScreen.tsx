@@ -11,7 +11,8 @@ import { useWho } from "@/components/Participants";
 import { ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaries, useEvents } from "@/hooks";
 import { occurrenceTitle } from "@/lib/anniversary";
-import { calendarEventHref } from "@/lib/calendar-url";
+import { useGroupContext } from "@/components/AppShell";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventHref, newEventHref } from "@/lib/routes";
 import { dayBadge } from "@/lib/day-detail";
 import { formatDateKo, kstToIso, todayKey, type DateKey } from "@/lib/date";
 import { eventKey } from "@/lib/recurrence";
@@ -26,9 +27,8 @@ import {
   type UpcomingDay,
 } from "@/lib/upcoming";
 
-type Props = { groupId: number };
-
-export function UpcomingScreen({ groupId }: Props) {
+export function UpcomingScreen() {
+  const { groupId } = useGroupContext();
   // 화면을 연 순간 기준으로 고정한다 (창 경계와 끝난 일정 판정이 렌더마다 흔들리지 않게)
   const [today] = useState(todayKey);
   const [nowMs] = useState(Date.now);
@@ -37,7 +37,7 @@ export function UpcomingScreen({ groupId }: Props) {
   const annQ = useAnniversaries(groupId);
   // 기념일은 못 받아도 일정만 보여 준다
   const anniversaries = annQ.data ?? (annQ.error ? [] : null);
-  const newHref = `/g/${groupId}/events/new?start=${encodeURIComponent(kstToIso(today, "10:00"))}&end=${encodeURIComponent(kstToIso(today, "11:00"))}`;
+  const newHref = newEventHref({ start: kstToIso(today, "10:00"), end: kstToIso(today, "11:00") });
 
   return (
     <div className="pt-1">
@@ -45,7 +45,7 @@ export function UpcomingScreen({ groupId }: Props) {
       <div className="flex h-10 items-center justify-between gap-3">
         <h1 className="t-title">다가오는 일정</h1>
         <Link
-          href={`/g/${groupId}/calendar`}
+          href={CALENDAR_PATH}
           className="hit flex h-8 shrink-0 items-center gap-0.5 rounded-sm bg-paper pl-2 pr-3 text-[13px] font-bold hover:brightness-95 fold:hidden"
         >
           <IconChevronLeft size={16} />
@@ -125,7 +125,7 @@ function WindowList(props: WindowProps) {
           )}
         </p>
       ) : (
-        <DayGroups groupId={groupId} days={days} prevDate={prevDate} today={today} first={index === 0} />
+        <DayGroups days={days} prevDate={prevDate} today={today} first={index === 0} />
       )}
 
       {isLast ? (
@@ -147,13 +147,11 @@ function WindowList(props: WindowProps) {
 }
 
 function DayGroups({
-  groupId,
   days,
   prevDate,
   today,
   first,
 }: {
-  groupId: number;
   days: UpcomingDay[];
   prevDate: DateKey | null;
   today: DateKey;
@@ -180,7 +178,7 @@ function DayGroups({
                 {d.anniversaries.map((o, j) => (
                   <Row key={`a${o.anniversary.id}-${o.type}-${o.n ?? ""}`} divider={j > 0}>
                     <Link
-                      href={`/g/${groupId}/anniversaries`}
+                      href={ANNIVERSARIES_PATH}
                       aria-label={`기념일 ${occurrenceTitle(o)}, ${dayBadge(o.date, today)}`}
                       className={rowCls}
                     >
@@ -199,7 +197,7 @@ function DayGroups({
                   return (
                     <Row key={eventKey(ev)} divider={j > 0 || d.anniversaries.length > 0}>
                       <Link
-                        href={calendarEventHref(groupId, d.date, ev, today)}
+                        href={eventHref(ev)}
                         aria-label={withWho(`${ev.title}, ${time}`, ev, who)}
                         className={rowCls}
                       >

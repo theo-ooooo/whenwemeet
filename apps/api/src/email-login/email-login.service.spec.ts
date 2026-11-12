@@ -350,7 +350,7 @@ describe('EmailLoginService (#245)', () => {
       expect(await service.signup(SIGNUP, '닉네임', 'web')).toEqual({ token: 'jwt-5', next: '/join/ABC123?auto=1' });
       expect(users.createWithAccountTx).toHaveBeenCalledWith(
         { provider: 'EMAIL', providerUserId: 'kim@example.com', email: 'kim@example.com', rawProfile: null, nickname: '닉네임' },
-        { name: '내 달력', color: '#F26D6D' },
+        { name: '내 달력', color: '#F26D6D', publicCode: expect.stringMatching(/^[a-z0-9]{8}$/) },
       );
       expect(users.markAppLogin).not.toHaveBeenCalled();
       await service.signup(SIGNUP, '닉네임', 'app');

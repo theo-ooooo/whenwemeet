@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { IMPORT_PATH } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useGroupContext } from "@/components/AppShell";
@@ -15,8 +16,8 @@ import { inviteKakaoFeed, preloadKakaoSdk, shareKakaoFeed } from "@/lib/kakao-sh
 import { COLOR_NAMES, memberColor, ON_MEMBER_COLOR, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
 
-export function SettingsScreen({ groupId, openInvite }: { groupId: number; openInvite: boolean }) {
-  const { group, error, refresh, setGroup } = useGroupContext();
+export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
+  const { groupId, group, error, refresh, setGroup } = useGroupContext();
 
   if (error && !group) {
     return (
@@ -56,7 +57,7 @@ export function SettingsScreen({ groupId, openInvite }: { groupId: number; openI
             <MeSection group={group} onSaved={setGroup} />
             {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
             {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
-            <ImportSection groupId={groupId} personal={group.type === "PERSONAL"} />
+            <ImportSection personal={group.type === "PERSONAL"} />
             {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
           </div>
         </div>
@@ -333,10 +334,10 @@ function NotifySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Gr
 }
 
 /* (#279) 일정 가져오기 (.ics). 개인 달력에도 같은 줄 */
-function ImportSection({ groupId, personal }: { groupId: number; personal: boolean }) {
+function ImportSection({ personal }: { personal: boolean }) {
   return (
     <section className="rounded-xl bg-paper px-3.5 py-1">
-      <Link href={`/g/${groupId}/import`} className="flex min-h-12 items-center gap-3 py-1.5">
+      <Link href={IMPORT_PATH} className="flex min-h-12 items-center gap-3 py-1.5">
         <span className="min-w-0 flex-1">
           <span className="block text-[14px] font-semibold leading-5">일정 가져오기</span>
           <span className="t-sub block">

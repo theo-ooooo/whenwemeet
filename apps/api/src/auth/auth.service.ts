@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'node:crypto';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MEMBER_COLORS } from '../common/member.js';
+import { generatePublicCode } from '../common/public-code.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { sanitizeNext } from './next-path.js';
 import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js';
@@ -71,7 +72,7 @@ export class AuthService {
         nickname: profile.nickname,
         credentials: profile.credentials,
       },
-      { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0] },
+      { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0], publicCode: generatePublicCode() },
     );
     const profileImageUrl = await this.avatars.importFromUrl(user.id, profile.profileImageUrl);
     return profileImageUrl ? { ...user, profileImageUrl } : user;
