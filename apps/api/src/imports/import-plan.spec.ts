@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import ICAL from 'ical.js';
 import { expand, kstDate } from '../events/recurrence.js';
-import { parseIcs } from './ics-parse.js';
+import { markBareDates, parseIcs } from './ics-parse.js';
 import {
   buildCandidates,
   clip,
@@ -10,6 +10,7 @@ import {
   type ImportRange,
   importWindow,
   type PlannedEvent,
+  selectEvents,
   sha256Hex,
   toMemo,
   toTitle,
@@ -179,6 +180,47 @@ describe('TimeTree 도구 산출물', () => {
   });
 });
 
+describe('TimeTree 도구 1.0.0 산출물 (#309, VALUE=DATE 없는 종일)', () => {
+  const result = plan(fixtureText('timetree-1.0'));
+  const span = (title: string) => {
+    const [event] = byTitle(result.events, title);
+    return { allDay: event.allDay, startsAt: iso(event.startsAt), endsAt: iso(event.endsAt) };
+  };
+
+  it('못 읽음 없이 모두 넣는다', () => {
+    expect(result.preview).toMatchObject({ total: 8, skipped: [], warnings: [] });
+    // 한 번짜리 7 + 매주 반복 1 (옮김)
+    expect(result.preview.toCreate).toBe(8);
+  });
+
+  it('DTEND 는 배타: 하루, 사흘, 열하루가 KST 00:00 ~ 끝 날 다음 날 00:00', () => {
+    expect(span('하루 종일')).toEqual({ allDay: true, startsAt: '2026-11-19T15:00:00.000Z', endsAt: '2026-11-20T15:00:00.000Z' });
+    expect(span('사흘 여행')).toEqual({ allDay: true, startsAt: '2026-11-24T15:00:00.000Z', endsAt: '2026-11-27T15:00:00.000Z' });
+    expect(span('열하루 출장')).toEqual({ allDay: true, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-11T15:00:00.000Z' });
+  });
+
+  it('DTEND 가 DTSTART 와 같거나 없으면 하루', () => {
+    expect(span('끝이 시작과 같음')).toEqual({ allDay: true, startsAt: '2026-12-04T15:00:00.000Z', endsAt: '2026-12-05T15:00:00.000Z' });
+    expect(span('끝 없음')).toEqual({ allDay: true, startsAt: '2026-12-05T15:00:00.000Z', endsAt: '2026-12-06T15:00:00.000Z' });
+  });
+
+  it('시간 일정: TZID 와 UTC', () => {
+    expect(span('저녁 약속')).toEqual({ allDay: false, startsAt: '2026-12-07T10:00:00.000Z', endsAt: '2026-12-07T12:00:00.000Z' });
+    expect(span('UTC 회의')).toEqual({ allDay: false, startsAt: '2026-12-08T01:00:00.000Z', endsAt: '2026-12-08T02:00:00.000Z' });
+  });
+
+  it('종일 매주 + 날짜만 쓴 UNTIL, EXDATE 는 WEEKLY 와 취소 예외', () => {
+    const [weekly] = byTitle(result.events, '매주 목요일 종일');
+    expect(weekly).toMatchObject({ allDay: true, repeat: 'WEEKLY', repeatUntil: '2026-12-31' });
+    expect(weekly.exceptions.map((exception) => [exception.occurrence, exception.cancelled])).toEqual([['2026-12-17', true]]);
+  });
+
+  it('진짜 잘못된 날짜는 여전히 INVALID', () => {
+    const bytes = ics(...vevent('UID:bad1', 'DTSTART:20261340', 'DTEND:20261341'), ...vevent('UID:bad2', 'DTSTART:2026111'));
+    expect(plan(bytes).preview).toMatchObject({ toCreate: 0, skipped: [{ reason: 'INVALID', count: 2 }] });
+  });
+});
+
 describe('손으로 만든 엣지', () => {
   const result = plan(Buffer.from(fixtureText('edge')));
 
@@ -310,10 +352,10 @@ describe('반복 옮기기 표', () => {
   });
 
   it('반복으로 옮긴 회차는 ical.js 가 펼친 회차와 같다 (EXDATE 반영)', () => {
-    for (const name of ['google', 'naver', 'timetree']) {
+    for (const name of ['google', 'naver', 'timetree', 'timetree-1.0']) {
       const bytes = fixtureText(name);
       const kept = plan(bytes).events.filter((event) => event.source === 'KEPT');
-      const root = new ICAL.Component(ICAL.parse(bytes.toString('utf8').replace(/\r\n[ \t]/g, '')) as unknown[]);
+      const root = new ICAL.Component(ICAL.parse(markBareDates(bytes.toString('utf8').replace(/\r\n[ \t]/g, ''))) as unknown[]);
       for (const event of kept) {
         const from = event.startsAt;
         const to = new Date(from.getTime() + 400 * 24 * 60 * 60 * 1000);
@@ -351,6 +393,22 @@ describe('기간', () => {
     expect(plan(bytes, 'year').preview.toCreate).toBe(1);
   });
 
+  it('전체(#314)는 아래 끝이 없다: 몇 년 전 일정과 반복도 넣고 TOO_OLD 가 없다', () => {
+    const bytes = ics(
+      ...vevent('UID:old', 'DTSTART;VALUE=DATE:20150301', 'DTEND;VALUE=DATE:20150302'),
+      ...vevent('UID:p', 'DTSTART;TZID=Asia/Seoul:20260301T100000', 'DTEND;TZID=Asia/Seoul:20260301T110000'),
+      ...vevent('UID:w', 'DTSTART;TZID=Asia/Seoul:20200106T100000', 'DTEND;TZID=Asia/Seoul:20200106T110000', 'RRULE:FREQ=WEEKLY;COUNT=3'),
+    );
+    expect(iso(importWindow('all', NOW).lo)).toBe('1899-12-31T15:00:00.000Z');
+    expect(plan(bytes, 'year').preview.skipped).toEqual([{ reason: 'TOO_OLD', count: 2 }]);
+    const all = plan(bytes, 'all');
+    expect(all.preview.skipped).toEqual([]);
+    expect(all.preview.toCreate).toBe(3);
+    // 옮긴 반복은 원래 첫 회차 그대로
+    expect(iso(all.events[0].startsAt)).toBe('2015-02-28T15:00:00.000Z');
+    expect(all.events.find((event) => event.repeat === 'WEEKLY')!.startsAt.toISOString()).toBe('2020-01-06T01:00:00.000Z');
+  });
+
   it('오늘 시작해 진행 중인 일정은 넣는다 (끝이 오늘 00:00 뒤)', () => {
     const bytes = ics(...vevent('UID:n', 'DTSTART;VALUE=DATE:20261110', 'DTEND;VALUE=DATE:20261112'));
     expect(plan(bytes).preview.toCreate).toBe(1);
@@ -383,6 +441,46 @@ describe('중복과 상한', () => {
     const result = plan(ics(...one, ...one));
     expect(result.preview.toCreate).toBe(1);
     expect(result.events[0].uidHash).toBe(sha256Hex('~같음|2026-12-01T00:00:00.000Z|2026-12-01T01:00:00.000Z'));
+  });
+});
+
+describe('골라서 넣기 (#314)', () => {
+  it('items 는 넣을 일정 전부(시작 순)이고 key 는 중복 방지 해시와 같다', () => {
+    const result = plan(fixtureText('google'));
+    expect(result.preview.items).toHaveLength(result.preview.toCreate);
+    expect(result.preview.items.map((item) => item.key)).toEqual(result.events.map((event) => event.uidHash));
+    expect(new Set(result.preview.items.map((item) => item.key)).size).toBe(result.preview.items.length);
+    const first = result.events[0];
+    expect(result.preview.items[0]).toEqual({
+      key: first.uidHash,
+      title: first.title,
+      startsAt: first.startsAt,
+      endsAt: first.endsAt,
+      allDay: first.allDay,
+      repeat: first.repeat,
+    });
+    // 예시 5개는 옛 웹을 위해 그대로
+    expect(result.preview.sample).toHaveLength(5);
+  });
+
+  it('OVER_LIMIT 이면 items 도 1,000개까지', () => {
+    const lines: string[] = [];
+    for (let i = 0; i < IMPORT_MAX_EVENTS + 3; i += 1) {
+      const start = new Date(Date.UTC(2026, 11, 1) + i * 3600_000).toISOString().replace(/[-:]/g, '').slice(0, 15);
+      lines.push(...vevent(`UID:${i}`, `DTSTART:${start}Z`));
+    }
+    expect(plan(ics(...lines)).preview.items).toHaveLength(IMPORT_MAX_EVENTS);
+  });
+
+  it('selectEvents: include 가 없으면 전부, 있으면 그 키만, 모르는 키는 무시', () => {
+    const result = plan(fixtureText('naver'));
+    expect(selectEvents(result, undefined)).toBe(result);
+    const keys = result.events.map((event) => event.uidHash);
+    const picked = selectEvents(result, [keys[0], keys[2], sha256Hex('없는 일정')]);
+    expect(picked.events.map((event) => event.uidHash)).toEqual([keys[0], keys[2]]);
+    // 미리보기 값(건너뜀 수 등)은 그대로. 뺀 일정은 건너뜀으로 세지 않는다
+    expect(picked.preview).toBe(result.preview);
+    expect(selectEvents(result, [sha256Hex('없는 일정')]).events).toEqual([]);
   });
 });
 

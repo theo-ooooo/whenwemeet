@@ -9,6 +9,7 @@ const request = (await import("@/app/auth/email/request/route")).POST;
 const code = (await import("@/app/auth/email/code/route")).POST;
 const link = (await import("@/app/auth/email/link/route")).POST;
 const signup = (await import("@/app/auth/email/signup/route")).POST;
+const { opensInstalledApp } = await import("@/lib/well-known");
 
 const ORIGIN = "https://whenwemeet.day";
 const TOKEN = "A".repeat(43);
@@ -91,14 +92,14 @@ describe("POST /auth/email/request", () => {
 });
 
 describe("POST /auth/email/code", () => {
-  it("SESSION: wwm_session 설정, wwm_group 삭제, redirect = safeNext(next). 토큰은 본문에 없다", async () => {
+  it("SESSION: wwm_session 설정, wwm_group 삭제, redirect = 착지 화면?next=safeNext(next). 토큰은 본문에 없다", async () => {
     upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next: "/join/ABC123?auto=1" }));
     const res = await code(
       jsonReq("/auth/email/code", { email: "a@b.co", code: "123 456" }, { ua: "Mozilla/5.0 WhenwemeetApp/1.1.0 (ios) EmailLogin/1" }),
     );
     expect(JSON.parse(upstream.mock.calls[0][0].body)).toEqual({ email: "a@b.co", code: "123456", client: "app" });
     const body = await res.json();
-    expect(body.data).toEqual({ redirect: "/join/ABC123?auto=1" });
+    expect(body.data).toEqual({ redirect: "/auth/landing?next=%2Fjoin%2FABC123%3Fauto%3D1" });
     expect(JSON.stringify(body)).not.toContain("h.p.s");
     const session = res.cookies.get("wwm_session");
     expect(session?.value).toBe("h.p.s");
@@ -117,9 +118,9 @@ describe("POST /auth/email/code", () => {
     expect(c?.maxAge).toBe(1800);
     expect(res.cookies.get("wwm_session")).toBeUndefined();
   });
-  it("next 가 바깥 주소면 /", async () => {
+  it("next 가 바깥 주소면 next 없는 착지 화면 (= /)", async () => {
     upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next: "https://evil.com" }));
-    expect((await (await code(jsonReq("/auth/email/code", { email: "a@b.co", code: "000000" }))).json()).data.redirect).toBe("/");
+    expect((await (await code(jsonReq("/auth/email/code", { email: "a@b.co", code: "000000" }))).json()).data.redirect).toBe("/auth/landing");
   });
   it("틀린 코드는 attemptsLeft 를 그대로", async () => {
     upstream.mockResolvedValue(errEnv(400, "EMAIL_CODE_INVALID", { attemptsLeft: 4 }));
@@ -133,12 +134,12 @@ describe("POST /auth/email/code", () => {
 });
 
 describe("POST /auth/email/link (303)", () => {
-  it("SESSION 이면 next 로 303 + 세션 쿠키", async () => {
+  it("SESSION 이면 착지 화면으로 303 + 세션 쿠키 (next 는 쿼리로, #307)", async () => {
     upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next: "/g/2/calendar" }));
     const res = await link(formReq({ token: TOKEN }));
     expect(upstream.mock.calls[0][0].path).toBe("/auth/email/link");
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe(`${ORIGIN}/g/2/calendar`);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/auth/landing?next=%2Fg%2F2%2Fcalendar`);
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.cookies.get("wwm_session")?.value).toBe("h.p.s");
   });
@@ -169,7 +170,7 @@ describe("POST /auth/email/signup", () => {
     upstream.mockResolvedValue(okEnv({ token: "h.p.s", next: "/join/ABC123?auto=1" }));
     const res = await signup(jsonReq("/auth/email/signup", { nickname: " 지우 " }, { cookie: "wwm_signup=ticket" }));
     expect(JSON.parse(upstream.mock.calls[0][0].body)).toEqual({ signupToken: "ticket", nickname: "지우", client: "web" });
-    expect((await res.json()).data).toEqual({ redirect: "/join/ABC123?auto=1" });
+    expect((await res.json()).data).toEqual({ redirect: "/auth/landing?next=%2Fjoin%2FABC123%3Fauto%3D1" });
     expect(res.cookies.get("wwm_session")?.value).toBe("h.p.s");
     expect(res.cookies.get("wwm_signup")?.maxAge).toBe(0);
   });
@@ -185,5 +186,37 @@ describe("POST /auth/email/signup", () => {
     const res = await signup(jsonReq("/auth/email/signup", { nickname: "지우" }, { cookie: "wwm_signup=t" }));
     expect(res.status).toBe(401);
     expect(res.cookies.get("wwm_signup")?.maxAge).toBe(0);
+  });
+});
+
+// (#307) Android Gmail 인앱 브라우저(Custom Tab)는 폼 제출 뒤 리다이렉트와 제스처 이동이 앱 링크 경로에 닿으면 설치된 앱으로 넘긴다.
+// 앱 웹뷰에는 세션이 없어 앱 로그인 화면에서 끝났다. 세션을 만든 응답의 이동 대상은 어떤 next 여도 앱 링크 경로가 아니어야 한다
+describe("로그인 직후 이동은 앱 링크 경로로 가지 않는다 (#307)", () => {
+  const NEXTS = ["/", "/g/12/calendar", "/g/12/calendar?date=2026-11-12", "/groups/new", "/join/ABC123?auto=1&by=3", "/me"];
+  const pathOf = (loc: string) => {
+    const u = new URL(loc, ORIGIN);
+    return { path: u.pathname + u.search, next: u.searchParams.get("next") ?? "/" };
+  };
+
+  it.each(NEXTS)("link 303 (next=%s)", async (next) => {
+    upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next }));
+    const res = await link(formReq({ token: TOKEN }));
+    const { path, next: carried } = pathOf(res.headers.get("location") ?? "");
+    expect(opensInstalledApp(path)).toBe(false);
+    expect(path.startsWith("/auth/landing")).toBe(true);
+    expect(carried).toBe(next);
+  });
+  it.each(NEXTS)("code redirect (next=%s)", async (next) => {
+    upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next }));
+    const { redirect } = (await (await code(jsonReq("/auth/email/code", { email: "a@b.co", code: "000000" }))).json()).data;
+    expect(opensInstalledApp(redirect)).toBe(false);
+    expect(pathOf(redirect).next).toBe(next);
+  });
+  it.each(NEXTS)("signup redirect (next=%s)", async (next) => {
+    upstream.mockResolvedValue(okEnv({ token: "h.p.s", next }));
+    const res = await signup(jsonReq("/auth/email/signup", { nickname: "지우" }, { cookie: "wwm_signup=t" }));
+    const { redirect } = (await res.json()).data;
+    expect(opensInstalledApp(redirect)).toBe(false);
+    expect(pathOf(redirect).next).toBe(next);
   });
 });

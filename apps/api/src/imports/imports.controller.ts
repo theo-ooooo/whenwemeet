@@ -3,11 +3,11 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { IdParam } from '../common/id-param.js';
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
-import { ImportOptionsDto } from './dto/import.dto.js';
+import { ImportCreateDto, ImportOptionsDto } from './dto/import.dto.js';
 import { IcsFileInterceptor } from './ics-file.interceptor.js';
 import { ImportsService, type UploadedIcs } from './imports.service.js';
 
-/** (#279) ICS 파일로 일정 가져오기 (api.md 2.9). 미리보기와 넣기 모두 multipart `file` + range, participants */
+/** (#279) ICS 파일로 일정 가져오기 (api.md 2.9). 미리보기와 넣기 모두 multipart `file` + range, participants. 넣기는 include(#314) */
 @Controller('groups/:groupId/imports')
 export class ImportsController {
   constructor(private readonly imports: ImportsService) {}
@@ -24,7 +24,7 @@ export class ImportsController {
   @Post()
   @RateLimit('icsImport')
   @UseInterceptors(IcsFileInterceptor)
-  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @UploadedFile() file: UploadedIcs | undefined, @Body() options: ImportOptionsDto) {
+  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @UploadedFile() file: UploadedIcs | undefined, @Body() options: ImportCreateDto) {
     return this.imports.import(user.id, groupId, file, options);
   }
 }

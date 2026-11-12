@@ -2,7 +2,7 @@
 // API 는 웹 서버만 부를 수 있다(X-Internal-Key, D-115). 키와 토큰, 가입 티켓은 httpOnly 쿠키로만 브라우저에 간다.
 import { type NextRequest, NextResponse } from "next/server";
 import { parseAppUserAgent } from "./app-bridge";
-import { GROUP_COOKIE, looksLikeJwt, safeNext, SESSION_COOKIE, sessionCookieOptions } from "./auth";
+import { GROUP_COOKIE, landingPath, looksLikeJwt, SESSION_COOKIE, sessionCookieOptions } from "./auth";
 import {
   clientIpOf,
   emailLoginEnabled,
@@ -102,11 +102,12 @@ export function clearSignup(res: NextResponse): NextResponse {
   return res;
 }
 
-/** link, code 의 결과 → 이동할 웹 경로와 쿠키. 모양이 틀리면 null */
+/** link, code 의 결과 → 이동할 웹 경로와 쿠키. 모양이 틀리면 null.
+ *  (#307) SESSION 은 next 가 아니라 착지 화면(landingPath)으로. next 는 착지 화면이 클라이언트 이동으로 연다 */
 export function applyAuthResult(data: unknown): { result: AuthResult; redirect: string } | null {
   const result = readAuthResult(data);
   if (!result || (result.kind === "SESSION" && !looksLikeJwt(result.token))) return null;
-  return { result, redirect: result.kind === "SESSION" ? safeNext(result.next) : "/login/email/nickname" };
+  return { result, redirect: result.kind === "SESSION" ? landingPath(result.next) : "/login/email/nickname" };
 }
 
 export function withAuthCookies(res: NextResponse, result: AuthResult): NextResponse {

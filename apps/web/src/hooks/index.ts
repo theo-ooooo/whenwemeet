@@ -14,6 +14,7 @@ export { useFreeSlots, type FreeSlotsParams } from "./useFreeSlots";
 export { useNews } from "./useNews";
 export { useHealth, type Health } from "./useHealth";
 export { useNotificationSettings, useUpdateNotificationSettings } from "./useNotificationSettings";
+export { useWidgetAgenda } from "./useWidgetAgenda";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
@@ -32,6 +33,7 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
+export { useUpdateStartCalendar } from "./useUpdateStartCalendar";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
 export { useImportEvents, usePreviewImport, type ImportInput } from "./useImportEvents";

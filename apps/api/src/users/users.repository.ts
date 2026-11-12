@@ -26,6 +26,16 @@ function toUserSummary(record: UserRecord, urls: FileUrlBuilder): UserSummary {
   return { id: record.id, nickname: record.nickname, profileImageUrl: urls.publicUrlOrNull(record.avatar), createdAt: record.createdAt };
 }
 
+/** (#300) 처음 여는 달력 (D-191). LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 */
+export const START_CALENDAR_MODES = ['LAST', 'PERSONAL', 'GROUP'] as const;
+export type StartCalendarMode = (typeof START_CALENDAR_MODES)[number];
+
+/** (#300) 저장된 그대로의 처음 여는 달력. GROUP 인데 groupId 가 null 인 행(FK SetNull)은 Service 가 LAST 로 읽는다 */
+export interface StartCalendarRow {
+  mode: StartCalendarMode;
+  groupId: number | null;
+}
+
 /** 가입 시 만들 사용자와 연결 계정. 소셜 프로필 사진은 가입 뒤 R2 로 따로 복사한다 (AvatarsService.importFromUrl) */
 export interface NewAccountInput {
   provider: AuthProvider;
@@ -67,6 +77,22 @@ export class UsersRepository {
   /** 닉네임 변경 (D-36). 우리 서비스 값이라 소셜 프로필과 독립 */
   async updateNickname(id: number, nickname: string): Promise<UserSummary> {
     return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }), this.urls);
+  }
+
+  /** (#300) 처음 여는 달력. 사용자가 없으면 null */
+  async findStartCalendar(id: number): Promise<StartCalendarRow | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: { startCalendarMode: true, startGroupId: true } });
+    return row && { mode: row.startCalendarMode, groupId: row.startGroupId };
+  }
+
+  /** (#300) 처음 여는 달력 저장. 짝 검사와 멤버십 확인은 Service 가 끝낸 값 */
+  async updateStartCalendar(id: number, value: StartCalendarRow): Promise<StartCalendarRow> {
+    const row = await this.prisma.user.update({
+      where: { id },
+      data: { startCalendarMode: value.mode, startGroupId: value.groupId },
+      select: { startCalendarMode: true, startGroupId: true },
+    });
+    return { mode: row.startCalendarMode, groupId: row.startGroupId };
   }
 
   /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */

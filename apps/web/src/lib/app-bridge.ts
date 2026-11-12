@@ -3,6 +3,7 @@
 // 판정이 틀리거나 보낼 대상이 없으면 false 를 돌려 호출부가 기존 웹 동작으로 떨어지게 한다.
 // 서버 컴포넌트와 route handler 에서도 import 하므로 React, next/* 를 import 하지 않는다.
 import type { KakaoFeedTemplate } from "./kakao-share";
+import type { WidgetSnapshot } from "./widget-snapshot";
 
 export const BRIDGE_VERSION = 1;
 
@@ -19,7 +20,10 @@ export type BridgeMessage =
   // (#188) 푸시 권한과 토큰. appSupportsPush() 일 때만 보낸다 (푸시-알림.md 2-2, D-80)
   | { type: "pushStatus"; id: string }
   | { type: "pushRequest"; id: string }
-  | { type: "openSettings" };
+  | { type: "openSettings" }
+  // (#197) 홈 화면 위젯. appSupportsWidget() 일 때만 보낸다 (앱.md 4.7)
+  | { type: "widgetSnapshot"; snapshot: WidgetSnapshot }
+  | { type: "widgetClear" };
 
 /** 셸이 WebView applicationNameForUserAgent 로 붙이는 접미사: `WhenwemeetApp/<버전> (<ios|android>)` */
 const APP_UA = /\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/;
@@ -72,6 +76,17 @@ const KAKAO_SHARE_UA = /(?:^|\s)KakaoShare\/1(?:\s|$)/;
 /** 앱 셸이고 네이티브 카카오톡 공유를 처리하는지. 앱이 아니면 false */
 export function appSupportsKakaoShare(ua: string | null | undefined): boolean {
   return isAppUserAgent(ua) && KAKAO_SHARE_UA.test(ua ?? "");
+}
+
+/* ---------- (#197) 홈 화면 위젯을 아는 셸 (앱.md 4.7) ---------- */
+
+/** 셸(1.2.0~)이 UA 끝에 붙이는 능력 표시. 그 전 셸은 widgetSnapshot 을 모르고 버리므로 이 토큰이 있을 때만 보낸다 */
+export const WIDGET_UA_TOKEN = "Widget/1";
+const WIDGET_UA = /(?:^|\s)Widget\/1(?:\s|$)/;
+
+/** 앱 셸이고 홈 화면 위젯 브리지를 처리하는지. 앱이 아니면 false */
+export function appSupportsWidget(ua: string | null | undefined): boolean {
+  return isAppUserAgent(ua) && WIDGET_UA.test(ua ?? "");
 }
 
 /* ---------- (#188) 푸시 지원 판정 (푸시-알림.md 2-1, D-81) ---------- */

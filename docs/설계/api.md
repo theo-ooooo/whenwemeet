@@ -114,10 +114,11 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
-| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt } }` |
+| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar) |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
+| PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
 **이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
@@ -137,6 +138,13 @@ type AuthResult =
 ```
 - 링크와 코드는 15분 유효, 한 메일에서 하나를 쓰면 둘 다 끝. `next` 는 요청 때 저장한 값(링크를 다른 기기에서 열어도 같다)
 - `AuthAccount(provider: EMAIL, providerUserId: 정규화 이메일, email: 같은 값, rawProfile: null)`. 카카오, 애플 계정과 합치지 않는다
+
+```ts
+// (#300) 처음 여는 달력. 저장은 User.startCalendarMode(기본 LAST) + User.startGroupId(Group FK, SetNull)
+StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null }   // groupId 는 GROUP 일 때만 값
+```
+- GROUP 인데 팀이 없는 행(FK SetNull)은 LAST 로 읽는다. 고정한 팀에서 나가거나 팀이 지워지면 그 트랜잭션 안에서 LAST 로 되돌린다 (2.7, D-192)
+- 웹 `/` 진입에서만 쓴다 (화면흐름.md 1장). 딥링크는 따르지 않는다
 
 로그아웃은 웹이 쿠키를 지운다. 앱이면 그 전에 웹 route handler 가 `DELETE /me/push-devices { token }` 으로 이 기기 푸시 토큰을 지운다 (2.8, D-83).
 
@@ -392,9 +400,10 @@ ActivityPayload =
 2. 멤버십 삭제. 일정/기념일/로그는 그대로 (creatorId, actorId 유지 → 여전히 그 사람 이름으로 보임)
    (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
    (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
+   (#300) 내가 이 팀을 처음 여는 달력으로 고정했으면(User.startGroupId = 이 팀) LAST 로 되돌린다 (D-192)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
-3. 남은 멤버 0 이면 Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
+3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
 ```
 
 **DELETE /me (회원 탈퇴)**
@@ -462,8 +471,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'` (기본 future) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
-| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
+| POST | `/groups/:groupId/imports/preview` | 멤버 | multipart `file` (.ics, 2MB), `range?: 'future'\|'year'\|'all'` (기본 future. all 은 #314, 파일 전체) | 200 `{ data: ImportPreview }`. 아무것도 저장하지 않는다 |
+| POST | `/groups/:groupId/imports` | 멤버 | multipart `file`, `range?`, `participants?: 'ALL'\|'ME'` (기본 TEAM 은 ALL, PERSONAL 은 ME), `include?` (#314, 아래) | 201 `{ data: { importId: number\|null, created, skipped: SkipCount[] } }`. 넣은 게 0이면 importId null |
 
 ```ts
 SkipReason   = 'DUPLICATE'|'CANCELLED'|'TOO_OLD'|'TOO_LONG'|'INVALID'|'OVER_LIMIT'
@@ -473,8 +482,13 @@ ImportPreview = { total: number,          // 파일 안 VEVENT 수
                   recurringKept: number, expanded: number, expandedSeries: number,
                   skipped: SkipCount[], firstStartsAt: ISO|null, lastStartsAt: ISO|null,
                   warnings: ('UNKNOWN_TZID'|'TRUNCATED_TITLE')[],
-                  sample: { title, startsAt, endsAt, allDay, repeat }[] }   // 시작 순 앞 5개
+                  sample: { title, startsAt, endsAt, allDay, repeat }[],   // 시작 순 앞 5개 (옛 웹용)
+                  items: ImportItem[] }                                     // (#314) 넣을 일정 전부, 시작 순, 최대 1,000
+ImportItem   = { key: string,            // 64자 hex. 중복 방지 해시(uidHash)와 같은 값
+                 title, startsAt, endsAt, allDay, repeat }
 ```
+
+- (#314, D-194) `include`: 넣을 `items[].key` 의 **JSON 문자열 배열** (multipart 텍스트 필드 하나, 예 `'["ab12…", …]'`). 생략하면 전부. `[]` 는 400 VALIDATION_FAILED `field: 'include'` "넣을 일정을 하나 이상 골라 주세요". JSON 배열이 아니거나 64자 소문자 hex 가 아닌 값, 1,000개 초과도 400 (`field: 'include'`). 이번 파일의 넣을 일정에 없는 키는 무시(모두 없으면 0개, importId null). 뺀 일정은 skipped 에 세지 않고 기록하지 않아 다음에 같은 파일을 올리면 다시 넣을 일정으로 나온다. 미리보기는 include 를 받지 않는다(400)
 
 - 파일은 저장하지 않는다. 미리보기와 넣기에서 두 번 올린다 (서버 상태 없음). 넣기는 같은 계산을 다시 한다
 - 오류: 파일 없음, 못 읽음, 2MB 초과, 다른 이름의 파일 필드 → 400 VALIDATION_FAILED `field: 'file'` ("캘린더 파일(.ics)을 읽지 못했어요" / "파일이 너무 커요. 2MB 까지 올릴 수 있어요"). VEVENT 3,000개 초과 → 400 IMPORT_TOO_LARGE. range, participants 형식, 모르는 필드 → 400. 멤버 아님 403. 중간 실패 500 IMPORT_INCOMPLETE
@@ -518,6 +532,7 @@ EventSharePreview = { groupName, memberCount,
 | 이메일 로그인 (#245) | `/auth/email/request`, `/auth/email/link/inspect`, `/auth/email/link`, `/auth/email/code`, `/auth/email/signup` (이메일-로그인.md) |
 | 앱 로그인 (카카오, 애플), 웹 애플 로그인 | `/auth/kakao/native`, `/auth/apple/native`, `/auth/apple`, `/auth/apple/callback`, `/auth/handoff` (앱.md) |
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
+| 처음 여는 달력 (#300) | `GET /me` 의 `startCalendar`, `PATCH /me/start-calendar` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
 | 초대 링크 + 6자리 코드, 재발급 | `GroupDetail.inviteCode/inviteUrl`, `POST /groups/:id/invite-code`, `GET /invites/:code`, `POST /groups/join` |
 | 팀 전환 | `GET /groups` |

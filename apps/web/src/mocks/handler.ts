@@ -38,6 +38,9 @@ function store(): Store {
 }
 
 const ok = (data: unknown, status = 200): MockResult => ({ status, body: okBody(data, status) });
+/** (#300) 처음 여는 달력 기본값 */
+const START_LAST = { mode: "LAST", groupId: null } as const;
+
 const err = (status: number, code: string, message: string): MockResult => ({
   status,
   body: errorBody(status, code, message),
@@ -352,7 +355,7 @@ export function mockHandle(ctx: Ctx): MockResult {
   if (seg[0] === "me" && seg.length === 1) {
     const u = s.users.find((x) => x.id === userId)!;
     if (method === "GET") {
-      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt });
+      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, startCalendar: u.startCalendar ?? START_LAST });
     }
     if (method === "PATCH") {
       const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
@@ -367,6 +370,27 @@ export function mockHandle(ctx: Ctx): MockResult {
       g.__wwmMockStore = buildStore();
       return ok({ ok: true });
     }
+  }
+
+  // (#300) /me/start-calendar (api.md 2.1, D-191). 짝이 틀리면 400, 내 팀이 아니면 403, 개인 팀은 PERSONAL 로 (400)
+  if (seg[0] === "me" && seg[1] === "start-calendar" && seg.length === 2 && method === "PATCH") {
+    const u = s.users.find((x) => x.id === userId)!;
+    const mode = body?.mode;
+    const groupId = body?.groupId ?? null;
+    const invalid = (message: string): MockResult => ({ status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "groupId", message }]) });
+    if (mode !== "LAST" && mode !== "PERSONAL" && mode !== "GROUP") return err(400, "VALIDATION_FAILED", "처음 여는 달력 값이 올바르지 않아요");
+    if (groupId !== null && (typeof groupId !== "number" || !Number.isInteger(groupId) || groupId < 1)) return err(400, "VALIDATION_FAILED", "팀 ID 는 정수여야 해요");
+    if (mode !== "GROUP") {
+      if (groupId !== null) return invalid("팀을 고를 때만 팀 ID 를 보내 주세요");
+      u.startCalendar = { mode, groupId: null };
+      return ok(u.startCalendar);
+    }
+    if (groupId === null) return invalid("고정할 팀을 골라 주세요");
+    const grp = s.memberships.some((m) => m.userId === userId && m.groupId === groupId) ? s.groups.find((x) => x.id === groupId) : undefined;
+    if (!grp) return err(403, "FORBIDDEN", "이 팀의 멤버가 아니에요");
+    if (grp.type === "PERSONAL") return invalid('내 달력은 "내 달력" 으로 골라 주세요');
+    u.startCalendar = { mode: "GROUP", groupId };
+    return ok(u.startCalendar);
   }
 
   // /me/avatar (api.md 2.1). 목은 업로드한 바이트를 mocks/files.ts 에 두고 /api/__mock/files/<id> 경로를 준다
@@ -520,6 +544,18 @@ export function mockHandle(ctx: Ctx): MockResult {
             { title: "영어 스터디", startsAt: at(2), endsAt: at(2.05), allDay: false, repeat: "WEEKLY" },
             { title: "치과", startsAt: at(3), endsAt: at(3.05), allDay: false, repeat: null },
           ],
+          // (#314) 넣을 일정 전부. key 는 64자 hex 모양만 맞춘다
+          items: Array.from({ length: 14 }, (_, i) => {
+            const day = 1 + i * 15;
+            return {
+              key: i.toString(16).padStart(64, "0"),
+              title: i === 0 ? "영어 스터디" : `가져온 일정 ${i + 1}`,
+              startsAt: at(day),
+              endsAt: at(i % 3 === 0 ? day + 2 : day + 0.05),
+              allDay: i % 3 === 0,
+              repeat: i === 0 ? "WEEKLY" : null,
+            };
+          }),
         });
       }
       return ok({ importId: 1, created: 14, skipped: [{ reason: "CANCELLED", count: 1 }] }, 201);
@@ -575,6 +611,9 @@ export function mockHandle(ctx: Ctx): MockResult {
           return err(400, "GROUP_PERSONAL_LEAVE", "개인 달력은 나갈 수 없어요");
         }
         s.memberships = s.memberships.filter((m) => !(m.groupId === groupId && m.userId === userId));
+        // (#300) 고정한 팀에서 나가면 처음 여는 달력은 마지막에 본 달력으로 (D-192)
+        const leaver = s.users.find((x) => x.id === userId);
+        if (leaver?.startCalendar?.groupId === groupId) leaver.startCalendar = START_LAST;
         // (#248 6장) 그 팀 일정의 내 참여자 행을 지운다. 0 이 되면 "참여자 없음". 로그, 새 소식 없음 (D-139)
         for (const e of s.events) {
           if (e.groupId === groupId && e.participantIds) e.participantIds = e.participantIds.filter((id) => id !== userId);

@@ -19,6 +19,7 @@ import type {
   Member,
   NotificationSettings,
   Repeat,
+  StartCalendar,
 } from "@/lib/types";
 import type { MockException } from "./recurrence";
 
@@ -29,6 +30,8 @@ export type UserRow = {
   createdAt: string;
   /** (#188) 알림 종류 설정. 없으면 모두 켬 */
   notify?: NotificationSettings;
+  /** (#300) 처음 여는 달력. 없으면 LAST */
+  startCalendar?: StartCalendar;
 };
 export type GroupRow = {
   id: number;

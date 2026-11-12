@@ -181,11 +181,17 @@ export type NewsEntry = NewsItem | ActivityNewsItem;
 
 export type News = { items: NewsEntry[]; lastSeenAt: string | null };
 
+/** (#300) 처음 여는 달력. LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 (groupId 는 GROUP 일 때만) */
+export type StartCalendarMode = "LAST" | "PERSONAL" | "GROUP";
+export type StartCalendar = { mode: StartCalendarMode; groupId: number | null };
+
 export type Me = {
   id: number;
   nickname: string;
   profileImageUrl: string | null;
   createdAt: string;
+  /** (#300) GET /me 에만 있다. PATCH /me 응답에는 없어 화면이 앞 값을 이어 쓴다 */
+  startCalendar?: StartCalendar;
 };
 
 export type InvitePreview = {
@@ -228,7 +234,8 @@ export const MEMBER_COLORS = [
 
 // ── (#279) ICS 파일 가져오기 (api.md 2.9) ──
 
-export type ImportRange = "future" | "year";
+/** (#314) all = 파일 전체 */
+export type ImportRange = "future" | "year" | "all";
 export type ImportParticipants = "ALL" | "ME";
 export type ImportSkipReason = "DUPLICATE" | "CANCELLED" | "TOO_OLD" | "TOO_LONG" | "INVALID" | "OVER_LIMIT";
 export type ImportWarning = "UNKNOWN_TZID" | "TRUNCATED_TITLE";
@@ -247,7 +254,12 @@ export type ImportPreview = {
   lastStartsAt: string | null;
   warnings: ImportWarning[];
   sample: { title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null }[];
+  /** (#314) 넣을 일정 전부 (시작 순, 최대 1,000). key 를 넣기 요청의 include 로 돌려준다 */
+  items: ImportItem[];
 };
+
+/** (#314) 미리보기 목록의 한 줄. key 는 서버의 중복 방지 해시 */
+export type ImportItem = { key: string; title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: Repeat | null };
 
 export type ImportResult = {
   importId: number | null;

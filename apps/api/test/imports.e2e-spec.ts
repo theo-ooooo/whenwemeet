@@ -165,6 +165,40 @@ describe('일정 가져오기 (e2e, #279)', () => {
     expect(personal.body.data.toCreate).toBe(4);
   });
 
+  it('TimeTree 1.0.0 모양(VALUE=DATE 없는 날짜, LF 줄 끝)은 종일로 들어가고 다시 올리면 0개 (#309)', async () => {
+    const allDay = (uid: string, start: number, end: number | null, title: string) => [
+      'BEGIN:VEVENT',
+      `SUMMARY:${title}`,
+      `DTSTART:${dayAfter(start)}`,
+      ...(end === null ? [] : [`DTEND:${dayAfter(end)}`]),
+      'DTSTAMP:20261112T010203Z',
+      `UID:${uid}`,
+      'COLOR:#2ecc87',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER:-PT15H',
+      'END:VALARM',
+      'END:VEVENT',
+    ];
+    const file = Buffer.from(
+      ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TimeTree Exporter 1.0.0//EN', ...allDay('tt1', 2, 3, '하루'), ...allDay('tt2', 3, 6, '사흘'), ...allDay('tt3', 4, 4, '끝같음'), ...allDay('tt4', 5, null, '끝없음'), 'END:VCALENDAR', ''].join('\n'),
+    );
+    const res = await preview(minji, groupId, file).expect(200);
+    expect(res.body.data).toMatchObject({ total: 4, toCreate: 4, skipped: [] });
+
+    await importFile(minji, groupId, file).expect(201);
+    const events = await prisma.event.findMany({ where: { groupId }, orderBy: { startsAt: 'asc' } });
+    expect(events.map((event) => [event.title, event.allDay, kstDate(event.startsAt), (event.endsAt.getTime() - event.startsAt.getTime()) / DAY_MS])).toEqual([
+      ['하루', true, kstDate(new Date(Date.now() + 2 * DAY_MS)), 1],
+      ['사흘', true, kstDate(new Date(Date.now() + 3 * DAY_MS)), 3],
+      ['끝같음', true, kstDate(new Date(Date.now() + 4 * DAY_MS)), 1],
+      ['끝없음', true, kstDate(new Date(Date.now() + 5 * DAY_MS)), 1],
+    ]);
+
+    const again = await importFile(minji, groupId, file).expect(201);
+    expect(again.body.data).toMatchObject({ importId: null, created: 0, skipped: [{ reason: 'DUPLICATE', count: 4 }] });
+  });
+
   it('[나만] 은 참여자 행, 개인 달력은 기본 나이고 푸시를 만들지 않는다', async () => {
     await importFile(minji, groupId, ics(...vevent('me@test', dayAfter(2), '나만')), { participants: 'ME' }).expect(201);
     const mine = await prisma.event.findFirstOrThrow({ where: { title: '나만' }, include: { participants: true } });
@@ -181,6 +215,15 @@ describe('일정 가져오기 (e2e, #279)', () => {
     const file = ics(...vevent('past@test', dayAfter(-30), '지난달'));
     expect((await preview(minji, groupId, file).expect(200)).body.data.toCreate).toBe(0);
     expect((await preview(minji, groupId, file, { range: 'year' }).expect(200)).body.data.toCreate).toBe(1);
+  });
+
+  it('전체(#314)를 고르면 몇 년 전 일정도 넣는다', async () => {
+    const file = ics(...vevent('ancient@test', '20180505', '옛날'), ...vevent('soon@test', dayAfter(2), '곧'));
+    expect((await preview(minji, groupId, file, { range: 'year' }).expect(200)).body.data).toMatchObject({ toCreate: 1, skipped: [{ reason: 'TOO_OLD', count: 1 }] });
+    expect((await preview(minji, groupId, file, { range: 'all' }).expect(200)).body.data).toMatchObject({ toCreate: 2, skipped: [] });
+    const res = await importFile(minji, groupId, file, { range: 'all' }).expect(201);
+    expect(res.body.data.created).toBe(2);
+    expect((await prisma.event.findFirstOrThrow({ where: { title: '옛날' } })).startsAt.toISOString()).toBe('2018-05-05T01:00:00.000Z');
   });
 
   it('중간에 실패하면 넣은 묶음은 남고, 다시 올리면 나머지만 들어간다', async () => {
@@ -208,6 +251,72 @@ describe('일정 가져오기 (e2e, #279)', () => {
     expect(await prisma.event.count({ where: { groupId } })).toBe(250);
   });
 
+  describe('골라서 넣기 (#314)', () => {
+    type Item = { key: string; title: string; startsAt: string; endsAt: string; allDay: boolean; repeat: string | null };
+    const itemsOf = async (group = groupId) => (await preview(minji, group, sample()).expect(200)).body.data.items as Item[];
+
+    it('미리보기 items 는 넣을 일정 전부와 표시용 필드', async () => {
+      const items = await itemsOf();
+      expect(items.map((item) => item.title)).toEqual(['하나', '둘', '셋', '매주']);
+      expect(items.every((item) => /^[0-9a-f]{64}$/.test(item.key))).toBe(true);
+      expect(items.find((item) => item.title === '매주')).toMatchObject({ allDay: false, repeat: 'WEEKLY' });
+    });
+
+    it('고른 것만 넣고, 다시 올리면 뺀 일정(만) 다시 넣을 일정으로 나온다', async () => {
+      const items = await itemsOf();
+      const picked = items.filter((item) => item.title !== '둘' && item.title !== '매주');
+      const res = await importFile(minji, groupId, sample(), { include: JSON.stringify(picked.map((item) => item.key)) }).expect(201);
+      // 뺀 것은 건너뜀으로 세지 않는다
+      expect(res.body.data).toMatchObject({ created: 2, skipped: [{ reason: 'CANCELLED', count: 1 }, { reason: 'TOO_OLD', count: 1 }] });
+      expect((await prisma.event.findMany({ where: { groupId }, orderBy: { startsAt: 'asc' } })).map((event) => event.title)).toEqual(['하나', '셋']);
+      expect(await counts()).toMatchObject({ items: 2, activities: 1, pushes: 1 });
+      expect(await prisma.groupActivity.findFirstOrThrow({ where: { type: 'EVENTS_IMPORTED' } })).toMatchObject({ payload: { count: 2 } });
+
+      const again = (await preview(minji, groupId, sample()).expect(200)).body.data;
+      expect(again.toCreate).toBe(2);
+      expect((again.items as Item[]).map((item) => item.title)).toEqual(['둘', '매주']);
+      expect(again.skipped).toContainEqual({ reason: 'DUPLICATE', count: 2 });
+
+      // 남은 것을 include 없이 넣으면 그 둘만
+      const rest = await importFile(minji, groupId, sample()).expect(201);
+      expect(rest.body.data.created).toBe(2);
+      expect(await prisma.event.count({ where: { groupId } })).toBe(4);
+    });
+
+    it('이번 파일에 없는 키는 무시한다. 모두 모르는 키면 아무것도 넣지 않는다', async () => {
+      const items = await itemsOf();
+      const unknown = 'f'.repeat(64);
+      const res = await importFile(minji, groupId, sample(), { include: JSON.stringify([items[0].key, unknown]) }).expect(201);
+      expect(res.body.data.created).toBe(1);
+      const none = await importFile(minji, groupId, sample(), { include: JSON.stringify([unknown]) }).expect(201);
+      expect(none.body.data).toMatchObject({ importId: null, created: 0 });
+      expect(await counts()).toMatchObject({ events: 1, imports: 1, items: 1 });
+    });
+
+    it('이미 넣은 키를 다시 고르면 DUPLICATE 로 건너뛰고 다른 팀에는 같은 키로 넣는다', async () => {
+      const items = await itemsOf();
+      const include = JSON.stringify([items[0].key]);
+      await importFile(minji, groupId, sample(), { include }).expect(201);
+      const twice = await importFile(minji, groupId, sample(), { include }).expect(201);
+      expect(twice.body.data).toMatchObject({ created: 0 });
+      expect(twice.body.data.skipped).toContainEqual({ reason: 'DUPLICATE', count: 1 });
+      const personal = await importFile(minji, personalId, sample(), { include }).expect(201);
+      expect(personal.body.data.created).toBe(1);
+    });
+
+    it('전부 해제(빈 배열)와 형식이 틀린 include 는 400, 미리보기에 include 는 400', async () => {
+      const before = await counts();
+      const empty = await importFile(minji, groupId, sample(), { include: '[]' }).expect(400);
+      expect(empty.body.error).toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'include', message: '넣을 일정을 하나 이상 골라 주세요' }] });
+      for (const include of ['abc', '"abc"', JSON.stringify(['xyz']), JSON.stringify([1]), JSON.stringify(Array.from({ length: 1001 }, () => 'a'.repeat(64)))]) {
+        const res = await importFile(minji, groupId, sample(), { include }).expect(400);
+        expect(res.body.error.details[0].field).toBe('include');
+      }
+      await preview(minji, groupId, sample(), { include: '[]' }).expect(400);
+      expect(await counts()).toEqual(before);
+    });
+  });
+
   describe('오류', () => {
     it('파일 없음, 캘린더 아님, 2MB 초과는 400 VALIDATION_FAILED(file)', async () => {
       for (const res of [
@@ -221,7 +330,7 @@ describe('일정 가져오기 (e2e, #279)', () => {
     });
 
     it('range, participants 형식이 틀리면 400, 다른 필드는 400', async () => {
-      expect((await preview(minji, groupId, sample(), { range: 'all' }).expect(400)).body.error.details[0].field).toBe('range');
+      expect((await preview(minji, groupId, sample(), { range: 'ever' }).expect(400)).body.error.details[0].field).toBe('range');
       expect((await importFile(minji, groupId, sample(), { participants: 'YOU' }).expect(400)).body.error.details[0].field).toBe('participants');
       await preview(minji, groupId, sample(), { extra: '1' }).expect(400);
     });
