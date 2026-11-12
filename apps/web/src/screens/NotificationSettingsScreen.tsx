@@ -1,6 +1,6 @@
 "use client";
 // (#188) 내 정보 > 알림 (푸시-알림.md 8장, 7-1).
-//   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 / 등록하지 못함 + [다시 시도] / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
+//   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 + [설정 열기] / 등록하지 못함 + [다시 시도] / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
 //   토글 4개: 계정 단위라 다른 기기에도 적용. 누르면 바로 저장, 실패하면 되돌리고 토스트
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useSyncExternalStore } from "react";
@@ -60,7 +60,15 @@ function DeviceRow() {
   } else if (!status) {
     body = <span className="text-[13px] text-ink-2">상태를 확인하지 못했어요</span>;
   } else if (status.permission === "granted" && status.token) {
-    body = <span className="text-[13px] font-semibold text-acc-ink">알림 받는 중</span>;
+    // (#294) 앱은 OS 권한을 끌 수 없어 기기 설정으로 보낸다. 끄고 돌아오면 usePushSync 가 다시 읽어 서버 등록을 지운다
+    body = (
+      <span className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-acc-ink">알림 받는 중</span>
+        <Button size="sm" variant="secondary" onClick={() => openAppSettings()}>
+          설정 열기
+        </Button>
+      </span>
+    );
   } else if (status.permission === "granted") {
     // (#288) OS 는 허용인데 토큰을 못 받았다(첫 발급 지연, 네트워크). 받는 중이라고 하지 않는다
     body = (
@@ -94,8 +102,11 @@ function DeviceRow() {
         <span className="shrink-0 text-[14px] font-semibold">이 기기</span>
         <span className="ml-auto flex min-w-0 items-center justify-end">{body}</span>
       </div>
-      {checked && status?.permission === "denied" && (
+      {checked && status?.permission === "denied" && !canAskPermission(status.permission, status.canAskAgain) && (
         <p className="t-sub pb-2.5">기기 설정에서 언제볼까 알림을 켜 주세요</p>
+      )}
+      {checked && status?.permission === "granted" && status.token && (
+        <p className="t-sub pb-2.5">이 기기에서 그만 받으려면 기기 설정에서 언제볼까 알림을 꺼 주세요</p>
       )}
     </section>
   );
