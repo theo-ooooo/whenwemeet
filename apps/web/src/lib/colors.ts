@@ -27,11 +27,11 @@ export function cycleColor(i: number): string {
   return DISPLAY[((i % DISPLAY.length) + DISPLAY.length) % DISPLAY.length];
 }
 
-/** 멤버 색 바탕 위 글자색. 8색 모두 라이트는 흰색, 다크는 #121214 */
+/** 멤버 색 바탕 위 글자색. 8색 모두 라이트는 먹색 #1B1B1F, 다크는 #121214 (#347) */
 export const ON_MEMBER_COLOR = "var(--on-member)";
 
 /** 화면 색 이름 (스크린리더 라벨). PICKABLE_COLORS 와 같은 순서 */
-export const COLOR_NAMES = ["블루", "머스터드", "틸", "바이올렛", "그린", "브라운", "슬레이트", "핑크"] as const;
+export const COLOR_NAMES = ["블루", "레몬", "민트", "라벤더", "그린", "피치", "스카이", "핑크"] as const;
 
 /* ---------- (#343) 일정 색 (D-215) ---------- */
 

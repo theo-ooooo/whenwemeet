@@ -27,7 +27,7 @@ describe("EventColorPicker", () => {
     const group = screen.getByRole("radiogroup", { name: "색" });
     const radios = screen.getAllByRole("radio");
     expect(group).toBeTruthy();
-    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["자동, 참여자 색", "블루", "머스터드", "틸", "바이올렛", "그린", "브라운", "슬레이트", "핑크"]);
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["자동, 참여자 색", "블루", "레몬", "민트", "라벤더", "그린", "피치", "스카이", "핑크"]);
     expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", ...Array(8).fill("false")]);
     expect(radios.map((r) => r.tabIndex)).toEqual([0, ...Array(8).fill(-1)]);
   });

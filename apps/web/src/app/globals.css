@@ -117,17 +117,17 @@
   --holiday-faint: #ddb3bb;
   /* 삭제, 오류 */
   --danger: #d1242f;
-  /* 멤버 색 7개 (빨강, 주황 없음). 위 글자는 라이트 흰색, 다크 #121214 */
-  --m1: #2563eb;
-  --m2: #a16207;
-  --m3: #0b7a8a;
-  --m4: #7c3aed;
-  --m5: #15803d;
-  --m6: #8b6b4a;
-  --m7: #64748b;
-  /* (#343) 핑크. 흰 글자 4.6:1, 색상각 333 채도 0.71 로 주말색(--holiday)과 코랄에서 떨어뜨린다 (D-215) */
-  --m8: #db2777;
-  --on-member: #ffffff;
+  /* 멤버 색 8개, 맑은 톤 (#347, D-216). 위 글자는 라이트 먹색 #1b1b1f, 다크 #121214 */
+  --m1: #3b82f6;
+  --m2: #eab308;
+  --m3: #14b8a6;
+  --m4: #8b5cf6;
+  --m5: #22c55e;
+  --m6: #fb923c;
+  --m7: #0ea5e9;
+  /* (#343) 핑크 */
+  --m8: #ec4899;
+  --on-member: #1b1b1f;
   --fab-shadow: 0 6px 20px rgba(224, 83, 61, 0.3);
   --glass: rgba(255, 255, 255, 0.78);
   --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
@@ -166,13 +166,13 @@
     --holiday: #d3949e;
     --holiday-faint: #5e3a41;
     --danger: #ff6b6b;
-    --m1: #6b9bff;
-    --m2: #f2c14e;
-    --m3: #3cc6d6;
+    --m1: #60a5fa;
+    --m2: #facc15;
+    --m3: #2dd4bf;
     --m4: #a78bfa;
     --m5: #4ade80;
-    --m6: #c9a27a;
-    --m7: #9aa8ba;
+    --m6: #fdba74;
+    --m7: #38bdf8;
     --m8: #f472b6;
     --on-member: #121214;
     --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
@@ -209,13 +209,13 @@
   --holiday: #d3949e;
   --holiday-faint: #5e3a41;
   --danger: #ff6b6b;
-  --m1: #6b9bff;
-  --m2: #f2c14e;
-  --m3: #3cc6d6;
+  --m1: #60a5fa;
+  --m2: #facc15;
+  --m3: #2dd4bf;
   --m4: #a78bfa;
   --m5: #4ade80;
-  --m6: #c9a27a;
-  --m7: #9aa8ba;
+  --m6: #fdba74;
+  --m7: #38bdf8;
   --m8: #f472b6;
   --on-member: #121214;
   --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);

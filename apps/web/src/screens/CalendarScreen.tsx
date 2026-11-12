@@ -1170,7 +1170,7 @@ function DayCell({
                   className={`${!hasBar ? "mt-0.5" : crowded ? "absolute inset-x-0 top-[3px] h-1" : "mt-px"} flex ${crowded ? "" : "h-[7px]"} items-center justify-center gap-[3px]`}
                 >
                   {density.dots.map((c, i) => (
-                    <i key={i} className={`block size-[5px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: c }} />
+                    <i key={i} className={`block size-[6px] rounded-full ${crowded ? "ring-[1.5px] ring-paper" : ""}`} style={{ background: c }} />
                   ))}
                   {/* +N = 점을 못 그린 일정 수, 숫자 없는 + = 참여자 점만 잘림 (#248 D-140) */}
                   {(density.more > 0 || density.cut) && <b className="text-[9px] font-bold leading-[7px] text-ink-2">+{density.more || ""}</b>}
