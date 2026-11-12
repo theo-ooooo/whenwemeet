@@ -547,8 +547,8 @@ EventSharePreview = { groupName, memberCount,
 | DELETE | `/groups/:groupId/todo-items/:itemId` | 멤버 | - | `{ data: { ok: true } }` |
 
 ```ts
-TodoListSummary = { id, publicCode, name, openCount, doneCount, editor: Member | null, updatedAt }
-TodoList        = { id, publicCode, groupId, groupCode, name, creator: Member|탈퇴자, editor: Member|탈퇴자|null, createdAt, updatedAt }
+TodoListSummary = { id, publicCode, name, openCount, doneCount, editor: Member, updatedAt }
+TodoList        = { id, publicCode, groupId, groupCode, name, creator: Member|탈퇴자, editor: Member|탈퇴자, createdAt, updatedAt }
 TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Member|탈퇴자|null, creator: Member|탈퇴자, createdAt, updatedAt }
 ```
 
