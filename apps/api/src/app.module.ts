@@ -18,6 +18,7 @@ import { MeModule } from './me/me.module.js';
 import { NewsModule } from './news/news.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PushModule } from './push/push.module.js';
+import { TodosModule } from './todos/todos.module.js';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { PushModule } from './push/push.module.js';
     EventSharesModule,
     ImportsModule,
     AnniversariesModule,
+    TodosModule,
     FreeSlotsModule,
     NewsModule,
     MeModule,

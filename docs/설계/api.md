@@ -26,10 +26,11 @@
 | EVENT_RANGE_INVALID | 400 | `endsAt <= startsAt`, 길이 30일 초과, 조회 범위 초과, 반복 규칙 위반 (길이 >= 주기, 종료일 < 첫 회차 날짜, 회차를 앞뒤 30일 밖으로 옮김. #187) |
 | GROUP_NOT_INVITABLE | 400 | PERSONAL 팀에 초대 코드 재발급 요청, (#274) PERSONAL 팀 일정 공유 링크 만들기 |
 | EVENT_SHARE_ENDED | 400 | (#274) 이미 끝난 일정(회차)의 공유 링크 만들기 |
+| TODO_LIMIT_REACHED | 400 | (#276) 할 일 목록 20개/팀, 항목 300개/목록을 넘김. message "목록은 20개까지 만들 수 있어요" / "항목은 300개까지 넣을 수 있어요" |
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
-| NOT_FOUND | 404 | 팀/일정/기념일 없음 (다른 팀 자원을 가리키는 ID 포함) |
+| NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
 | EVENT_SHARE_NOT_FOUND | 404 | (#274) 일정 공유 링크 없음, 만료, 끊김, 일정 삭제, 회차 취소, 회차 소멸 (구분하지 않는다). message "링크가 만료됐거나 끊겼어요" |
 | PAYLOAD_TOO_LARGE | 413 | JSON 본문이 100KB 초과 (express 기본 한도). message "요청 내용이 너무 커요". 아바타 파일 크기 초과는 해당 없음(400 VALIDATION_FAILED) |
@@ -531,6 +532,30 @@ EventSharePreview = { groupName, memberCount,
 - 합류는 `POST /groups/join` 과 같은 내부 함수(`GroupsService.joinGroup`: 색 배정, JOIN 알림, 새 소식). 새로 합류하면 `joinCount + 1` 과 새 소식 `MEMBER_JOINED { via: 'EVENT_SHARE' }` (D-185)
 - 토큰 대조는 대소문자를 구분한다 (열 정렬은 ci 라 서비스가 다시 맞춘다). Sentry 는 `/join/e/<token>`, `/event-shares/<token>` 경로를 지운다
 
+### 2.11 할 일 목록 (#276, 설계 `할일-목록.md`, D-203 ~ D-207)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/todo-lists` | 멤버 | - | `{ data: { items: TodoListSummary[] } }` updatedAt 내림차순 |
+| POST | `/groups/:groupId/todo-lists` | 멤버 | `{ name(1~30) }` | 201 `{ data: TodoList }`. 팀에 20개면 TODO_LIMIT_REACHED |
+| GET | `/todo-lists/:code` | 유저 | - | `{ data: { list: TodoList, items: TodoItem[] } }`. 틀린 코드, 없는 목록, 비멤버 모두 404 NOT_FOUND |
+| PATCH | `/groups/:groupId/todo-lists/:listId` | 멤버 | `{ name(1~30) }` | `{ data: TodoList }` |
+| DELETE | `/groups/:groupId/todo-lists/:listId` | 멤버 | - | `{ data: { ok: true } }` 항목 Cascade |
+| POST | `/groups/:groupId/todo-lists/:listId/items` | 멤버 | `{ text(1~100), done? }` | 201 `{ data: TodoItem }`. 목록에 300개면 TODO_LIMIT_REACHED |
+| DELETE | `/groups/:groupId/todo-lists/:listId/items?done=true` | 멤버 | - | `{ data: { ok: true, count } }` 완료 항목 지우기. `done=true` 가 없으면 400 VALIDATION_FAILED |
+| PATCH | `/groups/:groupId/todo-items/:itemId` | 멤버 | `{ text?(1~100), done? }` | `{ data: TodoItem }`. 같은 값은 쓰지 않는다(멱등) |
+| DELETE | `/groups/:groupId/todo-items/:itemId` | 멤버 | - | `{ data: { ok: true } }` |
+
+```ts
+TodoListSummary = { id, publicCode, name, openCount, doneCount, editor: Member | null, updatedAt }
+TodoList        = { id, publicCode, groupId, groupCode, name, creator: Member|탈퇴자, editor: Member|탈퇴자|null, createdAt, updatedAt }
+TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Member|탈퇴자|null, creator: Member|탈퇴자, createdAt, updatedAt }
+```
+
+- 항목 순서: 미완료 createdAt 오름차순, 그 아래 완료 doneAt 내림차순
+- `done: true` 는 doneAt = 지금, doneBy = 나, `false` 는 둘 다 null. 목록 updatedAt, editor 는 목록과 항목이 실제로 바뀔 때마다 올린다
+- 새 소식, 푸시 기록 없음. 요청 제한은 기본 한도만 (D-207)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -557,6 +582,7 @@ EventSharePreview = { groupName, memberCount,
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
 | 일정 카드 공유 (#274) | 2.10 전부 |
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
+| 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 
 ## 4. 개발 전용
 

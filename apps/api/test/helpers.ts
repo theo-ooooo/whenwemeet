@@ -69,6 +69,8 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.eventLog.deleteMany();
   await prisma.event.deleteMany();
   await prisma.anniversary.deleteMany();
+  await prisma.todoItem.deleteMany();
+  await prisma.todoList.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.group.deleteMany();
   await prisma.file.deleteMany();
