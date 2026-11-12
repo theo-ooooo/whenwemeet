@@ -1,7 +1,8 @@
 "use client";
 // (#188) 내 정보 > 알림 (푸시-알림.md 8장, 7-1).
 //   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 + [설정 열기] / 등록하지 못함 + [다시 시도] / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
-//   토글 4개: 계정 단위라 다른 기기에도 적용. 누르면 바로 저장, 실패하면 되돌리고 토스트
+//   토글 6개: 계정 단위라 다른 기기에도 적용. 누르면 바로 저장, 실패하면 되돌리고 토스트
+//   (#277) 맨 아래 "주간 요약"(기본 켬), "다 같이 비는 시간"(조용한 팀 깨우기, 기본 끔 D-204)
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePushNote } from "@/components/ReminderPicker";
@@ -19,6 +20,13 @@ const KINDS: { key: keyof NotificationSettings; label: string; description: stri
   // (#269, D-148) 기념일마다 고른 시점(당일, 하루 전, 일주일 전) 전체의 사람별 스위치
   { key: "anniversary", label: "기념일", description: "기념일마다 고른 날 아침 9시에 알려 드려요" },
   { key: "join", label: "새 멤버 합류", description: "초대한 사람이 팀에 들어오면 알려 드려요" },
+  // (#277, D-203) 숫자와 사실만. 권유형 문구를 쓰지 않는다 (D-204)
+  { key: "weekly", label: "주간 요약", description: "월요일 아침 9시에 그 주 팀 일정을 알려 드려요" },
+  {
+    key: "weeklyNudge",
+    label: "다 같이 비는 시간",
+    description: "팀에 2주 넘게 일정이 없으면 월요일 아침 9시에 이번 주 다 같이 비는 시간을 알려 드려요",
+  },
 ];
 
 const noop = () => () => {};

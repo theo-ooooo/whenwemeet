@@ -84,6 +84,28 @@ export function IconTeam({ active, ...p }: PieceProps) {
   );
 }
 
+/** (#276) 할 일: 둥근 사각 틀 + 체크, 조각은 왼쪽 위 작은 둥근 사각 (디자인규칙.md 3-2) */
+export function IconTodo({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+      <path d="m8.5 13.2 2.6 2.6 5-5.6" />
+      <rect x="6.3" y="6.3" width="3.6" height="3.6" rx="1.1" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
+/** 더 보기 ⋯ (목록 상세 머리줄 메뉴) */
+export function IconMore(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 /** 새 소식 종. 조각(오른쪽 위 점)은 새 소식이 있을 때만, 늘 코랄 */
 export function IconBell({ unread, ...p }: IconProps & { unread?: boolean }) {
   return (

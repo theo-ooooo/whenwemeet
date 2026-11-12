@@ -45,7 +45,8 @@ export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
 export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" | "DAY_OF_0900" | "DAY_BEFORE_0900";
 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean };
+/** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -276,3 +277,44 @@ export type ImportResult = {
   created: number;
   skipped: { reason: ImportSkipReason; count: number }[];
 };
+
+/* ---------- (#276) 할 일 목록 (api.md 2.11) ---------- */
+
+/** 목록 화면 한 줄. 마지막으로 바꾼 사람(editor)은 탈퇴했으면 "탈퇴한 멤버" */
+export type TodoListSummary = {
+  id: number;
+  publicCode: string;
+  name: string;
+  openCount: number;
+  doneCount: number;
+  editor: Member;
+  updatedAt: string;
+};
+
+export type TodoList = {
+  id: number;
+  publicCode: string;
+  groupId: number;
+  groupCode: string;
+  name: string;
+  creator: Member;
+  editor: Member;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TodoItem = {
+  id: number;
+  listId: number;
+  text: string;
+  done: boolean;
+  doneAt: string | null;
+  /** 미완료면 null */
+  doneBy: Member | null;
+  creator: Member;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** GET /todo-lists/:code */
+export type TodoListDetail = { list: TodoList; items: TodoItem[] };

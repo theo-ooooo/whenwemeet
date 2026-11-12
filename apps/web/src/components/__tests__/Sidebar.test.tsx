@@ -53,6 +53,17 @@ describe("펼친 사이드바", () => {
   });
 });
 
+describe("(#276) 할 일 메뉴", () => {
+  it("펼친 사이드바: 기념일과 새 소식 사이, 할 일 화면에서 켜진다", () => {
+    setup({ tab: "todos" });
+    const nav = screen.getByRole("navigation", { name: "주요 화면" });
+    const names = within(nav).getAllByRole("link").map((a) => a.textContent);
+    expect(names.indexOf("할 일")).toBe(names.indexOf("기념일") + 1);
+    const current = within(nav).getByRole("link", { current: "page" });
+    expect(current.getAttribute("href")).toBe("/todos");
+  });
+});
+
 describe("접힌 72 레일", () => {
   it("화면 이름 글자 없이 아이콘 칸만, 각 칸은 aria-label 과 툴팁을 가진다", () => {
     setup({ collapsed: true });
@@ -60,11 +71,11 @@ describe("접힌 72 레일", () => {
     expect(aside.dataset.collapsed).toBe("true");
     const nav = within(aside).getByRole("navigation", { name: "주요 화면" });
     const links = within(nav).getAllByRole("link");
-    expect(links.map((a) => a.getAttribute("aria-label"))).toEqual(["달력", "빈 시간", "기념일", "새 소식, 새 소식 3개", "팀 설정"]);
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/calendar", "/free", "/anniversaries", "/news", "/team"]);
+    expect(links.map((a) => a.getAttribute("aria-label"))).toEqual(["달력", "빈 시간", "기념일", "할 일", "새 소식, 새 소식 3개", "팀 설정"]);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/calendar", "/free", "/anniversaries", "/todos", "/news", "/team"]);
     // 툴팁: 칸마다 하나, 스크린 리더에서는 숨김 (이름은 aria-label 로)
     const tips = aside.querySelectorAll("[data-tooltip]");
-    expect([...tips].map((t) => t.textContent)).toEqual(["우리 둘", "달력", "빈 시간", "기념일", "새 소식", "팀 설정", "내 정보", "펼치기"]);
+    expect([...tips].map((t) => t.textContent)).toEqual(["우리 둘", "달력", "빈 시간", "기념일", "할 일", "새 소식", "팀 설정", "내 정보", "펼치기"]);
     for (const t of tips) expect(t.getAttribute("aria-hidden")).toBe("true");
     // 툴팁은 마우스와 키보드 포커스 둘 다에서 보인다 (같은 칸 group 안)
     for (const t of tips) {
@@ -99,7 +110,7 @@ describe("접힌 72 레일", () => {
     expect(screen.getByRole("link", { name: "내 정보" }).getAttribute("href")).toBe("/me");
   });
 
-  it("키보드: 모든 칸이 Tab 으로 닿는 요소(링크, 버튼)이고 순서는 심볼, 팀, 메뉴 5, 내 정보, 펼치기", () => {
+  it("키보드: 모든 칸이 Tab 으로 닿는 요소(링크, 버튼)이고 순서는 심볼, 팀, 메뉴 6, 내 정보, 펼치기", () => {
     setup({ collapsed: true });
     const focusables = [...screen.getByRole("complementary").querySelectorAll<HTMLElement>("a, button")];
     expect(focusables.map((el) => el.getAttribute("aria-label"))).toEqual([
@@ -108,6 +119,7 @@ describe("접힌 72 레일", () => {
       "달력",
       "빈 시간",
       "기념일",
+      "할 일",
       "새 소식, 새 소식 3개",
       "팀 설정",
       "내 정보",

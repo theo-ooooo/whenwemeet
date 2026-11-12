@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -12,6 +12,7 @@ export const ERROR_STATUS = {
   EMAIL_CODE_EXPIRED: 400,
   IMPORT_TOO_LARGE: 400,
   EVENT_SHARE_ENDED: 400,
+  TODO_LIMIT_REACHED: 400,
   UNAUTHORIZED: 401,
   SOCIAL_TOKEN_INVALID: 401,
   HANDOFF_INVALID: 401,
@@ -48,6 +49,7 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   EMAIL_CODE_EXPIRED: '코드가 만료됐어요. 메일을 다시 받아 주세요',
   IMPORT_TOO_LARGE: '일정이 너무 많아요',
   EVENT_SHARE_ENDED: '이미 지난 일정은 공유할 수 없어요',
+  TODO_LIMIT_REACHED: '더 이상 추가할 수 없어요',
   UNAUTHORIZED: '로그인이 필요해요',
   SOCIAL_TOKEN_INVALID: '로그인 정보를 확인하지 못했어요. 다시 시도해 주세요',
   HANDOFF_INVALID: '로그인이 만료됐어요. 다시 시도해 주세요',

@@ -104,6 +104,20 @@ export type EventLogRow = {
   createdAt: string;
 };
 
+/** (#276) 할 일 목록, 항목 (설계 할일-목록.md 1장) */
+export type TodoListRow = { id: number; groupId: number; name: string; creatorId: number | null; editorId: number | null; createdAt: string; updatedAt: string };
+export type TodoItemRow = {
+  id: number;
+  listId: number;
+  text: string;
+  done: boolean;
+  doneAt: string | null;
+  doneById: number | null;
+  creatorId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** (#191) 팀 활동 기록 (설계 GroupActivity). actorName 은 기록 시점 표시 이름 스냅샷 */
 export type ActivityRow = {
   id: number;
@@ -127,6 +141,9 @@ export type Store = {
   activities?: ActivityRow[];
   /** (#188) 없으면 빈 목록 */
   pushDevices?: PushDeviceRow[];
+  /** (#276) 없으면 빈 목록 */
+  todoLists?: TodoListRow[];
+  todoItems?: TodoItemRow[];
   seq: number;
 };
 
@@ -144,6 +161,8 @@ export const DAD_ID = 4;
 /** (#311) 목 공개 코드. 실제 API 는 랜덤 소문자 영숫자 8자, 목은 id 로 정해지는 8자 ("team2xxx", "evnt12xx") */
 export const mockGroupCode = (id: number) => `team${id}`.padEnd(8, "x").slice(0, 8);
 export const mockEventCode = (id: number) => `evnt${id}`.padEnd(8, "x").slice(0, 8);
+/** (#276) 할 일 목록 공개 코드 ("todo3xxx") */
+export const mockTodoCode = (id: number) => `todo${id}`.padEnd(8, "x").slice(0, 8);
 
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
@@ -411,7 +430,33 @@ export function buildStore(): Store {
     },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, seq: 100 };
+  // (#276) 할 일: 우리 둘 팀에 목록 둘(장보기는 체크 섞임, 여행 준비물은 다 함), 내 달력(개인)은 비어 있다(빈 상태 확인)
+  const todoLists: TodoListRow[] = [
+    { id: 1, groupId: TEAM_ID, name: "장보기", creatorId: ME_ID, editorId: OTHER_ID, createdAt: hoursAgo(48), updatedAt: hoursAgo(1) },
+    { id: 2, groupId: TEAM_ID, name: "제주 여행 준비물", creatorId: OTHER_ID, editorId: ME_ID, createdAt: hoursAgo(24 * 6), updatedAt: hoursAgo(26) },
+  ];
+  const todo = (id: number, listId: number, text: string, creatorId: number, createdH: number, doneBy: number | null = null, doneH = 0): TodoItemRow => ({
+    id,
+    listId,
+    text,
+    done: doneBy !== null,
+    doneAt: doneBy !== null ? hoursAgo(doneH) : null,
+    doneById: doneBy,
+    creatorId,
+    createdAt: hoursAgo(createdH),
+    updatedAt: hoursAgo(doneBy !== null ? doneH : createdH),
+  });
+  const todoItems: TodoItemRow[] = [
+    todo(1, 1, "우유 2개", ME_ID, 40),
+    todo(2, 1, "계란 한 판", OTHER_ID, 39),
+    todo(3, 1, "대파", OTHER_ID, 30, OTHER_ID, 1),
+    todo(4, 1, "식빵", ME_ID, 20),
+    todo(5, 1, "세제 (리필용으로 큰 거, 향 없는 것)", OTHER_ID, 10, ME_ID, 3),
+    todo(6, 2, "여권", OTHER_ID, 140, ME_ID, 30),
+    todo(7, 2, "충전기", ME_ID, 120, ME_ID, 26),
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */
