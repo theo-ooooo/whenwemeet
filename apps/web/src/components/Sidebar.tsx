@@ -1,7 +1,9 @@
 "use client";
 // 넓은 화면(≥600, fold 와 pc) 왼쪽 사이드바 264 (디자인규칙.md 2-2, 4-2, 4-3, 5, #212, D-69).
 // 위에서부터 심볼 34 → 팀 선택 상자 48 → 메뉴(줄 46) → 구분선 → 다가오는 일정 3줄 → 구분선 → 다음 기념일 2줄 → 맨 아래 내 정보.
-// D-58 의 레일과 개요 칸(다가오는 일정, D-day) 내용이 여기 아래 묶음으로 옮겨 왔다. 오늘 비는 시간은 달력 요약 카드가 맡는다
+// D-58 의 레일과 개요 칸(다가오는 일정, D-day) 내용이 여기 아래 묶음으로 옮겨 왔다. 오늘 비는 시간은 달력 요약 카드가 맡는다.
+// (#315, D-200) 접으면 72 아이콘 레일: 심볼 → 팀 아바타(팀 바꾸기) → 메뉴 아이콘 5개(누르는 칸 44, 지금 화면은 먹색 칩) → 내 정보 아바타 → 펼치기.
+// 접힌 아이콘은 마우스를 올리거나 키보드로 포커스하면 오른쪽에 이름 툴팁. 아래 묶음(다가오는 일정, 기념일)은 접힌 동안 받지 않는다
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import { useAnniversaries, useEvents } from "@/hooks";
@@ -15,7 +17,7 @@ import { eventKey } from "@/lib/recurrence";
 import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, UPCOMING_PATH } from "@/lib/routes";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
-import { IconBell, IconCalendar, IconChevronDown, IconFree, IconHeart, IconTeam } from "./icons";
+import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconTeam } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -30,18 +32,22 @@ type Props = {
   /** 바뀌면 아래 묶음을 다시 받는다 (화면 이동, 달력에서 일정 추가/삭제) */
   refreshKey: string;
   onSwitchTeam: () => void;
+  /** (#315) 72 아이콘 레일로 접혔는가 */
+  collapsed: boolean;
+  /** (#315) 접기/펼치기 */
+  onToggle: () => void;
 };
 
 const nowMs = () => Date.now();
 
 /** 팀 선택 상자의 멤버 점 둘 (겹쳐 그린다). 개인 달력은 먹색 하나 */
-function TeamDots({ group }: { group: GroupDetail | null }) {
-  if (!group) return <Skeleton className="size-5 rounded-full" />;
+function TeamDots({ group, small = false }: { group: GroupDetail | null; small?: boolean }) {
+  if (!group) return small ? null : <Skeleton className="size-5 rounded-full" />;
   const colors = group.type === "PERSONAL" ? ["var(--ink)"] : group.members.slice(0, 2).map((m) => memberColor(m.color));
   return (
     <span aria-hidden="true" className="flex shrink-0 items-center">
       {colors.map((c, i) => (
-        <i key={i} className={`block size-3.5 rounded-full ring-2 ring-[var(--bg)] ${i > 0 ? "-ml-1.5" : ""}`} style={{ background: c }} />
+        <i key={i} className={`block ${small ? "size-2.5" : "size-3.5"} rounded-full ring-2 ring-[var(--bg)] ${i > 0 ? (small ? "-ml-1" : "-ml-1.5") : ""}`} style={{ background: c }} />
       ))}
     </span>
   );
@@ -62,7 +68,104 @@ function MenuIcon({ name, active, unread }: { name: string; active: boolean; unr
   }
 }
 
-export function Sidebar({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam }: Props) {
+/** (#315) 접힌 레일 칸의 툴팁. 마우스를 올리거나 키보드 포커스에서 오른쪽에 화면 이름 (스크린 리더는 칸의 aria-label 을 읽는다) */
+function RailTip({ label }: { label: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute left-full top-1/2 z-40 ml-2.5 hidden -translate-y-1/2 whitespace-nowrap rounded-sm bg-ink px-2.5 py-1.5 text-[12px] font-bold leading-4 text-on-ink shadow-[var(--fab-shadow)] group-hover:block group-focus-within:block"
+      data-tooltip
+    >
+      {label}
+    </span>
+  );
+}
+
+export function Sidebar(props: Props) {
+  return props.collapsed ? <SidebarRail {...props} /> : <SidebarFull {...props} />;
+}
+
+/** (#315) 접힌 72 레일. 칸 44, 먹색 칩은 폰 독과 같은 규칙 (디자인규칙.md 4-1, 4-3) */
+function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle }: Props) {
+  const calendarOn = tab === "calendar" || tab === "upcoming";
+  const menu = [
+    { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
+    { key: "free", href: FREE_PATH, label: "빈 시간", on: tab === "free" },
+    { key: "anniversaries", href: ANNIVERSARIES_PATH, label: "기념일", on: tab === "anniversaries" },
+    { key: "news", href: NEWS_PATH, label: "새 소식", on: tab === "news", badge: unread },
+    { key: "settings", href: TEAM_PATH, label: "팀 설정", on: tab === "team" },
+  ];
+  const cell = "group relative grid size-11 place-items-center rounded-[14px]";
+  return (
+    <aside
+      data-collapsed="true"
+      className="sticky top-0 hidden h-dvh flex-col items-center border-r border-line bg-paper pb-4 pt-5 fold:flex"
+    >
+      <div className={cell}>
+        <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="grid size-[34px] place-items-center rounded-sm">
+          <Symbol size={34} />
+        </Link>
+      </div>
+
+      {/* 팀 아바타: 팀 이름 첫 글자 + 멤버 점. 누르면 펼친 상자와 같은 팀 전환 시트 */}
+      <div className={`${cell} mt-4`}>
+        <button
+          type="button"
+          onClick={onSwitchTeam}
+          aria-haspopup="dialog"
+          aria-label={group ? `${group.name}, 팀 바꾸기` : "팀 바꾸기"}
+          className="relative grid size-11 place-items-center rounded-md bg-surface hover:brightness-[0.98]"
+        >
+          {group ? (
+            <span aria-hidden="true" className="text-[16px] font-bold leading-none">
+              {Array.from(group.name)[0] ?? ""}
+            </span>
+          ) : (
+            <Skeleton className="size-5 rounded-full" />
+          )}
+          <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5">
+            <TeamDots group={group} small />
+          </span>
+        </button>
+        <RailTip label={group ? group.name : "팀 바꾸기"} />
+      </div>
+
+      <nav aria-label="주요 화면" className="mt-4">
+        <ul className="flex flex-col items-center gap-1">
+          {menu.map((it) => (
+            <li key={it.key} className={cell}>
+              <Link
+                href={it.href}
+                aria-current={it.on ? "page" : undefined}
+                aria-label={it.badge ? `${it.label}, 새 소식 ${it.badge}개` : it.label}
+                className={`relative grid size-11 place-items-center rounded-[14px] ${it.on ? "bg-ink text-on-ink" : "text-ink-2 hover:bg-hover"}`}
+              >
+                <MenuIcon name={it.key} active={it.on} unread={Boolean(it.badge)} />
+              </Link>
+              <RailTip label={it.label} />
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <span aria-hidden="true" className="flex-1" />
+      <div className={cell}>
+        <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
+          {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+        </Link>
+        <RailTip label="내 정보" />
+      </div>
+      <div className={`${cell} mt-2`}>
+        <button type="button" onClick={onToggle} aria-label="사이드바 펼치기" aria-expanded={false} className="grid size-11 place-items-center rounded-[14px] text-ink-2 hover:bg-hover">
+          <IconChevronRight size={20} />
+        </button>
+        <RailTip label="펼치기" />
+      </div>
+    </aside>
+  );
+}
+
+function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
   const annQ = useAnniversaries(groupId ?? 0, { enabled });
@@ -251,13 +354,24 @@ export function Sidebar({ groupId, group, tab, unread, enabled, refreshKey, onSw
         )}
       </section>
 
-      {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute */}
+      {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315) */}
       <span aria-hidden="true" className="min-h-4 flex-1" />
-      <Link href="/me" className="flex h-12 shrink-0 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
-        {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? ""}</span>
-        <span className="shrink-0 text-[12px] text-ink-2">내 정보</span>
-      </Link>
+      <div className="flex shrink-0 items-center gap-1">
+        <Link href="/me" className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
+          {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? ""}</span>
+          <span className="shrink-0 text-[12px] text-ink-2">내 정보</span>
+        </Link>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="사이드바 접기"
+          aria-expanded={true}
+          className="grid size-11 shrink-0 place-items-center rounded-[14px] text-ink-2 hover:bg-hover"
+        >
+          <IconChevronLeft size={20} />
+        </button>
+      </div>
     </aside>
   );
 }
