@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
+import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './coalesce.js';
-import type { AnniversaryKind } from './anniversary-items.js';
+import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { ChangeLogSnapshot, Platform, PushKindName, PushPayload } from './push-copy.js';
 import type { EventReminder } from './remind-at.js';
 import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-reminders.js';
@@ -12,6 +12,8 @@ import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-remi
 export const MAX_DEVICES_PER_USER = 10;
 /** 임대 행 이름 (마이그레이션이 넣는다) */
 export const PUSH_LEASE = 'push';
+/** (#277) 주간 알림을 예약한 월요일을 적는 행 (D-203). 임대는 PUSH_LEASE 가 잡는다 */
+export const WEEKLY_MARKER = 'weekly';
 
 /** 내 정보 > 알림 (설계 7-1) */
 export interface NotificationSettings {
@@ -19,6 +21,10 @@ export interface NotificationSettings {
   change: boolean;
   anniversary: boolean;
   join: boolean;
+  /** (#277) 주간 요약. 기본 켬 */
+  weekly: boolean;
+  /** (#277) 다 같이 비는 시간 (조용한 팀 깨우기). 기본 끔 (D-204) */
+  weeklyNudge: boolean;
 }
 
 export interface DeviceInput {
@@ -45,6 +51,14 @@ export interface PlannedNotification {
   occurrence?: string | null;
   anniversaryId?: number;
   payload: PushPayload;
+}
+
+/** (#277) 주간 알림 예약. 문구는 펼칠 때 만든다 */
+export interface PlannedWeekly {
+  kind: 'WEEKLY';
+  dedupeKey: string;
+  groupId: number;
+  scheduledAt: Date;
 }
 
 export interface OnceReminderRow {
@@ -108,10 +122,47 @@ export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   updatedAt: Date;
 }
 
+/** (#277) 주간 알림 판정용 팀 */
+export interface WeeklyGroup {
+  name: string;
+  publicCode: string;
+  type: 'PERSONAL' | 'TEAM';
+  createdAt: Date;
+  /** 지금 팀원 */
+  memberIds: number[];
+}
+
+/** (#277) 회차 수와 요약 문구용 일정 (제목, 시각만) */
+export interface WeeklyEventRow {
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  allDay: boolean;
+}
+
+export interface WeeklySeriesRow extends WeeklyEventRow, SeriesRule {
+  repeat: Repeat;
+  exceptions: ExceptionRule[];
+}
+
+/** (#277) 깨우기 빈 시간의 바쁜 구간 (#248 참여자 규칙용, 제목은 읽지 않는다 D-14) */
+export interface WeeklyBusyRow {
+  startsAt: Date;
+  endsAt: Date;
+  allMembers: boolean;
+  participantIds: number[];
+}
+
+export interface WeeklyBusySeries extends WeeklyBusyRow, SeriesRule {
+  exceptions: ExceptionRule[];
+}
+
 /** 펼칠 차례가 된 예약 */
 export interface DueNotification {
   id: number;
   kind: PushKindName;
+  /** (#277) WEEKLY 는 여기서 그 주 월요일을 읽는다 */
+  dedupeKey: string;
   groupId: number;
   scheduledAt: Date;
   /** (#297) 예약을 만든 시각. CHANGE 묶음은 첫 변경, JOIN 은 합류, 가져오기는 가져오기를 마친 시각 */
@@ -161,20 +212,41 @@ export interface CreatedLog {
 const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);
 
-const SETTINGS_SELECT = { notifyReminder: true, notifyChange: true, notifyAnniversary: true, notifyJoin: true } as const;
+const SETTINGS_SELECT = {
+  notifyReminder: true,
+  notifyChange: true,
+  notifyAnniversary: true,
+  notifyJoin: true,
+  notifyWeekly: true,
+  notifyWeeklyNudge: true,
+} as const;
 
-/** 종류별 설정 컬럼 (설계 5-6 받는 사람 표) */
-const KIND_SETTING: Record<PushKindName, keyof typeof SETTINGS_SELECT> = {
+/** 받는 사람을 거르는 User 설정 컬럼 */
+export type SettingColumn = keyof typeof SETTINGS_SELECT;
+
+/** 종류별 설정 컬럼 (설계 5-6 받는 사람 표). (#277) WEEKLY 의 NUDGE 는 notifyWeeklyNudge 를 따로 넘긴다 (D-204) */
+const KIND_SETTING: Record<PushKindName, SettingColumn> = {
   REMINDER: 'notifyReminder',
   CHANGE: 'notifyChange',
   ANNIVERSARY: 'notifyAnniversary',
   JOIN: 'notifyJoin',
+  WEEKLY: 'notifyWeekly',
 };
+
+const BUSY_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
+const idsOf = (rows: { userId: number }[]): number[] => rows.map((row) => row.userId).sort((a, b) => a - b);
 
 const ACTIVE_REMINDERS: EventReminder[] = ['AT_START', 'MIN_10', 'HOUR_1', 'DAY_1', 'DAY_OF_0900', 'DAY_BEFORE_0900'];
 
-function toSettings(row: { notifyReminder: boolean; notifyChange: boolean; notifyAnniversary: boolean; notifyJoin: boolean }): NotificationSettings {
-  return { reminder: row.notifyReminder, change: row.notifyChange, anniversary: row.notifyAnniversary, join: row.notifyJoin };
+function toSettings(row: Record<SettingColumn, boolean>): NotificationSettings {
+  return {
+    reminder: row.notifyReminder,
+    change: row.notifyChange,
+    anniversary: row.notifyAnniversary,
+    join: row.notifyJoin,
+    weekly: row.notifyWeekly,
+    weeklyNudge: row.notifyWeeklyNudge,
+  };
 }
 
 const asPayload = (value: Prisma.JsonValue | null): PushPayload | null => (value === null ? null : (value as unknown as PushPayload));
@@ -227,6 +299,8 @@ export class PushRepository {
     if (patch.change !== undefined) data.notifyChange = patch.change;
     if (patch.anniversary !== undefined) data.notifyAnniversary = patch.anniversary;
     if (patch.join !== undefined) data.notifyJoin = patch.join;
+    if (patch.weekly !== undefined) data.notifyWeekly = patch.weekly;
+    if (patch.weeklyNudge !== undefined) data.notifyWeeklyNudge = patch.weeklyNudge;
     return toSettings(await this.prisma.user.update({ where: { id: userId }, data, select: SETTINGS_SELECT }));
   }
 
@@ -255,6 +329,22 @@ export class PushRepository {
 
   async setDailyDone(holder: string, date: string, name = PUSH_LEASE): Promise<void> {
     await this.prisma.schedulerLease.updateMany({ where: { name, holder }, data: { dailyDoneOn: dateToDb(date) } });
+  }
+
+  /** (#277) 주간 알림을 예약한 월요일 'YYYY-MM-DD'. 행이 없으면 null (D-203) */
+  async getWeeklyDoneOn(): Promise<string | null> {
+    const row = await this.prisma.schedulerLease.findUnique({ where: { name: WEEKLY_MARKER }, select: { dailyDoneOn: true } });
+    return row?.dailyDoneOn ? dbToDate(row.dailyDoneOn) : null;
+  }
+
+  /** (#277) 'push' 임대를 가진 틱 안에서만 부른다. 행이 없으면 만든다 */
+  async setWeeklyDoneOn(date: string): Promise<void> {
+    await this.prisma.schedulerLease.upsert({
+      where: { name: WEEKLY_MARKER },
+      create: { name: WEEKLY_MARKER, leaseUntil: new Date(0), dailyDoneOn: dateToDb(date) },
+      update: { dailyDoneOn: dateToDb(date) },
+      select: { name: true },
+    });
   }
 
   // ---------- 예약 계산 (설계 5-3, 5-5) ----------
@@ -365,7 +455,7 @@ export class PushRepository {
   }
 
   /** dedupeKey 가 이미 있으면 건너뛴다 (D-89). 새로 만든 수 */
-  async createNotifications(rows: PlannedNotification[]): Promise<number> {
+  async createNotifications(rows: (PlannedNotification | PlannedWeekly)[]): Promise<number> {
     if (rows.length === 0) return 0;
     const { count } = await this.prisma.pushNotification.createMany({
       data: rows.map((row) => ({
@@ -373,10 +463,14 @@ export class PushRepository {
         dedupeKey: row.dedupeKey,
         groupId: row.groupId,
         scheduledAt: row.scheduledAt,
-        eventId: row.eventId ?? null,
-        occurrence: row.occurrence ? dateToDb(row.occurrence) : null,
-        anniversaryId: row.anniversaryId ?? null,
-        payload: toJson(row.payload),
+        ...(row.kind === 'WEEKLY'
+          ? {}
+          : {
+              eventId: row.eventId ?? null,
+              occurrence: row.occurrence ? dateToDb(row.occurrence) : null,
+              anniversaryId: row.anniversaryId ?? null,
+              payload: toJson(row.payload),
+            }),
       })),
       skipDuplicates: true,
     });
@@ -464,6 +558,148 @@ export class PushRepository {
     });
   }
 
+  // ---------- (#277) 주간 요약과 깨우기 (설계 5-9, D-203 ~ D-205) ----------
+
+  /** 주간 알림을 켠(요약 또는 깨우기) 팀원 중 팀 알림을 켜고 기기가 있는 사람이 1명 이상인 팀 */
+  async listWeeklyGroupIds(): Promise<number[]> {
+    const rows = await this.prisma.group.findMany({
+      where: {
+        memberships: {
+          some: { notify: true, user: { OR: [{ notifyWeekly: true }, { notifyWeeklyNudge: true }], pushDevices: { some: {} } } },
+        },
+      },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  /** 팀이 지워졌으면 null */
+  async findWeeklyGroup(groupId: number): Promise<WeeklyGroup | null> {
+    const row = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { name: true, publicCode: true, type: true, createdAt: true, memberships: { select: { userId: true } } },
+    });
+    if (!row) return null;
+    const { memberships, ...group } = row;
+    return { ...group, memberIds: idsOf(memberships) };
+  }
+
+  /** 팀 일정 중 [from, to) 에 회차가 있을 수 있는 것. 한 번짜리는 겹치는 것만, 반복은 원본 + 예외 (펼치기는 호출자) */
+  async listWeeklyEvents(groupId: number, from: Date, to: Date): Promise<{ once: WeeklyEventRow[]; series: WeeklySeriesRow[] }> {
+    const window = seriesCandidateWindow(from, to);
+    const select = { title: true, startsAt: true, endsAt: true, allDay: true } as const;
+    const [once, series] = await Promise.all([
+      this.prisma.event.findMany({ where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from } }, select, orderBy: { startsAt: 'asc' } }),
+      this.prisma.event.findMany({
+        where: {
+          groupId,
+          repeat: { not: null },
+          startsAt: { lt: window.startsBefore },
+          OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+        },
+        select: {
+          ...select,
+          repeat: true,
+          repeatUntil: true,
+          repeatAnchor: true,
+          exceptions: { select: { occurrence: true, cancelled: true, title: true, startsAt: true, endsAt: true, allDay: true } },
+        },
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+    return {
+      once,
+      series: series.map((row) => ({
+        ...row,
+        repeat: row.repeat as Repeat,
+        repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
+        repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
+        exceptions: row.exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
+      })),
+    };
+  }
+
+  /** since 뒤 팀의 일정 추가 기록(EventLog CREATED) 수 */
+  async countCreatedLogsSince(groupId: number, since: Date): Promise<number> {
+    return this.prisma.eventLog.count({ where: { groupId, action: 'CREATED', createdAt: { gt: since } } });
+  }
+
+  /** 팀의 마지막 일정 생성 시각. 일정이 없으면 null */
+  async lastEventCreatedAt(groupId: number): Promise<Date | null> {
+    const row = await this.prisma.event.aggregate({ where: { groupId }, _max: { createdAt: true } });
+    return row._max.createdAt;
+  }
+
+  /** since 이후 예약으로 실제로 펼친 깨우기(DISPATCHED, variant NUDGE)가 있는지 (D-205) */
+  async hasNudgeSince(groupId: number, since: Date): Promise<boolean> {
+    const row = await this.prisma.pushNotification.findFirst({
+      where: { groupId, kind: 'WEEKLY', status: 'DISPATCHED', scheduledAt: { gte: since }, payload: { path: '$.variant', equals: 'NUDGE' } },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
+  /** 팀의 기념일 (알림 시점 설정과 무관, #277) */
+  async listGroupAnniversaries(groupId: number): Promise<(AnniversaryLike & { name: string })[]> {
+    const rows = await this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } });
+    return rows.map((row) => ({ ...row, date: dbToDate(row.date) }));
+  }
+
+  /**
+   * 멤버들이 속한 모든 팀(개인 팀 포함, D-14)의 종일이 아닌 바쁜 구간 (빈 시간 찾기와 같은 범위).
+   * 반복은 원본 + 예외 (예외가 종일로 바꿀 수 있어 종일 제외는 펼친 뒤 호출자가)
+   */
+  async listWeeklyBusy(memberIds: number[], from: Date, to: Date): Promise<{ once: WeeklyBusyRow[]; series: WeeklyBusySeries[] }> {
+    if (memberIds.length === 0) return { once: [], series: [] };
+    const groups = await this.prisma.membership.findMany({ where: { userId: { in: memberIds } }, select: { groupId: true }, distinct: ['groupId'] });
+    const groupIds = groups.map((row) => row.groupId);
+    const window = seriesCandidateWindow(from, to);
+    const [once, series] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { groupId: { in: groupIds }, repeat: null, allDay: false, startsAt: { lt: to }, endsAt: { gt: from } },
+        select: { startsAt: true, endsAt: true, ...BUSY_SELECT },
+        orderBy: { startsAt: 'asc' },
+      }),
+      this.prisma.event.findMany({
+        where: {
+          groupId: { in: groupIds },
+          repeat: { not: null },
+          startsAt: { lt: window.startsBefore },
+          OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+        },
+        select: {
+          startsAt: true,
+          endsAt: true,
+          allDay: true,
+          repeat: true,
+          repeatUntil: true,
+          repeatAnchor: true,
+          exceptions: { select: { occurrence: true, cancelled: true, startsAt: true, endsAt: true, allDay: true } },
+          ...BUSY_SELECT,
+        },
+      }),
+    ]);
+    return {
+      once: once.map(({ participants, ...row }) => ({ ...row, participantIds: idsOf(participants) })),
+      series: series.map(({ participants, ...row }) => ({
+        ...row,
+        participantIds: idsOf(participants),
+        repeat: row.repeat as Repeat,
+        repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
+        repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
+        exceptions: row.exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
+      })),
+    };
+  }
+
+  /** (#277) PENDING 인 것만 CANCELLED (주간 알림을 보내지 않기로 판정) */
+  async markCancelled(ids: number[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const { count } = await this.prisma.pushNotification.updateMany({ where: { id: { in: ids }, status: 'PENDING' }, data: { status: 'CANCELLED' } });
+    return count;
+  }
+
   // ---------- 펼치기 (설계 5-6 A) ----------
 
   /** 예약 시각이 된 PENDING, 예약 시각 순 */
@@ -475,6 +711,7 @@ export class PushRepository {
       select: {
         id: true,
         kind: true,
+        dedupeKey: true,
         groupId: true,
         scheduledAt: true,
         createdAt: true,
@@ -543,7 +780,8 @@ export class PushRepository {
   /**
    * 지금 팀원 × 기기 중 종류 설정과 팀 설정이 켜진 것. excludeUserId 는 뺀다 (설계 5-6 받는 사람).
    * (#248) REMINDER 는 펼치는 순간 그 일정의 참여자만 ("모두" 면 팀원 전원). 참여자 없음이거나 일정이 없으면 0명 (D-138).
-   * (#297) joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (joinedAt <= joinedBy). 지난 일을 알리는 CHANGE, JOIN 용 (D-180)
+   * (#297) joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (joinedAt <= joinedBy). 지난 일을 알리는 CHANGE, JOIN 용 (D-180).
+   * (#277) setting 은 종류 기본 컬럼 대신 볼 설정 (WEEKLY NUDGE 는 notifyWeeklyNudge, D-204)
    */
   async listRecipients(
     groupId: number,
@@ -551,6 +789,7 @@ export class PushRepository {
     excludeUserId: number | null,
     eventId: number | null = null,
     joinedBy: Date | null = null,
+    setting: SettingColumn = KIND_SETTING[kind],
   ): Promise<Recipient[]> {
     let participantIds: number[] | null = null;
     if (kind === 'REMINDER' && eventId !== null) {
@@ -566,7 +805,7 @@ export class PushRepository {
       where: {
         groupId,
         notify: true,
-        user: { [KIND_SETTING[kind]]: true } as Prisma.UserWhereInput,
+        user: { [setting]: true } as Prisma.UserWhereInput,
         ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
         ...(participantIds === null ? {} : { AND: [{ userId: { in: participantIds } }] }),
         ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),

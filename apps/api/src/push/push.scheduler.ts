@@ -7,6 +7,7 @@ import { AnniversaryPlanner } from './anniversary-planner.js';
 import { CATCH_UP_MS, type ExpandStats, PushDispatcher, type SendStats } from './push-dispatcher.js';
 import { PushRepository } from './push.repository.js';
 import { ReminderPlanner } from './reminder-planner.js';
+import { WeeklyPlanner } from './weekly-planner.js';
 
 /** 틱 간격 (D-87) */
 export const TICK_MS = 30_000;
@@ -36,6 +37,8 @@ export interface TickResult {
   /** 임대를 못 얻었거나 앞 틱이 아직 돌면 false */
   ran: boolean;
   planned?: number;
+  /** (#277) 이번 틱에 만든 주간 알림 예약 수 */
+  weekly?: number;
   expand?: ExpandStats;
   send?: SendStats;
   receipts?: number;
@@ -60,6 +63,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     private readonly push: PushRepository,
     private readonly reminders: ReminderPlanner,
     private readonly anniversaries: AnniversaryPlanner,
+    private readonly weeklyPlanner: WeeklyPlanner,
     private readonly dispatcher: PushDispatcher,
   ) {}
 
@@ -119,6 +123,8 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
       planned = await this.push.createNotifications(rows);
       await this.push.setCursor(this.holder, hi);
     }
+    // (#277) 창이 아니라 "이번 주 처리 여부" 로 판단한다 (월요일 09:00 ~ 12:00 KST, D-203)
+    const weekly = await this.weeklyPlanner.plan(now);
 
     const expand = await this.dispatcher.expandDue(now);
     const send = await this.dispatcher.sendQueued(now);
@@ -131,9 +137,9 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
       await this.push.setDailyDone(this.holder, day);
     }
 
-    const result: TickResult = { ran: true, planned, expand, send, receipts, cleaned };
-    const busy = planned + expand.dispatched + expand.skipped + send.sent + Object.keys(send.failed).length + send.requeued + receipts > 0;
-    const line = `push.tick ${JSON.stringify({ planned, ...expand, sent: send.sent, failed: send.failed, requeued: send.requeued, receipts, cleaned })}`;
+    const result: TickResult = { ran: true, planned, weekly, expand, send, receipts, cleaned };
+    const busy = planned + weekly + expand.dispatched + expand.cancelled + expand.skipped + send.sent + Object.keys(send.failed).length + send.requeued + receipts > 0;
+    const line = `push.tick ${JSON.stringify({ planned, weekly, ...expand, sent: send.sent, failed: send.failed, requeued: send.requeued, receipts, cleaned })}`;
     if (busy) this.logger.log(line);
     else this.logger.debug(line);
     return result;

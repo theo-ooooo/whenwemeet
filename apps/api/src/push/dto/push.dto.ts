@@ -41,4 +41,14 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean({ message: 'join 은 true/false 여야 해요' })
   join?: boolean;
+
+  /** (#277) 주간 요약 */
+  @IsOptional()
+  @IsBoolean({ message: 'weekly 는 true/false 여야 해요' })
+  weekly?: boolean;
+
+  /** (#277) 다 같이 비는 시간 (조용한 팀 깨우기, 기본 끔 D-204) */
+  @IsOptional()
+  @IsBoolean({ message: 'weeklyNudge 는 true/false 여야 해요' })
+  weeklyNudge?: boolean;
 }

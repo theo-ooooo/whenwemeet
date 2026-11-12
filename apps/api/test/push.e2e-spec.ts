@@ -6,6 +6,7 @@ import { PushDispatcher } from '../src/push/push-dispatcher.js';
 import { PushRepository } from '../src/push/push.repository.js';
 import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
+import { WeeklyPlanner } from '../src/push/weekly-planner.js';
 import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
@@ -117,11 +118,12 @@ describe('푸시 알림 (e2e)', () => {
 
     it('알림 설정: 기본 모두 켬, 불리언만, 빈 본문은 그대로', async () => {
       const get = await api(app).get('/v1/me/notification-settings').set(auth(minji)).expect(200);
-      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true });
+      // (#277) 주간 요약은 기본 켬, 다 같이 비는 시간(깨우기)은 기본 끔 (D-204)
+      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false });
       const bad = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: 'no' }).expect(400);
       expect(bad.body.error.details[0].field).toBe('change');
       const patched = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: false }).expect(200);
-      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true });
+      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false });
       expect((await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({}).expect(200)).body.data.change).toBe(false);
     });
 
@@ -337,7 +339,7 @@ describe('푸시 알림 (e2e)', () => {
 
     it('6. 프로세스 둘(holder 둘) 이 같은 틱 → 임대 하나만, 발송 1벌. 임대가 넘어가도 중복 없음', async () => {
       await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
-      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(PushDispatcher));
+      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher));
       const now = at('17:00:10');
       const results = await Promise.all([scheduler.tick(now), other.tick(now)]);
       expect(results.filter((result) => result.ran)).toHaveLength(1);

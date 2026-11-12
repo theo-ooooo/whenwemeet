@@ -6,7 +6,9 @@ import { addDays, DAY_MS, KST_OFFSET_MS, kstDate, kstMidnight, type Repeat } fro
 import type { ChangeAction } from './coalesce.js';
 import type { EventReminder } from './remind-at.js';
 
-export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN';
+export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY';
+/** (#277) WEEKLY 의 변형. 주간 요약, 조용한 팀 깨우기 (D-203) */
+export type WeeklyVariant = 'SUMMARY' | 'NUDGE';
 export type Platform = 'IOS' | 'ANDROID';
 
 /** PushNotification.payload. 펼칠 때(일정 알림, 기념일은 예약할 때) 만든다 */
@@ -19,6 +21,8 @@ export interface PushPayload {
   url: string;
   /** Expo expiration (epoch 초). REMINDER 는 보낼 때 now + 10분 과 큰 쪽 (D-98) */
   expiration: number;
+  /** (#277) WEEKLY 만. 깨우기 4주 간격 판정에 쓴다 (Expo 메시지에는 싣지 않는다) */
+  variant?: WeeklyVariant;
 }
 
 /** Expo 푸시 메시지 한 건 (D-94) */
@@ -83,6 +87,9 @@ export function eventUrl(groupCode: string, eventCode: string, occurrence: strin
 export const newsUrl = (groupCode: string) => `/news?team=${groupCode}`;
 export const anniversariesUrl = (groupCode: string) => `/anniversaries?team=${groupCode}`;
 export const calendarUrl = (groupCode: string) => `/calendar?team=${groupCode}`;
+/** (#277) 다가오는 일정 목록 (D-70), 빈 시간 찾기 */
+export const upcomingUrl = (groupCode: string) => `/upcoming?team=${groupCode}`;
+export const freeUrl = (groupCode: string) => `/free?team=${groupCode}`;
 
 /** 종일 일정의 마지막 날 (끝은 배타적) */
 function lastAllDayDate(endsAt: Date): string {
@@ -259,6 +266,77 @@ export function importPayload(groupCode: string, groupName: string, actorName: s
     body: null,
     url: calendarUrl(groupCode),
     expiration: epochSeconds(now.getTime() + DAY_MS),
+  };
+}
+
+/** (#277) 순간 → KST 요일 한 글자 (월~일) */
+export function kstWeekday(instant: Date): string {
+  return WEEKDAYS[new Date(instant.getTime() + KST_OFFSET_MS).getUTCDay()];
+}
+
+/** (#277) 요약 본문에 넣는 일정 한 줄. startsAt 은 이번 주 안으로 자른 시작 (지난주부터 이어지는 여러 날 일정은 월요일) */
+export interface WeeklyItem {
+  title: string;
+  startsAt: Date;
+}
+
+export interface WeeklySummaryTarget {
+  groupName: string;
+  groupCode: string;
+  /** 그 주 월요일 'YYYY-MM-DD' (KST) */
+  monday: string;
+  /** 이번 주와 겹치는 회차 수 (1 이상) */
+  count: number;
+  /** 시작 순 앞 2개 */
+  items: WeeklyItem[];
+  /** 이번 주 첫 기념일 항목 (D-92 우선순위). 없으면 null */
+  anniversary: { date: string; title: string } | null;
+}
+
+/** 주간 알림 만료: 그 주 월요일 KST 24:00 (D-98 확장, D-203) */
+const weeklyExpiration = (monday: string) => epochSeconds(kstMidnight(addDays(monday, 1)).getTime());
+
+/**
+ * (#277) 주간 요약 (설계 6장 WEEKLY SUMMARY). 숫자와 사실만, 권유형 문구 금지 (D-204).
+ * 본문 `{요일} {제목}, {요일} {제목} 외 {N-2}개`. 이번 주 기념일이 있으면 `. {요일}요일은 {제목}이에요`
+ */
+export function weeklySummaryPayload(target: WeeklySummaryTarget): PushPayload {
+  const shown = target.items.slice(0, 2);
+  let body = shown.map((item) => `${kstWeekday(item.startsAt)} ${item.title}`).join(', ');
+  if (target.count > shown.length) body += ` 외 ${target.count - shown.length}개`;
+  if (target.anniversary) {
+    const dow = WEEKDAYS[new Date(`${target.anniversary.date}T00:00:00.000Z`).getUTCDay()];
+    body += `. ${dow}요일은 ${copula(target.anniversary.title)}`;
+  }
+  return {
+    title: `이번 주 일정 ${target.count}개`,
+    subtitle: target.groupName,
+    body,
+    url: upcomingUrl(target.groupCode),
+    expiration: weeklyExpiration(target.monday),
+    variant: 'SUMMARY',
+  };
+}
+
+export interface WeeklyNudgeTarget {
+  groupName: string;
+  groupCode: string;
+  monday: string;
+  /** 이번 주 다 같이 비는 시간 (1개 이상, 시작 순) */
+  slots: { startsAt: Date; endsAt: Date }[];
+}
+
+/** (#277) 조용한 팀 깨우기 (설계 6장 WEEKLY NUDGE). 첫 빈 시간 하나와 나머지 수 */
+export function weeklyNudgePayload(target: WeeklyNudgeTarget): PushPayload {
+  const [first] = target.slots;
+  const rest = target.slots.length - 1;
+  return {
+    title: '2주 동안 같이 잡은 일정이 없어요',
+    subtitle: target.groupName,
+    body: `이번 주 다 같이 비는 시간: ${kstWeekday(first.startsAt)} ${kstTimeLabel(first.startsAt)}~${kstTimeLabel(first.endsAt)}${rest > 0 ? ` 외 ${rest}개` : ''}`,
+    url: freeUrl(target.groupCode),
+    expiration: weeklyExpiration(target.monday),
+    variant: 'NUDGE',
   };
 }
 
