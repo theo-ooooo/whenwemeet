@@ -18,11 +18,18 @@ const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43
 
 // 1.1.0: 푸시 알림 (#188). 웹은 UA 버전 >= 1.1.0 일 때만 푸시 메시지를 보낸다 (D-81).
 // 1.1.1: 카카오톡 공유 (#195, @react-native-kakao/share). 웹은 UA 토큰 KakaoShare/1 로 판정한다 (D-169)
+// 1.2.0: 홈 화면 위젯 (#197, iOS 위젯 익스텐션 + App Group, Android AppWidget). 웹은 UA 토큰 Widget/1 로 판정한다 (D-187)
 //        메일 로그인 링크를 앱에서 열기 (#271, intentFilters /auth/email), 기동 때 업데이트 3초 대기 (D-179)
 // 빌드 번호는 eas.json appVersionSource=remote + autoIncrement 로 EAS 가 올린다
-const VERSION = "1.1.1";
+const VERSION = "1.2.0";
 const BUNDLE_ID = "day.whenwemeet.app";
 const WEB_HOST = "whenwemeet.day";
+
+// (#197) 홈 화면 위젯. App Group 과 익스텐션 번들 ID 는 Apple Developer 에 먼저 등록해야 한다 (docs/운영/스토어-제출.md 1.2.0)
+const WIDGET_APP_GROUP = `group.${BUNDLE_ID}`;
+const WIDGET_BUNDLE_ID = `${BUNDLE_ID}.widget`;
+/** Android 위젯 다시 그리기 주기 (최소 30분) */
+const WIDGET_ANDROID_UPDATE_MS = 30 * 60 * 1000;
 
 const SPLASH_LIGHT = "#F4F3F1";
 const SPLASH_DARK = "#121214";
@@ -97,6 +104,55 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         defaultChannel: "default",
         // 스토어/내부 배포(ad hoc) 빌드는 APNs 운영 환경. development 클라이언트만 개발 환경
         mode: process.env.EAS_BUILD_PROFILE === "development" ? "development" : "production",
+      },
+    ],
+    // (#197) 홈 화면 위젯 (앱.md 4.7, D-187 ~ D-190). iOS 는 expo-widgets: 위젯 익스텐션 타깃 ExpoWidgetsTarget,
+    // App Group 권한(앱과 익스텐션 둘 다), EAS appExtensions 를 넣는다. Android 는 expo-widgets 에 누름 딥링크, 갱신 주기,
+    // 크기 정보가 없어 react-native-android-widget 으로 대신한다 (아래)
+    [
+      "expo-widgets",
+      {
+        groupIdentifier: WIDGET_APP_GROUP,
+        bundleIdentifier: WIDGET_BUNDLE_ID,
+        widgets: [
+          {
+            name: "WwmToday",
+            displayName: "오늘",
+            description: "오늘 일정과 가까운 기념일 D-day",
+            ios: { supportedFamilies: ["systemSmall", "systemMedium"], initialLayout: "./src/widget/TodayWidget.ios.tsx" },
+            android: null,
+          },
+        ],
+      },
+    ],
+    // (#197) Android 위젯: 작은(2x2), 중간(4x2). 30분마다 다시 그려 자정을 넘긴다 (Android 최소 주기)
+    [
+      "react-native-android-widget",
+      {
+        widgets: [
+          {
+            name: "WwmTodaySmall",
+            label: "오늘 (작게)",
+            description: "오늘 첫 일정과 가까운 기념일 D-day",
+            minWidth: "110dp",
+            minHeight: "110dp",
+            targetCellWidth: 2,
+            targetCellHeight: 2,
+            resizeMode: "horizontal|vertical",
+            updatePeriodMillis: WIDGET_ANDROID_UPDATE_MS,
+          },
+          {
+            name: "WwmTodayMedium",
+            label: "오늘",
+            description: "오늘 일정 3개와 가까운 기념일 D-day",
+            minWidth: "250dp",
+            minHeight: "110dp",
+            targetCellWidth: 4,
+            targetCellHeight: 2,
+            resizeMode: "horizontal|vertical",
+            updatePeriodMillis: WIDGET_ANDROID_UPDATE_MS,
+          },
+        ],
       },
     ],
   ];

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>홈 화면 위젯 시안</title>
+<!-- (#197) 위젯 시안. apps/mobile/src/widget/TodayWidget.{ios,android}.tsx 와 같은 짜임과 색(디자인토큰.md)을 HTML 로 옮긴 것.
+     실제 위젯은 iOS SwiftUI(expo-widgets), Android RemoteViews(react-native-android-widget)로 그려지며 시스템 글꼴을 쓴다 -->
+<style>
+  :root { --font: -apple-system, "SF Pro Text", "Apple SD Gothic Neo", system-ui, sans-serif; }
+  body { margin: 0; padding: 28px; font-family: var(--font); background: #d9d6d0; width: 760px; }
+  h2 { font-size: 14px; margin: 0 0 10px; color: #26252a; font-weight: 700; }
+  .stage { padding: 22px; border-radius: 26px; margin-bottom: 22px; display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .stage.light { background: linear-gradient(135deg, #f1c9b7, #c9d6ef); }
+  .stage.dark { background: linear-gradient(135deg, #2b2233, #12202f); }
+  .w { border-radius: 22px; padding: 16px; box-sizing: border-box; display: flex; box-shadow: 0 4px 18px rgba(0,0,0,.12); }
+  .s { width: 170px; height: 170px; flex-direction: column; }
+  .m { width: 364px; height: 170px; flex-direction: row; gap: 12px; }
+  .L { --bg:#fff; --ink:#26252a; --mute:#6c6c70; --today:#c2412c; --pri:#e0533d; --m1:#2563eb; --m4:#7c3aed; --m5:#15803d; }
+  .D { --bg:#1d1d21; --ink:#ececef; --mute:#8e8e93; --today:#ffb4a5; --pri:#ff8670; --m1:#6b9bff; --m4:#a78bfa; --m5:#4ade80; }
+  .w { background: var(--bg); color: var(--ink); }
+  .hd { display: flex; gap: 6px; align-items: baseline; }
+  .hd b { font-size: 13px; color: var(--today); }
+  .hd span { font-size: 12px; font-weight: 500; color: var(--mute); }
+  .sp { flex: 1; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+  .t { font-size: 12px; font-weight: 500; color: var(--mute); }
+  .ti { font-size: 15px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .more { font-size: 11px; font-weight: 500; color: var(--mute); }
+  .ann { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+  .ann .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ann .d { font-size: 13px; font-weight: 800; color: var(--pri); }
+  .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; white-space: nowrap; }
+  .row .t { width: 44px; }
+  .row .x { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .row .team { font-size: 10px; color: var(--mute); }
+  .left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .right { width: 96px; text-align: right; display: flex; flex-direction: column; gap: 2px; }
+  .right .lb { font-size: 11px; font-weight: 500; color: var(--mute); }
+  .right .dd { font-size: 24px; font-weight: 800; color: var(--pri); }
+  .right .nm { font-size: 12px; font-weight: 500; }
+  .note { font-size: 14px; font-weight: 600; color: var(--mute); }
+  .stale { font-size: 10px; color: var(--mute); margin-top: 2px; }
+</style>
+</head>
+<body>
+<h2>라이트 — 작은 / 중간 / 로그인 전 / 일정 없음 + 24시간 지남</h2>
+<div class="stage light">
+  <div class="w s L">
+    <div class="hd"><b>오늘</b><span>11월 12일 목</span></div>
+    <div class="sp"></div>
+    <div style="display:flex;align-items:center;gap:4px"><span class="dot" style="background:var(--m1)"></span><span class="t">19:00</span></div>
+    <div class="ti">성수에서 저녁 약속</div>
+    <div class="more">+4개</div>
+    <div class="sp"></div>
+    <div class="ann"><span class="n">처음 만난 날 300일</span><span class="d">D-12</span></div>
+  </div>
+  <div class="w m L">
+    <div class="left">
+      <div class="hd"><b>오늘</b><span>11월 12일 목</span></div>
+      <div class="row"><span class="dot" style="background:var(--m4)"></span><span class="t">종일</span><span class="x">엄마 생신</span><span class="team">가족</span></div>
+      <div class="row"><span class="dot" style="background:var(--m5)"></span><span class="t">~10:00</span><span class="x">제주 여행 돌아오기</span><span class="team">가족</span></div>
+      <div class="row"><span class="dot" style="background:var(--m1)"></span><span class="t">19:00</span><span class="x">성수에서 저녁 약속</span><span class="team">우리 둘</span></div>
+      <div class="more" style="margin-top:4px">+2개</div>
+    </div>
+    <div class="right"><span class="lb">기념일</span><span class="dd">D-12</span><span class="nm">처음 만난 날 300일</span></div>
+  </div>
+  <div class="w s L">
+    <div class="hd"><b>언제볼까</b><span></span></div>
+    <div class="sp"></div>
+    <div class="note" style="color:var(--ink)">언제볼까를 열어 로그인해 주세요</div>
+    <div class="sp"></div>
+  </div>
+  <div class="w s L">
+    <div class="hd"><b>오늘</b><span>11월 14일 토</span></div>
+    <div class="sp"></div>
+    <div class="note">오늘은 일정이 없어요</div>
+    <div class="sp"></div>
+    <div class="ann"><span class="n">처음 만난 날 300일</span><span class="d">D-10</span></div>
+    <div class="stale">앱을 열면 새로 고쳐져요</div>
+  </div>
+</div>
+<h2>다크</h2>
+<div class="stage dark">
+  <div class="w s D">
+    <div class="hd"><b>오늘</b><span>11월 12일 목</span></div>
+    <div class="sp"></div>
+    <div style="display:flex;align-items:center;gap:4px"><span class="dot" style="background:var(--m1)"></span><span class="t">19:00</span></div>
+    <div class="ti">성수에서 저녁 약속</div>
+    <div class="more">+4개</div>
+    <div class="sp"></div>
+    <div class="ann"><span class="n">처음 만난 날 300일</span><span class="d">D-12</span></div>
+  </div>
+  <div class="w m D">
+    <div class="left">
+      <div class="hd"><b>오늘</b><span>11월 12일 목</span></div>
+      <div class="row"><span class="dot" style="background:var(--m4)"></span><span class="t">종일</span><span class="x">엄마 생신</span><span class="team">가족</span></div>
+      <div class="row"><span class="dot" style="background:var(--m5)"></span><span class="t">~10:00</span><span class="x">제주 여행 돌아오기</span><span class="team">가족</span></div>
+      <div class="row"><span class="dot" style="background:var(--m1)"></span><span class="t">19:00</span><span class="x">성수에서 저녁 약속</span><span class="team">우리 둘</span></div>
+      <div class="more" style="margin-top:4px">+2개</div>
+    </div>
+    <div class="right"><span class="lb">기념일</span><span class="dd">D-12</span><span class="nm">처음 만난 날 300일</span></div>
+  </div>
+</div>
+</body>
+</html>

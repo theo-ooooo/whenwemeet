@@ -14,6 +14,7 @@ export { useFreeSlots, type FreeSlotsParams } from "./useFreeSlots";
 export { useNews } from "./useNews";
 export { useHealth, type Health } from "./useHealth";
 export { useNotificationSettings, useUpdateNotificationSettings } from "./useNotificationSettings";
+export { useWidgetAgenda } from "./useWidgetAgenda";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";

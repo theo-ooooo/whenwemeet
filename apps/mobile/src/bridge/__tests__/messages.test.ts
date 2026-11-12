@@ -180,3 +180,31 @@ describe("kakaoShare (#195, D-169)", () => {
     expect(parseKakaoFeed({ ...template, content }, WEB)).toEqual({ content, buttons: template.buttons });
   });
 });
+
+describe("(#197) widgetSnapshot, widgetClear", () => {
+  const snapshot = {
+    generatedAt: "2026-11-12T00:00:00.000Z",
+    groups: [{ id: 1, name: "우리 둘", color: 0 }],
+    days: [{ date: "2026-11-12", events: [{ g: 1, title: "저녁", time: "19:00" }], total: 1 }],
+    anniversaries: [{ g: 1, title: "100일", date: "2026-11-20" }],
+  };
+
+  it("검사를 통과한 스냅샷만", () => {
+    expect(p({ v: 1, type: "widgetSnapshot", snapshot })).toEqual({ v: 1, type: "widgetSnapshot", snapshot });
+    expect(p({ v: 1, type: "widgetSnapshot", snapshot: { ...snapshot, groups: [] } })).toBeNull();
+    expect(p({ v: 1, type: "widgetSnapshot" })).toBeNull();
+    expect(p({ v: 1, type: "widgetClear" })).toEqual({ v: 1, type: "widgetClear" });
+  });
+
+  it("위젯 스냅샷만 4KB 넘게 받고 16KB 는 넘지 못한다", () => {
+    const pad = (n: number) => ({ ...snapshot, generatedAt: snapshot.generatedAt, groups: [{ id: 1, name: "우리 둘", color: 0 }], filler: "x".repeat(n) });
+    expect(p({ v: 1, type: "widgetSnapshot", snapshot: pad(10_000) })?.type).toBe("widgetSnapshot");
+    expect(p({ v: 1, type: "widgetSnapshot", snapshot: pad(17_000) })).toBeNull();
+    expect(p({ v: 1, type: "logout", filler: "x".repeat(5_000) })).toBeNull();
+  });
+
+  it("출처가 웹 오리진이 아니면 버린다", () => {
+    expect(p({ v: 1, type: "widgetSnapshot", snapshot }, "https://evil.com/")).toBeNull();
+    expect(p({ v: 1, type: "widgetClear" }, "https://evil.com/")).toBeNull();
+  });
+});
