@@ -170,6 +170,23 @@ describe("useTodoListEditor", () => {
     expect(hook.result.current.items!.map((i) => i.id)).toEqual([1]);
   });
 
+  it("이름 바꾸기는 목록을 바꾸고, 목록 삭제는 번호로 DELETE", async () => {
+    const hook = await setup([item({})]);
+    api.mockResolvedValueOnce({ ...detail([]).list, name: "마트" });
+    await act(async () => {
+      await hook.result.current.rename("마트");
+    });
+    expect(api).toHaveBeenLastCalledWith("/groups/2/todo-lists/7", { method: "PATCH", body: { name: "마트" } });
+    expect(hook.result.current.list?.name).toBe("마트");
+    api.mockResolvedValueOnce({ ok: true });
+    let r: Awaited<ReturnType<typeof hook.result.current.deleteList>> | undefined;
+    await act(async () => {
+      r = await hook.result.current.deleteList();
+    });
+    expect(api).toHaveBeenLastCalledWith("/groups/2/todo-lists/7", { method: "DELETE" });
+    expect(r?.ok).toBe(true);
+  });
+
   it("앱이 다시 앞으로 오면 다시 불러온다", async () => {
     const hook = await setup([item({})]);
     api.mockImplementation(async () => detail([item({}), item({ id: 5, text: "새로 생김", createdAt: "2026-11-05T00:00:00.000Z" })]));

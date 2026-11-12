@@ -350,7 +350,7 @@ function todoItemOut(s: Store, groupId: number, i: TodoItemRow) {
   };
 }
 
-/** 미완료 추가순, 완료 최신순 (D-204) */
+/** 미완료 추가순, 완료 최신순 (D-207) */
 function sortedTodoItems(items: TodoItemRow[]): TodoItemRow[] {
   const open = items.filter((i) => !i.done).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
   const done = items.filter((i) => i.done).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "") || b.id - a.id);

@@ -16,7 +16,7 @@ export class TodoListInputDto {
   name!: string;
 }
 
-/** 항목 추가. done 은 삭제 되돌리기에서 완료 상태를 같이 되살릴 때만 (D-204) */
+/** 항목 추가. done 은 삭제 되돌리기에서 완료 상태를 같이 되살릴 때만 (D-207) */
 export class TodoItemCreateDto {
   @Trim()
   @IsString({ message: TEXT_MESSAGE })

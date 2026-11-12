@@ -43,7 +43,7 @@ const item = (over: Partial<TodoItemRow> = {}): TodoItemRow => ({
   ...over,
 });
 
-describe('sortTodoItems (D-204)', () => {
+describe('sortTodoItems (D-207)', () => {
   it('미완료는 추가순(같은 시각이면 id), 그 아래 완료는 완료 시각 최신순', () => {
     const t = (iso: string) => new Date(iso);
     const rows = [
@@ -57,7 +57,7 @@ describe('sortTodoItems (D-204)', () => {
   });
 });
 
-describe('itemChange (멱등, D-204)', () => {
+describe('itemChange (멱등, D-207)', () => {
   it('같은 값은 null, 바뀐 칸만, 완료는 시각과 사람을 같이', () => {
     const current = { text: '우유', done: false };
     expect(itemChange(current, {}, 1, NOW)).toBeNull();

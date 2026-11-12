@@ -4,7 +4,7 @@ import { generatePublicCode } from '../common/public-code.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { type Db, PrismaService } from '../prisma/prisma.service.js';
 
-/** (#276) 할 일 목록, 항목 저장소 (설계 할일-목록.md, D-203 ~ D-205) */
+/** (#276) 할 일 목록, 항목 저장소 (설계 할일-목록.md, D-206 ~ D-208) */
 
 const TODO_LIST_SELECT = {
   id: true,
@@ -148,7 +148,7 @@ export class TodosRepository {
     return this.prisma.todoList.findFirst({ where: { id: listId, groupId }, select: { id: true, name: true } });
   }
 
-  /** 다른 팀 항목을 가리키는 번호는 null. 항목에는 groupId 가 없어 목록을 거친다 (D-203) */
+  /** 다른 팀 항목을 가리키는 번호는 null. 항목에는 groupId 가 없어 목록을 거친다 (D-206) */
   findItemInGroup(groupId: number, itemId: number): Promise<{ id: number; listId: number; text: string; done: boolean } | null> {
     return this.prisma.todoItem.findFirst({
       where: { id: itemId, list: { groupId } },
@@ -163,7 +163,7 @@ export class TodosRepository {
   }
 
   /**
-   * 목록 만들기. 팀 행을 잠그고(FOR UPDATE) 개수를 센 뒤 만든다. 이미 limit 개면 null (D-205).
+   * 목록 만들기. 팀 행을 잠그고(FOR UPDATE) 개수를 센 뒤 만든다. 이미 limit 개면 null (D-208).
    * 공개 코드는 일정처럼 만들 때 생성한다 (32^8 이라 충돌은 무시, D-197)
    */
   async createListWithinLimit(input: { groupId: number; name: string; creatorId: number }, limit: number): Promise<TodoListRow | null> {
@@ -202,7 +202,7 @@ export class TodosRepository {
 
   /**
    * 항목 추가. 목록 행을 잠그고 updatedAt, editorId 를 올린 뒤 개수를 세어 limit 개면
-   * 트랜잭션을 되돌리고 null (D-205). 목록이 그사이 지워졌으면 'GONE'
+   * 트랜잭션을 되돌리고 null (D-208). 목록이 그사이 지워졌으면 'GONE'
    */
   async createItemWithinLimit(listId: number, input: TodoItemCreateInput, limit: number): Promise<TodoItemRow | null | 'GONE'> {
     try {
@@ -261,7 +261,7 @@ export class TodosRepository {
   /**
    * 항목이 바뀌면 목록도 바뀐 것으로 (정렬, 마지막으로 바꾼 사람). 먼저 목록 행을 잠근다(FOR UPDATE):
    * Prisma 의 update 는 UPDATE 전에 일반 SELECT 를 해 그 순간의 읽기 시점이 잡히므로, 잠금 없이 시작하면
-   * 뒤의 개수 세기가 먼저 끝난 다른 트랜잭션의 항목을 못 본다 (D-205). 목록이 없으면 P2025 와 같은 표식을 던진다
+   * 뒤의 개수 세기가 먼저 끝난 다른 트랜잭션의 항목을 못 본다 (D-208). 목록이 없으면 P2025 와 같은 표식을 던진다
    */
   private async touchListTx(tx: Db, listId: number, editorId: number): Promise<void> {
     const locked = await tx.$queryRaw<{ id: number }[]>`SELECT id FROM \`TodoList\` WHERE id = ${listId} FOR UPDATE`;

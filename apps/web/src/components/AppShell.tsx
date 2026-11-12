@@ -258,7 +258,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const dots = teamDotColors(groups ?? []);
   const isCalendar = tab === "calendar";
   // 일정 작성/수정 화면(/events/new, /events/<코드>/edit)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다.
-  // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-206)
+  // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-209)
   const isForm = info.form || info.todoCode !== null;
   const shownGroup = group && group.id === groupId ? group : null;
 

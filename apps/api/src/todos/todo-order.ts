@@ -1,4 +1,4 @@
-/** (#276, D-204) 항목 순서: 미완료는 추가순(createdAt 오름차순, 같으면 id), 그 아래 완료는 완료 시각 최신순(같으면 id 내림차순) */
+/** (#276, D-207) 항목 순서: 미완료는 추가순(createdAt 오름차순, 같으면 id), 그 아래 완료는 완료 시각 최신순(같으면 id 내림차순) */
 export interface TodoOrderable {
   id: number;
   done: boolean;

@@ -1,9 +1,9 @@
 // (#276) 할 일 목록 규칙. React 를 import 하지 않는다 (단위 테스트 대상)
-// 순서와 개수는 API 와 같은 규칙(api.md 2.11, D-204): 미완료는 추가순, 그 아래 완료는 완료 시각 최신순
+// 순서와 개수는 API 와 같은 규칙(api.md 2.11, D-207): 미완료는 추가순, 그 아래 완료는 완료 시각 최신순
 import { dateKeyOf, parseKey } from "./date";
 import type { TodoItem, TodoListSummary } from "./types";
 
-/** 상한 (D-205). 서버가 최종 판단하고 화면은 미리 막는 데만 쓴다 */
+/** 상한 (D-208). 서버가 최종 판단하고 화면은 미리 막는 데만 쓴다 */
 export const TODO_LIST_LIMIT = 20;
 export const TODO_ITEM_LIMIT = 300;
 export const TODO_LIST_NAME_MAX = 30;

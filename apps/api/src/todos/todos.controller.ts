@@ -5,7 +5,7 @@ import { IdParam } from '../common/id-param.js';
 import { TodoItemCreateDto, TodoItemPatchDto, TodoListInputDto } from './dto/todo.dto.js';
 import { TodosService } from './todos.service.js';
 
-/** (#276) 할 일 목록 (api.md 2.11). 팀 안 경로는 번호, 상세 조회만 공개 코드 (D-203) */
+/** (#276) 할 일 목록 (api.md 2.11). 팀 안 경로는 번호, 상세 조회만 공개 코드 (D-206) */
 @Controller('groups/:groupId')
 export class TodosController {
   constructor(private readonly todos: TodosService) {}

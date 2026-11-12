@@ -532,7 +532,7 @@ EventSharePreview = { groupName, memberCount,
 - 합류는 `POST /groups/join` 과 같은 내부 함수(`GroupsService.joinGroup`: 색 배정, JOIN 알림, 새 소식). 새로 합류하면 `joinCount + 1` 과 새 소식 `MEMBER_JOINED { via: 'EVENT_SHARE' }` (D-185)
 - 토큰 대조는 대소문자를 구분한다 (열 정렬은 ci 라 서비스가 다시 맞춘다). Sentry 는 `/join/e/<token>`, `/event-shares/<token>` 경로를 지운다
 
-### 2.11 할 일 목록 (#276, 설계 `할일-목록.md`, D-203 ~ D-207)
+### 2.11 할 일 목록 (#276, 설계 `할일-목록.md`, D-206 ~ D-210)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -554,7 +554,7 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 
 - 항목 순서: 미완료 createdAt 오름차순, 그 아래 완료 doneAt 내림차순
 - `done: true` 는 doneAt = 지금, doneBy = 나, `false` 는 둘 다 null. 목록 updatedAt, editor 는 목록과 항목이 실제로 바뀔 때마다 올린다
-- 새 소식, 푸시 기록 없음. 요청 제한은 기본 한도만 (D-207)
+- 새 소식, 푸시 기록 없음. 요청 제한은 기본 한도만 (D-210)
 
 ## 3. 기획 기능 → API 추적
 

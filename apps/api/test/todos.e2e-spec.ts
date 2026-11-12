@@ -2,7 +2,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 import { api, auth, createTestApp, devLogin, resetDb, Session, TestApp } from './helpers.js';
 
 /**
- * (#276) 팀 공유 할 일 목록 (api.md 2.11, 설계 할일-목록.md, D-203 ~ D-207).
+ * (#276) 팀 공유 할 일 목록 (api.md 2.11, 설계 할일-목록.md, D-206 ~ D-210).
  * 멤버 검사(403), 다른 팀 번호(404), 코드 조회(비멤버 404), 상한, 완료 멱등, 목록 정렬, Cascade, 나가기와 탈퇴, 개인 팀
  */
 describe('할 일 목록 (e2e, #276)', () => {
@@ -139,7 +139,7 @@ describe('할 일 목록 (e2e, #276)', () => {
     await api(app).delete(`/v1/groups/${groupId}/todo-lists/${list.id}/items`).set(auth(alice)).expect(400);
   });
 
-  it('완료 멱등: 같은 값 PATCH 는 쓰지 않아 항목과 목록 updatedAt 이 그대로 (D-204)', async () => {
+  it('완료 멱등: 같은 값 PATCH 는 쓰지 않아 항목과 목록 updatedAt 이 그대로 (D-207)', async () => {
     const list = await createList(alice, '멱등');
     const it1 = await addItem(alice, list.id, '우유');
     await api(app).patch(`/v1/groups/${groupId}/todo-items/${it1.id}`).set(auth(alice)).send({ done: true }).expect(200);
@@ -271,7 +271,7 @@ describe('할 일 목록 (e2e, #276)', () => {
     expect(await prisma.todoItem.count({ where: { listId: list.id } })).toBe(0);
   });
 
-  it('할 일은 새 소식(EventLog, GroupActivity)에 남지 않는다 (D-207)', async () => {
+  it('할 일은 새 소식(EventLog, GroupActivity)에 남지 않는다 (D-210)', async () => {
     const before = await prisma.groupActivity.count({ where: { groupId } });
     const list = await createList(alice, '소식 없음');
     await addItem(alice, list.id, '조용히');

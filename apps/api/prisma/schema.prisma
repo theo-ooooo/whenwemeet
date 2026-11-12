@@ -691,7 +691,7 @@ model SchedulerLease {
   updatedAt   DateTime  @updatedAt
 }
 
-/// (#276) 팀 공유 할 일 목록 (장보기, 여행 준비물). 날짜 없음 (설계 할일-목록.md, D-203)
+/// (#276) 팀 공유 할 일 목록 (장보기, 여행 준비물). 날짜 없음 (설계 할일-목록.md, D-206)
 model TodoList {
   id         Int      @id @default(autoincrement())
   groupId    Int
@@ -703,7 +703,7 @@ model TodoList {
   /// 목록이나 항목을 마지막으로 바꾼 사람 (목록 화면 "민지, 3분 전")
   editorId   Int?
   createdAt  DateTime @default(now())
-  /// 항목이 바뀌어도 올린다 (목록 정렬, D-204)
+  /// 항목이 바뀌어도 올린다 (목록 정렬, D-207)
   updatedAt  DateTime @updatedAt
 
   group   Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -714,13 +714,13 @@ model TodoList {
   @@index([groupId, updatedAt])
 }
 
-/// (#276) 할 일 항목. 팀은 목록을 거쳐 찾는다 (groupId 없음, D-203)
+/// (#276) 할 일 항목. 팀은 목록을 거쳐 찾는다 (groupId 없음, D-206)
 model TodoItem {
   id        Int       @id @default(autoincrement())
   listId    Int
   text      String    @db.VarChar(100)
   done      Boolean   @default(false)
-  /// 완료한 시각. done=false 면 null (D-204)
+  /// 완료한 시각. done=false 면 null (D-207)
   doneAt    DateTime?
   /// 완료한 사람. done=false 거나 탈퇴하면 null
   doneById  Int?
