@@ -1,7 +1,7 @@
 import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
-import { EventRow, EventsRepository } from '../events/events.repository.js';
+import { EventRow, EventsRepository, SeriesRow } from '../events/events.repository.js';
 import { EventsService } from '../events/events.service.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { emptyResponses } from '../testing/responses-mock.js';
@@ -37,7 +37,8 @@ const ONCE: EventRow = {
   place: null,
 };
 /** 매주 수요일 2026-11-11 시작 */
-const SERIES: EventRow = { ...ONCE, id: 200, publicCode: 'srescode', title: '주간 모임', repeat: 'WEEKLY', startsAt: kst('2026-11-11T19:00:00'), endsAt: kst('2026-11-11T21:00:00'), allMembers: true, participantIds: [] };
+/** 반복 원본. listSeriesForRange 목에 exceptions 만 붙여 넣도록 repeat 을 null 아닌 타입으로 둔다 */
+const SERIES: Omit<SeriesRow, 'exceptions'> = { ...ONCE, id: 200, publicCode: 'srescode', title: '주간 모임', repeat: 'WEEKLY', startsAt: kst('2026-11-11T19:00:00'), endsAt: kst('2026-11-11T21:00:00'), allMembers: true, participantIds: [] };
 
 describe('EventResponsesService (#190)', () => {
   let events: RepositoryMock<EventsRepository>;
