@@ -235,6 +235,13 @@ export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver
   };
 }
 
+/** startsAt 오름차순, 같으면 id, 그다음 회차 날짜 */
+function sortViews(views: EventView[]): EventView[] {
+  return views.sort(
+    (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id || (a.occurrence ?? '').localeCompare(b.occurrence ?? ''),
+  );
+}
+
 function seriesRule(row: EventRow): SeriesRule {
   return {
     startsAt: row.startsAt,
@@ -334,9 +341,21 @@ export class EventsService {
     for (const row of series) {
       for (const occurrence of expand(seriesRule(row), row.exceptions, from, to)) views.push(toOccurrenceView(row, occurrence, resolver));
     }
-    return views.sort(
-      (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id || (a.occurrence ?? '').localeCompare(b.occurrence ?? ''),
-    );
+    return sortViews(views);
+  }
+
+  /**
+   * (#193) 구독 피드용 기간 조회. 멤버십은 호출자(피드 서비스)가 이미 확인했고, 기간 상한(62일) 없이 피드 창(461일)을 그대로 쓴다.
+   * 펼치기, 예외, 응답 모양은 list 와 같다
+   */
+  async listForFeed(groupId: number, from: Date, to: Date): Promise<EventView[]> {
+    const [rows, series] = await Promise.all([this.events.listInRange(groupId, from, to), this.events.listSeriesForRange(groupId, from, to)]);
+    const resolver = await this.memberships.resolverFor(groupId);
+    const views = rows.map((row) => toEventView(row, resolver));
+    for (const row of series) {
+      for (const occurrence of expand(seriesRule(row), row.exceptions, from, to)) views.push(toOccurrenceView(row, occurrence, resolver));
+    }
+    return sortViews(views);
   }
 
   /** 반복이면 `occurrence` 회차 (없으면 첫 회차). 한 번짜리는 `occurrence` 를 무시한다 */

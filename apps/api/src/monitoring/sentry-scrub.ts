@@ -15,8 +15,11 @@ const SENSITIVE_KEY = /token|code|email|key|secret|password|state|session|signat
 /** 객체 키 판정. 쿼리보다 좁게 잡는다(`code` 는 Prisma 오류 코드 같은 진단 정보라 객체에서는 남긴다) */
 const SENSITIVE_FIELD = /token|email|secret|password|passwd|authorization|cookie|session|signature|api[-_]?key|private[-_]?key/i;
 
-/** 값이 곧 비밀인 경로 조각. `/join/<초대코드>`, `/invites/<초대코드>`, (#274) `/join/e/<일정 링크 토큰>`, `/event-shares/<토큰>` */
-const SECRET_PATH = /(\/(?:join\/e|join|invites|event-shares)\/)[^/?#\s]+/gi;
+/**
+ * 값이 곧 비밀인 경로 조각. `/join/<초대코드>`, `/invites/<초대코드>`, (#274) `/join/e/<일정 링크 토큰>`, `/event-shares/<토큰>`,
+ * (#193) `/ics/<구독 토큰>.ics`
+ */
+const SECRET_PATH = /(\/(?:join\/e|join|invites|event-shares|ics)\/)[^/?#\s]+/gi;
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const BEARER = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi;

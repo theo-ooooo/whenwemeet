@@ -76,6 +76,16 @@ export class AnniversariesRepository {
     return rows.map((row) => toAnniversaryRow(row, this.urls));
   }
 
+  /** (#193) 구독 피드용: 항목 계산에 필요한 값과 마지막 개정 시각만 */
+  async listForFeed(groupId: number): Promise<{ id: number; name: string; date: string; kind: AnniversaryKind; updatedAt: Date }[]> {
+    const rows = await this.prisma.anniversary.findMany({
+      where: { groupId },
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      select: { id: true, name: true, date: true, kind: true, updatedAt: true },
+    });
+    return rows.map((row) => ({ ...row, date: row.date.toISOString().slice(0, 10) }));
+  }
+
   /** 다른 팀 자원을 가리키는 ID 는 null */
   findIdInGroup(groupId: number, anniversaryId: number): Promise<{ id: number } | null> {
     return this.prisma.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true } });
