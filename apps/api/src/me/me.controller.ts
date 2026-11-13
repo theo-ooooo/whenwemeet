@@ -4,9 +4,10 @@ import { CurrentUser } from '../auth/current-user.decorator.js';
 import { AvatarsService, type UploadedImage } from '../avatars/avatars.service.js';
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { AvatarFileInterceptor } from './avatar-file.interceptor.js';
+import { UpdateBirthdayDto } from './dto/update-birthday.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
-import { MeProfile, MeService, StartCalendar } from './me.service.js';
+import { type BirthdaySettings, MeProfile, MeService, StartCalendar } from './me.service.js';
 
 @Controller('me')
 export class MeController {
@@ -15,7 +16,7 @@ export class MeController {
     private readonly avatars: AvatarsService,
   ) {}
 
-  /** (#300) 처음 여는 달력 `startCalendar` 포함 */
+  /** (#300) 처음 여는 달력 `startCalendar`, (#305) 내 생일 `birthday` 포함 */
   @Get()
   get(@CurrentUser() user: AuthUser): Promise<MeProfile> {
     return this.me.getProfile(user);
@@ -25,6 +26,12 @@ export class MeController {
   @Patch('start-calendar')
   updateStartCalendar(@CurrentUser() user: AuthUser, @Body() dto: UpdateStartCalendarDto): Promise<StartCalendar> {
     return this.me.updateStartCalendar(user.id, dto);
+  }
+
+  /** (#305) 내 생일 (월, 일만. null 이면 지우기) 과 팀원에게 알리는 시점 (D-224, D-226) */
+  @Patch('birthday')
+  updateBirthday(@CurrentUser() user: AuthUser, @Body() dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
+    return this.me.updateBirthday(user.id, dto);
   }
 
   /** 닉네임 변경 (D-36) */

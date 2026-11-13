@@ -1,4 +1,5 @@
 import { AnniversariesRepository } from '../anniversaries/anniversaries.repository.js';
+import { BirthdaysRepository } from '../anniversaries/birthdays.repository.js';
 import { ApiException } from '../common/errors.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
@@ -55,17 +56,20 @@ function configWith(env: Record<string, string | undefined>) {
 describe('CalendarFeedService (#193)', () => {
   let feeds: RepositoryMock<CalendarFeedsRepository>;
   let anniversaries: RepositoryMock<AnniversariesRepository>;
+  let birthdays: RepositoryMock<BirthdaysRepository>;
   let memberships: { assertMember: ReturnType<typeof vi.fn>; isMember: ReturnType<typeof vi.fn> };
   let events: { listForFeed: ReturnType<typeof vi.fn> };
   let service: CalendarFeedService;
 
   function build(env: Record<string, string | undefined> = { API_PUBLIC_ORIGIN: 'https://api.whenwemeet.day/' }) {
-    service = new CalendarFeedService(feeds as never, memberships as never, events as never, anniversaries as never, configWith(env));
+    service = new CalendarFeedService(feeds as never, memberships as never, events as never, anniversaries as never, birthdays as never, configWith(env));
   }
 
   beforeEach(() => {
     feeds = mockRepository(CalendarFeedsRepository);
     anniversaries = mockRepository(AnniversariesRepository);
+    birthdays = mockRepository(BirthdaysRepository);
+    birthdays.listForFeed.mockResolvedValue([{ userId: 2, name: '민지', birthday: '12-24', updatedAt: new Date('2026-10-02T00:00:00Z') }]);
     memberships = { assertMember: vi.fn().mockResolvedValue(membershipRow()), isMember: vi.fn().mockResolvedValue(true) };
     events = { listForFeed: vi.fn().mockResolvedValue([VIEW]) };
     anniversaries.listForFeed.mockResolvedValue([{ id: 3, name: '만난 날', date: '2026-09-20', kind: 'COUNT_UP', updatedAt: new Date('2026-10-01T00:00:00Z') }]);
@@ -177,6 +181,10 @@ describe('CalendarFeedService (#193)', () => {
       expect(result.body).toContain('DESCRIPTION:참여: 민지');
       expect(result.body).not.toContain('비밀 메모');
       expect(result.body).toContain('SUMMARY:만난 날 100일');
+      // (#305) 멤버 생일도 "기념일 포함" 을 따라 싣는다
+      expect(birthdays.listForFeed).toHaveBeenCalledWith(10);
+      expect(result.body).toContain('SUMMARY:민지 생일');
+      expect(result.body).toContain('UID:b2-20261224@whenwemeet.day');
       expect(result.etag).toBe(bodyEtag(result.body));
       expect(feeds.touchFetched).toHaveBeenCalledWith(5, NOW);
     });
@@ -188,6 +196,8 @@ describe('CalendarFeedService (#193)', () => {
       expect(result.body).toContain('비밀 메모');
       expect(result.body).not.toContain('만난 날');
       expect(anniversaries.listForFeed).not.toHaveBeenCalled();
+      expect(result.body).not.toContain('생일');
+      expect(birthdays.listForFeed).not.toHaveBeenCalled();
     });
 
     it('If-None-Match 가 같으면 304 (본문 없음), 가져간 시각은 남긴다', async () => {

@@ -19,8 +19,11 @@ export interface GroupDetail {
   publicCode: string;
   createdAt: Date;
   members: MemberWithJoin[];
-  /** notify: (#188) 나 자신의 "이 팀 알림 받기". 다른 멤버의 값은 싣지 않는다 */
-  me: MemberWithJoin & { notify: boolean };
+  /**
+   * notify: (#188) 나 자신의 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기".
+   * 다른 멤버의 값은 싣지 않는다
+   */
+  me: MemberWithJoin & { notify: boolean; showBirthday: boolean };
 }
 
 /** 멤버십 확인과 멤버 목록. 모든 그룹 자원 서비스가 첫 줄에서 `assertMember` 를 부른다 */
@@ -95,7 +98,7 @@ export class MembershipService {
       publicCode: group.publicCode,
       createdAt: group.createdAt,
       members,
-      me: { ...me, notify: myRow.notify },
+      me: { ...me, notify: myRow.notify, showBirthday: myRow.showBirthday },
     };
   }
 }

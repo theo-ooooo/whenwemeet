@@ -106,6 +106,36 @@ describe('MeService', () => {
     expect(await service.updateNickname(1, '새닉')).toBe(user);
     expect(users.updateNickname).toHaveBeenCalledWith(1, '새닉');
   });
+  describe('내 생일 (#305)', () => {
+    const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
+    const stored = { birthday: '02-29', birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: false };
+
+    it('GET /me 는 생일과 알림 시점을 붙인다. 없으면 date null 에 기본 당일만', async () => {
+      users.findStartCalendar.mockResolvedValue(null);
+      users.findBirthday.mockResolvedValueOnce(stored);
+      expect((await service.getProfile(user)).birthday).toEqual({ date: '02-29', reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      users.findBirthday.mockResolvedValueOnce({ ...stored, birthday: null });
+      expect((await service.getProfile(user)).birthday).toEqual({ date: null, reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      users.findBirthday.mockResolvedValueOnce(null);
+      expect((await service.getProfile(user)).birthday).toEqual({ date: null, reminders: ['DAY_OF'] });
+    });
+
+    it('PATCH /me/birthday: 알림을 생략하면 생일만, 보내면 칸 셋을 함께 저장한다', async () => {
+      users.updateBirthday.mockImplementation(async (_id, data) => ({ ...stored, ...data }));
+      expect(await service.updateBirthday(1, { date: '03-05' })).toEqual({ date: '03-05', reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: '03-05' });
+      expect(await service.updateBirthday(1, { date: '03-05', reminders: ['WEEK_BEFORE'] })).toEqual({ date: '03-05', reminders: ['WEEK_BEFORE'] });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, {
+        birthday: '03-05',
+        birthdayRemindDayOf: false,
+        birthdayRemindDayBefore: false,
+        birthdayRemindWeekBefore: true,
+      });
+      expect((await service.updateBirthday(1, { date: null })).date).toBeNull();
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: null });
+    });
+  });
+
   describe('처음 여는 달력 (#300)', () => {
     const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
 
@@ -115,7 +145,7 @@ describe('MeService', () => {
 
     it('GET /me 는 저장값을 붙인다. 행이 없거나 GROUP 인데 팀이 없으면 LAST, GROUP 이 아니면 groupId 는 null', async () => {
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: 31 });
-      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 } });
+      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] } });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: null });
       expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'PERSONAL', groupId: 31 });

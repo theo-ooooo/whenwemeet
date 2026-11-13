@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isBirthdayOn } from '../anniversaries/birthdays.js';
+import { birthdayTargetOf } from './anniversary-planner.js';
 import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
 import { changePayload, DELETED_MEMBER_NAME, joinPayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
 import { type ClaimedDelivery, type DueNotification, PushRepository } from './push.repository.js';
@@ -73,10 +75,12 @@ export class PushDispatcher {
       // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
       // (#297) 지난 일을 알리는 CHANGE, JOIN 은 그 일이 생긴 시각(예약 createdAt)까지 들어와 있던 팀원에게만 (D-180)
       const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
+      // (#305) 생일 알림은 생일인 사람(actorId)에게 보내지 않는다 (D-226)
+      const excludesActor = reportsPast || row.kind === 'ANNIVERSARY';
       let recipients = await this.push.listRecipients(
         row.groupId,
         row.kind,
-        reportsPast ? row.actorId : null,
+        excludesActor ? row.actorId : null,
         row.kind === 'REMINDER' ? row.eventId : null,
         reportsPast ? row.createdAt : null,
       );
@@ -145,7 +149,15 @@ export class PushDispatcher {
       if (row.eventId === null || !(await this.push.eventExists(row.eventId))) return null;
       return row.payload;
     }
-    if (row.kind === 'ANNIVERSARY') return row.payload;
+    if (row.kind === 'ANNIVERSARY') {
+      // (#305) 생일: 그 사이 팀을 나갔거나, 이 팀에 안 보이게 했거나, 생일을 지우거나 바꿨으면 보내지 않는다
+      const target = birthdayTargetOf(row.dedupeKey);
+      if (target !== null && row.actorId !== null) {
+        const birthday = await this.push.findShownBirthday(row.groupId, row.actorId);
+        if (birthday === null || !isBirthdayOn(birthday, target)) return null;
+      }
+      return row.payload;
+    }
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 

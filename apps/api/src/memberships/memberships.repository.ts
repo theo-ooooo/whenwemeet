@@ -19,6 +19,7 @@ export const MEMBERSHIP_WITH_USER = {
     lastSeenAt: true,
     joinedAt: true,
     notify: true,
+    showBirthday: true,
     user: USER_PUBLIC_SELECT,
   },
 } as const;
@@ -26,8 +27,8 @@ export const MEMBERSHIP_WITH_USER = {
 /** (#300) 고정한 팀에서 나가거나 팀이 지워졌을 때 처음 여는 달력을 마지막에 본 달력으로 (D-192) */
 const START_CALENDAR_RESET = { startCalendarMode: 'LAST', startGroupId: null } as const;
 
-/** notify: (#188) 팀 설정 "이 팀 알림 받기" */
-export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean };
+/** notify: (#188) 팀 설정 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기" */
+export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean; showBirthday: boolean };
 
 /** user 를 USER_PUBLIC_SELECT 모양으로 읽은 멤버십 행 → 응답용 `{ nickname, profileImageUrl }` */
 function withUserRow<T extends { user: UserPublicRecord }>(row: T, urls: FileUrlBuilder): Omit<T, 'user'> & { user: MembershipRow['user'] } {
@@ -57,6 +58,8 @@ export interface MembershipMeInput {
   displayName?: string | null;
   /** (#188) */
   notify?: boolean;
+  /** (#305) */
+  showBirthday?: boolean;
 }
 
 /** (#274) 합류 경로. 일정 링크로 들어오면 그 링크의 합류 수를 세고 새 소식에 경로를 남긴다 (D-185) */
@@ -125,7 +128,7 @@ export class MembershipsRepository {
     return rows.map((row) => row.groupId);
   }
 
-  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow & { notify: boolean }> {
+  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow & { notify: boolean; showBirthday: boolean }> {
     const row = await this.prisma.membership.update({
       where: { id: membershipId },
       data,
@@ -135,6 +138,7 @@ export class MembershipsRepository {
         displayName: true,
         joinedAt: true,
         notify: true,
+        showBirthday: true,
         user: USER_PUBLIC_SELECT,
       },
     });

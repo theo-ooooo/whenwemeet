@@ -67,6 +67,9 @@ describe('MembershipService', () => {
     expect(detail.inviteShareUrl).toBe(`http://web/join/ABCDEF?by=${markerOf(10, 1)}`);
     expect(detail.members.map((m) => m.displayName)).toEqual(['앨리스', '별명']);
     expect(detail.me.userId).toBe(1);
+    // (#305) 내 "이 팀 달력에 내 생일 보이기" 는 me 에만
+    expect(detail.me.showBirthday).toBe(true);
+    expect(detail.members[1]).not.toHaveProperty('showBirthday');
   });
 
   it('(#196) inviteShareUrl: 요청자마다 다르고 코드가 없으면(PERSONAL) null', async () => {
@@ -278,6 +281,14 @@ describe('GroupsService', () => {
     const member = await service.updateMe(1, 10, { notify: false });
     expect(membershipsRepo.updateMe).toHaveBeenCalledWith(1001, { notify: false });
     expect(member).toMatchObject({ userId: 1, notify: false });
+  });
+
+  it('updateMe: showBirthday 를 저장하고 응답에 싣는다 (#305)', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.updateMe.mockResolvedValue({ ...membershipRow(), showBirthday: false });
+    const member = await service.updateMe(1, 10, { showBirthday: false });
+    expect(membershipsRepo.updateMe).toHaveBeenCalledWith(1001, { showBirthday: false });
+    expect(member).toMatchObject({ userId: 1, notify: true, showBirthday: false });
   });
 
   it('leave: 멤버 아님 → FORBIDDEN, PERSONAL → GROUP_PERSONAL_LEAVE, 팀 없음 → NOT_FOUND', async () => {
