@@ -9,15 +9,16 @@ let result: Q = { data: null, error: null, isLoading: false };
 const searched = vi.fn();
 vi.mock("@/hooks", () => ({
   usePlaceResolve: (p: unknown) => ({ data: p ? { place: { name: "다시 찾은 서울숲", address: "서울 성동구" } } : null, error: null }),
-  usePlaceSearch: (q: string, enabled: boolean) => {
-    searched(q, enabled);
+  usePlaceSearch: (q: string, provider: string, enabled: boolean) => {
+    searched(q, provider, enabled);
     return { ...result, refetch: vi.fn(), setData: vi.fn() };
   },
 }));
 
 const { PlaceField } = await import("../PlaceField");
 
-const C = (id: string, name: string): PlaceCandidate => ({ kakaoPlaceId: id, name, address: `${name} 주소`, lat: 37.5, lng: 127, category: "카페" });
+const C = (id: string, name: string): PlaceCandidate => ({ provider: "kakao", kakaoPlaceId: id, naverKey: null, name, address: `${name} 주소`, lat: 37.5, lng: 127, category: "카페" });
+const N = (key: string, name: string): PlaceCandidate => ({ provider: "naver", kakaoPlaceId: null, naverKey: key, name, address: `${name} 주소`, lat: 37.5, lng: 127, category: "카페" });
 
 function setup(text = "카페", picked: null | { name: string | null } = null) {
   const onType = vi.fn();
@@ -25,7 +26,7 @@ function setup(text = "카페", picked: null | { name: string | null } = null) {
   const onClear = vi.fn();
   render(
     <PlaceField
-      place={{ text: picked ? "" : text, picked: picked ? { kakaoPlaceId: "1", query: "숲", name: picked.name, address: picked.name ? "서울" : null } : null }}
+      place={{ text: picked ? "" : text, picked: picked ? { provider: "kakao", id: "1", query: "숲", name: picked.name, address: picked.name ? "서울" : null } : null }}
       onType={onType}
       onPick={onPick}
       onClear={onClear}
@@ -72,7 +73,7 @@ describe("PlaceField", () => {
     const { onClear } = setup("", { name: "서울숲" });
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(screen.getByText("서울숲")).toBeTruthy();
-    expect(searched).not.toHaveBeenCalledWith(expect.anything(), true);
+    expect(searched).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), true);
     fireEvent.click(screen.getByRole("button", { name: "고른 장소 풀기" }));
     expect(onClear).toHaveBeenCalled();
     cleanup();
@@ -85,6 +86,34 @@ describe("PlaceField", () => {
     const { input } = setup("우리 집");
     fireEvent.focus(input);
     expect(screen.getByText("지금은 장소를 찾을 수 없어요. 적은 이름 그대로 저장돼요")).toBeTruthy();
+  });
+
+  it("(D-259) 검색 출처는 지도 선택(기본 네이버). 결과 출처를 작게 한 줄, 카카오맵으로 바꾸면 카카오로 찾는다", () => {
+    result = { data: { items: [N("0123456789abcdef", "서울숲")] }, error: null, isLoading: false };
+    const { onPick, input } = setup("서울숲");
+    fireEvent.focus(input);
+    expect(searched).toHaveBeenLastCalledWith("서울숲", "naver", true);
+    expect(screen.getByText("네이버 검색 결과")).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: /서울숲/ }));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ provider: "naver", naverKey: "0123456789abcdef" }), "서울숲");
+    cleanup();
+    window.localStorage.setItem("wwm_map_app", "kakao");
+    try {
+      result = { data: { items: [C("1", "서울숲")] }, error: null, isLoading: false };
+      const again = setup("서울숲");
+      fireEvent.focus(again.input);
+      expect(searched).toHaveBeenLastCalledWith("서울숲", "kakao", true);
+      expect(screen.getByText("카카오 검색 결과")).toBeTruthy();
+    } finally {
+      window.localStorage.removeItem("wwm_map_app");
+    }
+  });
+
+  it("(D-259) 고른 네이버 장소 안내는 네이버로", () => {
+    render(
+      <PlaceField place={{ text: "", picked: { provider: "naver", id: "0123456789abcdef", query: "숲", name: "서울숲", address: "서울" } }} onType={vi.fn()} onPick={vi.fn()} onClear={vi.fn()} />,
+    );
+    expect(document.body.textContent).toContain("네이버 장소로 저장돼요");
   });
 
   it("지우기 단추", () => {

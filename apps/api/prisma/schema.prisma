@@ -27,6 +27,12 @@ enum EventLogAction {
 }
 
 /// (#187) 반복 주기. 기준은 첫 회차 시작일 (기획 3-1)
+/// (D-259) 고른 장소의 출처 (Event.placeProvider, EventException.placeProvider)
+enum PlaceProvider {
+  KAKAO
+  NAVER
+}
+
 enum EventRepeat {
   WEEKLY
   BIWEEKLY
@@ -404,8 +410,11 @@ model Event {
   /// 반복 일정은 원본 단위 (회차 예외 없음)
   color         String?       @db.Char(7)
   /// (#199) 장소 (D-242). 카카오 정책상 카카오가 준 이름, 주소, 좌표는 저장하지 않는다. 보일 때마다 placeQuery 로 다시 찾아 placeId 를 고른다.
-  /// placeId: 고른 카카오 장소 ID. placeQuery: 고를 때 사용자가 적은 검색어. placeText: 고르지 않고 적은 장소 글자. 셋 다 null 이면 장소 없음
+  /// placeId: 고른 장소의 식별자(카카오 장소 ID, 또는 네이버 장소 키 = 이름 + 주소 sha256 앞 16자, D-259). placeQuery: 고를 때 사용자가 적은 검색어.
+  /// placeText: 고르지 않고 적은 장소 글자. 셋 다 null 이면 장소 없음
   placeId       String?       @db.VarChar(20)
+  /// (D-259) placeId 의 출처. null 이면 카카오 (이전 행). 직접 적은 장소는 null
+  placeProvider PlaceProvider?
   placeQuery    String?       @db.VarChar(100)
   placeText     String?       @db.VarChar(100)
 
@@ -451,8 +460,10 @@ model EventException {
   /// (#188) 이 회차의 시각이나 알림을 바꾼 시각. null 이면 원본 값
   reminderSetAt DateTime?
   /// (#199) 이 회차의 장소. 셋 다 null 이면 원본 장소, placeText 가 '' 이고 나머지가 null 이면 이 회차만 장소 없음 (메모와 같은 규칙, D-65).
-  /// 그 밖이면 셋이 원본 장소 전체를 대신한다
+  /// 그 밖이면 셋(+ 출처)이 원본 장소 전체를 대신한다
   placeId       String?   @db.VarChar(20)
+  /// (D-259) placeId 의 출처. null 이면 카카오 (이전 행)
+  placeProvider PlaceProvider?
   placeQuery    String?   @db.VarChar(100)
   placeText     String?   @db.VarChar(100)
 

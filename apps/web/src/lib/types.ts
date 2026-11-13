@@ -82,16 +82,32 @@ export type EventInput = {
 };
 
 /**
- * (#199) 보내는 장소 (D-242). 카카오 정책상 카카오가 준 이름, 주소, 좌표는 보내지도 저장하지도 않는다.
- * 직접 적은 장소는 text, 검색에서 고른 장소는 kakaoPlaceId + query(고를 때 사용자가 적은 검색어)
+ * (#199) 보내는 장소 (D-242, D-259). 검색 결과의 이름, 주소, 좌표는 보내지도 저장하지도 않는다.
+ * 직접 적은 장소는 text, 카카오에서 고른 장소는 kakaoPlaceId + query(고를 때 사용자가 적은 검색어),
+ * 네이버에서 고른 장소는 naverKey(이름 + 주소 해시, 서버가 만든 값) + query
  */
-export type PlaceInput = { text?: string | null; query?: string | null; kakaoPlaceId?: string | null };
+export type PlaceInput = { text?: string | null; query?: string | null; kakaoPlaceId?: string | null; naverKey?: string | null };
 
-/** (#199) 받는 장소. 이름, 주소, 좌표는 보일 때 GET /places/resolve 로 다시 찾는다. url 은 카카오 ID 가 있을 때 카카오맵 장소 상세 */
-export type Place = { text: string | null; query: string | null; kakaoPlaceId: string | null; url: string | null };
+/** (D-259) 장소 검색 출처 */
+export type PlaceProvider = "kakao" | "naver";
 
-/** (#199) GET /places/search 후보 하나 */
-export type PlaceCandidate = { kakaoPlaceId: string; name: string; address: string | null; lat: number; lng: number; category: string | null };
+/**
+ * (#199) 받는 장소. 이름, 주소, 좌표는 보일 때 GET /places/resolve 로 다시 찾는다. provider 는 고른 장소의 출처(직접 적은 장소는 null).
+ * url 은 카카오면 카카오맵 장소 상세, 네이버면 검색어로 네이버 지도 검색. 옛 API 응답에는 naverKey, provider 가 없을 수 있다
+ */
+export type Place = { text: string | null; query: string | null; kakaoPlaceId: string | null; naverKey?: string | null; provider?: PlaceProvider | null; url: string | null };
+
+/** (#199) GET /places/search 후보 하나. provider 가 kakao 면 kakaoPlaceId, naver 면 naverKey */
+export type PlaceCandidate = {
+  provider: PlaceProvider;
+  kakaoPlaceId: string | null;
+  naverKey: string | null;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  category: string | null;
+};
 
 /** (#199) GET /events/search 한 줄. 반복이면 event 는 회차 하나 (occurrence 채움) */
 export type EventSearchItem = {

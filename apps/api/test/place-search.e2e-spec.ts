@@ -1,7 +1,9 @@
 import ICAL from 'ical.js';
 import request from 'supertest';
 import { kstDate } from '../src/events/recurrence.js';
+import { naverPlaceKey } from '../src/places/naver-place-search.provider.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { FakeNaver } from './fake-naver.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
 /**
@@ -10,6 +12,7 @@ import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp
  * - 검색: 내 팀만, groupId 비멤버 403, 와일드카드 글자 그대로, 한 글자, 반복 한 줄 + 예외 회차 따로, 취소 회차 제외, 정렬, hasMore
  * - 프록시: 로그인 필요, 가짜 공급자, 검색어 검사, 사용자당 분당 60회
  * - 구독 피드: LOCATION, GEO
+ * - (D-259) 네이버: 검색 출처 provider=naver(가짜 네이버 서버), 저장은 식별 키 + 검색어, 다시 찾기, 피드
  */
 const kst = (date: string, time: string) => new Date(`${date}T${time}+09:00`).toISOString();
 /** 고른 장소: 카카오 ID + 고를 때 적은 검색어만 (카카오가 준 이름, 주소, 좌표는 저장 금지, D-242) */
@@ -46,9 +49,10 @@ describe('일정 장소 (e2e)', () => {
 
   it('고른 장소: ID 와 검색어만 저장(DB 열 셋), url 은 카카오 ID 로 만든다. 단건, 목록, 공개 코드 조회 모두 place', async () => {
     const created = await create(body('커피', '2027-03-10', { place: { ...PICKED, query: ' 카페 ' } }));
-    expect(created.place).toEqual({ ...PICKED, text: null, url: 'https://place.map.kakao.com/27531028' });
+    expect(created.place).toEqual({ ...PICKED, text: null, naverKey: null, provider: 'kakao', url: 'https://place.map.kakao.com/27531028' });
     const row = await app.get(PrismaService).event.findUniqueOrThrow({ where: { id: created.id } });
-    expect(Object.keys(row).filter((k) => k.startsWith('place')).sort()).toEqual(['placeId', 'placeQuery', 'placeText']);
+    expect(Object.keys(row).filter((k) => k.startsWith('place')).sort()).toEqual(['placeId', 'placeProvider', 'placeQuery', 'placeText']);
+    expect(row.placeProvider).toBe('KAKAO');
     const one = (await api(app).get(`${events()}/${created.id}`).set(auth(alice)).expect(200)).body.data;
     expect(one.place).toEqual(created.place);
     const byCode = (await api(app).get(`/v1/events/${created.publicCode}`).set(auth(alice)).expect(200)).body.data;
@@ -59,7 +63,7 @@ describe('일정 장소 (e2e)', () => {
 
   it('직접 적은 장소는 글자만 (지도 없음). 생략 = 없음(null)', async () => {
     const free = await create(body('모임', '2027-03-10', { place: { text: '할머니 댁' } }));
-    expect(free.place).toEqual({ text: '할머니 댁', query: null, kakaoPlaceId: null, url: null });
+    expect(free.place).toEqual({ text: '할머니 댁', query: null, kakaoPlaceId: null, naverKey: null, provider: null, url: null });
     const none = await create(body('없음', '2027-03-10'));
     expect(none.place).toBeNull();
   });
@@ -115,6 +119,151 @@ describe('일정 장소 (e2e)', () => {
     expect(split.id).not.toBe(series.id);
     expect(split.place.text).toBe('을지로');
     expect((await at('2027-03-03')).body.data.place.kakaoPlaceId).toBe(PICKED.kakaoPlaceId);
+  });
+});
+
+describe('네이버 장소 (e2e, D-259)', () => {
+  const naver = new FakeNaver();
+  let app: TestApp;
+  let alice: Session;
+  const saved: Record<string, string | undefined> = {};
+  const ENV = ['NAVER_SEARCH_CLIENT_ID', 'NAVER_SEARCH_CLIENT_SECRET', 'NAVER_SEARCH_URL'] as const;
+
+  beforeAll(async () => {
+    await naver.start();
+    for (const key of ENV) saved[key] = process.env[key];
+    process.env.NAVER_SEARCH_CLIENT_ID = 'e2e-naver-id';
+    process.env.NAVER_SEARCH_CLIENT_SECRET = 'e2e-naver-secret';
+    process.env.NAVER_SEARCH_URL = naver.url;
+    app = await createTestApp({ rateLimit: {} });
+  });
+
+  afterAll(async () => {
+    await resetDb(app);
+    await app.close();
+    await naver.stop();
+    for (const key of ENV) process.env[key] = saved[key];
+  });
+
+  beforeEach(async () => {
+    await resetDb(app);
+    naver.requests.length = 0;
+    alice = await devLogin(app, '앨리스');
+  });
+
+  const SEOUL_FOREST_KEY = naverPlaceKey('서울숲', '서울특별시 성동구 뚝섬로 273');
+
+  it('provider=naver 는 네이버 지역 검색(키 헤더 둘, display=5)을 부르고 정규화한다. 기본은 카카오, 다른 값은 400', async () => {
+    const res = (await api(app).get('/v1/places/search').query({ q: '서울숲', provider: 'naver' }).set(auth(alice)).expect(200)).body.data;
+    expect(res.items[0]).toEqual({
+      provider: 'naver',
+      kakaoPlaceId: null,
+      naverKey: SEOUL_FOREST_KEY,
+      name: '서울숲',
+      address: '서울특별시 성동구 뚝섬로 273',
+      lat: 37.5419644,
+      lng: 127.0385663,
+      category: '숲,숲길',
+    });
+    expect(res.items[1].name).toBe('서울바쿠테 성수본점 국밥&쌀국수');
+    expect(naver.requests[0]).toMatchObject({ query: { query: '서울숲', display: '5', start: '1', sort: 'random' }, id: 'e2e-naver-id', secret: 'e2e-naver-secret' });
+    const kakao = (await api(app).get('/v1/places/search').query({ q: '서울숲' }).set(auth(alice)).expect(200)).body.data;
+    expect(kakao.items[0]).toMatchObject({ provider: 'kakao', kakaoPlaceId: '8209184' });
+    expect(naver.requests).toHaveLength(1);
+    const bad = await api(app).get('/v1/places/search').query({ q: '서울숲', provider: 'google' }).set(auth(alice)).expect(400);
+    expect(bad.body.error.details[0].field).toBe('provider');
+  });
+
+  it('네이버 실패(429 하루 한도 등)는 502 PLACE_SEARCH_FAILED', async () => {
+    naver.status = 429;
+    try {
+      const res = await api(app).get('/v1/places/search').query({ q: '한도', provider: 'naver' }).set(auth(alice)).expect(502);
+      expect(res.body.error.code).toBe('PLACE_SEARCH_FAILED');
+    } finally {
+      naver.status = 200;
+    }
+  });
+
+  it('저장: 네이버 키 + 검색어만(열 placeId + placeProvider NAVER), 이름, 주소, 좌표는 저장 안 함. 다시 찾기는 같은 검색어에서 키가 같은 항목', async () => {
+    const team = (await api(app).get('/v1/groups').set(auth(alice)).expect(200)).body.data[0].id;
+    const created = (
+      await api(app)
+        .post(`/v1/groups/${team}/events`)
+        .set(auth(alice))
+        .send({ title: '산책', startsAt: kst('2027-03-10', '10:00:00'), endsAt: kst('2027-03-10', '11:00:00'), allDay: false, place: { naverKey: SEOUL_FOREST_KEY, query: ' 서울숲 ' } })
+        .expect(201)
+    ).body.data;
+    expect(created.place).toEqual({
+      text: null,
+      query: '서울숲',
+      kakaoPlaceId: null,
+      naverKey: SEOUL_FOREST_KEY,
+      provider: 'naver',
+      url: 'https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%88%B2',
+    });
+    const row = await app.get(PrismaService).event.findUniqueOrThrow({ where: { id: created.id } });
+    expect({ placeId: row.placeId, placeProvider: row.placeProvider, placeQuery: row.placeQuery, placeText: row.placeText }).toEqual({
+      placeId: SEOUL_FOREST_KEY,
+      placeProvider: 'NAVER',
+      placeQuery: '서울숲',
+      placeText: null,
+    });
+    expect(JSON.stringify(row)).not.toContain('뚝섬로');
+    const hit = (await api(app).get('/v1/places/resolve').query({ provider: 'naver', id: SEOUL_FOREST_KEY, q: '서울숲' }).set(auth(alice)).expect(200)).body.data;
+    expect(hit.place).toMatchObject({ name: '서울숲', lat: 37.5419644, lng: 127.0385663 });
+    expect((await api(app).get('/v1/places/resolve').query({ provider: 'naver', id: 'fedcba9876543210', q: '서울숲' }).set(auth(alice)).expect(200)).body.data.place).toBeNull();
+    expect((await api(app).get('/v1/places/resolve').query({ provider: 'naver', id: '8209184', q: '서울숲' }).set(auth(alice)).expect(400)).body.error.details[0].field).toBe('id');
+    // 키 형식, 카카오 ID 와 함께 보내기는 400
+    const badBody = (place: unknown) =>
+      api(app)
+        .post(`/v1/groups/${team}/events`)
+        .set(auth(alice))
+        .send({ title: '산책', startsAt: kst('2027-03-10', '10:00:00'), endsAt: kst('2027-03-10', '11:00:00'), allDay: false, place })
+        .expect(400);
+    await badBody({ naverKey: 'XYZ', query: '서울숲' });
+    await badBody({ naverKey: SEOUL_FOREST_KEY, kakaoPlaceId: '1', query: '서울숲' });
+    await badBody({ naverKey: SEOUL_FOREST_KEY, query: '서울숲', name: '서울숲' });
+  });
+
+  it('반복 "이 일정만" 으로 카카오 → 네이버, 일정 검색은 검색어로, 구독 피드는 네이버에서 다시 찾아 LOCATION + GEO, 못 찾으면 검색어', async () => {
+    const team = (await api(app).get('/v1/groups').set(auth(alice)).expect(200)).body.data[0].id;
+    const events = `/v1/groups/${team}/events`;
+    const series = (
+      await api(app)
+        .post(events)
+        .set(auth(alice))
+        .send({ title: '주간 산책', startsAt: kst('2027-01-06', '10:00:00'), endsAt: kst('2027-01-06', '11:00:00'), allDay: false, repeat: 'WEEKLY', place: PICKED })
+        .expect(201)
+    ).body.data;
+    await api(app)
+      .patch(`${events}/${series.id}`)
+      .query({ occurrence: '2027-01-13', scope: 'this' })
+      .set(auth(alice))
+      .send({ place: { naverKey: SEOUL_FOREST_KEY, query: '서울숲' } })
+      .expect(200);
+    const one = (await api(app).get(`${events}/${series.id}`).query({ occurrence: '2027-01-13' }).set(auth(alice)).expect(200)).body.data;
+    expect(one.place).toMatchObject({ provider: 'naver', naverKey: SEOUL_FOREST_KEY, kakaoPlaceId: null });
+    const ex = await app.get(PrismaService).eventException.findFirstOrThrow({ where: { eventId: series.id } });
+    expect(ex.placeProvider).toBe('NAVER');
+    expect((await api(app).get(`${events}/${series.id}`).query({ occurrence: '2027-01-20' }).set(auth(alice)).expect(200)).body.data.place.provider).toBe('kakao');
+    await api(app)
+      .post(events)
+      .set(auth(alice))
+      .send({ title: '사라진 곳', startsAt: kst('2027-01-08', '10:00:00'), endsAt: kst('2027-01-08', '11:00:00'), allDay: false, place: { naverKey: 'fedcba9876543210', query: '서울숲' } })
+      .expect(201);
+    const found = (await api(app).get('/v1/events/search').query({ q: '서울숲' }).set(auth(alice)).expect(200)).body.data;
+    expect(found.items.map((i: { event: { title: string } }) => i.event.title)).toContain('사라진 곳');
+
+    const feed = (await api(app).put(`/v1/groups/${team}/calendar-feed`).set(auth(alice)).send({}).expect(200)).body.data;
+    const res = await request(app.getHttpServer()).get(new URL(feed.httpsUrl).pathname).expect(200);
+    const vevents = new ICAL.Component(ICAL.parse(res.text)).getAllSubcomponents('vevent');
+    // 반복은 회차마다 VEVENT 하나 (uid e<id>-<날짜>)
+    const walk = vevents.find((c) => String(c.getFirstPropertyValue('uid')).startsWith(`e${series.id}-20270113`))!;
+    expect(walk.getFirstPropertyValue('location')).toBe('서울숲, 서울특별시 성동구 뚝섬로 273');
+    expect(res.text).toContain('GEO:37.541964;127.038566');
+    const gone = vevents.find((c) => c.getFirstPropertyValue('summary') === '사라진 곳')!;
+    expect(gone.getFirstPropertyValue('location')).toBe('서울숲');
+    expect(gone.getFirstPropertyValue('geo')).toBeNull();
   });
 });
 
@@ -258,7 +407,7 @@ describe('장소 검색 프록시 (e2e)', () => {
     await api(app).get('/v1/places/search').query({ q: '카페' }).expect(401);
     const alice = await devLogin(app, '앨리스');
     const res = (await api(app).get('/v1/places/search').query({ q: '카페' }).set(auth(alice)).expect(200)).body.data;
-    expect(res.items[0]).toEqual({ kakaoPlaceId: '27531028', name: '카페 온화 성수점', address: '서울 성동구 연무장길 12', lat: 37.5428, lng: 127.0565, category: '카페' });
+    expect(res.items[0]).toEqual({ provider: 'kakao', kakaoPlaceId: '27531028', naverKey: null, name: '카페 온화 성수점', address: '서울 성동구 연무장길 12', lat: 37.5428, lng: 127.0565, category: '카페' });
     const bad = await api(app).get('/v1/places/search').query({ q: ' ' }).set(auth(alice)).expect(400);
     expect(bad.body.error.details[0].field).toBe('q');
   });

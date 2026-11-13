@@ -1,18 +1,23 @@
 "use client";
-// (#199) 일정 폼의 "장소" 칸. 적는 대로 장소 검색(우리 API → 카카오 로컬) 후보를 아래에 띄우고, 고르면 카카오 장소 ID 와
-// 그때 적은 검색어만 초안에 붙는다(카카오 이름, 주소, 좌표는 저장하지 않는다, D-242). 고른 장소는 입력칸 대신 카드로 보이고
-// (이름, 주소는 고른 순간 값 또는 다시 찾은 값), ✕ 로 풀면 다시 적는다. 고르지 않고 적은 글자 그대로도 저장된다(지도 없음). 내 위치는 쓰지 않는다 (D-244).
-// 검색이 안 되면(키 없음 503, 카카오 오류) 후보 없이 직접 입력만 남는다. 검색어는 저장하지 않는다
+// (#199) 일정 폼의 "장소" 칸. 적는 대로 장소 검색(우리 API → 내 정보의 지도 선택에 따라 네이버 지역 검색 또는 카카오 로컬, D-259) 후보를
+// 아래에 띄우고, 고르면 식별자(카카오 장소 ID, 네이버 키)와 그때 적은 검색어만 초안에 붙는다(이름, 주소, 좌표는 저장하지 않는다, D-242).
+// 고른 장소는 입력칸 대신 카드로 보이고 (이름, 주소는 고른 순간 값 또는 다시 찾은 값), ✕ 로 풀면 다시 적는다. 고르지 않고 적은 글자 그대로도
+// 저장된다(지도 없음). 내 위치는 쓰지 않는다 (D-244). 검색이 안 되면(키 없음 503, 검색 오류) 후보 없이 직접 입력만 남는다. 검색어는 저장하지 않는다
 import { useId, useRef, useState } from "react";
 import { usePlaceResolve, usePlaceSearch } from "@/hooks";
 import { charCount, nearLimit } from "@/lib/chars";
-import { PLACE_MAX, placeHint, type DraftPlace } from "@/lib/place";
-import type { PlaceCandidate } from "@/lib/types";
+import { candidateKey, PLACE_MAX, placeHint, type DraftPlace } from "@/lib/place";
+import { useMapApp } from "@/lib/useMapApp";
+import type { PlaceCandidate, PlaceProvider } from "@/lib/types";
 import { IconClose, IconPin } from "./icons";
 import { Spinner } from "./ui";
 
-/** 후보는 6개까지 (폰 화면 한 번에) */
+/** 후보는 6개까지 (폰 화면 한 번에). 네이버는 5개까지 온다 */
 const MAX_OPTIONS = 6;
+
+/** 결과 출처 표기 (이용 조건) */
+const SOURCE_NOTE: Record<PlaceProvider, string> = { naver: "네이버 검색 결과", kakao: "카카오 검색 결과" };
+const SOURCE_NAME: Record<PlaceProvider, string> = { naver: "네이버", kakao: "카카오" };
 
 export function PlaceField({
   place,
@@ -33,8 +38,10 @@ export function PlaceField({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const typed = place.text.trim();
+  // 검색 출처는 내 정보의 지도 선택 (D-259)
+  const [app] = useMapApp();
   // 고른 뒤에는 다시 찾지 않는다 (이름을 고치면 picked 가 풀리고 다시 찾는다)
-  const q = usePlaceSearch(typed, open && place.picked === null);
+  const q = usePlaceSearch(typed, app, open && place.picked === null);
   const options = (q.data?.items ?? []).slice(0, MAX_OPTIONS);
   const showList = open && place.picked === null && typed.length > 0 && (options.length > 0 || q.isLoading || q.error !== null);
   const unavailable = q.error !== null;
@@ -133,7 +140,7 @@ export function PlaceField({
           <ul id={listId} role="listbox" aria-label="장소 후보">
             {options.map((c, i) => (
               <li
-                key={c.kakaoPlaceId}
+                key={candidateKey(c)}
                 id={`${listId}-${i}`}
                 role="option"
                 aria-selected={i === active}
@@ -153,6 +160,7 @@ export function PlaceField({
               </li>
             ))}
           </ul>
+          {options.length > 0 && <p className="border-t border-line px-3 py-1 text-right text-[11px] leading-4 text-ink-2">{SOURCE_NOTE[options[0].provider]}</p>}
           {q.isLoading && options.length === 0 && (
             <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-ink-2" aria-live="polite">
               <Spinner className="size-3.5" /> 장소를 찾는 중
@@ -169,7 +177,7 @@ export function PlaceField({
       {/* 안내는 적었을 때 한 줄만. 빈 칸은 "장소 추가" 가 대신한다(읽기 이름에는 남긴다) */}
       <p id={hintId} className={typed && !place.picked ? "t-sub pb-1.5 pl-[30px]" : "sr-only"}>
         {place.picked
-          ? "카카오 장소로 저장돼요. 일정을 열 때마다 카카오에서 이름과 지도를 다시 받아요"
+          ? `${SOURCE_NAME[place.picked.provider]} 장소로 저장돼요. 일정을 열 때마다 ${SOURCE_NAME[place.picked.provider]}에서 이름과 위치를 다시 받아요`
           : typed
             ? "목록에서 고르면 지도에 표시돼요. 고르지 않으면 적은 이름 그대로 저장돼요"
             : "카페, 식당 이름이나 주소로 찾아 보세요"}

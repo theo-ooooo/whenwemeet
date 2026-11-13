@@ -44,7 +44,7 @@ export interface FeedEventInput {
   occurrence: string | null;
   participants: { all: boolean; members: { displayName: string }[] };
   /** (#199) 저장된 장소 (사용자 글자와 카카오 ID). 없으면 null (생략 가능: 장소 이전 입력) */
-  place?: { text: string | null; query: string | null; kakaoPlaceId: string | null } | null;
+  place?: { text: string | null; query: string | null; kakaoPlaceId: string | null; naverKey?: string | null } | null;
 }
 
 export interface FeedOptions {
@@ -90,7 +90,7 @@ export function eventDescription(event: FeedEventInput, includeMemo: boolean, in
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
-/** (#199) 피드를 만들 때 카카오에서 다시 찾은 장소 (저장하지 않는다) */
+/** (#199) 피드를 만들 때 고른 출처(카카오, 네이버 D-259)에서 다시 찾은 장소 (저장하지 않는다) */
 export interface ResolvedPlace {
   name: string;
   address: string | null;
@@ -107,8 +107,9 @@ export function eventLocation(place: FeedEventInput['place'], resolved: Resolved
   return place?.text || place?.query || null;
 }
 
-/** (#199) 다시 찾기 캐시 키 */
-export const placeKey = (place: { kakaoPlaceId: string | null; query: string | null }) => `${place.kakaoPlaceId}|${place.query}`;
+/** (#199) 다시 찾기 캐시 키 (출처, 식별자, 검색어) */
+export const placeKey = (place: { kakaoPlaceId: string | null; naverKey?: string | null; query: string | null }) =>
+  place.kakaoPlaceId ? `kakao|${place.kakaoPlaceId}|${place.query}` : `naver|${place.naverKey ?? ''}|${place.query}`;
 
 /** 그 일정(회차)의 웹 상세 주소 (#311, D-198) */
 export function eventUrl(event: FeedEventInput, options: Pick<FeedOptions, 'webOrigin' | 'groupCode'>): string {

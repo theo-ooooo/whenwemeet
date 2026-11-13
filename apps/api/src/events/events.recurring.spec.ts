@@ -260,7 +260,7 @@ describe('EventsService 반복 일정', () => {
     });
 
     it('(#199) 장소: 원본과 다르면 예외에 장소 전체, 지우면 CLEARED_PLACE (그 회차만 없음), 원본과 같으면 null', async () => {
-      const cafe = { text: null, query: '온화', kakaoPlaceId: '1' };
+      const cafe = { text: null, query: '온화', kakaoPlaceId: '1', naverKey: null };
       events.findInGroup.mockResolvedValue({ ...SERIES, place: cafe });
       const moved = await service.update(1, 10, 200, { place: { text: '서울숲' } }, q);
       expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toMatchObject({ place: { text: '서울숲', query: null, kakaoPlaceId: null } });
@@ -268,7 +268,7 @@ describe('EventsService 반복 일정', () => {
       const cleared = await service.update(1, 10, 200, { place: null }, q);
       expect(events.saveExceptionWithLogTx.mock.calls[1][2]).toMatchObject({ place: { text: '', query: null, kakaoPlaceId: null } });
       expect(cleared.place).toBeNull();
-      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', place: { text: '', query: null, kakaoPlaceId: null } })]);
+      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', place: { text: '', query: null, kakaoPlaceId: null, naverKey: null } })]);
       const back = await service.update(1, 10, 200, { place: { query: '온화', kakaoPlaceId: '1' } }, q);
       expect(events.saveExceptionWithLogTx.mock.calls[2][2]).toBeNull();
       expect(back.place).toMatchObject({ query: '온화', url: 'https://place.map.kakao.com/1' });

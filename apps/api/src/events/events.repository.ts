@@ -140,10 +140,10 @@ export function dbToDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function toEventRow({ participants, placeId, placeQuery, placeText, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
+function toEventRow({ participants, placeId, placeProvider, placeQuery, placeText, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
   return {
     ...record,
-    place: placeFromColumns({ placeId, placeQuery, placeText }),
+    place: placeFromColumns({ placeId, placeProvider, placeQuery, placeText }),
     repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
     repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
@@ -161,11 +161,11 @@ function participantSetOf(record: { allMembers: boolean; participants: { userId:
   return { allMembers: record.allMembers, ids: record.allMembers ? [] : participantIdsOf(record.participants) };
 }
 
-function toExceptionRow({ placeId, placeQuery, placeText, ...record }: ExceptionRecord): EventExceptionRow {
+function toExceptionRow({ placeId, placeProvider, placeQuery, placeText, ...record }: ExceptionRecord): EventExceptionRow {
   return {
     ...record,
     occurrence: dbToDate(record.occurrence),
-    place: exceptionPlaceFromColumns({ placeId, placeQuery, placeText }),
+    place: exceptionPlaceFromColumns({ placeId, placeProvider, placeQuery, placeText }),
   };
 }
 

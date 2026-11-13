@@ -41,5 +41,9 @@ export function applyTestEnv(): string {
   // (#199) 장소 검색은 가짜 공급자 (실제 카카오로 나가지 않게 키를 비운다)
   process.env.KAKAO_REST_API_KEY = '';
   process.env.PLACE_SEARCH_FAKE = '';
+  // (D-259) 네이버 지역 검색도 가짜 공급자. 실제 네이버 검증은 가짜 서버(NAVER_SEARCH_URL)를 띄운 e2e 가 키를 넣고 앱을 만든다
+  process.env.NAVER_SEARCH_CLIENT_ID = '';
+  process.env.NAVER_SEARCH_CLIENT_SECRET = '';
+  process.env.NAVER_SEARCH_URL = 'http://127.0.0.1:9/search/v1/local';
   return url;
 }

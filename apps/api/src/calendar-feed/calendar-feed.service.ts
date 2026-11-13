@@ -104,16 +104,21 @@ export class CalendarFeedService {
 
   /**
    * (#199) 고른 장소를 지금 다시 찾는다 (D-248). 저장하지 않고 PlacesService 의 5분 메모리 캐시만.
-   * 피드 하나에 서로 다른 (ID, 검색어) 30개까지만 (카카오 쿼터 보호). 못 찾거나 카카오 오류면 그 일정은 사용자 글자로
+   * 피드 하나에 서로 다른 (출처, 식별자, 검색어) 30개까지만 (쿼터 보호). 못 찾거나 검색 오류면 그 일정은 사용자 글자로.
+   * 네이버로 고른 장소는 네이버에서 다시 찾는다 (D-259)
    */
-  private async resolvePlaces(views: { place: { kakaoPlaceId: string | null; query: string | null } | null }[]): Promise<Map<string, ResolvedPlace | null>> {
-    const keys = new Map<string, { id: string; q: string }>();
+  private async resolvePlaces(
+    views: { place: { kakaoPlaceId: string | null; naverKey: string | null; query: string | null } | null }[],
+  ): Promise<Map<string, ResolvedPlace | null>> {
+    const keys = new Map<string, { source: 'kakao' | 'naver'; id: string; q: string }>();
     for (const view of views) {
       const p = view.place;
-      if (p?.kakaoPlaceId && p.query && !keys.has(placeKey(p)) && keys.size < FEED_PLACE_RESOLVE_MAX) keys.set(placeKey(p), { id: p.kakaoPlaceId, q: p.query });
+      const id = p?.kakaoPlaceId ?? p?.naverKey;
+      if (p && id && p.query && !keys.has(placeKey(p)) && keys.size < FEED_PLACE_RESOLVE_MAX)
+        keys.set(placeKey(p), { source: p.kakaoPlaceId ? 'kakao' : 'naver', id, q: p.query });
     }
     const entries = await Promise.all(
-      [...keys].map(async ([key, { id, q }]) => [key, await this.places.resolveQuietly(id, q)] as const),
+      [...keys].map(async ([key, { source, id, q }]) => [key, await this.places.resolveQuietly(source, id, q)] as const),
     );
     return new Map(entries);
   }
@@ -141,7 +146,7 @@ export class CalendarFeedService {
     };
     const resolved = await this.resolvePlaces(views);
     const items: IcsEvent[] = [
-      ...views.map((view) => eventToIcs(view, options, view.place?.kakaoPlaceId ? (resolved.get(placeKey(view.place)) ?? null) : null)),
+      ...views.map((view) => eventToIcs(view, options, view.place?.kakaoPlaceId || view.place?.naverKey ? (resolved.get(placeKey(view.place)) ?? null) : null)),
       ...anniversaries.flatMap((a) => anniversaryEvents(a, window)),
       ...birthdays.flatMap((b) => birthdayEvents(b, window)),
     ];

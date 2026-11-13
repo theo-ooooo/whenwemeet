@@ -1,7 +1,8 @@
 // (#199) 카카오 지도 JS SDK 지연 로더. 지도가 필요한 화면(일정 상세의 장소 칸)이 처음 그려질 때만 스크립트를 붙인다.
 // 키는 지도 전용 카카오 앱(무료 쿼터가 있는 앱)의 공개 JavaScript 키 NEXT_PUBLIC_KAKAO_MAP_JS_KEY. 로그인, 공유 앱 키(NEXT_PUBLIC_KAKAO_JS_KEY)와 다르다.
 // 그 앱의 [카카오맵] 사용 설정과 JavaScript 키 도메인에 웹 주소를 등록해야 지도가 뜬다 (docs/운영/카카오-개발자센터.md). 키가 없거나, 받지 못하거나,
-// 8초 안에 준비되지 않으면 null: 화면은 장소 글자와 길찾기 버튼만 남긴다 (D-244)
+// 8초 안에 준비되지 않으면 null: 화면은 장소 글자와 길찾기 버튼만 남긴다 (D-244). 받는 틀은 lib/map-sdk.ts (네이버 지도와 같이 쓴다, D-259)
+import { createSdkLoader } from "./map-sdk";
 
 /** 빌드 때 박히는 지도 전용 공개 JS 키. 없으면(프리뷰, 목) 지도를 그리지 않는다 */
 export function kakaoMapJsKey(): string | null {
@@ -9,7 +10,6 @@ export function kakaoMapJsKey(): string | null {
 }
 
 export const KAKAO_MAP_SDK_BASE = "https://dapi.kakao.com/v2/maps/sdk.js";
-const SDK_TIMEOUT_MS = 8_000;
 
 /** 쓰는 만큼만 적은 SDK 모양 */
 export type KakaoLatLng = object;
@@ -39,37 +39,16 @@ function currentMaps(): KakaoMaps | null {
   return maps && typeof maps.Map === "function" ? maps : null;
 }
 
-let loading: Promise<KakaoMaps | null> | null = null;
-
 /** SDK 를 받아 `kakao.maps.load` 까지 마친 객체. 실패하면 null 이고 다음 호출에 다시 시도한다 */
-export function loadKakaoMaps(): Promise<KakaoMaps | null> {
-  if (typeof window === "undefined") return Promise.resolve(null);
-  const key = kakaoMapJsKey();
-  if (!key) return Promise.resolve(null);
-  const ready = currentMaps();
-  if (ready) return Promise.resolve(ready);
-  if (loading) return loading;
-  const p = new Promise<KakaoMaps | null>((resolve) => {
-    const s = document.createElement("script");
-    s.src = kakaoMapSdkUrl(key);
-    s.async = true;
-    const timer = setTimeout(() => done(null), SDK_TIMEOUT_MS);
-    function done(v: KakaoMaps | null) {
-      clearTimeout(timer);
-      if (!v) s.remove();
-      resolve(v);
-    }
-    s.onload = () => {
-      const base = (window as unknown as { kakao?: { maps?: { load?: (cb: () => void) => void } } }).kakao?.maps;
-      if (!base || typeof base.load !== "function") return done(null);
-      base.load(() => done(currentMaps()));
-    };
-    s.onerror = () => done(null);
-    document.head.appendChild(s);
-  });
-  loading = p;
-  void p.then((v) => {
-    if (loading === p && v === null) loading = null;
-  });
-  return p;
-}
+export const loadKakaoMaps: () => Promise<KakaoMaps | null> = createSdkLoader<KakaoMaps>({
+  url: () => {
+    const key = kakaoMapJsKey();
+    return key ? kakaoMapSdkUrl(key) : null;
+  },
+  current: currentMaps,
+  init: (done) => {
+    const base = (window as unknown as { kakao?: { maps?: { load?: (cb: () => void) => void } } }).kakao?.maps;
+    if (!base || typeof base.load !== "function") return done(null);
+    base.load(() => done(currentMaps()));
+  },
+});

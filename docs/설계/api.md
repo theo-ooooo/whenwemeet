@@ -52,7 +52,7 @@
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
 | PLACE_SEARCH_FAILED | 502 | (#199) 카카오 장소 검색 실패 (2.14) |
-| PLACE_SEARCH_NOT_CONFIGURED | 503 | (#199) 운영에 `KAKAO_REST_API_KEY` 가 없음. 웹은 장소를 직접 적게 둔다 (2.14) |
+| PLACE_SEARCH_NOT_CONFIGURED | 503 | (#199) 운영에 그 출처의 키(카카오 `KAKAO_REST_API_KEY`, 네이버 `NAVER_SEARCH_CLIENT_ID`/`SECRET`, D-259)가 없음. 웹은 장소를 직접 적게 둔다 (2.14) |
 | EMAIL_RATE_LIMITED | 429 | 이메일 로그인 발송 횟수 제한. `details: { reason: "COOLDOWN" \| "HOURLY" \| "IP", retryAfterSec }` (#245) |
 | RATE_LIMITED | 429 | 요청 제한 초과 (#186, 아래 "요청 제한"). message "잠시 후 다시 시도해 주세요", `details: { retryAfterSec }`, 헤더 `Retry-After: <초>` |
 | EMAIL_LINK_INVALID | 400 | 로그인 링크 없음, 사용됨, 만료, 무효. `details: { reason: "INVALID" \| "USED" \| "EXPIRED" }` |
@@ -78,7 +78,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 일정 링크 합류 `POST /event-shares/:token/join` (#274) | 사용자 **그리고** IP | 초대 합류 `POST /groups/join` 과 **같은 묶음** (두 길을 번갈아 써서 한도를 두 배로 받지 못하게) |
 | 일정 링크 만들기 `POST /groups/:id/events/:eventId/share` (#274) | 사용자 | 30 / 1시간 |
 | 구독 피드 `GET /ics/:token.ics` (#193) | 주소(경로 토큰) **그리고** IP | 주소 10 / 1분, IP 60 / 1분. 넘으면 본문 없는 429 + `Retry-After` |
-| 장소 검색 `GET /places/search` (#199) | 사용자 | 60 / 1분 |
+| 장소 검색 `GET /places/search` (#199, 카카오와 네이버가 같은 묶음 D-259) | 사용자 | 60 / 1분 |
 | 장소 다시 찾기 `GET /places/resolve` (#199) | 사용자 | 120 / 1분 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
@@ -113,7 +113,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
 | `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
-| `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록 |
+| `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록. `PLACE_SEARCH_FAKE=1` 은 카카오, 네이버 둘 다 가짜 |
+| `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`, `NAVER_SEARCH_URL` | (D-259) 네이버 장소 검색(2.14). NAVER API HUB 지역 검색 키 둘(비밀). 선택. 하나라도 없으면 운영은 `provider=naver` 만 503, 로컬은 가짜 목록. `NAVER_SEARCH_URL` 은 테스트용 주소 바꾸기(기본 `https://naverapihub.apigw.ntruss.com/search/v1/local`) |
 | `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -341,24 +342,28 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
 | `repeat` 이 넷 중 하나가 아님, `repeatUntil` 이 실제 날짜가 아님 | VALIDATION_FAILED | DTO 문구 |
 | 기존 규칙 (종료 > 시작, 30일 이하) | 그대로 (먼저 검사) | 그대로 |
 
-#### 장소 (#199, D-242 ~ D-244)
+#### 장소 (#199, D-242 ~ D-244, D-259)
 
-카카오 정책상 **카카오가 준 이름, 주소, 좌표는 저장하지 않는다**. 저장은 사용자 입력과 카카오 장소 ID 뿐이다.
+카카오 정책상 **카카오가 준 이름, 주소, 좌표는 저장하지 않는다**. 네이버로 고른 장소도 같다(결과 원문을 저장하지 않는다). 저장은 사용자 입력과 장소 식별자(카카오 장소 ID, 네이버 키)뿐이다.
 
 ```ts
 PlaceInput = { text?: string(≤100)|null,          // 고르지 않고 적은 장소 글자 (사용자 입력)
-               query?: string(≤100)|null,         // 고를 때 사용자가 적은 검색어. kakaoPlaceId 가 있으면 필수
-               kakaoPlaceId?: string(숫자 1~20자)|null }  // 다른 키(name, address, lat, lng ...)는 400
-               // kakaoPlaceId 가 없으면 text 필수. 앞뒤 공백 자름
-Place = { text: string|null, query: string|null, kakaoPlaceId: string|null,
-          url: string|null }   // url = 'https://place.map.kakao.com/<kakaoPlaceId>' (서버가 만든다)
+               query?: string(≤100)|null,         // 고를 때 사용자가 적은 검색어. kakaoPlaceId 나 naverKey 가 있으면 필수
+               kakaoPlaceId?: string(숫자 1~20자)|null,   // 카카오에서 고른 장소
+               naverKey?: string(소문자 16진 16자)|null } // (D-259) 네이버에서 고른 장소. 검색 결과의 naverKey 그대로
+               // kakaoPlaceId 와 naverKey 는 하나만. 둘 다 없으면 text 필수. 다른 키(name, address, lat, lng, provider ...)는 400. 앞뒤 공백 자름
+Place = { text: string|null, query: string|null, kakaoPlaceId: string|null, naverKey: string|null,
+          provider: 'kakao'|'naver'|null,   // 고른 장소의 출처. 직접 적은 장소는 null
+          url: string|null }   // 카카오 'https://place.map.kakao.com/<kakaoPlaceId>', 네이버 'https://map.naver.com/p/search/<query>' (서버가 만든다)
 ```
 
-- DB 열: `placeId`, `placeQuery`, `placeText` (Event, EventException)
+- 네이버 지역 검색은 고정 장소 ID 를 주지 않는다. `naverKey` = sha256(`이름\n주소`) 16진 앞 16자 (주소는 도로명, 없으면 지번. 서버가 검색 결과에서 만든다). 원문이 아니라 되돌릴 수 없는 값이다
+- DB 열: `placeId`, `placeProvider`, `placeQuery`, `placeText` (Event, EventException). `placeId` 는 카카오 ID 또는 네이버 키, `placeProvider` 는 `KAKAO`/`NAVER` enum. `placeProvider` 가 null 인데 `placeId` 가 있으면 카카오(D-259 이전 행). 마이그레이션 `20261113121046_place_provider` (열 추가만)
 - `EventInput.place?: PlaceInput | null`. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, `null` = 지우기
-- 이름, 주소, 좌표는 **보일 때마다 다시 찾는다**: `GET /places/resolve?id=<kakaoPlaceId>&q=<query>` (2.14) 가 그 검색어로 다시 검색해 ID 가 같은 결과를 준다. 서버는 5분 메모리 캐시, 웹은 탭 메모리만. 못 찾거나 카카오가 안 되면 화면은 사용자 글자(`text`, 없으면 `query`) + `url`(장소 상세), 지도 없음
+- 이름, 주소, 좌표는 **보일 때마다 그 장소의 출처에서 다시 찾는다**: `GET /places/resolve?id=<kakaoPlaceId>&q=<query>` 또는 `?provider=naver&id=<naverKey>&q=<query>` (2.14) 가 그 검색어로 다시 검색해 식별자가 같은 결과를 준다. 서버는 5분 메모리 캐시, 웹은 탭 메모리만. 못 찾거나 검색이 안 되면 화면은 사용자 글자(`text`, 없으면 `query`) + 지도 검색 링크, 지도 없음
+- 지도와 길찾기는 웹의 지도 선택(내 정보, 기기별, D-258)으로 그린다. 좌표는 WGS84 라 네이버로 고른 장소도 카카오 지도와 카카오 길찾기에, 그 반대도 쓸 수 있다 (D-259)
 - 같은 장소면 저장하지 않는 규칙(#62)에 장소도 들어간다. 일정 기록(EventLog), 푸시 문구, 공유 링크 미리보기에는 넣지 않는다
-- 구독 피드(2.12)는 피드를 만들 때 다시 찾아 `LOCATION: 이름, 주소` + `GEO:위도;경도`, 못 찾으면 `LOCATION: 사용자 글자`, GEO 없음. 피드 하나에 서로 다른 장소 30개까지만 다시 찾는다. 메모 토글과 무관 (D-248)
+- 구독 피드(2.12)는 피드를 만들 때 그 장소의 출처에서 다시 찾아 `LOCATION: 이름, 주소` + `GEO:위도;경도`, 못 찾으면 `LOCATION: 사용자 글자`, GEO 없음. 피드 하나에 서로 다른 장소 30개까지만 다시 찾는다. 메모 토글과 무관 (D-248)
 
 #### 일정 검색 `GET /events/search` (#199, D-245, D-246)
 
@@ -750,22 +755,27 @@ PollSummary = { id, publicCode, title, status, deadline, expired, eventId, event
 - 정하기는 한 트랜잭션(일정 + CREATED 로그 + CLOSED + POLL_CLOSED + 정함 알림), 동시에 누르면 하나만 성공하고 나머지 409. 팀원 변경 알림 없음. 바빠진 대상이 있으면 `warning: 'BUSY_NOW'` (D-239)
 - 나가기: 그 팀 투표의 내 표와 대상 행 삭제(2.7). 탈퇴: Cascade
 
-### 2.14 장소 검색 (#199, D-247)
+### 2.14 장소 검색 (#199, D-247, D-259)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
-| GET | `/places/search` | 유저 | 쿼리 `q` (앞뒤 공백 자르고 1~50자) | `{ data: { items: PlaceCandidate[] } }` |
-| GET | `/places/resolve` | 유저 | 쿼리 `id` (카카오 장소 ID), `q` (저장된 검색어, 1~100자) | `{ data: { place: PlaceCandidate \| null } }` 그 검색어로 다시 찾아 ID 가 같은 결과. 없으면 null |
+| GET | `/places/search` | 유저 | 쿼리 `q` (앞뒤 공백 자르고 1~50자), `provider` (`kakao` 기본, `naver`. 다른 값은 400 field `provider`) | `{ data: { items: PlaceCandidate[] } }` |
+| GET | `/places/resolve` | 유저 | 쿼리 `provider` (위와 같음), `id` (카카오 장소 ID, 네이버면 `naverKey`), `q` (저장된 검색어, 1~100자) | `{ data: { place: PlaceCandidate \| null } }` 그 출처에서 그 검색어로 다시 찾아 식별자가 같은 결과. 없으면 null |
 
 ```ts
-PlaceCandidate = { kakaoPlaceId: string, name: string, address: string|null,   // 도로명, 없으면 지번
-                   lat: number, lng: number, category: string|null }             // 카카오 분류 마지막 조각 ("카페")
+PlaceCandidate = { provider: 'kakao'|'naver',
+                   kakaoPlaceId: string|null, naverKey: string|null,           // 출처에 맞는 하나만 있다
+                   name: string, address: string|null,                          // 도로명, 없으면 지번
+                   lat: number, lng: number, category: string|null }             // 분류 마지막 조각 ("카페", 네이버 "숲,숲길")
 ```
 
-- 우리 API 가 카카오 로컬 키워드 검색(`GET https://dapi.kakao.com/v2/local/search/keyword.json?query=&size=15`, `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)을 대신 부른다. REST 키는 서버에만 둔다(로그인과 다른 지도 전용 카카오 앱 키). 검색어 말고 사용자 정보는 보내지 않는다. 결과는 DB 에 저장하지 않고 검색어별 5분 메모리 캐시(최대 500개)만, 로그에 검색어를 남기지 않는다
-- 공급자: `KAKAO_REST_API_KEY` 가 있으면 카카오, 없으면 운영은 503 `PLACE_SEARCH_NOT_CONFIGURED`(웹은 직접 입력만), 로컬과 테스트는 가짜 목록. `PLACE_SEARCH_FAKE=1` 이면 늘 가짜
-- 카카오 실패(연결, 5초 시간 초과, 4xx/5xx, 형식)는 502 `PLACE_SEARCH_FAILED`. 재시도 없음
-- 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`)
+- 카카오: 우리 API 가 카카오 로컬 키워드 검색(`GET https://dapi.kakao.com/v2/local/search/keyword.json?query=&size=15`, `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)을 대신 부른다. REST 키는 서버에만 둔다(로그인과 다른 지도 전용 카카오 앱 키)
+- 네이버 (D-259): NAVER API HUB 지역 검색 `GET https://naverapihub.apigw.ntruss.com/search/v1/local?query=&display=5&start=1&sort=random`, 헤더 `X-NCP-APIGW-API-KEY-ID`, `X-NCP-APIGW-API-KEY` (`NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`, 서버에만). 결과는 최대 5개(네이버 제한), 하루 25,000회 상한(넘으면 네이버가 4xx, 우리는 502). 정규화: `title` 은 `<b>` 태그를 지우고 HTML 엔티티를 되돌린다, `mapx/1e7` = 경도, `mapy/1e7` = 위도(WGS84), 주소는 `roadAddress`, 없으면 `address`, `naverKey` 는 이름 + 주소 해시(2.3 장소). 이름 + 주소가 같은 항목은 하나만
+- 공통: 검색어 말고 사용자 정보는 보내지 않는다. 결과는 DB 에 저장하지 않고 (출처, 검색어)별 5분 메모리 캐시(최대 500개)만, 로그에 검색어를 남기지 않는다
+- 공급자: 그 출처의 키가 있으면 실제 검색, 없으면 운영은 503 `PLACE_SEARCH_NOT_CONFIGURED`(웹은 직접 입력만), 로컬과 테스트는 가짜 목록. `PLACE_SEARCH_FAKE=1` 이면 둘 다 늘 가짜
+- 검색 실패(연결, 5초 시간 초과, 4xx/5xx, 형식)는 502 `PLACE_SEARCH_FAILED`. 재시도 없음
+- 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`). 출처와 상관없이 같은 묶음
+- 웹은 내 정보의 지도 선택(네이버 지도 기본, D-258)으로 `provider` 를 고른다. `provider` 가 없는 옛 웹은 카카오
 
 ## 3. 기획 기능 → API 추적
 
