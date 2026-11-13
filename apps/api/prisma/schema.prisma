@@ -57,18 +57,7 @@ model User {
   startGroupId      Int?
   /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-230)
   birthday          String?   @db.Char(5)
-  /// (#369) 아래 10칸은 더 이상 읽고 쓰지 않는다. 값은 NotificationPreference, BirthdayReminder 로 옮겼고 다음 릴리스에서 DROP 한다
-  /// (배포.md "컬럼 삭제는 두 릴리스로", 이전 이미지로 롤백해도 깨지지 않게, D-249). 새 코드에서 쓰지 말 것
-  notifyReminder           Boolean @default(true)
-  notifyChange             Boolean @default(true)
-  notifyAnniversary        Boolean @default(true)
-  notifyJoin               Boolean @default(true)
-  notifyWeekly             Boolean @default(true)
-  notifyWeeklyNudge        Boolean @default(false)
-  notifyPoll               Boolean @default(true)
-  birthdayRemindDayOf      Boolean @default(true)
-  birthdayRemindDayBefore  Boolean @default(false)
-  birthdayRemindWeekBefore Boolean @default(false)
+  /// (#369) 알림 종류 설정은 NotificationPreference, 생일 알림 시점은 BirthdayReminder 행 (D-249). 옛 칸 10개는 #376 에서 DROP
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -534,10 +523,7 @@ model Anniversary {
   date      DateTime        @db.Date
   /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
   kind      AnniversaryKind @default(COUNT_UP)
-  /// (#269) 알림 시점. (#369) 아래 3칸은 더 이상 읽고 쓰지 않는다. AnniversaryReminder 로 옮겼고 다음 릴리스에서 DROP 한다 (D-249). 새 코드에서 쓰지 말 것
-  remindDayOf      Boolean @default(true)
-  remindDayBefore  Boolean @default(false)
-  remindWeekBefore Boolean @default(false)
+  /// (#269) 알림 시점은 AnniversaryReminder 행 (#369, D-249). 옛 칸 3개는 #376 에서 DROP
   creatorId Int?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
