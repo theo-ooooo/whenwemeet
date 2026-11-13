@@ -493,18 +493,21 @@ describe('EventsService 반복 일정', () => {
     });
 
     it('this: 예외 cancelled upsert + DELETED THIS (스냅샷은 그 회차)', async () => {
-      expect(await service.remove(1, 10, 200, { scope: 'this', occurrence: '2026-11-25' })).toEqual({ ok: true });
+      events.cancelOccurrenceWithLogTx.mockResolvedValue(31);
+      expect(await service.remove(1, 10, 200, { scope: 'this', occurrence: '2026-11-25' })).toEqual({ ok: true, deletionId: 31 });
       expect(events.cancelOccurrenceWithLogTx).toHaveBeenCalledWith(SERIES, '2026-11-25', { actorId: 1, scope: 'THIS', occurrence: '2026-11-25' }, snapshotOf('2026-11-25'));
     });
 
     it('following 첫 회차: 원본 삭제', async () => {
-      await service.remove(1, 10, 200, { scope: 'following', occurrence: '2026-11-11' });
+      events.deleteSeriesWithLogTx.mockResolvedValue(32);
+      expect(await service.remove(1, 10, 200, { scope: 'following', occurrence: '2026-11-11' })).toEqual({ ok: true, deletionId: 32 });
       expect(events.deleteSeriesWithLogTx).toHaveBeenCalledWith(SERIES, { actorId: 1, scope: 'FOLLOWING', occurrence: '2026-11-11' }, snapshotOf('2026-11-11'));
       expect(events.splitSeriesTx).not.toHaveBeenCalled();
     });
 
     it('following 그 뒤 회차: 원본을 전날에서 끊는다 (새 원본 없음)', async () => {
-      await service.remove(1, 10, 200, { scope: 'following', occurrence: '2026-12-02' });
+      (events.splitSeriesTx as unknown as { mockResolvedValue: (v: number) => void }).mockResolvedValue(33);
+      expect(await service.remove(1, 10, 200, { scope: 'following', occurrence: '2026-12-02' })).toEqual({ ok: true, deletionId: 33 });
       expect(events.splitSeriesTx).toHaveBeenCalledWith(SERIES, '2026-12-02', { actorId: 1, scope: 'FOLLOWING', occurrence: '2026-12-02' }, null, snapshotOf('2026-12-02'));
       expect(events.deleteSeriesWithLogTx).not.toHaveBeenCalled();
     });

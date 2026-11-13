@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { highlight, repeatTag, searchDateText, searchHref, searchPreview, searchTimeText } from "../event-search";
+import { highlight, repeatTag, searchDateText, searchHref, searchPreview } from "../event-search";
 import { kstToIso } from "../date";
 import type { EventSearchItem } from "../types";
 
@@ -44,11 +44,9 @@ describe("event-search", () => {
     expect(searchPreview(item(), "치과")).toBeNull();
   });
 
-  it("날짜는 올해가 아니면 연도, 시각과 반복 표시", () => {
+  it("날짜는 올해가 아니면 연도, 반복 표시 (시각은 일정 줄 #378)", () => {
     expect(searchDateText(kstToIso("2026-11-20", "10:00"), "2026-11-13")).toBe("11월 20일 (금)");
     expect(searchDateText(kstToIso("2025-05-01", "10:00"), "2026-11-13")).toBe("2025년 5월 1일 (목)");
-    expect(searchTimeText({ startsAt: kstToIso("2026-11-20", "10:00"), endsAt: kstToIso("2026-11-20", "11:00"), allDay: false })).toBe("10:00~11:00");
-    expect(searchTimeText({ startsAt: kstToIso("2026-11-20"), endsAt: kstToIso("2026-11-21"), allDay: true })).toBe("종일");
     expect(repeatTag("WEEKLY")).toBe("매주");
     expect(repeatTag(null)).toBeNull();
   });

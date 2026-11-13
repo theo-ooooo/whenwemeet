@@ -4,6 +4,7 @@ import {
   isChoiceOn,
   normalizeReminders,
   reminderHint,
+  reminderSummary,
   remindersOf,
   sameReminders,
   toggleReminder,
@@ -48,5 +49,14 @@ describe("기념일 알림 칩 (#269, 기획 푸시-알림.md 3-7)", () => {
     expect(normalizeReminders(["DAY_BEFORE", "DAY_BEFORE", "DAY_OF"])).toEqual(["DAY_OF", "DAY_BEFORE"]);
     expect(sameReminders(["DAY_BEFORE", "DAY_OF"], ["DAY_OF", "DAY_BEFORE"])).toBe(true);
     expect(sameReminders(["DAY_OF"], [])).toBe(false);
+  });
+});
+
+describe("reminderSummary (#378 알림 줄 값)", () => {
+  it("켠 것을 당일, 하루 전, 일주일 전 순으로 잇고 없으면 '없음'", () => {
+    expect(reminderSummary([])).toBe("없음");
+    expect(reminderSummary(["DAY_OF"])).toBe("당일");
+    expect(reminderSummary(["WEEK_BEFORE", "DAY_OF"])).toBe("당일, 일주일 전");
+    expect(reminderSummary(["DAY_OF", "DAY_BEFORE", "WEEK_BEFORE"])).toBe("당일, 하루 전, 일주일 전");
   });
 });

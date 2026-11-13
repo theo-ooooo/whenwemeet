@@ -6,8 +6,9 @@ import { useMemo, useState } from "react";
 import { DatePicker, TimePicker } from "./pickers";
 import { minutesOf } from "./pickers/time";
 import { ParticipantSheet, ParticipantValue } from "./Participants";
-import { IconClose, IconPlus } from "./icons";
-import { Button, captionClass, InlineError, RowButton, Segmented, Sheet, titleInputClass, Toggle } from "./ui";
+import { IconClock, IconClose, IconPlus, IconTeam } from "./icons";
+import { NameField } from "./NameField";
+import { Button, InlineError, RowButton, RowGroup, Segmented, Sheet, Toggle } from "./ui";
 import { messageOf, useCreatePoll } from "@/hooks";
 import { addDays, kstToIso, timeOf, todayKey } from "@/lib/date";
 import {
@@ -53,7 +54,7 @@ export function PollCreateSheet({
   onCreated: (poll: Poll) => void;
 }) {
   return (
-    <Sheet open={open} onClose={onClose} title="투표 만들기">
+    <Sheet open={open} onClose={onClose} title="투표 만들기" tone="bg">
       {/* 열 때마다 고른 구간으로 다시 시작한다 */}
       {open && <Body groupId={groupId} members={members} meId={meId} slots={slots} minMinutes={minMinutes} onCreated={onCreated} />}
     </Sheet>
@@ -136,80 +137,80 @@ function Body({
   const problem = draftProblem({ title, options });
 
   return (
-    <form onSubmit={submit} className="space-y-4 pb-1">
-      <div>
-        <label htmlFor="poll-title" className={captionClass}>
-          제목 (정하면 일정 이름이 돼요)
-        </label>
-        <input
+    <form onSubmit={submit} className="space-y-2 pb-1">
+      {/* (#378) 제목 큰 칸(라벨은 읽기 이름에만), 후보는 한 줄씩(누르면 시작 시각 고치기) + 같은 카드의 "직접 추가", 마감 세그먼트와 대상 줄 */}
+      <RowGroup>
+        <NameField
           id="poll-title"
-          className={titleInputClass}
+          label="제목 (정하면 일정 이름이 돼요)"
           value={title}
-          maxLength={POLL_TITLE_MAX}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={setTitle}
+          max={POLL_TITLE_MAX}
+          limitInput
           placeholder="예: 저녁 약속"
           autoComplete="off"
         />
-      </div>
+      </RowGroup>
 
-      <div>
-        <h3 className={captionClass}>후보 {candidates.length}개</h3>
-        <ul className="space-y-1.5">
-          {candidates.map((c) => {
-            const range = c.slot ? startRange(c.slot, minMinutes) : null;
-            return (
-              <li key={c.key} className="rounded-md bg-surface px-3 py-2">
-                <div className="flex min-h-9 items-center gap-2">
-                  <span className="min-w-0 flex-1 text-[14px] font-semibold leading-5 tabular-nums">{optionLabel(c.option, today)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCandidates((list) => list.filter((x) => x.key !== c.key))}
-                    aria-label={`${optionLabel(c.option, today)} 후보 빼기`}
-                    className="-mr-1.5 grid size-9 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover"
-                  >
-                    <IconClose size={16} />
-                  </button>
-                </div>
-                {/* 구간이 최소 길이보다 길면 그 안에서 시작 시각을 고른다 (기본은 구간 시작) */}
-                {c.slot && range && range.to > range.from && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="shrink-0 text-[12px] text-ink-2">시작</span>
-                    <TimePicker
-                      label="후보 시작 시각"
-                      value={timeOf(c.option.startsAt)}
-                      from={range.from}
-                      to={range.to}
-                      onChange={(v) => moveStart(c.key, c.slot as Slot, v)}
-                      className="max-w-[160px]"
-                    />
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+      <RowGroup>
+        <h3 className="pb-1 pt-2.5 text-[13px] font-semibold leading-[18px] text-ink-2">후보 {candidates.length}개</h3>
+        {candidates.map((c) => {
+          const range = c.slot ? startRange(c.slot, minMinutes) : null;
+          const label = optionLabel(c.option, today);
+          const text = <span className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 tabular-nums">{label}</span>;
+          return (
+            <div key={c.key} className="flex min-h-11 items-center gap-1">
+              {/* 구간이 최소 길이보다 길면 줄을 눌러 그 안에서 시작 시각을 고른다 (기본은 구간 시작) */}
+              {c.slot && range && range.to > range.from ? (
+                <TimePicker
+                  look="row"
+                  label={`${label}, 시작 시각`}
+                  value={timeOf(c.option.startsAt)}
+                  from={range.from}
+                  to={range.to}
+                  onChange={(v) => moveStart(c.key, c.slot as Slot, v)}
+                  className="min-w-0 flex-1"
+                  display={
+                    <>
+                      {text}
+                      <IconClock size={16} className="shrink-0 text-ink-2" />
+                    </>
+                  }
+                />
+              ) : (
+                <span className="flex min-h-11 min-w-0 flex-1 items-center">{text}</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setCandidates((list) => list.filter((x) => x.key !== c.key))}
+                aria-label={`${label} 후보 빼기`}
+                className="-mr-2 grid size-10 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover"
+              >
+                <IconClose size={16} />
+              </button>
+            </div>
+          );
+        })}
 
         {adding ? (
-          <div className="mt-2 space-y-2 rounded-md border border-line px-3 py-2.5">
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-              <DatePicker label="후보 날짜" value={manual.date} min={today} onChange={(date) => setManual((m) => ({ ...m, date }))} />
-              <Toggle checked={manual.allDay} onChange={(allDay) => setManual((m) => ({ ...m, allDay }))} label="종일" />
+          <div role="group" aria-label="후보 직접 추가" className="space-y-2 py-2.5">
+            <div className="flex items-center gap-2">
+              <DatePicker look="chip" label="후보 날짜" value={manual.date} min={today} onChange={(date) => setManual((m) => ({ ...m, date }))} />
+              <div className="ml-auto">
+                <Toggle checked={manual.allDay} onChange={(allDay) => setManual((m) => ({ ...m, allDay }))} label="종일" />
+              </div>
             </div>
             {!manual.allDay && (
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <TimePicker label="후보 시작 시각" value={manual.start} to={23 * 60 + 30} onChange={(start) => setManual((m) => ({ ...m, start }))} />
-                </div>
+              <div className="flex items-center gap-1.5">
+                <TimePicker look="chip" label="후보 시작 시각" value={manual.start} to={23 * 60 + 30} onChange={(start) => setManual((m) => ({ ...m, start }))} />
                 <span aria-hidden="true" className="text-ink-2">
                   ~
                 </span>
-                <div className="min-w-0 flex-1">
-                  <TimePicker label="후보 끝 시각" value={manual.end} from={30} allow24 onChange={(end) => setManual((m) => ({ ...m, end }))} />
-                </div>
+                <TimePicker look="chip" label="후보 끝 시각" value={manual.end} from={30} allow24 onChange={(end) => setManual((m) => ({ ...m, end }))} />
               </div>
             )}
             {manualError && <InlineError>{manualError}</InlineError>}
-            <div className="flex gap-2">
+            <div className="flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setAdding(false)}>
                 닫기
               </Button>
@@ -226,48 +227,48 @@ function Body({
               setManualError(null);
               setAdding(true);
             }}
-            className="mt-1 flex h-11 items-center gap-1 text-[14px] font-bold text-btn disabled:text-ink-2"
+            className="flex min-h-11 w-full items-center gap-1.5 text-[14px] font-bold text-btn disabled:font-medium disabled:text-ink-2"
           >
             <IconPlus size={16} strokeWidth={2.2} />
             {full ? `후보는 ${MAX_POLL_OPTIONS}개까지예요` : "직접 추가"}
           </button>
         )}
-      </div>
+      </RowGroup>
 
-      <div>
-        <h3 id="poll-deadline" className={captionClass}>
-          마감
-        </h3>
-        <Segmented
-          labelledBy="poll-deadline"
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "none", label: "없음" },
-            { value: "tomorrow", label: "내일" },
-            { value: "custom", label: "직접" },
-          ]}
-        />
-        {mode === "tomorrow" && <p className="t-sub mt-1.5">{tomorrowLabel}까지 받아요</p>}
-        {mode === "custom" && (
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <DatePicker label="마감 날짜" value={custom.date} min={today} onChange={(date) => setCustom((d) => ({ ...d, date }))} />
-            <TimePicker label="마감 시각" value={custom.time} onChange={(time) => setCustom((d) => ({ ...d, time }))} />
-          </div>
-        )}
-        <p className="t-sub mt-1.5">마감이 지나면 내게 알려 드려요. 시간은 직접 정해요</p>
-      </div>
-
-      <div className="rounded-md bg-surface px-3">
-        <RowButton label="대상" onClick={() => setPickOpen(true)} aria-haspopup="dialog">
+      <RowGroup hint="마감이 지나면 내게 알려 드려요. 시간은 직접 정해요">
+        <div className="pb-3 pt-2.5">
+          <h3 id="poll-deadline" className="mb-2 text-[14px] font-semibold">
+            마감
+          </h3>
+          <Segmented
+            labelledBy="poll-deadline"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "none", label: "없음" },
+              { value: "tomorrow", label: "내일" },
+              { value: "custom", label: "직접" },
+            ]}
+          />
+          {mode === "tomorrow" && <p className="t-sub mt-1.5">{tomorrowLabel}까지 받아요</p>}
+          {mode === "custom" && (
+            <div className="mt-2 flex justify-end gap-1.5">
+              <DatePicker look="chip" label="마감 날짜" value={custom.date} min={today} onChange={(date) => setCustom((d) => ({ ...d, date }))} />
+              <TimePicker look="chip" label="마감 시각" value={custom.time} onChange={(time) => setCustom((d) => ({ ...d, time }))} />
+            </div>
+          )}
+        </div>
+        <RowButton label="대상" icon={<IconTeam size={18} />} onClick={() => setPickOpen(true)} aria-haspopup="dialog">
           <ParticipantValue value={participantsFromPick(pick, members)} meId={meId} />
         </RowButton>
-      </div>
+      </RowGroup>
 
       {error && <InlineError>{error}</InlineError>}
-      <Button type="submit" size="xl" full disabled={problem !== null} loading={create.isPending}>
-        {problem && candidates.length < 2 ? "후보를 2개 이상 골라 주세요" : "투표 만들기"}
-      </Button>
+      <div className="pt-1">
+        <Button type="submit" size="xl" full disabled={problem !== null} loading={create.isPending}>
+          {problem && candidates.length < 2 ? "후보를 2개 이상 골라 주세요" : "투표 만들기"}
+        </Button>
+      </div>
 
       <ParticipantSheet
         open={pickOpen}

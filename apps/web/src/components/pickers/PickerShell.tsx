@@ -168,5 +168,19 @@ function Popover({ onClose, trigger, title, width, children }: InnerProps & { wi
 }
 
 /** 피커 트리거 버튼 모양 (기존 inputClass 와 같은 면, 높이) */
-export const triggerClass =
+const triggerClass =
   "flex min-h-11 w-full items-center justify-between gap-2 rounded-sm bg-surface px-3 text-left text-[14px] font-medium text-ink tabular-nums focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
+
+/** (#378) 피커 트리거 모양. field = 위 triggerClass(칸 폭 전체), chip = 줄 안 작은 칩(카드 `--tile` 위, 바탕색 면),
+ *  chipInset = 바탕색 카드 위 칩(흰 면), row = 설정 줄 "아이콘 이름 ··· 값 ›" (부르는 쪽이 줄 내용을 준다) */
+export type PickerLook = "field" | "chip" | "chipInset" | "row";
+
+const chipBase =
+  "inline-flex h-9 min-w-0 max-w-full shrink-0 items-center rounded-[9px] px-2.5 text-[13px] font-semibold text-ink tabular-nums whitespace-nowrap hover:brightness-95 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
+
+export function triggerClassOf(look: PickerLook): string {
+  if (look === "chip") return `${chipBase} bg-surface`;
+  if (look === "chipInset") return `${chipBase} bg-paper`;
+  if (look === "row") return "flex min-h-11 w-full items-center gap-3 rounded-sm py-1 text-left focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-45";
+  return triggerClass;
+}

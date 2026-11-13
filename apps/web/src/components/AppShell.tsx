@@ -46,6 +46,9 @@ type GroupCtx = {
   setGroupId: (id: number) => void;
   /** 일정이 바뀌었음 (달력의 빠른 추가, 삭제). 넓은 화면 사이드바의 다가오는 일정을 다시 받는다 */
   eventsChanged: () => void;
+  /** (#375) 지운 일정을 되돌렸음. 달력 화면이 restoredVersion 이 바뀌면 다시 받는다 (일정 화면에서 지우고 달력으로 옮긴 뒤 되돌려도) */
+  eventsRestored: () => void;
+  restoredVersion: number;
   /** 화면별 + 동작 (#170). 화면이 정하면 폰 + 가 일정 추가 대신 이것을 부른다. null 이면 일정 추가 */
   setFabAction: (a: FabAction | null) => void;
 };
@@ -204,6 +207,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const openSwitcher = useCallback(() => setSwitcher(true), []);
   const [eventsVersion, setEventsVersion] = useState(0);
   const eventsChanged = useCallback(() => setEventsVersion((v) => v + 1), []);
+  const [restoredVersion, setRestoredVersion] = useState(0);
+  const eventsRestored = useCallback(() => setRestoredVersion((v) => v + 1), []);
   // 화면별 + 동작은 건 팀과 함께 둔다. 팀이 바뀌면 자식 화면이 다시 마운트되며 다시 걸고, 그 전까지는 일정 추가
   const [fab, setFab] = useState<{ groupId: number | null; action: FabAction | null }>({ groupId: null, action: null });
   const setFabAction = useCallback((action: FabAction | null) => setFab({ groupId, action }), [groupId]);
@@ -212,8 +217,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
     () =>
       groupId === null
         ? null
-        : { groupId, groups, group: group && group.id === groupId ? group : null, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, setFabAction },
-    [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, setFabAction],
+        : { groupId, groups, group: group && group.id === groupId ? group : null, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction },
+    [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction],
   );
   const wide = useLayout() !== "phone";
   // (#315) 사이드바 접기. 처음 그린 뒤에만 너비 전환을 켠다 (저장값을 읽어 첫 화면이 바로 접힌 폭이 될 때 애니메이션이 보이지 않게)
@@ -327,7 +332,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             className={`@container/main min-w-0 flex-1 px-5 ${
               isForm
                 ? "pb-[calc(24px+env(safe-area-inset-bottom))]"
-                : "pb-[calc(64px+12px+64px+16px+24px+env(safe-area-inset-bottom))] dock:pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"
+                : "pb-dock"
             } fold:px-8 fold:py-7 ${
               isCalendar ? "" : "fold:w-full fold:min-w-0"
             }`}

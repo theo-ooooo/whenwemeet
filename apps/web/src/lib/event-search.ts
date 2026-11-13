@@ -1,6 +1,6 @@
 // (#199) 일정 검색 화면의 순수 함수: 주소, 강조 조각, 미리보기 한 줄, 날짜 글자. React 를 import 하지 않는다 (단위 테스트 대상).
 // 검색어는 주소(`/search?q=`)에만 두고 어디에도 저장하지 않는다 (스토어 "검색 기록: 수집 안 함")
-import { formatDateKo, formatEventTime, dateKeyOf, parseKey, type DateKey } from "./date";
+import { formatDateKo, dateKeyOf, parseKey, type DateKey } from "./date";
 import { placeLabel } from "./place";
 import { REPEAT_NAME } from "./recurrence";
 import { SEARCH_PATH } from "./routes";
@@ -60,11 +60,6 @@ export function searchPreview(item: EventSearchItem, q: string): { kind: "memo" 
 export function searchDateText(startsAt: string, today: DateKey): string {
   const key = dateKeyOf(startsAt);
   return formatDateKo(key, parseKey(key).y !== parseKey(today).y);
-}
-
-/** 시각 글자 "10:00~11:00", "종일" */
-export function searchTimeText(ev: { startsAt: string; endsAt: string; allDay: boolean }): string {
-  return formatEventTime(ev.startsAt, ev.endsAt, ev.allDay);
 }
 
 /** 반복 표시 "매주" (회차 줄이면 그 회차) */

@@ -43,7 +43,7 @@ describe("NotificationSettingsScreen (#277)", () => {
     expect(switchOf("약속 투표").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("주간 요약").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("다 같이 비는 시간").getAttribute("aria-checked")).toBe("false");
-    expect(screen.getByText("월요일 아침 9시에 그 주 팀 일정을 알려 드려요")).toBeTruthy();
+    expect(screen.getByText("월요일 아침 9시에 그 주 일정을 알려 드려요")).toBeTruthy();
   });
 
   it("다 같이 비는 시간을 켜면 그 키만 PATCH, 응답으로 맞춘다", async () => {

@@ -3,21 +3,14 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { IconCake, IconCalendar, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { NameField } from "@/components/NameField";
 import { DatePicker } from "@/components/pickers";
-import { ReminderNote } from "@/components/ReminderPicker";
-import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, captionClass, inputClass } from "@/components/ui";
+import { ReminderChoicesRow } from "@/components/ReminderChoicesRow";
+import { Button, EmptyState, ErrorState, RowGroup, Segmented, Sheet, SkeletonList } from "@/components/ui";
 import { messageOf, useAnniversaries, useBirthdays, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
-import {
-  DEFAULT_REMINDERS,
-  REMINDER_CHOICES,
-  isChoiceOn,
-  reminderHint,
-  remindersOf,
-  sameReminders,
-  toggleReminder,
-} from "@/lib/anniversary-reminder";
+import { DEFAULT_REMINDERS, reminderHint, remindersOf, sameReminders } from "@/lib/anniversary-reminder";
 import { formatBirthday, withBirthdays } from "@/lib/birthday";
 import { formatDateKo, todayKey } from "@/lib/date";
 import { ME_BIRTHDAY_PATH, TEAM_PATH } from "@/lib/routes";
@@ -44,7 +37,6 @@ export function AnniversariesScreen() {
   const kindLabelId = useId();
   // (#269) 알림 시점. 기념일에 하나, 팀 공통 (기획 푸시-알림.md 3-7)
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
-  const reminderLabelId = useId();
   // (#305) 멤버 생일은 같은 목록에 섞되 고치지 않는다 (내 생일은 내 정보에서). 못 받으면 기념일만
   const birthdaysQ = useBirthdays(groupId);
   const birthdays = birthdaysQ.data;
@@ -188,21 +180,13 @@ export function AnniversariesScreen() {
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
                     aria-haspopup="dialog"
-                    className="flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full"
+                    className={rowClass}
                   >
+                    <DdayCell value={row.value} tone={row.tone} />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-semibold leading-5">{a.name}</b>
-                      <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
-                        {formatDateKo(a.date, true)}
-                        <MemberDot className="ml-1" color={a.creator.color} size={6} />
-                        {a.creator.displayName}
-                      </span>
-                      {row.sub && <span className="block text-[12px] font-normal leading-4 text-ink-2">{row.sub}</span>}
-                    </span>
-                    <span
-                      className={`shrink-0 text-[15px] font-bold tabular-nums ${row.tone === "today" ? "text-acc-ink" : row.tone === "past" ? "text-ink-2" : "text-ink"}`}
-                    >
-                      {row.value}
+                      <span className="block truncate text-[12px] leading-4 text-ink-2">{formatDateKo(a.date, true)}</span>
+                      {row.sub && <span className="block truncate text-[12px] leading-4 text-ink-2">{row.sub}</span>}
                     </span>
                   </button>
                 </li>
@@ -220,88 +204,87 @@ export function AnniversariesScreen() {
         )}
       </div>
 
-      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.mode === "edit" ? "기념일 수정" : "기념일 추가"}>
-        <form onSubmit={save} className="space-y-3">
-          <Field label="이름" hint={`${name.trim().length}/30`} error={formError}>
-            {(id, describedBy) => (
-              <input
-                id={id}
-                aria-describedby={describedBy}
-                className={inputClass}
-                value={name}
-                maxLength={30}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="예: 처음 만난 날, 결혼기념일"
-                autoFocus
-              />
-            )}
-          </Field>
-          <Field label="날짜">
-            {(id) => (
-              <DatePicker id={id} label="기념일 날짜" value={date} onChange={setDate} withYear />
-            )}
-          </Field>
-          {/* 종류 (기획 3-1): 세그먼트 3개, 기본 함께한 날 세기 */}
-          <div>
-            <span id={kindLabelId} className={captionClass}>
-              종류
-            </span>
-            <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
-            <p className="t-sub mt-1.5">{KIND_OPTIONS.find((o) => o.value === kind)?.hint}</p>
-          </div>
-          {/* 알림 (#269, 기획 푸시-알림.md 3-7): 당일 / 하루 전 / 일주일 전 여러 개, "없음" 은 셋을 끈다. 모두 오전 9시 */}
-          <div>
-            <span id={reminderLabelId} className={captionClass}>
-              알림 <span className="font-normal">(오전 9시)</span>
-            </span>
-            <ToggleChips
-              labelledBy={reminderLabelId}
-              options={REMINDER_CHOICES}
-              isOn={(v) => isChoiceOn(reminders, v)}
-              onToggle={(v) => setReminders((prev) => toggleReminder(prev, v))}
+      {/* (#378) 이름 + 날짜 줄 카드, 종류 세그먼트 + 알림 줄 카드, 안내 한 줄, 맨 아래 추가/저장 */}
+      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.mode === "edit" ? "기념일 수정" : "기념일 추가"} tone="bg">
+        <form onSubmit={save} className="space-y-2 pb-1">
+          <RowGroup>
+            <NameField
+              label="기념일 이름"
+              value={name}
+              onChange={setName}
+              max={30}
+              limitInput
+              placeholder="예: 처음 만난 날, 결혼기념일"
+              autoFocus
+              autoComplete="off"
+              error={formError}
             />
-            {reminderHint(kind, reminders) && <p className="t-sub mt-1.5">{reminderHint(kind, reminders)}</p>}
-            <ReminderNote className="mt-1.5" />
-          </div>
-          <Button type="submit" size="lg" full disabled={!valid} loading={saving}>
-            {editing?.mode === "edit" ? "저장" : "추가"}
-          </Button>
-          {editing?.mode === "edit" && (
-            <Button type="button" variant="danger" size="lg" full onClick={() => remove(editing.item)}>
-              삭제
+            <DatePicker look="row" rowLabel="날짜" rowIcon={<IconCalendar size={18} />} label="기념일 날짜" value={date} onChange={setDate} withYear />
+          </RowGroup>
+          {/* 종류 (기획 3-1): 칸 안 세그먼트 3개, 기본 함께한 날 세기. 알림 (#269): 당일 / 하루 전 / 일주일 전 여러 개, 모두 오전 9시 */}
+          <RowGroup hint={reminderHint(kind, reminders) ?? KIND_OPTIONS.find((o) => o.value === kind)?.hint}>
+            <div className="pb-3 pt-2.5">
+              <span id={kindLabelId} className="mb-2 block text-[14px] font-semibold">
+                종류
+              </span>
+              <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
+            </div>
+            <ReminderChoicesRow label="알림" value={reminders} onChange={setReminders} />
+          </RowGroup>
+          <div className="space-y-2 pt-1">
+            <Button type="submit" size="xl" full disabled={!valid} loading={saving}>
+              {editing?.mode === "edit" ? "저장" : "추가"}
             </Button>
-          )}
+            {editing?.mode === "edit" && (
+              <Button type="button" variant="ghost" size="lg" full onClick={() => remove(editing.item)} className="text-danger!">
+                삭제
+              </Button>
+            )}
+          </div>
         </form>
       </Sheet>
     </div>
   );
 }
 
+/** (#378) 줄 모양: 왼쪽 D-day 칸 + 이름과 날짜. D-day 가 오른쪽 끝에 떨어져 있어 줄과 이어지지 않던 것을 앞으로 (나머지 화면 점검 7) */
+const rowClass = "flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full";
+
+/** 왼쪽 D-day 칸 (15/700). 오늘은 코랄 글자, 지난 '그날만' 은 흐리게 */
+function DdayCell({ value, tone }: { value: string; tone: "today" | "ahead" | "past" }) {
+  return (
+    <span
+      className={`w-14 shrink-0 text-[15px] font-bold leading-5 tabular-nums tracking-[-0.01em] ${tone === "today" ? "text-acc-ink" : tone === "past" ? "text-ink-2" : "text-ink"}`}
+    >
+      {value}
+    </span>
+  );
+}
+
 /**
  * (#305) 멤버 생일 한 줄. 기념일처럼 고치지 않는다: 내 생일은 내 정보로 가는 링크, 다른 사람 생일은 그냥 줄.
- * 날짜는 연도 없이 "매년 3월 5일"
+ * 날짜는 연도 없이 "매년 3월 5일". (#378) 이름 옆 작은 케이크 선 아이콘으로 기념일과 구분하고, 넣은 사람 점은 뺐다
  */
 function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boolean; value: string; tone: "today" | "ahead" | "past" }) {
   const date = formatBirthday(item.date.slice(5));
   const body = (
     <>
+      <DdayCell value={value} tone={tone} />
       <span className="min-w-0 flex-1">
-        <b className="block truncate text-[15px] font-semibold leading-5">{item.name}</b>
-        <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
-          <MemberDot color={item.creator.color} size={6} />
-          {mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <b className="truncate text-[15px] font-semibold leading-5">{item.name}</b>
+          <IconCake size={15} className="shrink-0 text-ink-2" />
         </span>
+        <span className="block truncate text-[12px] leading-4 text-ink-2">{mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}</span>
       </span>
-      <span className={`shrink-0 text-[15px] font-bold tabular-nums ${tone === "today" ? "text-acc-ink" : "text-ink"}`}>{value}</span>
       {mine && <IconChevronRight size={14} className="-mr-1 shrink-0 text-ink-2" />}
     </>
   );
-  const cls = "flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full";
   return mine ? (
-    <Link href={ME_BIRTHDAY_PATH} className={cls} aria-label={`${item.name}, 매년 ${date}, ${value}. 내 정보에서 바꾸기`}>
+    <Link href={ME_BIRTHDAY_PATH} className={rowClass} aria-label={`${item.name}, 매년 ${date}, ${value}. 내 정보에서 바꾸기`}>
       {body}
     </Link>
   ) : (
-    <div className={cls}>{body}</div>
+    <div className={rowClass}>{body}</div>
   );
 }

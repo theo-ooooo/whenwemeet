@@ -77,6 +77,15 @@ describe('핵심 흐름 (e2e)', () => {
     inviteCode = detail.inviteCode;
   });
 
+  it('(#278) POST /groups 의 preset 은 저장도 응답도 하지 않고, 모르는 값도 400 이 아니다', async () => {
+    const carol = await devLogin(app, '캐럴');
+    for (const preset of ['family', 'couple', 3]) {
+      const res = await api(app).post('/v1/groups').set(auth(carol)).send({ name: '쓰임 팀', preset }).expect(201);
+      expect(res.body.data).not.toHaveProperty('preset');
+      expect(res.body.data.name).toBe('쓰임 팀');
+    }
+  });
+
   it('GET /invites/:code 는 비로그인 미리보기, 소문자도 허용', async () => {
     const res = await api(app).get(`/v1/invites/${inviteCode.toLowerCase()}`).expect(200);
     expect(res.body.data).toEqual({ groupName: '우리 모임', memberCount: 1, inviter: null, isMember: false, groupId: null, groupCode: null });
@@ -455,7 +464,8 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('일정 삭제는 DELETED 스냅샷을 남기고 eventId 는 null 이 된다', async () => {
     const res = await api(app).delete(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(200);
-    expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
+    // (#375) 되돌리기 보관 번호 (D-251)
+    expect(res.body).toEqual({ status: 200, data: { ok: true, deletionId: expect.any(Number) }, message: 'OK' });
     await api(app).get(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(404);
 
     const news = await api(app).get(`/v1/groups/${groupId}/news`).set(auth(bob)).expect(200);

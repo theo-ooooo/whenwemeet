@@ -30,6 +30,7 @@ export { useEventSearch } from "./useEventSearch";
 export { useCreateEvent } from "./useCreateEvent";
 export { useUpdateEvent } from "./useUpdateEvent";
 export { useDeleteEvent } from "./useDeleteEvent";
+export { useRestoreEvent } from "./useRestoreEvent";
 export { useSetRsvp, useSetReaction } from "./useEventResponses";
 export { useCreateGroup } from "./useCreateGroup";
 export { useJoinGroup } from "./useJoinGroup";

@@ -32,6 +32,7 @@
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
 | NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요". (#189) 약속 투표 대상이 아닌데 표를 보냄. message "이 투표의 대상이 아니에요" |
 | POLL_CLOSED | 409 | (#189) 정한 투표에 표, 정하기, 취소 ("이미 정해진 투표예요"), 마감 지난 투표에 표 ("투표가 끝났어요") |
+| EVENT_RESTORE_CONFLICT | 409 | (#375) 삭제를 되돌리려는데 그 사이 일정이 바뀌었다 ("그 사이 일정이 바뀌어서 되돌리지 못했어요", D-251) |
 | POLL_OPTION_PAST | 400 | (#189) 시작이 지난 후보를 새로 켜거나 정함. message "이미 지난 시간이에요" |
 | NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
@@ -165,7 +166,7 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/groups` | 유저 | - | `{ data: GroupSummary[] }` — PERSONAL 먼저, 그다음 joinedAt 순 |
-| POST | `/groups` | 유저 | `{ name }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급 |
+| POST | `/groups` | 유저 | `{ name, preset? }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급. (#278, D-250) `preset` 은 만들기 화면의 쓰임(`two`, `family`, `friends`, `study`)으로 **저장도 응답도 하지 않고** 로그 한 줄(`groups.create groupId= preset=`)만 남긴다. 모르는 값, 다른 형식도 400 없이 무시 |
 | GET | `/groups/:groupId` | 멤버 | - | `{ data: GroupDetail }` |
 | PATCH | `/groups/:groupId` | 멤버 | `{ name }` | `{ data: GroupDetail }` |
 | POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. (#274) 그 팀의 일정 공유 링크도 모두 끊는다. PERSONAL 이면 GROUP_NOT_INVITABLE |
@@ -210,7 +211,8 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/events/search` | 유저 | 쿼리 `q`, `groupId?`, `limit?` | (#199) 일정 검색. 아래 "일정 검색" |
 | GET | `/events/:code` | 유저 | 쿼리 `occurrence?` | (#311) 일정 공개 코드로 단건 조회. 응답은 위와 같다. 코드 모양이 틀리거나 없거나 **그 팀 멤버가 아니면 모두 404 NOT_FOUND** (코드의 존재를 드러내지 않는다, D-197). 웹 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다 |
 | PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
-| DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
+| DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true, deletionId } }` + EventLog DELETED (삭제 전 스냅샷). (#375) `deletionId` 로 7일 안에 되돌릴 수 있다 (D-251) |
+| POST | `/groups/:groupId/event-deletions/:deletionId/restore` | 멤버 (팀원 누구나) | - | (#375) 삭제 되돌리기 `{ data: { ok: true, eventId, occurrence } }` (`occurrence` 는 회차 삭제의 날짜, 행째 지운 것은 null). 지우기 직전 모습(일정 행, 번호와 공개 코드, 예외, 참여자, 응답, 반응, 공유 링크, 기록과 투표 연결) 그대로. 삭제의 DELETED 로그는 지워 새 소식에서 숨기고, 아직 안 보낸 팀원 변경 알림은 삭제 전으로 되돌린다. 없거나 다른 팀이거나 7일이 지났거나 이미 되돌렸으면 404 NOT_FOUND("되돌릴 수 있는 기간이 지났어요"), 그 사이 일정이 바뀌어 그대로 되돌릴 수 없으면 409 EVENT_RESTORE_CONFLICT. 나간 멤버의 참여자, 응답, 반응은 넣지 않는다 (D-251) |
 | PUT | `/groups/:groupId/events/:eventId/rsvp` | 멤버 (그 회차 참여자) | 쿼리 `occurrence` (반복은 필수), `{ status: Rsvp \| null }` (null = 응답 취소) | (#190) `{ data: Event['rsvp'] }` + GroupActivity EVENT_RSVP (2.6) |
 | PUT | `/groups/:groupId/events/:eventId/reaction` | 멤버 | 쿼리 `occurrence` (반복은 필수), `{ reaction: Reaction \| null }` | (#190) `{ data: Event['reactions'] }`. 새 소식 없음 |
 

@@ -8,6 +8,7 @@
 // - 카카오톡: 화면을 열면 한 번 자동으로 앱을 부른다 (sessionStorage + 폴백 주소의 app=0 으로 반복 방지)
 // - iOS: 앱이 없으면 아무 일도 없다. 1.5초 뒤에도 화면이 보이면 "못 열었음" 으로 보고, 스토어가 열려 있으면 설치 버튼
 // - Android: intent 폴백이 웹(app=0)으로 돌아오면 같은 판정. 직접 누른 경우 스토어가 열려 있으면 폴백이 Play 스토어
+// - webHref (2026-11-13): 이미 멤버라 이 화면 대신 달력으로 갈 사람. 웹을 고르거나, 앱을 못 열었거나, 이미 답한 탭이면 그 주소로 간다
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Sheet } from "./ui";
 import { appOpenUrl, appPathOf, autoAttemptKey, shouldAutoAttempt, type AppOpenPlan } from "@/lib/app-open";
@@ -29,7 +30,7 @@ function markTried(key: string): void {
   } catch {}
 }
 
-export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
+export function OpenInApp({ plan, webHref }: { plan: AppOpenPlan; webHref?: string }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -54,6 +55,10 @@ export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
           setPhase("idle");
           return;
         }
+        if (webHref) {
+          window.location.replace(webHref);
+          return;
+        }
         // iOS 에서 사용자가 직접 눌렀고 스토어가 열려 있으면 바로 App Store 로 (사용자 동작이라 강제 이동이 아니다)
         if (manual && plan.os === "ios" && plan.storeUrl) {
           window.location.href = plan.storeUrl;
@@ -64,7 +69,7 @@ export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
       }, OPEN_TIMEOUT_MS);
       window.location.href = appOpenUrl(plan.os, window.location.origin, path, { manual, storeUrl: plan.storeUrl });
     },
-    [plan],
+    [plan, webHref],
   );
 
   const [asking, setAsking] = useState(false);
@@ -72,25 +77,31 @@ export function OpenInApp({ plan }: { plan: AppOpenPlan }) {
   useEffect(() => {
     if (!plan.show) return;
     const key = autoAttemptKey(window.location.pathname);
-    if (!shouldAutoAttempt(plan, window.location.search, readTried(key))) return;
+    if (!shouldAutoAttempt(plan, window.location.search, readTried(key))) {
+      if (webHref) window.location.replace(webHref);
+      return;
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 처음 연 화면에서 한 번 묻는다
     setAsking(true);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [plan]);
+  }, [plan, webHref]);
 
   const answer = (useApp: boolean) => {
     markTried(autoAttemptKey(window.location.pathname));
     setAsking(false);
     if (useApp) attempt(true);
+    else if (webHref) window.location.replace(webHref);
   };
 
   if (!plan.show) return null;
   return (
     <Sheet open={asking} onClose={() => answer(false)} title="언제볼까 앱으로 열까요?">
       <p className="text-[14px] leading-5 text-soft">
-        앱이 있으면 바로 앱에서 열리고, 없으면 {plan.os === "ios" ? "App Store" : "Play 스토어"}로 이동해요.
+        {plan.storeUrl
+          ? `앱이 있으면 바로 앱에서 열리고, 없으면 ${plan.os === "ios" ? "App Store" : "Play 스토어"}로 이동해요.`
+          : "앱이 있으면 바로 앱에서 열리고, 없으면 웹에서 그대로 이용해요."}
       </p>
       <div className="mt-4 flex flex-col gap-2">
         <Button size="xl" full loading={phase === "opening"} onClick={() => answer(true)}>

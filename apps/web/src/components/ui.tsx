@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import { IconChevronRight, IconClose } from "./icons";
 import { memberColor, ON_MEMBER_COLOR } from "@/lib/colors";
@@ -70,10 +71,6 @@ export function Spinner({ className = "" }: { className?: string }) {
 export const inputClass =
   "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-3 text-[14px] leading-5 font-normal text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
 
-/** 일정 제목 입력 (#174 L3): 빠른 추가와 일정 작성이 같은 모양. 44 상자 + 16/600. 상자, 바탕, 포커스는 inputClass 와 같다 */
-export const titleInputClass =
-  "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-2.5 text-[16px] leading-6 font-semibold tracking-[-0.01em] text-ink placeholder:font-semibold placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
-
 /** 입력 위 작은 이름 12/500 (시작, 종료, 기념일 종류 등). Field 의 label 과 같은 모양 */
 export const captionClass = "mb-1.5 block text-[12px] font-medium leading-4 text-ink-2";
 
@@ -143,39 +140,173 @@ export function Toggle({
         <span className="block text-[14px] font-semibold">{label}</span>
         {description && <span className="t-sub block">{description}</span>}
       </span>
-      <span
-        aria-hidden="true"
-        className={`anim-pick relative inline-block h-6 w-10 shrink-0 rounded-full ${checked ? "bg-pri" : "bg-faint"}`}
-      >
-        <span
-          className={`absolute top-0.5 size-5 rounded-full bg-paper transition-transform duration-120 ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`}
-        />
-      </span>
+      <SwitchTrack checked={checked} />
     </button>
+  );
+}
+
+/** 스위치 모양 (40×24, 켬 `--pri`). Toggle, ToggleRow 가 같이 쓴다 */
+function SwitchTrack({ checked }: { checked: boolean }) {
+  return (
+    <span aria-hidden="true" className={`anim-pick relative inline-block h-6 w-10 shrink-0 rounded-full ${checked ? "bg-pri" : "bg-faint"}`}>
+      <span
+        className={`absolute top-0.5 size-5 rounded-full bg-paper transition-transform duration-120 ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`}
+      />
+    </span>
   );
 }
 
 /* ---------- 줄 버튼 ---------- */
 
+export const rowClass = "flex min-h-11 w-full items-center gap-3 py-1 text-left";
+
+/** 줄 왼쪽 아이콘 칸 (18~20 선 아이콘, `--mute`). 설정 줄 "아이콘 이름 ··· 값 ›" (#378) */
+export function RowIcon({ children, className = "text-ink-2" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span aria-hidden="true" className={`grid size-5 shrink-0 place-items-center ${className}`}>
+      {children}
+    </span>
+  );
+}
+
 /**
  * (#359) 카드 안 "이름 ……… 값 ›" 한 줄 (일정 폼의 참여자, 알림, 반복, 빠른 추가의 알림). 누르면 시트나 펼침을 연다.
- * 값이 글자면 value, 모양이 따로 있으면(참여자 아바타) children. 펼침(빠른 추가)은 chevron 없이
+ * 값이 글자면 value, 모양이 따로 있으면(참여자 아바타) children. 펼침(빠른 추가)은 chevron 없이.
+ * (#378) 왼쪽 icon(선 아이콘 18) 을 받으면 "아이콘 이름 ··· 값 ›". "바꾸기" 버튼 대신 이 줄을 누르게 한다
  */
 export function RowButton({
   label,
   value,
+  icon,
   chevron = true,
   className = "",
   children,
   ...rest
-}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> & { label: string; value?: React.ReactNode; chevron?: boolean }) {
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> & { label: string; value?: React.ReactNode; icon?: React.ReactNode; chevron?: boolean }) {
   return (
-    <button type="button" className={`flex min-h-11 w-full items-center gap-3 py-1 text-left ${className}`} {...rest}>
+    <button type="button" className={`${rowClass} disabled:opacity-45 ${className}`} {...rest}>
+      {icon && <RowIcon>{icon}</RowIcon>}
       <span className="shrink-0 text-[14px] font-semibold">{label}</span>
       {value !== undefined && <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{value}</span>}
       {children}
-      {chevron && <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />}
+      {chevron && <IconChevronRight size={16} className={`-mr-1 shrink-0 text-ink-2 ${value === undefined && !children ? "ml-auto" : ""}`} />}
     </button>
+  );
+}
+
+/**
+ * (#278) RowButton 과 같은 모양의 이동 줄 (시작 안내). 왼쪽 아이콘 18 은 선택. 눌러서 다른 화면으로 가면 버튼 대신 링크.
+ * (#378) value 를 주면 설정 줄처럼 "아이콘 이름 ··· 값 ›" (아이콘 `--mute`). 없으면 예전 모양(아이콘 `--acc-ink`, 이름이 남은 폭)
+ */
+export function RowLink({
+  href,
+  label,
+  icon,
+  value,
+  className = "",
+  onClick,
+}: {
+  href: string;
+  label: string;
+  icon?: React.ReactNode;
+  value?: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const setting = value !== undefined;
+  return (
+    <Link href={href} onClick={onClick} className={`${rowClass} ${setting ? "" : "hover:text-acc-ink"} ${className}`}>
+      {icon && <RowIcon className={setting ? "text-ink-2" : "text-acc-ink"}>{icon}</RowIcon>}
+      <span className={`min-w-0 truncate text-[14px] font-semibold ${setting ? "shrink-0" : "flex-1"}`}>{label}</span>
+      {setting && <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{value}</span>}
+      <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+    </Link>
+  );
+}
+
+/**
+ * (#378) 토글 줄: "아이콘 이름 (설명 한 줄) ··· 스위치". 줄 전체가 스위치(role=switch)라 어디를 눌러도 바뀐다.
+ * 설명은 꼭 필요할 때 한 줄만(넘치면 말줄임, 전체는 읽기 이름에). RowGroup 안에서 RowButton 과 같은 높이
+ */
+export function ToggleRow({
+  label,
+  description,
+  icon,
+  checked,
+  onChange,
+  disabled = false,
+  className = "",
+}: {
+  label: string;
+  description?: string;
+  icon?: React.ReactNode;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const descId = useId();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-describedby={description ? descId : undefined}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`${rowClass} disabled:cursor-not-allowed disabled:opacity-45 ${className}`}
+    >
+      {icon && <RowIcon>{icon}</RowIcon>}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[14px] font-semibold">{label}</span>
+        {description && (
+          <span id={descId} className="t-sub block truncate">
+            {description}
+          </span>
+        )}
+      </span>
+      <SwitchTrack checked={checked} />
+    </button>
+  );
+}
+
+/**
+ * (#378) 줄 묶음 카드: 흰 면(`--tile`, 모서리 16, 좌우 14) 안에 RowButton, RowLink, ToggleRow 를 1px `--line` 으로 나눠 쌓는다.
+ * title 을 주면 카드 위 작은 묶음 제목(13/700 `--mute`), hint 는 카드 아래 한 줄 안내(12 `--mute`).
+ * 줄마다 여백이 붙어 길어지던 설정 칸을 한 장으로 묶는다 (입력 화면 규칙 4, 나머지 화면 점검 3)
+ */
+export function RowGroup({
+  title,
+  hint,
+  inset = false,
+  className = "",
+  children,
+}: {
+  title?: string;
+  hint?: string;
+  /** 흰 면(`--tile`) 위에 놓을 때(빠른 추가 패널처럼 시트가 흰 면). 카드를 바탕 면(`--bg`)으로 뒤집는다 */
+  inset?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const titleId = useId();
+  const body = (
+    <>
+      {title && (
+        <h2 id={titleId} className="mb-2 px-1 text-[13px] font-bold leading-[18px] text-ink-2">
+          {title}
+        </h2>
+      )}
+      <div className={`divide-y divide-line rounded-lg px-3.5 py-0.5 ${inset ? "bg-surface" : "bg-paper"}`}>{children}</div>
+      {hint && <p className="t-sub mt-1.5 px-1">{hint}</p>}
+    </>
+  );
+  return title ? (
+    <section aria-labelledby={titleId} className={className}>
+      {body}
+    </section>
+  ) : (
+    <div className={className}>{body}</div>
   );
 }
 
@@ -216,50 +347,6 @@ export function Segmented<T extends string>({
             }`}
           >
             {o.icon}
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * (#269) 여러 개 켜고 끄는 칩 줄 (기념일 알림 시점). 모양은 Segmented 와 같고 각 칸이 aria-pressed 토글.
- * 켜고 끄는 규칙(예: "없음" 이 나머지를 끔)은 부르는 쪽이 정한다
- */
-export function ToggleChips<T extends string>({
-  labelledBy,
-  options,
-  isOn,
-  onToggle,
-}: {
-  labelledBy: string;
-  options: { value: T; label: string }[];
-  isOn: (v: T) => boolean;
-  onToggle: (v: T) => void;
-}) {
-  return (
-    <div
-      role="group"
-      aria-labelledby={labelledBy}
-      className="grid gap-1 rounded-sm bg-surface p-1"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-    >
-      {options.map((o) => {
-        const on = isOn(o.value);
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onToggle(o.value)}
-            className={`anim-pick hit flex h-9 items-center justify-center rounded-[8px] border px-1 text-[13px] whitespace-nowrap ${
-              on
-                ? "border-[var(--seg-edge)] bg-[var(--seg-on)] font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                : "border-transparent font-medium text-soft hover:text-ink"
-            }`}
-          >
             {o.label}
           </button>
         );
@@ -411,11 +498,14 @@ export function Sheet({
   open,
   onClose,
   title,
+  tone = "tile",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** (#378) "bg" 면 시트 면을 바탕색으로 두고 안에 흰 카드(RowGroup)를 쌓는다 (입력 시트: 기념일, 목록, 투표, 생일) */
+  tone?: "tile" | "bg";
   children: React.ReactNode;
 }) {
   useEscape(open, onClose);
@@ -440,7 +530,7 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]"
+        className={`anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl ${tone === "bg" ? "bg-surface" : "bg-paper"} px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]`}
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)] lg:hidden" />
         <SheetHeader titleId={titleId} title={title} onClose={onClose} />

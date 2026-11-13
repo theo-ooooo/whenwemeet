@@ -1,9 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { GroupsRepository } from './groups.repository.js';
-import { GroupsService } from './groups.service.js';
+import { GROUP_PRESETS, GroupsService, parseGroupPreset } from './groups.service.js';
 import { generateInviteCode, INVITE_CODE_PATTERN, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { INVITE_MARKER_KEY_INFO, inviteMarker } from './invite-marker.js';
@@ -161,6 +162,27 @@ describe('GroupsService', () => {
     expect(input).toMatchObject({ name: '팀', firstMember: { userId: 1, color: '#F26D6D' } });
     expect(input.inviteCode).toMatch(INVITE_CODE_PATTERN);
     expect(groupsRepo.createTeam.mock.calls[0][0].inviteCode).not.toBe(input.inviteCode);
+  });
+
+  it('create: (#278) 아는 preset 만 로그 한 줄, 저장 값에는 넣지 않는다', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    groupsRepo.createTeam.mockResolvedValue({ id: 10 });
+    groupsRepo.findById.mockResolvedValue(GROUP);
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
+
+    expect((await service.create(1, '팀', 'two')).id).toBe(10);
+    expect(log).toHaveBeenCalledWith('groups.create groupId=10 preset=two');
+    expect(Object.keys(groupsRepo.createTeam.mock.calls[0][0])).not.toContain('preset');
+
+    log.mockClear();
+    for (const bad of [undefined, 'couple', 3, { a: 1 }]) await service.create(1, '팀', bad);
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('parseGroupPreset: 네 값만, 나머지는 null', () => {
+    expect(GROUP_PRESETS.map(parseGroupPreset)).toEqual(['two', 'family', 'friends', 'study']);
+    expect([null, undefined, '', 'TWO', 'couple', 1].map(parseGroupPreset)).toEqual([null, null, null, null, null, null]);
   });
 
   it('create: 다른 오류는 그대로 던진다', async () => {

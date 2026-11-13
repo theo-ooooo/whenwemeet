@@ -4,33 +4,42 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useGroupContext } from "@/components/AppShell";
 import { EventColorPicker } from "@/components/EventColorPicker";
 import { ParticipantSheet, ParticipantValue } from "@/components/Participants";
+import { IconBell, IconPalette, IconRepeat, IconTeam } from "@/components/icons";
+import { NameField } from "@/components/NameField";
+import { OverflowMenu } from "@/components/OverflowMenu";
 import { PlaceField } from "@/components/PlaceField";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
-import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
+import { ReminderSheet } from "@/components/ReminderPicker";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { useToast } from "@/components/Toast";
+import { useEventDeleteToast } from "@/components/useEventDeleteToast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
-import { Button, ConfirmDialog, Field, InlineError, MemberDot, RowButton, Segmented, Skeleton, Toggle, captionClass, inputClass, titleInputClass } from "@/components/ui";
+import { Button, ConfirmDialog, InlineError, MemberDot, RowButton, RowGroup, Segmented, Sheet, Skeleton, ToggleRow } from "@/components/ui";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useEventDraft, useUpdateEvent } from "@/hooks";
 import { dateKeyOf, todayKey } from "@/lib/date";
 import { missingEventTarget } from "@/lib/calendar-url";
+import { canGoBack } from "@/lib/back-nav";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import { repeatRuleError } from "@/lib/recurrence";
 import { formRuleDate, repeatLabel } from "@/lib/recurrence-label";
 import { maybeOpenPushPrompt } from "@/lib/push";
 import { REMINDER_LABEL, reminderError } from "@/lib/reminder";
 import { copyPick, participantsChanged, participantsFromPick, showParticipantRow, type ParticipantPick } from "@/lib/participants";
-import { eventColorChanged, memberColor } from "@/lib/colors";
+import { charCount, nearLimit } from "@/lib/chars";
+import { eventColorChanged, eventColorName, memberColor } from "@/lib/colors";
 import {
   draftFromEvent,
   eventBody,
   eventInput,
+  MEMO_MAX,
   memoHint,
   newDraft,
   rangeError as rangeErrorOf,
   ruleChangedOf,
   sentUntilOf,
   timesKeptOf,
+  TITLE_MAX,
   titleError as titleErrorOf,
 } from "@/lib/event-draft";
 import { CALENDAR_PATH, calendarHref } from "@/lib/routes";
@@ -55,8 +64,8 @@ type Dialog =
   | { kind: "repeat" }
   | { kind: "reminder" }
   | { kind: "participants" }
-  | { kind: "scope"; mode: "save" | "delete"; confirmFollowing?: boolean }
-  | { kind: "delete" };
+  | { kind: "color" }
+  | { kind: "scope"; mode: "save" | "delete"; confirmFollowing?: boolean };
 
 export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurrence, presetScope = null, initialStart, initialEnd }: Props) {
   const router = useRouter();
@@ -88,6 +97,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true });
   const update = useUpdateEvent(groupId, { keepPendingAfterSuccess: true });
   const remove = useDeleteEvent(groupId, { keepPendingAfterSuccess: true });
+  const deletedToast = useEventDeleteToast(groupId);
   const saving = create.isPending || update.isPending;
   const deleting = remove.isPending;
 
@@ -169,8 +179,10 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const [done, setDone] = useState(false);
   const leave = useLeaveGuard(!done && form.dirty);
   const untilLabelId = useId();
-  const cancel = useCallback(() => leave.request(() => router.back()), [leave, router]);
+  // (#378) 머리줄 ‹. 앱 안에서 왔으면 뒤로, 바로 열었으면(알림, 외부 링크) 달력으로 (lib/back-nav, ScreenHeader 와 같은 판단)
+  const cancel = useCallback(() => leave.request(() => (canGoBack() ? router.back() : router.push(calendarHref()))), [leave, router]);
 
+  const memoNear = nearLimit(charCount(memo), MEMO_MAX);
   // 메모 칸은 내용만큼 늘어난다 (손잡이 대신, #140 L17)
   const memoRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -251,26 +263,44 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
     closeScope();
     if (r.ok) {
       setDone(true);
-      toast.show("일정을 삭제했어요");
+      // (#375) 7초 안 되돌리기. 달력으로 옮긴 뒤 되돌려도 달력이 다시 받는다 (D-251)
+      deletedToast(r.data.deletionId);
       router.replace(calendarHref({ date: startDate }));
       return;
     }
-    setDialog((d) => (d?.kind === "delete" ? null : d));
     setSaveError(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
   }
 
+  // (#378) 고친 일정이면 머리줄 ⋯ 에 삭제. 반복 일정은 범위 시트가 확인을 대신하고, 아니면 확인 창 → 삭제 → 되돌리기(#375)
+  const menu = editing ? (
+    <OverflowMenu
+      label="일정 메뉴"
+      disabled={!loaded || deleting || saving}
+      items={[
+        series
+          ? { label: "삭제", onSelect: () => setDialog({ kind: "scope", mode: "delete" }) }
+          : {
+              label: "삭제",
+              destructive: true,
+              confirm: { title: "이 일정을 삭제할까요?", body: "팀원 모두에게서 사라져요", confirmLabel: "삭제" },
+              onSelect: () => removeEvent(),
+            },
+      ]}
+    />
+  ) : undefined;
+  const colorDots = color ? [memberColor(color)] : autoColors.length ? autoColors.slice(0, 2) : ["var(--mute)"];
+
   return (
-    <form onSubmit={save} className="pt-1">
-      <div className="flex h-10 items-center justify-between">
-        <h1 className="t-title">{editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}</h1>
-        <button
-          type="button"
-          onClick={cancel}
-          className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
-        >
-          취소
-        </button>
-      </div>
+    // (#378) 폭 전체 한 단. 넓은 화면은 가운데 640 한 단 (예전 2단은 오른쪽만 길어 균형이 맞지 않았다).
+    // data-sticky-foot: 폰에서 바닥에 붙는 저장 줄만큼 포커스 스크롤을 띄운다 (globals.css, 줄이 입력 칸을 가리지 않게)
+    <form onSubmit={save} data-sticky-foot className="mx-auto w-full fold:max-w-[640px]">
+      <ScreenHeader
+        title={editing ? "일정 수정" : copyFrom ? "일정 복제" : "새 일정"}
+        fallbackHref={calendarHref()}
+        backLabel="취소"
+        onBack={cancel}
+        right={menu}
+      />
 
       {saveError && (
         <p role="alert" className="mt-2 rounded-xl bg-paper px-3.5 py-2.5 text-[14px] text-danger">
@@ -279,207 +309,213 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
       )}
 
       {!loaded ? (
-        <div className="mt-3 space-y-2" aria-busy="true" aria-label="불러오는 중">
-          <Skeleton className="h-14 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-24 w-full" />
+        <div className="mt-3 space-y-3" aria-busy="true" aria-label="불러오는 중">
+          <Skeleton className="h-[104px] w-full rounded-lg" />
+          <Skeleton className="h-[148px] w-full rounded-lg" />
+          <Skeleton className="h-[184px] w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
         </div>
       ) : (
-        <div className="mt-3 space-y-2">
-          {/* 본문 폭 main-lg(≥696, #323): 왼쪽 제목, 날짜와 시각 | 오른쪽 알림, 반복, 메모. 저장 줄은 두 칸 아래 전체 폭 (#244) */}
-          <div className="space-y-2 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
-            <div className="space-y-2">
-              {/* 제목은 빠른 추가와 같은 44 상자 + 16/600 (#174 L3) */}
-              <div className="rounded-xl bg-paper px-3.5 py-3">
-                <label htmlFor="ev-title" className="sr-only">
-                  제목
-                </label>
-                <input
-                  id="ev-title"
-                  className={titleInputClass}
-                  placeholder="무슨 일정인가요?"
-                  value={title}
-                  onChange={(e) => {
-                    dispatch({ type: "title", value: e.target.value });
-                    titleEdited.current = true;
-                  }}
-                  // 자동 포커스된 빈 제목에서 그냥 벗어나는 것(모바일 키보드 닫기, 날짜 칸 탭)은 오류로 보지 않는다 (#80).
-                  // 예전에는 blur 마다 touched 를 켜서 제목 아래 오류 줄(약 26px)이 끼어들며 아래 칸이 한 번에 밀렸다
-                  onBlur={() => {
-                    if (titleEdited.current) form.touch();
-                  }}
-                  autoFocus={!editing}
-                  aria-invalid={Boolean(titleError)}
-                  aria-describedby={titleError ? "ev-title-err" : undefined}
-                />
-                {titleError && (
-                  <InlineError id="ev-title-err" className="mt-1.5">
-                    {titleError}
-                  </InlineError>
-                )}
-              </div>
+        <div className="mt-3 space-y-3">
+          {/* 1. 제목 + 장소 (#199 장소를 제목 바로 아래로) */}
+          <RowGroup>
+            <NameField
+              id="ev-title"
+              label="제목"
+              placeholder="무슨 일정인가요?"
+              value={title}
+              max={TITLE_MAX}
+              onChange={(v) => {
+                dispatch({ type: "title", value: v });
+                titleEdited.current = true;
+              }}
+              // 자동 포커스된 빈 제목에서 그냥 벗어나는 것(모바일 키보드 닫기, 날짜 칸 탭)은 오류로 보지 않는다 (#80).
+              // 예전에는 blur 마다 touched 를 켜서 제목 아래 오류 줄(약 26px)이 끼어들며 아래 칸이 한 번에 밀렸다
+              onBlur={() => {
+                if (titleEdited.current) form.touch();
+              }}
+              autoFocus={!editing}
+              autoComplete="off"
+              enterKeyHint="next"
+              error={titleError}
+              errorId="ev-title-err"
+            />
+            <PlaceField
+              place={draft.place}
+              onType={(value) => dispatch({ type: "placeText", value })}
+              onPick={(value, query) => dispatch({ type: "placePick", value, query })}
+              onClear={() => dispatch({ type: "placeClear" })}
+            />
+          </RowGroup>
 
-              <div className="rounded-xl bg-paper px-3.5 py-2">
-                <Toggle checked={allDay} onChange={(v) => dispatch({ type: "allDay", value: v })} label="종일" />
-                <div className="mt-2 space-y-3 border-t border-line pb-1 pt-3">
-                  {(
-                    [
-                      { key: "start", label: "시작", date: startDate, time: startTime },
-                      { key: "end", label: "종료", date: endDate, time: endTime },
-                    ] as const
-                  ).map((row) => (
-                    <div key={row.key}>
-                      <span className={captionClass}>{row.label}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                          <DatePicker
-                            label={`${row.label} 날짜`}
-                            value={row.date}
-                            min={row.key === "end" ? startDate : undefined}
-                            onChange={(v) =>
-                              dispatch(row.key === "start" ? { type: "start", date: v, time: startTime } : { type: "end", date: v, time: endTime, by: "date" })
-                            }
-                          />
-                        </div>
-                        {!allDay && (
-                          <div className="shrink-0 grow-0 basis-[148px]">
-                            <TimePicker
-                              label={`${row.label} 시각`}
-                              value={row.time}
-                              onChange={(v) =>
-                                dispatch(row.key === "start" ? { type: "start", date: startDate, time: v } : { type: "end", date: endDate, time: v, by: "time" })
-                              }
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {rangeError && touched && (
-                  <InlineError className="mb-1 mt-2">{rangeError}</InlineError>
-                )}
-                {rangeError && !touched && <p className="t-sub mb-1 mt-2">{rangeError}</p>}
-              </div>
-
-            </div>
-            <div className="space-y-2">
-              {/* 참여자 (#248, 7-3). 폰은 시각 블록 바로 아래, PC 2단이면 오른쪽 단 맨 위. 모양은 알림 줄과 같다 */}
-              {showParticipants && participantsShown && (
-                <div className="rounded-xl bg-paper px-3.5 py-1">
-                  <RowButton
-                    label="참여자"
-                    onClick={() => setDialog({ kind: "participants" })}
-                    aria-haspopup="dialog"
-                    aria-describedby={participantError ? "ev-participants-err" : undefined}
-                  >
-                    <ParticipantValue value={participantsShown} meId={meId} />
-                  </RowButton>
-                  {participantError && (
-                    <p id="ev-participants-err" role="alert" className="mb-2 text-[13px] text-danger">
-                      {participantError}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* (#343) 일정 색: 자동(참여자 색) + 8색. 반복 "이 일정만" 은 막는다 */}
-              <EventColorPicker
-                value={color}
-                onChange={(v) => dispatch({ type: "color", value: v })}
-                autoColors={autoColors}
-                disabled={thisOnlyPreset}
-                note={thisOnlyPreset ? "반복 일정의 색은 이후 모두에서 바꿀 수 있어요" : undefined}
-              />
-
-              {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 웹, 1.0.x 앱은 아래 안내 한 줄 */}
-              <div className="rounded-xl bg-paper px-3.5 py-1">
-                <RowButton label="알림" value={REMINDER_LABEL[reminder]} onClick={() => setDialog({ kind: "reminder" })} aria-haspopup="dialog" />
-                <ReminderNote className="-mt-1 pb-2" />
-                {remindError && (
-                  <InlineError className="mb-2">{remindError}</InlineError>
-                )}
-              </div>
-
-              {showRepeat && (
-                <div className="rounded-xl bg-paper px-3.5 py-1">
-                  <RowButton
-                    label="반복"
-                    value={repeat ? repeatLabel(repeat, ruleDateFor(repeat)) : "반복 안 함"}
-                    onClick={() => setDialog({ kind: "repeat" })}
-                    aria-haspopup="dialog"
+          {/* 2. 종일, 시작, 종료 */}
+          <RowGroup>
+            <ToggleRow label="종일" checked={allDay} onChange={(v) => dispatch({ type: "allDay", value: v })} />
+            {(
+              [
+                { key: "start", label: "시작", date: startDate, time: startTime },
+                { key: "end", label: "종료", date: endDate, time: endTime },
+              ] as const
+            ).map((row) => (
+              <div key={row.key} className="flex min-h-12 items-center gap-2 py-1.5">
+                <span aria-hidden="true" className="w-9 shrink-0 text-[14px] text-ink-2">
+                  {row.label}
+                </span>
+                <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5">
+                  <DatePicker
+                    look="chip"
+                    label={`${row.label} 날짜`}
+                    value={row.date}
+                    min={row.key === "end" ? startDate : undefined}
+                    onChange={(v) =>
+                      dispatch(row.key === "start" ? { type: "start", date: v, time: startTime } : { type: "end", date: v, time: endTime, by: "date" })
+                    }
                   />
-                  {repeat && (
-                    <div role="group" aria-label="반복 종료" className="space-y-2 border-t border-line pb-2 pt-2">
-                      <div className="flex min-h-9 items-center gap-3">
-                        <span id={`${untilLabelId}`} className="shrink-0 text-[14px] font-semibold">
-                          종료
-                        </span>
-                        <div className="ml-auto w-[176px]">
-                          <Segmented
-                            labelledBy={untilLabelId}
-                            value={untilOn ? "date" : "forever"}
-                            options={UNTIL_OPTIONS}
-                            onChange={(v) => dispatch({ type: "untilOn", value: v === "date" })}
-                          />
-                        </div>
-                      </div>
-                      {untilOn && <DatePicker label="반복 종료 날짜" value={untilDate} min={startDate} onChange={(v) => dispatch({ type: "untilDate", value: v })} />}
-                    </div>
-                  )}
-                  {repeatError && (
-                    <InlineError className="mb-2">{repeatError}</InlineError>
-                  )}
-                </div>
-              )}
-
-              {/* (#199) 장소: 메모 위. 검색해서 고르면 지도, 직접 적으면 글자만 */}
-              <div className="rounded-xl bg-paper px-3.5 py-3">
-                <PlaceField
-                  place={draft.place}
-                  onType={(value) => dispatch({ type: "placeText", value })}
-                  onPick={(value, query) => dispatch({ type: "placePick", value, query })}
-                  onClear={() => dispatch({ type: "placeClear" })}
-                />
-              </div>
-
-              <div className="rounded-xl bg-paper px-3.5 py-3">
-                <Field label="메모" hint={memoHint(draft)}>
-                  {(id, describedBy) => (
-                    <textarea
-                      ref={memoRef}
-                      id={id}
-                      rows={4}
-                      aria-describedby={describedBy}
-                      className={`${inputClass} max-h-[50dvh] min-h-[96px] resize-none overflow-y-auto`}
-                      placeholder="준비물, 링크 등"
-                      value={memo}
-                      onChange={(e) => dispatch({ type: "memo", value: e.target.value })}
+                  {!allDay && (
+                    <TimePicker
+                      look="chip"
+                      label={`${row.label} 시각`}
+                      value={row.time}
+                      onChange={(v) =>
+                        dispatch(row.key === "start" ? { type: "start", date: startDate, time: v } : { type: "end", date: endDate, time: v, by: "time" })
+                      }
                     />
                   )}
-                </Field>
+                </div>
               </div>
+            ))}
+            {rangeError && (
+              <div className="py-2">
+                {touched ? <InlineError>{rangeError}</InlineError> : <p className="t-sub">{rangeError}</p>}
+              </div>
+            )}
+          </RowGroup>
 
-              {editing && creator && (
-                <p className="flex items-center gap-1.5 px-1 pt-1 text-[12px] text-ink-2">
-                  <MemberDot color={creator.color} size={8} />
-                  {creator.displayName}님이 등록한 일정
+          {/* 3. 참여자, 알림, 반복, 색: 줄 넷을 카드 한 장에 (값 ›, 누르면 시트) */}
+          <RowGroup>
+            {/* 참여자 (#248, 7-3). "이 일정만" 반복 수정과 개인 팀은 숨긴다 */}
+            {showParticipants && participantsShown && (
+              <div>
+                <RowButton
+                  label="참여자"
+                  icon={<IconTeam size={18} />}
+                  onClick={() => setDialog({ kind: "participants" })}
+                  aria-haspopup="dialog"
+                  aria-describedby={participantError ? "ev-participants-err" : undefined}
+                >
+                  <ParticipantValue value={participantsShown} meId={meId} />
+                </RowButton>
+                {participantError && (
+                  <p id="ev-participants-err" role="alert" className="pb-2 text-[13px] text-danger">
+                    {participantError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 못 받는 기기 안내는 알림 시트 안에 */}
+            <div>
+              <RowButton label="알림" icon={<IconBell size={18} />} value={REMINDER_LABEL[reminder]} onClick={() => setDialog({ kind: "reminder" })} aria-haspopup="dialog" />
+              {remindError && <InlineError className="pb-2">{remindError}</InlineError>}
+            </div>
+
+            {showRepeat && (
+              <div>
+                <RowButton
+                  label="반복"
+                  icon={<IconRepeat size={18} />}
+                  value={repeat ? repeatLabel(repeat, ruleDateFor(repeat)) : "반복 안 함"}
+                  onClick={() => setDialog({ kind: "repeat" })}
+                  aria-haspopup="dialog"
+                />
+                {repeat && (
+                  <div role="group" aria-label="반복 종료" className="space-y-2 pb-2 pl-8">
+                    <div className="flex min-h-9 items-center gap-3">
+                      <span id={`${untilLabelId}`} className="shrink-0 text-[14px] text-ink-2">
+                        종료
+                      </span>
+                      <div className="ml-auto w-[176px]">
+                        <Segmented
+                          labelledBy={untilLabelId}
+                          value={untilOn ? "date" : "forever"}
+                          options={UNTIL_OPTIONS}
+                          onChange={(v) => dispatch({ type: "untilOn", value: v === "date" })}
+                        />
+                      </div>
+                    </div>
+                    {untilOn && (
+                      <div className="flex justify-end">
+                        <DatePicker look="chip" label="반복 종료 날짜" value={untilDate} min={startDate} onChange={(v) => dispatch({ type: "untilDate", value: v })} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {repeatError && <InlineError className="pb-2">{repeatError}</InlineError>}
+              </div>
+            )}
+
+            {/* (#343) 일정 색: 줄 "색 ● 자동 ›" → 시트에서 자동(참여자 색) + 8색. 반복 "이 일정만" 은 막고 한 줄 안내 */}
+            <div>
+              <RowButton
+                label="색"
+                icon={<IconPalette size={18} />}
+                onClick={() => setDialog({ kind: "color" })}
+                aria-haspopup="dialog"
+                aria-label={`색, ${eventColorName(color)}`}
+                aria-describedby={thisOnlyPreset ? "ev-color-note" : undefined}
+                disabled={thisOnlyPreset}
+              >
+                <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[14px] text-ink-2">
+                  <span aria-hidden="true" className="inline-flex items-center">
+                    {colorDots.map((c, i) => (
+                      <i key={i} className="block size-3 rounded-full" style={{ background: c, marginLeft: i ? -4 : 0, boxShadow: i ? "0 0 0 1.5px var(--tile)" : undefined }} />
+                    ))}
+                  </span>
+                  <span className="truncate">{eventColorName(color)}</span>
+                </span>
+              </RowButton>
+              {thisOnlyPreset && (
+                <p id="ev-color-note" className="t-sub pb-2 pl-8">
+                  반복 일정의 색은 이후 모두에서 바꿀 수 있어요
                 </p>
               )}
-
             </div>
-          </div>
-          {/* 폰은 독을 숨긴 자리에 저장 줄을 바닥에 붙인다 (#137) */}
-          <div className="sticky bottom-0 z-10 -mx-5 flex gap-2 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0">
-            <Button type="submit" size="lg" full disabled={!canSave} loading={saving} className="flex-1">
-              {editing ? "저장" : "일정 추가"}
-            </Button>
-            {editing && (
-              <Button type="button" variant="tile" size="lg" onClick={() => setDialog(series ? { kind: "scope", mode: "delete" } : { kind: "delete" })} className="text-danger!">
-                삭제
-              </Button>
+          </RowGroup>
+
+          {/* 4. 메모. 글자 수는 80% 부터 */}
+          <div className="rounded-lg bg-paper px-3.5 py-2.5">
+            <label htmlFor="ev-memo" className="sr-only">
+              메모
+            </label>
+            <textarea
+              ref={memoRef}
+              id="ev-memo"
+              rows={3}
+              aria-describedby={memoNear ? "ev-memo-count" : undefined}
+              className="-mx-1.5 block max-h-[50dvh] min-h-[72px] w-[calc(100%+12px)] resize-none overflow-y-auto rounded-sm bg-transparent px-1.5 py-1.5 text-[14px] leading-5 text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0"
+              placeholder="메모 (준비물, 링크 등)"
+              value={memo}
+              onChange={(e) => dispatch({ type: "memo", value: e.target.value })}
+            />
+            {memoNear && (
+              <p id="ev-memo-count" className="t-sub pb-0.5 text-right tabular-nums">
+                {memoHint(draft)}
+              </p>
             )}
+          </div>
+
+          {editing && creator && (
+            <p className="flex items-center gap-1.5 px-1 text-[12px] text-ink-2">
+              <MemberDot color={creator.color} size={8} />
+              {creator.displayName}님이 등록한 일정
+            </p>
+          )}
+
+          {/* 저장 줄: 폰은 바닥에 붙는다(독은 폼 화면에서 숨김 #137). 넓은 화면은 내용 바로 아래 */}
+          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1">
+            <Button type="submit" size="xl" full disabled={!canSave} loading={saving}>
+              {editing ? "저장" : "추가"}
+            </Button>
           </div>
         </div>
       )}
@@ -553,16 +589,17 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
         onConfirm={() => void submit("following")}
         onCancel={() => setDialog((d) => (d?.kind === "scope" ? { kind: "scope", mode: d.mode } : d))}
       />
-      <ConfirmDialog
-        open={dialog?.kind === "delete"}
-        title="이 일정을 삭제할까요?"
-        body="팀원 모두에게서 사라져요"
-        confirmLabel="삭제"
-        danger
-        loading={deleting}
-        onConfirm={() => void removeEvent()}
-        onCancel={closeDialog}
-      />
+      <Sheet open={dialog?.kind === "color"} onClose={closeDialog} title="색">
+        <EventColorPicker
+          bare
+          value={color}
+          onChange={(v) => dispatch({ type: "color", value: v })}
+          onPicked={closeDialog}
+          autoColors={autoColors}
+          disabled={thisOnlyPreset}
+        />
+        <p className="t-sub mt-2 pb-1">자동은 참여자 색을 따라가요</p>
+      </Sheet>
     </form>
   );
 }

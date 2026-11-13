@@ -6,7 +6,7 @@
 // 펼침 모드: onInlineToggle 을 주면 팝오버를 띄우지 않고 버튼만 그린다. 목록(TimeList)은 부모가 원하는 자리에 펼친다
 // (빠른 추가 팝오버 안에서 팝오버가 또 겹치지 않게)
 import { useEffect, useId, useRef, useState } from "react";
-import { PickerShell, triggerClass } from "./PickerShell";
+import { PickerShell, triggerClassOf, type PickerLook } from "./PickerShell";
 import { formatTimeKo, minutesOf, parseTimeInput, timeOfMinutes } from "./time";
 import { InlineError } from "../ui";
 
@@ -29,6 +29,9 @@ type Props = {
   inlineOpen?: boolean;
   /** 주면 펼침 모드. 버튼을 누르면 이걸 부르고 팝오버는 띄우지 않는다 */
   onInlineToggle?: () => void;
+  /** (#378) 트리거 모양. 기본 field. row 면 display 가 줄 내용 (투표 후보 한 줄) */
+  look?: PickerLook;
+  display?: React.ReactNode;
 };
 
 export function TimePicker({
@@ -43,6 +46,8 @@ export function TimePicker({
   className = "",
   inlineOpen = false,
   onInlineToggle,
+  look = "field",
+  display,
   ...rest
 }: Props) {
   const [popOpen, setPopOpen] = useState(false);
@@ -62,9 +67,9 @@ export function TimePicker({
         aria-label={`${label}, ${value ? formatTimeKo(value) : "선택 안 함"}`}
         aria-describedby={rest["aria-describedby"]}
         onClick={() => (onInlineToggle ? onInlineToggle() : setOpen((v) => !v))}
-        className={`${triggerClass} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${open && inline ? "outline-2 outline-ink" : ""} ${className}`}
+        className={`${triggerClassOf(look)} ${rest["aria-invalid"] ? "outline-2 outline-danger" : ""} ${open && inline ? "outline-2 outline-ink" : ""} ${className}`}
       >
-        <span className="truncate">{value ? formatTimeKo(value) : "시각 선택"}</span>
+        {display ?? <span className="truncate">{value ? formatTimeKo(value) : "시각 선택"}</span>}
         {/* "오전 10:00" 과 "10:00" 을 같이 쓰지 않는다 (#140 L4). 24시간 표기는 목록에서만 보조로 */}
       </button>
       {!inline && (

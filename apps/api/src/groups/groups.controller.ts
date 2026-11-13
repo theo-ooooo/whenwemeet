@@ -18,7 +18,7 @@ export class GroupsController {
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {
-    return this.groups.create(user.id, dto.name);
+    return this.groups.create(user.id, dto.name, dto.preset);
   }
 
   /** 이미 멤버여도 200 (멱등) 이라 201 을 쓰지 않는다 */

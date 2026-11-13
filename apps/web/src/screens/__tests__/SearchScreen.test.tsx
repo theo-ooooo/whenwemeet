@@ -9,7 +9,7 @@ let result: { data: EventSearchResult | null; error: { message: string } | null 
 let groups = [{ id: 10 }, { id: 11 }];
 const searched = vi.fn();
 
-vi.mock("next/navigation", () => ({ useSearchParams: () => params }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => params, useRouter: () => ({ back: vi.fn() }) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ groupId: 10, groups }) }));
 vi.mock("@/components/Participants", () => ({ useWho: () => ({ personal: false, meId: 1 }) }));
@@ -21,6 +21,7 @@ vi.mock("@/hooks", () => ({
   },
   useAnniversaryItems: () => ({ data: [], error: null }),
   useEvents: () => ({ data: [], error: null }),
+  usePlaceResolve: () => ({ data: null, error: null }),
 }));
 
 const { SearchScreen } = await import("../SearchScreen");
@@ -61,6 +62,12 @@ afterEach(() => {
 });
 
 describe("SearchScreen", () => {
+  it("(#378) 머리줄은 '‹ 일정 검색' 하나 (뒤로 링크는 달력)", () => {
+    render(<SearchScreen />);
+    expect(screen.getByRole("heading", { level: 1, name: "일정 검색" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "뒤로" }).getAttribute("href")).toBe("/calendar");
+  });
+
   it("빈 검색어면 안내만 (저장하지 않는다는 문구)", () => {
     render(<SearchScreen />);
     expect(screen.getByText(/검색어는 저장하지 않아요/)).toBeTruthy();
@@ -82,6 +89,21 @@ describe("SearchScreen", () => {
     expect(link.getAttribute("aria-label")).toContain("매주");
     expect(upcoming.querySelector("mark")?.textContent).toBe("치과");
     expect(within(past).getByRole("link").getAttribute("aria-label")).toContain("2025년 5월 1일");
+    // (#378) 결과 줄은 일정 줄: 시각 한 번(오전/오후), 지난 일정은 흐리게
+    expect(link.getAttribute("aria-label")).toContain("오전 10:00 ~ 11:00");
+    expect(within(past).getByRole("link").className).toContain("opacity-55");
+  });
+
+  it("(#378) 장소는 핀 줄, 메모가 맞았으면 메모 한 줄을 더 (강조)", () => {
+    params = new URLSearchParams("q=주차");
+    const placeHit = item(4, "가족 모임", true, { place: { text: "할머니 댁", query: null, kakaoPlaceId: null, url: null }, memo: "주차는 뒤편" });
+    placeHit.matched = ["memo"];
+    result = { data: { items: [placeHit], hasMore: false }, error: null };
+    render(<SearchScreen />);
+    const link = screen.getByRole("link", { name: /가족 모임/ });
+    expect(link.textContent).toContain("할머니 댁");
+    expect(link.querySelector("mark")?.textContent).toBe("주차");
+    expect(link.getAttribute("aria-label")).toContain("장소 할머니 댁");
   });
 
   it("모든 팀이면 팀 이름을 보이고 groupId 없이 찾는다. 한 팀뿐이면 범위 고르기가 없다", () => {

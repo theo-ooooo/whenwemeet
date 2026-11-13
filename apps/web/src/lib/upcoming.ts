@@ -3,7 +3,7 @@
 // - 일정은 **시작한 날 하나에만** 둔다 (여러 날 일정은 시각 글자에 "~11월 14일"). 이미 시작해 진행 중인 것은 오늘에
 //   → 같은 일정이 두 창에 걸쳐 와도 묶이는 날은 하나라서 창끼리 겹치지 않는다
 // - 기념일 항목(N일, N주년, 매년, 원래 날짜)은 그날 묶음의 일정 앞 줄로 넣는다 (기념일만 있는 날도 묶음이 생긴다)
-import { addDays, dateKeyOf, dowOf, parseKey, timeOf, WEEKDAYS, type DateKey } from "./date";
+import { addDays, dateKeyOf, dowOf, parseKey, WEEKDAYS, type DateKey } from "./date";
 import { occurrencesByDay, type Occurrence } from "./anniversary";
 import { holidayOf } from "./holidays";
 import { eventKey } from "./recurrence";
@@ -50,20 +50,6 @@ const md = (k: DateKey) => {
   const p = parseKey(k);
   return `${p.m}월 ${p.d}일`;
 };
-
-/**
- * 행의 시각 글자 (묶인 날 기준).
- * - 종일 하루: "종일" / 여러 날: "종일, ~11월 14일"
- * - 시간 같은 날: "10:00~11:00" / 여러 날: "22:00~11월 14일 02:00"
- * - 오늘 전에 시작해 진행 중: "~18:00" (오늘 끝남) / "~11월 14일 02:00"
- */
-export function upcomingTimeText(ev: Pick<Event, "startsAt" | "endsAt" | "allDay">, day: DateKey): string {
-  const last = lastDayOf(ev);
-  const started = dateKeyOf(ev.startsAt) < day;
-  if (ev.allDay) return last > day ? `종일, ~${md(last)}` : "종일";
-  const endText = last > day ? `${md(last)} ${timeOf(ev.endsAt)}` : timeOf(ev.endsAt);
-  return started ? `~${endText}` : `${timeOf(ev.startsAt)}~${endText}`;
-}
 
 // 같은 날 안의 순서: 여러 날 종일 → 종일 → 시간 (groupByDay 와 같은 규칙), 그다음 시작 순
 const rank = (e: Event) => (e.allDay ? (lastDayOf(e) > dateKeyOf(e.startsAt) ? 0 : 1) : 2);

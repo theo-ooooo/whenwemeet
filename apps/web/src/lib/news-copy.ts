@@ -1,7 +1,7 @@
 // 새 소식 문구 (#187, 설계 4-3, 기획 3-6). React 를 import 하지 않는다 (단위 테스트 대상)
 // 화면은 "{이름}님이 '{제목}' " 뒤에 newsPhrase 를 붙인다
 import { KIND_OPTIONS } from "./anniversary";
-import { dateKeyOf, formatDateKo, formatEventTime, parseKey, type DateKey } from "./date";
+import { addDays, dateKeyOf, formatDateKo, formatEventTime, parseKey, startOfWeek, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
 import { pollActivityPhrase, pollActivitySubline } from "./poll";
 import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, eventHref, pollHref, TEAM_PATH } from "./routes";
@@ -62,6 +62,40 @@ const ACTIVITY_TYPES: readonly ActivityType[] = [
 ];
 
 export const isActivity = (item: NewsEntry): item is ActivityNewsItem => item.kind === "ACTIVITY";
+
+/** (#378) 새 소식 묶음. 오늘, 어제, 이번 주(월요일부터), 그 전 */
+export type NewsDay = "오늘" | "어제" | "이번 주" | "이전";
+
+/** (#378) 기록 시각(KST 날짜)으로 묶음을 고른다. 어제가 지난주여도 "어제" */
+export function newsDayOf(createdAt: string, today: DateKey): NewsDay {
+  const key = dateKeyOf(createdAt);
+  if (key >= today) return "오늘";
+  if (key === addDays(today, -1)) return "어제";
+  if (key >= startOfWeek(today)) return "이번 주";
+  return "이전";
+}
+
+/** (#378) 받은 순서(최근 먼저)를 지키며 묶음으로 나눈다. 빈 묶음은 없다 */
+export function groupNewsByDay<T extends { createdAt: string }>(items: readonly T[], today: DateKey): { day: NewsDay; items: T[] }[] {
+  const out: { day: NewsDay; items: T[] }[] = [];
+  for (const item of items) {
+    const day = newsDayOf(item.createdAt, today);
+    const last = out[out.length - 1];
+    if (last?.day === day) last.items.push(item);
+    else out.push({ day, items: [item] });
+  }
+  return out;
+}
+
+/** (#378) 줄 왼쪽 종류 아이콘. 일정 기록과 가져오기는 일정, 기념일, 팀(멤버, 이름), 투표, 참석 */
+export type NewsKind = "event" | "anniversary" | "team" | "poll" | "rsvp";
+export function newsKindOf(item: NewsEntry): NewsKind {
+  if (!isActivity(item) || item.type === "EVENTS_IMPORTED") return "event";
+  if (item.type.startsWith("ANNIVERSARY_")) return "anniversary";
+  if (item.type.startsWith("POLL_")) return "poll";
+  if (item.type === "EVENT_RSVP") return "rsvp";
+  return "team";
+}
 
 /** 목록 키. 일정 기록과 활동 기록의 id 가 겹칠 수 있어 종류를 붙인다 */
 export const newsKey = (item: NewsEntry): string => `${item.kind ?? "EVENT"}:${item.id}`;

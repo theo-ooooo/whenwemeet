@@ -1,5 +1,6 @@
 "use client";
 // (#193) 팀 설정 "다른 캘린더 앱에서 보기": 내 연결 주소(ICS 피드) 만들기, 아이폰 캘린더에 추가, 복사(구글 안내), 메모와 기념일 토글, 다시 만들기, 연결 끊기
+// (#378) 팀 설정에서는 "연결" 묶음의 줄을 누르면 뜨는 시트 안에 그린다(bare: 카드와 제목 없이, 시트 제목이 같은 말)
 import { useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, Sheet, Skeleton, Toggle } from "@/components/ui";
@@ -27,7 +28,7 @@ const textButton = "hit rounded-sm px-1 py-2 text-[12px] font-medium underline u
 const linkButton =
   "flex h-11 w-full items-center justify-center rounded-md bg-hover px-4 text-[13.5px] font-bold text-ink hover:brightness-95";
 
-export function CalendarFeedSection({ groupId, personal }: { groupId: number; personal: boolean }) {
+export function CalendarFeedSection({ groupId, personal, bare = false }: { groupId: number; personal: boolean; bare?: boolean }) {
   const toast = useToast();
   const { data: feed, error, isLoading, refetch, setData } = useCalendarFeed(groupId);
   const { mutate: save, isPending: saving } = useSaveCalendarFeed(groupId);
@@ -89,11 +90,8 @@ export function CalendarFeedSection({ groupId, personal }: { groupId: number; pe
     toast.show(FEED_COPY.turnedOff);
   }
 
-  return (
-    <section className="rounded-xl bg-paper px-3.5 py-3.5" aria-labelledby="calendar-feed-title">
-      <h2 id="calendar-feed-title" className="text-[13px] font-bold leading-5">
-        {FEED_COPY.title}
-      </h2>
+  const body = (
+    <>
       {feed === null && isLoading ? (
         <div aria-busy="true" aria-label="불러오는 중" className="mt-2 space-y-2">
           <Skeleton className="h-5 w-4/5 rounded-sm" />
@@ -205,6 +203,15 @@ export function CalendarFeedSection({ groupId, personal }: { groupId: number; pe
         onConfirm={turnOff}
         onCancel={() => setDialog(null)}
       />
+    </>
+  );
+  if (bare) return <div className="pb-1">{body}</div>;
+  return (
+    <section className="rounded-xl bg-paper px-3.5 py-3.5" aria-labelledby="calendar-feed-title">
+      <h2 id="calendar-feed-title" className="text-[13px] font-bold leading-5">
+        {FEED_COPY.title}
+      </h2>
+      {body}
     </section>
   );
 }

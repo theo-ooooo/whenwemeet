@@ -57,18 +57,6 @@ model User {
   startGroupId      Int?
   /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-230)
   birthday          String?   @db.Char(5)
-  /// (#369) 아래 10칸은 더 이상 읽고 쓰지 않는다. 값은 NotificationPreference, BirthdayReminder 로 옮겼고 다음 릴리스에서 DROP 한다
-  /// (배포.md "컬럼 삭제는 두 릴리스로", 이전 이미지로 롤백해도 깨지지 않게, D-249). 새 코드에서 쓰지 말 것
-  notifyReminder           Boolean @default(true)
-  notifyChange             Boolean @default(true)
-  notifyAnniversary        Boolean @default(true)
-  notifyJoin               Boolean @default(true)
-  notifyWeekly             Boolean @default(true)
-  notifyWeeklyNudge        Boolean @default(false)
-  notifyPoll               Boolean @default(true)
-  birthdayRemindDayOf      Boolean @default(true)
-  birthdayRemindDayBefore  Boolean @default(false)
-  birthdayRemindWeekBefore Boolean @default(false)
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -108,6 +96,8 @@ model User {
   notificationPreferences NotificationPreference[]
   /// (#369) 내 생일을 팀원에게 알리는 시점 (켜진 시점마다 행 하나, 가입 때 DAY_OF 하나, D-232)
   birthdayReminders       BirthdayReminder[]
+  /// (#375) 내가 지운 일정의 되돌리기 보관
+  eventDeletions          EventDeletion[]
 }
 
 /// (#369) 사용자별 알림 종류 (내 정보 > 알림 토글, D-249). 기본값은 코드 표 `notification-preferences/notification-preferences.ts` 하나
@@ -311,6 +301,8 @@ model Group {
   calendarFeeds     CalendarFeed[]
   /// (#189) 약속 투표
   polls             Poll[]
+  /// (#375) 되돌릴 수 있게 보관한 일정 삭제
+  eventDeletions    EventDeletion[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -530,10 +522,6 @@ model Anniversary {
   date      DateTime        @db.Date
   /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
   kind      AnniversaryKind @default(COUNT_UP)
-  /// (#269) 알림 시점. (#369) 아래 3칸은 더 이상 읽고 쓰지 않는다. AnniversaryReminder 로 옮겼고 다음 릴리스에서 DROP 한다 (D-249). 새 코드에서 쓰지 말 것
-  remindDayOf      Boolean @default(true)
-  remindDayBefore  Boolean @default(false)
-  remindWeekBefore Boolean @default(false)
   creatorId Int?
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
@@ -579,6 +567,40 @@ model EventLog {
   actor User?  @relation("EventLogActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
+}
+
+/// (#375) 되돌릴 수 있는 삭제의 종류 (D-251). EVENT: 일정 행 자체를 지움(한 번짜리, 반복 첫 회차 "이후 모두").
+/// OCCURRENCE: "이 일정만" (회차 취소 예외). FOLLOWING: 그 뒤 회차 "이후 모두" (원본 종료일을 당김)
+enum EventDeletionKind {
+  EVENT
+  OCCURRENCE
+  FOLLOWING
+}
+
+/// (#375) 일정 삭제 되돌리기 보관 (D-251). 삭제 트랜잭션이 지우거나 바꾸는 행을 삭제 직전 모습 그대로 snapshot(JSON)에 담는다.
+/// 일정 읽기 경로는 이 표를 모른다(지운 일정은 지금처럼 진짜로 없다). 되돌리면 행을 다시 넣고 이 행을 지운다. 7일 지나면 틱이 지운다
+model EventDeletion {
+  id         Int               @id @default(autoincrement())
+  groupId    Int
+  /// 지운 일정(반복이면 원본) 번호. 행이 없을 수 있어 FK 를 걸지 않는다
+  eventId    Int
+  kind       EventDeletionKind
+  /// OCCURRENCE, FOLLOWING 의 회차 날짜 (KST). EVENT 는 null
+  occurrence DateTime?         @db.Date
+  /// 지운 사람. 탈퇴하면 null
+  actorId    Int?
+  /// 삭제로 남긴 DELETED 로그. 되돌리면 이 로그를 지워 새 소식에서 숨긴다. FK 없음
+  eventLogId Int?
+  /// 되돌릴 행들 (형식은 event-deletions/deletion-snapshot.ts)
+  snapshot   Json
+  createdAt  DateTime          @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([actorId])
+  @@index([createdAt])
 }
 
 /// (#191) 새 소식의 일정 밖 기록 종류 (D-150). #190 EVENT_RSVP, #189 POLL_CREATED/POLL_CLOSED 등은 여기에 더한다

@@ -53,7 +53,15 @@ describe("planAppOpen", () => {
     expect(planAppOpen(KAKAO_IOS, ON)).toEqual({ show: true, os: "ios", kakao: true, auto: true, storeUrl: APP_STORE_URL });
     expect(planAppOpen(CHROME_ANDROID, ON)).toEqual({ show: true, os: "android", kakao: false, auto: true, storeUrl: PLAY_STORE_URL });
     expect(planAppOpen(SAFARI_IOS, ON)).toMatchObject({ show: true, os: "ios" });
-    for (const ua of [KAKAO_IOS, KAKAO_ANDROID, SAFARI_IOS, CHROME_ANDROID]) expect(planAppOpen(ua, OFF)).toEqual({ show: false });
+    for (const ua of [KAKAO_IOS, SAFARI_IOS, CHROME_ANDROID]) expect(planAppOpen(ua, OFF)).toEqual({ show: false });
+  });
+  it("Android 카카오톡은 Play 공개 전에도 묻는다 (앱이 없으면 웹으로 돌아오므로 스토어 주소 없음)", () => {
+    expect(planAppOpen(KAKAO_ANDROID, OFF)).toEqual({ show: true, os: "android", kakao: true, auto: true, storeUrl: null });
+    expect(planAppOpen(KAKAO_ANDROID, { ios: true, android: false })).toMatchObject({ show: true, storeUrl: null });
+    // 수동으로 눌러도 폴백은 웹(app=0)
+    expect(appOpenUrl("android", ORIGIN, "/join/e/T", { manual: true, storeUrl: null })).toBe(
+      androidIntentUrl("/join/e/T", webFallbackUrl(ORIGIN, "/join/e/T")),
+    );
   });
 });
 

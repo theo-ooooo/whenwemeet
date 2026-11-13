@@ -74,6 +74,10 @@ describe("EventResponses (#190)", () => {
     });
     expect(setRsvp).toHaveBeenCalledWith({ eventId: 7, occurrence: "2026-11-20", status: "GOING" });
     expect(radios[0].getAttribute("aria-checked")).toBe("true");
+    // (#378) 고른 칸은 먹색으로 칠하고 "내 참석" 옆에 "참석함"
+    expect(radios[0].className).toContain("bg-ink");
+    expect(radios[1].className).not.toContain("bg-ink");
+    expect(screen.getByText("참석함")).toBeTruthy();
     expect(screen.getByRole("button", { name: /모두의 응답/ }).textContent).toContain("참석 2");
     expect(onChanged).toHaveBeenCalled();
     expect(refetch).toHaveBeenCalled();
@@ -154,5 +158,14 @@ describe("EventResponses (#190)", () => {
     expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.queryByRole("button", { name: /응답|참석 여부/ })).toBeNull();
     expect(screen.getByRole("group", { name: "반응 남기기" })).toBeTruthy();
+  });
+
+  it("(#378) between(메모)은 참석 칸과 반응 줄 사이에 그린다", () => {
+    render(<EventResponses event={EV} groupId={4} meId={2} showRsvp between={<p>메모칸</p>} />);
+    const rsvp = screen.getByRole("radiogroup", { name: "내 참석" });
+    const memo = screen.getByText("메모칸");
+    const reactions = screen.getByRole("group", { name: "반응 남기기" });
+    expect(rsvp.compareDocumentPosition(memo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(memo.compareDocumentPosition(reactions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

@@ -624,3 +624,46 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
     expect(call("GET", "/places/resolve", null, "id=x&q=a").status).toBe(400);
   });
 });
+
+describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
+  type Ev = { id: number; occurrence: string | null; title: string };
+  const F = "2027-05-01T00:00:00+09:00";
+  const T = "2027-06-01T00:00:00+09:00";
+  const titles = (prefix: string) =>
+    (call("GET", "/groups/2/events", null, `from=${encodeURIComponent(F)}&to=${encodeURIComponent(T)}`).body.data as unknown as Ev[])
+      .filter((e) => e.title.startsWith(prefix))
+      .map((e) => `${e.title}@${e.occurrence ?? "-"}`);
+  // 내 변경은 내 새 소식에 안 보이므로 기록(팀원에게 보일 소식)을 직접 본다
+  const news = () => ((globalThis as unknown as { __wwmMockStore: { logs: { action: string; title: string }[] } }).__wwmMockStore.logs).filter((i) => i.title.startsWith("되돌"));
+
+  it("한 번짜리: 지우면 deletionId, 되돌리면 같은 번호로 돌아오고 삭제 소식은 숨긴다. 두 번은 404", () => {
+    const created = call("POST", "/groups/2/events", { title: "되돌A", startsAt: "2027-05-03T10:00:00+09:00", endsAt: "2027-05-03T11:00:00+09:00", allDay: false });
+    const id = created.body.data.id as number;
+    const del = call("DELETE", `/groups/2/events/${id}`).body.data;
+    expect(del).toEqual({ ok: true, deletionId: expect.any(Number) });
+    expect(titles("되돌A")).toEqual([]);
+    expect(news().map((n) => n.action)).toContain("DELETED");
+    const back = call("POST", `/groups/2/event-deletions/${del.deletionId}/restore`);
+    expect(back.status).toBe(200);
+    expect(back.body.data).toEqual({ ok: true, eventId: id, occurrence: null });
+    expect(titles("되돌A")).toEqual(["되돌A@-"]);
+    expect(news().map((n) => n.action)).not.toContain("DELETED");
+    expect(call("POST", `/groups/2/event-deletions/${del.deletionId}/restore`).status).toBe(404);
+    expect(call("POST", "/groups/2/event-deletions/abc/restore").status).toBe(400);
+  });
+
+  it("반복: 이 일정만, 이후 모두 를 지웠다가 되돌리면 회차가 그대로", () => {
+    const created = call("POST", "/groups/2/events", { title: "되돌B", startsAt: "2027-05-05T19:00:00+09:00", endsAt: "2027-05-05T20:00:00+09:00", allDay: false, repeat: "WEEKLY" });
+    const id = created.body.data.id as number;
+    const all = titles("되돌B");
+    expect(all).toHaveLength(4);
+    const one = call("DELETE", `/groups/2/events/${id}`, null, "occurrence=2027-05-12&scope=this").body.data;
+    expect(titles("되돌B")).toHaveLength(3);
+    call("POST", `/groups/2/event-deletions/${one.deletionId}/restore`);
+    expect(titles("되돌B")).toEqual(all);
+    const following = call("DELETE", `/groups/2/events/${id}`, null, "occurrence=2027-05-19&scope=following").body.data;
+    expect(titles("되돌B")).toHaveLength(2);
+    call("POST", `/groups/2/event-deletions/${following.deletionId}/restore`);
+    expect(titles("되돌B")).toEqual(all);
+  });
+});
