@@ -8,6 +8,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { PickerShell, triggerClass } from "./PickerShell";
 import { formatTimeKo, minutesOf, parseTimeInput, timeOfMinutes } from "./time";
+import { InlineError } from "../ui";
 
 type Props = {
   value: string;
@@ -207,9 +208,9 @@ export function TimeList({
         </button>
       </div>
       {error && (
-        <p id={`${ids}-err`} role="alert" className="mt-1 px-1 text-[12px] text-danger">
+        <InlineError id={`${ids}-err`} className="mt-1 px-1">
           {error}
-        </p>
+        </InlineError>
       )}
       <ul
         ref={list}

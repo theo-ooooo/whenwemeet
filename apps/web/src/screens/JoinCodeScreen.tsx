@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { CODE_LENGTH, CodeInput } from "@/components/CodeInput";
 import { Symbol } from "@/components/Logo";
-import { Button } from "@/components/ui";
+import { Button, InlineError } from "@/components/ui";
 import { messageOf, useJoinGroup } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { rememberGroup } from "@/lib/group-cookie";
@@ -74,9 +74,9 @@ export function JoinCodeScreen() {
             autoFocus
           />
           {error ? (
-            <p id={`${id}-msg`} role="alert" className="mt-2 text-[12px] text-danger">
+            <InlineError id={`${id}-msg`} className="mt-2">
               {error}
-            </p>
+            </InlineError>
           ) : (
             <p id={`${id}-msg`} className="t-sub mt-2">
               영문은 대문자로 바뀌어요. 초대 링크를 붙여넣어도 돼요

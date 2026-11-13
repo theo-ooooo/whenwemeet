@@ -5,18 +5,17 @@
 import { useRouter } from "next/navigation";
 import { newEventHref } from "@/lib/routes";
 import { useId, useState } from "react";
-import { IconChevronLeft, IconClose } from "./icons";
+import { IconChevronLeft } from "./icons";
 import { TimeList, TimePicker } from "./pickers";
 import { ReminderInline, ReminderNote } from "./ReminderPicker";
-import { minutesOf, timeOfMinutes } from "./pickers/time";
-import { Button, Toggle, titleInputClass } from "./ui";
-import { messageOf, useCreateEvent } from "@/hooks";
+import { Button, CloseButton, InlineError, RowButton, Toggle, captionClass, titleInputClass } from "./ui";
+import { messageOf, useCreateEvent, useEventDraft } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { maybeOpenPushPrompt } from "@/lib/push";
-import { REMINDER_LABEL, reminderAfterAllDayChange, reminderToSend } from "@/lib/reminder";
-import { clampChars } from "@/lib/chars";
-import { addDays, dowOf, kstToIso, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
-import type { Event, EventReminder } from "@/lib/types";
+import { REMINDER_LABEL } from "@/lib/reminder";
+import { dowOf, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
+import { quickDetailQuery, quickDraft, quickInput, rangeError as rangeErrorOf, titleError as titleErrorOf } from "@/lib/event-draft";
+import type { Event } from "@/lib/types";
 
 type GroupId = Event["groupId"];
 
@@ -38,57 +37,31 @@ type Props = {
 export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId, initialStart }: Props) {
   const router = useRouter();
   const ids = useId();
-  const [title, setTitle] = useState("");
-  const [allDay, setAllDay] = useState(false);
-  const [start, setStart] = useState(initialStart ?? "10:00");
-  const [end, setEnd] = useState(() => (initialStart ? timeOfMinutes(Math.min((minutesOf(initialStart) ?? 600) + 60, 24 * 60)) : "11:00"));
+  // 값과 시작/종료 연동(길이 유지, 종료 보정, 자정에서 멈춤)은 일정 폼과 같은 lib/event-draft (#359). 하루 안이라 span "day"
+  const { draft, touched, dispatch, touch } = useEventDraft("day", () => quickDraft(date, initialStart));
+  const { title, allDay, startTime: start, endTime: end, reminder } = draft;
+  // 펼친 시각 목록(시작, 종료 중 하나). 알림 목록은 시트 안이라 줄 아래로 따로 펼친다 (#188, 8장 "빠른 추가 시트 포함")
   const [timeOpen, setTimeOpen] = useState<"start" | "end" | null>(null);
-  // 알림 (#188, 8장 "빠른 추가 시트 포함"). 시트 안이라 줄 아래로 펼친다
-  const [reminder, setReminder] = useState<EventReminder>("NONE");
   const [reminderOpen, setReminderOpen] = useState(false);
   // 펼친 시각 목록을 닫으면 포커스를 그 시각 버튼으로 돌린다
   function closeTime() {
     if (timeOpen) document.getElementById(`${ids}-${timeOpen}`)?.focus({ preventScroll: true });
     setTimeOpen(null);
   }
-  const [touched, setTouched] = useState(false);
   const create = useCreateEvent(groupId);
 
-  const titleError = touched && title.trim().length === 0 ? "제목을 입력해 주세요" : null;
-  const rangeError = !allDay && (!start || !end || (minutesOf(end) ?? 0) <= (minutesOf(start) ?? 0)) ? "종료는 시작보다 뒤여야 해요" : null;
+  const titleError = titleErrorOf(draft, touched);
+  const rangeError = rangeErrorOf(draft, "day");
   const saveError = create.error ? messageOf(create.error, "저장하지 못했어요. 다시 저장해 주세요") : null;
 
-  const startsAt = allDay ? kstToIso(date) : kstToIso(date, start || "00:00");
-  const endsAt = allDay ? kstToIso(addDays(date, 1)) : kstToIso(date, end || "00:00");
-
-  function changeStart(v: string) {
-    // 시작을 바꾸면 길이(기본 1시간)를 유지하게 종료를 같이 민다. 하루 안에서만 잡으므로 자정(24:00) 에서 멈춘다
-    const s0 = minutesOf(start);
-    const e0 = minutesOf(end);
-    const len = s0 !== null && e0 !== null && e0 > s0 ? e0 - s0 : 60;
-    setStart(v);
-    const s = minutesOf(v);
-    if (s === null) return;
-    setEnd(timeOfMinutes(Math.min(s + len, 24 * 60)));
-  }
-
-  function changeEnd(v: string) {
-    // 종료가 시작보다 앞서면 시작 1시간 뒤(자정까지) 로 맞춘다 (#67)
-    const s = minutesOf(start);
-    const e = minutesOf(v);
-    if (s !== null && e !== null && e <= s) {
-      setEnd(timeOfMinutes(Math.min(s + 60, 24 * 60)));
-      return;
-    }
-    setEnd(v);
-  }
+  const changeStart = (v: string) => dispatch({ type: "start", date, time: v });
+  const changeEnd = (v: string) => dispatch({ type: "end", date, time: v, by: "time" });
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setTouched(true);
+    touch();
     if (title.trim().length === 0 || rangeError || create.isPending) return;
-    const sent = reminderToSend(reminder, null);
-    const r = await create.mutate({ title: title.trim(), startsAt, endsAt, allDay, ...(sent ? { reminder: sent } : {}) });
+    const r = await create.mutate(quickInput(draft));
     if (r.ok) {
       haptic("success");
       // 권한 안내 시트 계기 ① 일정 저장 성공 직후 (8-1)
@@ -98,12 +71,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
   }
 
   function more() {
-    // 종일이어도 시각은 그대로 넘긴다. 폼에서 종일을 끄면 그 시각이 보인다
-    const q = new URLSearchParams({ start: kstToIso(date, start || "10:00"), end: kstToIso(date, end || "11:00") });
-    if (title.trim()) q.set("title", title.trim());
-    if (allDay) q.set("allDay", "1");
-    if (reminder !== "NONE") q.set("reminder", reminder);
-    router.push(newEventHref(q));
+    router.push(newEventHref(quickDetailQuery(draft)));
   }
 
   return (
@@ -116,9 +84,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
         <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">
           {parseKey(date).d}일 {WEEKDAYS[dowOf(date)]}요일에 추가
         </h2>
-        <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
-          <IconClose size={18} />
-        </button>
+        <CloseButton onClick={onClose} className="shrink-0" />
       </div>
 
       <label htmlFor={`${ids}-title`} className="sr-only">
@@ -130,32 +96,23 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
         className={`${titleInputClass} mt-2`}
         placeholder="무슨 일정인가요?"
         value={title}
-        onChange={(e) => setTitle(clampChars(e.target.value, 50))}
+        onChange={(e) => dispatch({ type: "title", value: e.target.value })}
         aria-invalid={Boolean(titleError)}
         aria-describedby={titleError ? `${ids}-title-err` : undefined}
         enterKeyHint="done"
       />
       {titleError && (
-        <p id={`${ids}-title-err`} role="alert" className="mt-1.5 text-[12px] text-danger">
+        <InlineError id={`${ids}-title-err`} className="mt-1.5">
           {titleError}
-        </p>
+        </InlineError>
       )}
 
       <div className="mt-2">
-        <Toggle
-          checked={allDay}
-          onChange={(v) => {
-            setAllDay(v);
-            setReminder((r) => reminderAfterAllDayChange(r, v));
-          }}
-          label="종일"
-        />
+        <Toggle checked={allDay} onChange={(v) => dispatch({ type: "allDay", value: v })} label="종일" />
         {!allDay && (
           <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-2.5">
             <div>
-              <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
-                시작
-              </span>
+              <span className={captionClass}>시작</span>
               <TimePicker
                 id={`${ids}-start`}
                 label="시작 시각"
@@ -167,7 +124,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
               />
             </div>
             <div>
-              <span className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">종료</span>
+              <span className={captionClass}>종료</span>
               <TimePicker
                 id={`${ids}-end`}
                 label="종료 시각"
@@ -201,21 +158,20 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
         )}
       </div>
       <div className="mt-2 border-t border-line pt-1">
-        <button
-          type="button"
+        <RowButton
+          label="알림"
+          value={REMINDER_LABEL[reminder]}
+          chevron={false}
           onClick={() => setReminderOpen((o) => !o)}
           aria-expanded={reminderOpen}
-          className="flex min-h-11 w-full items-center gap-3 rounded-sm py-1 text-left"
-        >
-          <span className="shrink-0 text-[14px] font-semibold">알림</span>
-          <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{REMINDER_LABEL[reminder]}</span>
-        </button>
+          className="rounded-sm"
+        />
         {reminderOpen && (
           <ReminderInline
             allDay={allDay}
             value={reminder}
             onPick={(v) => {
-              setReminder(v);
+              dispatch({ type: "reminder", value: v });
               setReminderOpen(false);
               // 권한 안내 시트 계기 ② (8-1)
               if (v !== "NONE") void maybeOpenPushPrompt();
@@ -225,15 +181,11 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
         <ReminderNote className="-mt-1" />
       </div>
       {rangeError && (
-        <p id={`${ids}-range-err`} role="alert" className="mt-1.5 text-[12px] text-danger">
+        <InlineError id={`${ids}-range-err`} className="mt-1.5">
           {rangeError}
-        </p>
+        </InlineError>
       )}
-      {saveError && (
-        <p role="alert" className="mt-2 text-[12px] text-danger">
-          {saveError}
-        </p>
-      )}
+      {saveError && <InlineError className="mt-2">{saveError}</InlineError>}
 
       <div className="mt-3 flex gap-2">
         <Button type="button" variant="secondary" size="lg" onClick={more} className="shrink-0 px-4">

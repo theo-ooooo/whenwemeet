@@ -1,6 +1,6 @@
 "use client";
 import { forwardRef, useEffect, useId, useRef, useState } from "react";
-import { IconClose } from "./icons";
+import { IconChevronRight, IconClose } from "./icons";
 import { memberColor, ON_MEMBER_COLOR } from "@/lib/colors";
 import type { Member } from "@/lib/types";
 
@@ -74,6 +74,18 @@ export const inputClass =
 export const titleInputClass =
   "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-2.5 text-[16px] leading-6 font-semibold tracking-[-0.01em] text-ink placeholder:font-semibold placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
 
+/** 입력 위 작은 이름 12/500 (시작, 종료, 기념일 종류 등). Field 의 label 과 같은 모양 */
+export const captionClass = "mb-1.5 block text-[12px] font-medium leading-4 text-ink-2";
+
+/** 입력 아래 오류 한 줄 12 `--danger` (role=alert). 여백은 자리마다 className 으로 */
+export function InlineError({ id, className = "", children }: { id?: string; className?: string; children: React.ReactNode }) {
+  return (
+    <p id={id} role="alert" className={`text-[12px] text-danger ${className}`}>
+      {children}
+    </p>
+  );
+}
+
 type FieldProps = {
   label: string;
   hint?: string;
@@ -88,7 +100,7 @@ export function Field({ label, hint, error, children }: FieldProps) {
   const describedBy = [hint ? hintId : null, error ? errId : null].filter(Boolean).join(" ") || undefined;
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+      <label htmlFor={id} className={captionClass}>
         {label}
       </label>
       {children(id, describedBy)}
@@ -139,6 +151,30 @@ export function Toggle({
           className={`absolute top-0.5 size-5 rounded-full bg-paper transition-transform duration-120 ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`}
         />
       </span>
+    </button>
+  );
+}
+
+/* ---------- 줄 버튼 ---------- */
+
+/**
+ * (#359) 카드 안 "이름 ……… 값 ›" 한 줄 (일정 폼의 참여자, 알림, 반복, 빠른 추가의 알림). 누르면 시트나 펼침을 연다.
+ * 값이 글자면 value, 모양이 따로 있으면(참여자 아바타) children. 펼침(빠른 추가)은 chevron 없이
+ */
+export function RowButton({
+  label,
+  value,
+  chevron = true,
+  className = "",
+  children,
+  ...rest
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> & { label: string; value?: React.ReactNode; chevron?: boolean }) {
+  return (
+    <button type="button" className={`flex min-h-11 w-full items-center gap-3 py-1 text-left ${className}`} {...rest}>
+      <span className="shrink-0 text-[14px] font-semibold">{label}</span>
+      {value !== undefined && <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{value}</span>}
+      {children}
+      {chevron && <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />}
     </button>
   );
 }
@@ -350,6 +386,27 @@ function useEscape(open: boolean, onClose: () => void) {
   }, [open, onClose]);
 }
 
+/** 시트, 패널 머리 오른쪽 닫기 ✕ (32 칸, 누르는 영역 44 는 hit) */
+export function CloseButton({ onClick, className = "" }: { onClick: () => void; className?: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="닫기" className={`hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink ${className}`}>
+      <IconClose size={18} />
+    </button>
+  );
+}
+
+/** 바텀 시트 머리: 제목 18/700 + 닫기. 아래 여백은 시트마다 다르다 (Sheet mb-2, 피커 mb-1) */
+export function SheetHeader({ titleId, title, onClose, className = "mb-2" }: { titleId: string; title: string; onClose: () => void; className?: string }) {
+  return (
+    <div className={`flex h-10 items-center justify-between ${className}`}>
+      <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
+        {title}
+      </h2>
+      <CloseButton onClick={onClose} />
+    </div>
+  );
+}
+
 export function Sheet({
   open,
   onClose,
@@ -386,19 +443,7 @@ export function Sheet({
         className="anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]"
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)] lg:hidden" />
-        <div className="mb-2 flex h-10 items-center justify-between">
-          <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            className="hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
-          >
-            <IconClose size={18} />
-          </button>
-        </div>
+        <SheetHeader titleId={titleId} title={title} onClose={onClose} />
         <div className="max-h-[70dvh] overflow-y-auto">{children}</div>
       </div>
     </div>
