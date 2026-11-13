@@ -7,13 +7,14 @@
 // 주소와 기록(?day=1, pushState, 뒤로가기 = 월 보기) 은 CalendarScreen 이 맡는다. 일정 상세, 빠른 추가는 그 위에 DaySheet 로 뜬다
 import Link from "next/link";
 import { ANNIVERSARIES_PATH } from "@/lib/routes";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DayBar } from "./DayBar";
 import { DayEventList } from "./DayEvents";
 import { IconCalendar, IconChevronRight, IconHeart, IconPlus } from "./icons";
 import { ErrorState, Skeleton } from "./ui";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import { cellDensity } from "@/lib/calendar-cell";
+import { dayCellSelector, weekRowTarget } from "@/lib/calendar-keys";
 import { busyByMember, dayWindow } from "@/lib/day-bar";
 import { dayBadge } from "@/lib/day-detail";
 import { panelTitle } from "@/lib/day-panel";
@@ -38,9 +39,11 @@ type Props = {
   /** 지금 (ms). 지난 일정 흐리게, 오늘이면 "지금" 선과 줄 */
   now: number;
   /** 주간 줄 스와이프 (useMonthSwipe 의 ref) */
-  stripRef: React.Ref<HTMLUListElement>;
+  stripRef: React.Ref<HTMLDivElement>;
   onPickDay: (date: DateKey) => void;
   onMonth: () => void;
+  /** (#201) Esc 로 월(주) 보기로 닫는다. 위에 일정 상세, 빠른 추가 시트나 확인 창이 떠 있으면 false (그쪽이 Esc 를 받는다) */
+  escapeCloses?: boolean;
   /** (#192) 돌아갈 달력 보기 이름. 주 보기에서 열었으면 "주 보기" */
   backLabel?: string;
   onOpenEvent: (ev: Event) => void;
@@ -62,6 +65,7 @@ export function DayView({
   stripRef,
   onPickDay,
   onMonth,
+  escapeCloses = false,
   backLabel = "월 보기",
   onOpenEvent,
   onAdd,
@@ -82,7 +86,53 @@ export function DayView({
     return () => window.scrollTo(0, y);
   }, []);
 
+  // (#201) 닫히면(월 보기 알약, 뒤로가기, Esc) 그때 날짜의 달력 칸으로 포커스. 다른 곳(사이드바, 독)으로 옮긴 포커스는 건드리지 않는다
+  const root = useRef<HTMLDivElement>(null);
+  const dateRef = useRef(date);
+  useEffect(() => {
+    dateRef.current = date;
+  }, [date]);
+  useEffect(() => {
+    const el = root.current;
+    return () => {
+      const active = document.activeElement;
+      if (active && active !== document.body && !el?.contains(active)) return;
+      document.querySelector<HTMLElement>(dayCellSelector(dateRef.current))?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  // (#201) Esc = "월 보기" (안쪽이 먼저 처리한 Esc 는 넘긴다, DayDock 과 같은 규칙)
+  useEffect(() => {
+    if (!escapeCloses) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.key !== "Escape") return;
+      e.stopPropagation();
+      onMonth();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [escapeCloses, onMonth]);
+
   const week = weekStrip(date);
+  // (#201) 주간 줄 roving tabindex. ← → Home End 는 포커스만 옮기고(누르면 그날로), 주 밖으로 나가거나 PageUp/PageDown 이면 그날로 바꾼다
+  const [stripFocus, setStripFocus] = useState<DateKey | null>(null);
+  const stripKey = stripFocus && week.includes(stripFocus) ? stripFocus : date;
+  const stripMoved = useRef(false);
+  useEffect(() => {
+    if (!stripMoved.current) return;
+    stripMoved.current = false;
+    root.current?.querySelector<HTMLButtonElement>(`[data-strip="${stripKey}"]`)?.focus();
+  }, [stripKey]);
+  function onStripKey(e: React.KeyboardEvent) {
+    const from = (e.target as HTMLElement).dataset.strip;
+    if (!from) return;
+    const next = weekRowTarget(from, e);
+    if (!next) return;
+    e.preventDefault();
+    stripMoved.current = true;
+    setStripFocus(next);
+    if (!week.includes(next)) onPickDay(next);
+  }
   const events = useMemo(() => (byDay ? (byDay.get(date) ?? []) : null), [byDay, date]);
   const holiday = holidayOf(date);
   const ann = anniversaries[0] ?? null;
@@ -90,7 +140,7 @@ export function DayView({
   const bar = useMemo(() => (events ? busyByMember(events, members, dayWindow(date)) : null), [events, members, date]);
 
   return (
-    <div className="pt-1">
+    <div ref={root} className="pt-1">
       {/* 제목줄 40: "11월 17일 화요일" 18/700 + 오른쪽 "월 보기" 알약 */}
       <div className="flex h-10 items-center gap-2">
         <h1 id={titleId} ref={heading} tabIndex={-1} className="min-w-0 truncate text-[18px] font-bold leading-6 tracking-[-0.02em] outline-none">
@@ -110,7 +160,15 @@ export function DayView({
       </div>
 
       {/* 주간 줄 7칸 (높이 70, 모서리 14). 누르면 그날로, 옆으로 넘기면 지난주/다음 주 같은 요일로 */}
-      <ul ref={stripRef} aria-label="이번 주" className="mt-2 grid touch-pan-y grid-cols-7 gap-1.5">
+      {/* (#201) 격자 한 줄: role=grid > row(display:contents) > gridcell aria-selected > 버튼 (월 달력, DatePicker 와 같은 짜임) */}
+      <div
+        ref={stripRef}
+        role="grid"
+        aria-label="이번 주"
+        onKeyDown={onStripKey}
+        className="mt-2 grid touch-pan-y grid-cols-7 gap-1.5"
+      >
+        <div role="row" className="contents">
         {week.map((k) => {
           const sel = k === date;
           const p = parseKey(k);
@@ -120,12 +178,15 @@ export function DayView({
           const density = cellDensity(dayEvents);
           const tone = sel ? "text-on-strip-sel" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
           return (
-            <li key={k}>
+            <div key={k} role="gridcell" aria-selected={sel}>
               <button
                 type="button"
+                data-strip={k}
                 onClick={() => onPickDay(k)}
-                aria-pressed={sel}
-                aria-label={`${formatDateKo(k)}${k === today ? ", 오늘" : ""}${dayEvents.length ? `, 일정 ${dayEvents.length}개` : ""}`}
+                onFocus={() => setStripFocus(k)}
+                tabIndex={k === stripKey ? 0 : -1}
+                aria-current={k === today ? "date" : undefined}
+                aria-label={`${formatDateKo(k)}${dayEvents.length ? `, 일정 ${dayEvents.length}개` : ""}`}
                 className={`anim-pick flex h-[70px] w-full flex-col items-center justify-center gap-1 rounded-[14px] ${sel ? "bg-strip-sel" : "bg-paper hover:bg-hover"}`}
               >
                 <span aria-hidden="true" className={`text-[11px] font-medium leading-4 ${sel ? "text-on-strip-sel" : red ? "text-holiday" : "text-ink-2"}`}>
@@ -144,10 +205,11 @@ export function DayView({
                   )}
                 </span>
               </button>
-            </li>
+            </div>
           );
         })}
-      </ul>
+        </div>
+      </div>
 
       {/* (#378 B) 기념일 한 줄: 기념일이 있는 날만. 하트 + "처음 만난 날 100일" (+ 외 N개) + D-n. 누르면 기념일 화면 */}
       {ann && (

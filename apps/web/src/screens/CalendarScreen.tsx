@@ -67,6 +67,7 @@ import {
   type DateKey,
 } from "@/lib/date";
 import { cellDensity } from "@/lib/calendar-cell";
+import { monthGridTarget, monthTabKey } from "@/lib/calendar-keys";
 import { fitWeek, packWeek, phoneDayLanes, phoneWeek, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
@@ -393,7 +394,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     },
   });
   // 달력 좌우 스와이프 (#162): 왼쪽으로 밀면 다음 달. 날짜 상세가 떠 있는 동안은 보지 않는다
-  const swipeRef = useMonthSwipe<HTMLUListElement>({
+  const swipeRef = useMonthSwipe<HTMLDivElement>({
     enabled: !week && !visible,
     onCommit: (dir) => {
       go(dir);
@@ -408,6 +409,34 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   function pick(key: string) {
     setSelected(key);
     const p = parseKey(key);
+    if (p.y !== y || p.m !== m) setMonth({ y: p.y, m: p.m });
+  }
+
+  /* ---------- (#201) 월 격자 키보드 ---------- */
+
+  // 격자의 Tab 정지점은 칸 하나(roving tabindex). 방향키로 옮겨 둔 칸 → 선택한 날 → 오늘 → 1일 중 이 달 안의 첫 칸.
+  // 방향키는 포커스만 옮긴다(주소, 선택 그대로). Enter, Space 는 칸 버튼 클릭이라 지금 누르기와 같다
+  const [focusKey, setFocusKey] = useState<DateKey | null>(null);
+  const tabKey = monthTabKey(y, m, [focusKey, selected, today]);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // 방향키로 옮긴 뒤에만 DOM 포커스를 따라간다 (‹ › 버튼, 스와이프로 달이 바뀔 때 포커스를 뺏지 않게. DatePicker 와 같은 규칙)
+  const keyMoved = useRef(false);
+  useEffect(() => {
+    if (!keyMoved.current) return;
+    keyMoved.current = false;
+    gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${tabKey}"] > button`)?.focus();
+  }, [tabKey]);
+  function onGridKey(e: React.KeyboardEvent) {
+    // 칸 버튼에서 누른 키만 (칸 안 칩은 포커스 정지점이 아니다)
+    const from = (e.target as HTMLElement).closest<HTMLElement>("[data-date]")?.dataset.date;
+    if (!from || !(e.target as HTMLElement).matches("[data-date] > button")) return;
+    const next = monthGridTarget(from, e);
+    if (!next) return;
+    e.preventDefault();
+    keyMoved.current = true;
+    setFocusKey(next);
+    // 달 밖으로 나가면 달을 바꾼다 (go(±1) 와 같은 데이터 로드: 보는 달이 바뀌면 useEvents 가 그 달을 받는다)
+    const p = parseKey(next);
     if (p.y !== y || p.m !== m) setMonth({ y: p.y, m: p.m });
   }
 
@@ -489,7 +518,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     writeUrl(dayStepUrl(window.location.search, { step: "day", date }, today), "replace");
   }
   // 주간 줄 좌우 스와이프: 왼쪽으로 밀면 다음 주 같은 요일 (달력 스와이프와 같은 판단, #162)
-  const stripRef = useMonthSwipe<HTMLUListElement>({
+  const stripRef = useMonthSwipe<HTMLDivElement>({
     enabled: dayView && urlStep.open && urlStep.step === "day",
     onCommit: (dir) => {
       if (openDate) changeDay(shiftWeek(openDate, dir));
@@ -872,6 +901,10 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     // 넓은 화면은 AppShell 본문 바깥 여백(28 32) 안에서 화면 높이를 채운다 (제목줄 → 요약 카드 → 달력).
     // (#331) 가로로 [달력 칸 | 일 상세 패널 400]. 패널은 본문 760 이상에서만 이 줄에 들어오고(main-panel), 그보다 좁으면 fixed 시트
     <div className="fold:flex fold:h-[calc(100dvh-56px)] fold:min-h-[540px]">
+      {/* (#201) 보는 달(주)이 바뀌면 읽는다: ‹ ›, 스와이프, 방향키, PageUp/PageDown 어느 쪽이든. 일 상세가 달력을 가려도 남도록 구역 밖에 둔다 */}
+      <p aria-live="polite" className="sr-only">
+        {week ? weekTitle(days, 0) : `${y}년 ${m}월`}
+      </p>
       {/* phone 일 상세: 달력 자리를 대신한다 (#212) */}
       {dayView && surfaceDate && (
         <DayView
@@ -887,6 +920,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           stripRef={stripRef}
           onPickDay={changeDay}
           onMonth={close}
+          escapeCloses={urlStep.open && urlStep.step === "day" && !confirmDelete && !scopeOpen}
           backLabel={week ? "주 보기" : "월 보기"}
           onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
           onAdd={() => addPlain(surfaceDate)}
@@ -999,49 +1033,60 @@ export function CalendarScreen({ initialEvent = null }: Props) {
 
         {/* 달력 타일 */}
         {!week && (
-        <div className="mt-2 overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-3 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col fold:px-2">
-          <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
+        // (#201) 격자: role=grid > row(요일 머리) + rowgroup > row(주, display:contents 라 모양은 그대로 7열 한 격자) > gridcell > 칸 버튼.
+        // 겹쳐 그리는 막대, 이름 칩 층은 칸 내용의 시각 사본이라 읽지 않는다(aria-hidden). 키는 lib/calendar-keys.ts
+        <div
+          ref={gridRef}
+          role="grid"
+          aria-label={`${y}년 ${m}월`}
+          onKeyDown={onGridKey}
+          className="mt-2 overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-3 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col fold:px-2"
+        >
+          <div role="row" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
-              <span key={w} className={i === 0 || i === 6 ? "text-holiday" : ""}>
+              <span key={w} role="columnheader" aria-label={`${w}요일`} className={i === 0 || i === 6 ? "text-holiday" : ""}>
                 {w}
               </span>
             ))}
           </div>
           {/* 날짜 칸 격자 위에 같은 줄 격자로 주마다 여러 날 일정 막대를 겹쳐 그린다 (#202, 넓은 화면) */}
-          <div className="relative fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
+          <div role="presentation" className="relative fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
             {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
-            <ul
+            <div
               ref={swipeRef}
-              aria-label={`${y}년 ${m}월 날짜`}
+              role="rowgroup"
               className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
             >
-              {grid.map((key, i) => {
-                const w = weeks[Math.floor(i / 7)];
-                const col = i % 7;
-                return (
-                  <DayCell
-                    key={key}
-                    dateKey={key}
-                    inMonth={parseKey(key).m === m}
-                    isToday={key === today}
-                    isSelected={key === selected}
-                    isAnchor={wide && surfaceDate === key}
-                    events={byDay.get(key) ?? []}
-                    anniversaries={annByDay.get(key) ?? []}
-                    week={w.packed}
-                    col={col}
-                    fit2={w.fit2.days[col]}
-                    fit3={w.fit3.days[col]}
-                    phoneMore={phoneWeeks[Math.floor(i / 7)].more[col]}
-                    loading={events === null}
-                    onPick={() => onCell(key)}
-                    onOpen={(ev) => openDay(key, ev)}
-                  />
-                );
-              })}
-            </ul>
+              {weeks.map((w, r) => (
+                <div key={w.packed.days[0]} role="row" className="contents">
+                  {grid.slice(r * 7, r * 7 + 7).map((key, col) => (
+                    <DayCell
+                      key={key}
+                      dateKey={key}
+                      inMonth={parseKey(key).m === m}
+                      isToday={key === today}
+                      isSelected={key === selected}
+                      isAnchor={wide && surfaceDate === key}
+                      tabbable={key === tabKey}
+                      events={byDay.get(key) ?? []}
+                      anniversaries={annByDay.get(key) ?? []}
+                      week={w.packed}
+                      col={col}
+                      fit2={w.fit2.days[col]}
+                      fit3={w.fit3.days[col]}
+                      phoneMore={phoneWeeks[r].more[col]}
+                      loading={events === null}
+                      onPick={() => onCell(key)}
+                      onFocus={() => setFocusKey(key)}
+                      onOpen={(ev) => openDay(key, ev)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
             {events !== null && (
               <div
+                aria-hidden="true"
                 className="pointer-events-none absolute inset-0 hidden grid-cols-7 fold:grid"
                 style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
               >
@@ -1143,6 +1188,7 @@ function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; classNa
     <button
       type="button"
       onClick={onOpen}
+      tabIndex={-1}
       aria-haspopup="dialog"
       aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
       className={`pointer-events-auto absolute h-[18px] items-center gap-1 overflow-hidden px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
@@ -1174,6 +1220,7 @@ function DayCell({
   isToday,
   isSelected,
   isAnchor,
+  tabbable,
   events,
   anniversaries,
   week,
@@ -1183,6 +1230,7 @@ function DayCell({
   phoneMore,
   loading,
   onPick,
+  onFocus,
   onOpen,
 }: {
   dateKey: DateKey;
@@ -1191,6 +1239,8 @@ function DayCell({
   isSelected: boolean;
   /** 일 상세 패널이 보여 주는 날 (--pri 2px 테두리, #331) */
   isAnchor: boolean;
+  /** (#201) 격자의 Tab 정지점(roving tabindex) */
+  tabbable: boolean;
   events: Event[];
   /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
   anniversaries: Occurrence[];
@@ -1205,6 +1255,7 @@ function DayCell({
   phoneMore: number;
   loading: boolean;
   onPick: () => void;
+  onFocus: () => void;
   onOpen: (ev: Event) => void;
 }) {
   const who = useWho();
@@ -1229,7 +1280,8 @@ function DayCell({
   const annText = ann ? occurrenceCellText(ann) : null;
   const holidayText = ann ? null : holiday;
   const annLabel = anniversaries.length ? `, 기념일 ${anniversaries.map(occurrenceTitle).join(", ")}` : "";
-  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}${isToday ? ", 오늘" : ""}`;
+  // (#201) 오늘은 aria-current="date", 선택은 gridcell aria-selected 로 알린다 (라벨에 ", 오늘" 을 붙이지 않는다)
+  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}`;
 
   // 점 모양: 여러 날 일정은 칸을 잇는 4px 막대(주 단위 레인, 최대 2줄), 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목.
   // 기념일/공휴일 줄이 있으면 막대는 1줄. 레인이 모자란 막대 일정은 그날 점으로 (QA3-M2). 일정 하나에 점 하나 + 넘치면 "+N" (#139)
@@ -1248,16 +1300,22 @@ function DayCell({
   const rowsVar = { "--rows2": `${fit2.chipRow * ROW_PX}px`, "--rows3": `${fit3.chipRow * ROW_PX}px` } as React.CSSProperties;
 
   return (
-    <li data-date={dateKey} className="relative h-[104px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
+    <div role="gridcell" aria-selected={isSelected} data-date={dateKey} className="relative h-[104px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
+      {/* (#201) 포커스 링은 칸 안쪽 2px(아래 span). 바깥으로 그리면 옆 칸 테두리, 겹쳐 그리는 칩, 달력 카드 가장자리에 잘린다.
+          아래 탭(폰 독)에 가리지 않게 스크롤 여백을 둔다 */}
       <button
         type="button"
         onClick={onPick}
-        aria-pressed={isSelected}
+        onFocus={onFocus}
+        tabIndex={tabbable ? 0 : -1}
+        aria-current={isToday ? "date" : undefined}
         aria-expanded={isAnchor || undefined}
         aria-label={label}
         aria-haspopup="dialog"
-        className="absolute inset-0 hover:bg-hover/50"
+        data-ring-inside=""
+        className="peer absolute inset-0 scroll-mt-4 scroll-mb-[var(--dock-clearance)] hover:bg-hover/50"
       />
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-[2] hidden rounded-sm border-2 border-ink peer-focus-visible:block" />
       {isAnchor && <span aria-hidden="true" className="pointer-events-none absolute inset-px rounded-sm border-2 border-pri" />}
       {/* (#355) 폰: 4줄에 못 든 일정 수를 날짜 숫자 오른쪽 위 작은 배지로. 오른쪽 끝은 칸 안(좁은 칸은 숫자 원 귀퉁이에 살짝 겹친다) */}
       {phoneMore > 0 && !loading && (
@@ -1347,13 +1405,15 @@ function DayCell({
 
         {/* 한 날 일정 칩 (제목 + 시간). 위는 여러 날 막대 레인 자리(막대는 WeekBar 가 주 줄 위에 그린다).
             누르면 그날 상세 → 일정 상세 */}
-        <span className="relative hidden tall:block" style={rowsVar}>
+        {/* (#201) 칩은 마우스, 터치 지름길이다. 키보드, 스크린리더는 칸(Enter → 그날 상세 목록)으로 간다 */}
+        <span aria-hidden="true" className="relative hidden tall:block" style={rowsVar}>
           <span aria-hidden="true" className="block h-[var(--rows2)] taller:h-[var(--rows3)]" />
           {chips.map((ev, i) => (
             <button
               key={eventKey(ev)}
               type="button"
               onClick={() => onOpen(ev)}
+              tabIndex={-1}
               aria-haspopup="dialog"
               aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
               className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center gap-1 overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
@@ -1373,6 +1433,6 @@ function DayCell({
           {fit3.more > 0 && <span aria-hidden="true" className="mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{fit3.more}<span className="@max-[60px]:hidden">개 더</span></span>}
         </span>
       </div>
-    </li>
+    </div>
   );
 }
