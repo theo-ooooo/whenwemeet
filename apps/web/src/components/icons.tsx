@@ -270,6 +270,28 @@ export function IconExpand(p: IconProps) {
   );
 }
 
+/** (#378) 반복: 위아래로 도는 두 화살표. 설정 줄 "반복" 의 아이콘. 겹침 조각 없음 */
+export function IconRepeat(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 11a7 7 0 0 1 12-4.9L18 8" />
+      <path d="M18 4v4h-4" />
+      <path d="M20 13a7 7 0 0 1-12 4.9L6 16" />
+      <path d="M6 20v-4h4" />
+    </Svg>
+  );
+}
+
+/** (#378) 색: 물감 방울. 조각은 방울 아래쪽 작은 둥근 사각 (장소 핀과 위아래가 반대). 설정 줄 "색" 의 아이콘 */
+export function IconPalette({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3.5s-6 6.3-6 10.6a6 6 0 0 0 12 0C18 9.8 12 3.5 12 3.5z" />
+      <rect data-piece x="10" y="13" width="4" height="4" rx="1.2" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
 /** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양). 카카오 공유 버튼 안 (#195, #274) */
 export function KakaoSymbol() {
   return (
