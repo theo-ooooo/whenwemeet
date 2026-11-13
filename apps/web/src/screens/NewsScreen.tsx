@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { IconBell, IconCalendar, IconHeart, IconTeam } from "@/components/icons";
+import { IconBell, IconCalendar, IconHeart, IconPoll, IconTeam } from "@/components/icons";
 import { EmptyState, ErrorState, MemberDot, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
 import { formatEventTime, formatRelative, todayKey } from "@/lib/date";
@@ -123,7 +123,13 @@ function EventText({ item }: { item: NewsItem }) {
  */
 function ActivityText({ item }: { item: ActivityNewsItem }) {
   const sub = activitySubline(item, todayKey());
-  const Icon = item.type.startsWith("ANNIVERSARY_") ? IconHeart : item.type === "EVENTS_IMPORTED" ? IconCalendar : IconTeam;
+  const Icon = item.type.startsWith("ANNIVERSARY_")
+    ? IconHeart
+    : item.type === "EVENTS_IMPORTED" || item.type === "EVENT_RSVP"
+      ? IconCalendar
+      : item.type.startsWith("POLL_")
+        ? IconPoll
+        : IconTeam;
   return (
     <>
       <MemberDot color={item.actor.color} size={8} className="mt-1.5" />

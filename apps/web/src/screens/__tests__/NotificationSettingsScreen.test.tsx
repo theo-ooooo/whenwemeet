@@ -25,7 +25,7 @@ vi.mock("@/hooks", () => ({
 
 const { NotificationSettingsScreen } = await import("../NotificationSettingsScreen");
 
-const DEFAULTS: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false };
+const DEFAULTS: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true };
 const switchOf = (name: string) => screen.getByRole("switch", { name: new RegExp(`^${name}`) });
 
 describe("NotificationSettingsScreen (#277)", () => {
@@ -37,9 +37,10 @@ describe("NotificationSettingsScreen (#277)", () => {
   });
   afterEach(cleanup);
 
-  it("받을 알림 6줄. 주간 요약은 켬, 다 같이 비는 시간은 끔", () => {
+  it("받을 알림 7줄. 주간 요약은 켬, 다 같이 비는 시간은 끔, (#189) 약속 투표는 켬", () => {
     render(<NotificationSettingsScreen />);
-    expect(screen.getAllByRole("switch")).toHaveLength(6);
+    expect(screen.getAllByRole("switch")).toHaveLength(7);
+    expect(switchOf("약속 투표").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("주간 요약").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("다 같이 비는 시간").getAttribute("aria-checked")).toBe("false");
     expect(screen.getByText("월요일 아침 9시에 그 주 팀 일정을 알려 드려요")).toBeTruthy();

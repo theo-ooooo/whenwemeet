@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
+import { type ExceptionRule, kstDate, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './coalesce.js';
@@ -7,6 +7,7 @@ import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { ChangeLogSnapshot, Platform, PushKindName, PushPayload } from './push-copy.js';
 import type { EventReminder } from './remind-at.js';
 import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-reminders.js';
+import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
 
 /** 사용자당 기기 상한 (D-83) */
 export const MAX_DEVICES_PER_USER = 10;
@@ -25,6 +26,8 @@ export interface NotificationSettings {
   weekly: boolean;
   /** (#277) 다 같이 비는 시간 (조용한 팀 깨우기). 기본 끔 (D-204) */
   weeklyNudge: boolean;
+  /** (#189) 약속 투표. 기본 켬 */
+  poll: boolean;
 }
 
 export interface DeviceInput {
@@ -50,6 +53,8 @@ export interface PlannedNotification {
   /** 'YYYY-MM-DD'. 반복 회차만 */
   occurrence?: string | null;
   anniversaryId?: number;
+  /** (#305) 생일 알림의 생일인 사람. 받는 사람에서 뺀다 (D-232) */
+  actorId?: number;
   payload: PushPayload;
 }
 
@@ -122,6 +127,18 @@ export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   updatedAt: Date;
 }
 
+/** (#305) 팀원 생일 알림 재료. 생일을 보이는 TEAM 팀 멤버십 하나에 한 행 */
+export interface BirthdayPlanRow extends AnniversaryReminderFlags {
+  userId: number;
+  groupId: number;
+  groupName: string;
+  groupCode: string;
+  /** 그 팀 표시 이름 ?? 닉네임 */
+  name: string;
+  /** 'MM-DD' */
+  birthday: string;
+}
+
 /** (#277) 주간 알림 판정용 팀 */
 export interface WeeklyGroup {
   name: string;
@@ -168,10 +185,48 @@ export interface DueNotification {
   /** (#297) 예약을 만든 시각. CHANGE 묶음은 첫 변경, JOIN 은 합류, 가져오기는 가져오기를 마친 시각 */
   createdAt: Date;
   eventId: number | null;
+  /** (#190) REMINDER 반복 회차 날짜 'YYYY-MM-DD'. 한 번짜리, 다른 종류는 null */
+  occurrence: string | null;
   eventLogId: number | null;
   actorId: number | null;
   changeAction: ChangeAction | null;
   payload: PushPayload | null;
+}
+
+/** (#189) 투표 알림 단계. dedupeKey 머리 PO, PC, PD */
+export type PollPushStage = 'OPEN' | 'CLOSED' | 'DEADLINE';
+const POLL_KEY_PREFIX: Record<PollPushStage, string> = { OPEN: 'PO', CLOSED: 'PC', DEADLINE: 'PD' };
+
+export function pollDedupeKey(stage: PollPushStage, pollId: number): string {
+  return `${POLL_KEY_PREFIX[stage]}:${pollId}`;
+}
+
+/** dedupeKey → 단계와 투표 번호. 모양이 틀리면 null */
+export function parsePollDedupeKey(key: string): { stage: PollPushStage; pollId: number } | null {
+  const match = /^(PO|PC|PD):([1-9]\d*)$/.exec(key);
+  if (!match) return null;
+  const stage = (Object.keys(POLL_KEY_PREFIX) as PollPushStage[]).find((name) => POLL_KEY_PREFIX[name] === match[1]) as PollPushStage;
+  return { stage, pollId: Number(match[2]) };
+}
+
+/** (#189) 마감 알림을 예약할 투표 */
+export interface DuePollDeadline {
+  id: number;
+  groupId: number;
+  groupName: string;
+  groupCode: string;
+  pollCode: string;
+  title: string;
+  deadline: Date;
+  creatorId: number | null;
+}
+
+/** (#189) 투표 알림 받는 사람 판정용 */
+export interface PollTargets {
+  status: 'OPEN' | 'CLOSED';
+  allMembers: boolean;
+  creatorId: number | null;
+  participantIds: number[];
 }
 
 export interface Recipient {
@@ -219,6 +274,7 @@ const SETTINGS_SELECT = {
   notifyJoin: true,
   notifyWeekly: true,
   notifyWeeklyNudge: true,
+  notifyPoll: true,
 } as const;
 
 /** 받는 사람을 거르는 User 설정 컬럼 */
@@ -231,6 +287,7 @@ const KIND_SETTING: Record<PushKindName, SettingColumn> = {
   ANNIVERSARY: 'notifyAnniversary',
   JOIN: 'notifyJoin',
   WEEKLY: 'notifyWeekly',
+  POLL: 'notifyPoll',
 };
 
 const BUSY_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
@@ -246,6 +303,7 @@ function toSettings(row: Record<SettingColumn, boolean>): NotificationSettings {
     join: row.notifyJoin,
     weekly: row.notifyWeekly,
     weeklyNudge: row.notifyWeeklyNudge,
+    poll: row.notifyPoll,
   };
 }
 
@@ -301,6 +359,7 @@ export class PushRepository {
     if (patch.join !== undefined) data.notifyJoin = patch.join;
     if (patch.weekly !== undefined) data.notifyWeekly = patch.weekly;
     if (patch.weeklyNudge !== undefined) data.notifyWeeklyNudge = patch.weeklyNudge;
+    if (patch.poll !== undefined) data.notifyPoll = patch.poll;
     return toSettings(await this.prisma.user.update({ where: { id: userId }, data, select: SETTINGS_SELECT }));
   }
 
@@ -454,6 +513,45 @@ export class PushRepository {
     return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, date: dbToDate(date) }));
   }
 
+  /**
+   * (#305) 생일 알림 재료: 생일이 있고 알림 시점이 하나라도 켜진 사용자의, 생일을 보이는 TEAM 팀 멤버십.
+   * 개인 팀은 받을 사람(나 말고 다른 팀원)이 없어 읽지 않는다
+   */
+  async listBirthdays(): Promise<BirthdayPlanRow[]> {
+    const rows = await this.prisma.membership.findMany({
+      where: {
+        showBirthday: true,
+        group: { type: 'TEAM' },
+        user: { birthday: { not: null }, OR: [{ birthdayRemindDayOf: true }, { birthdayRemindDayBefore: true }, { birthdayRemindWeekBefore: true }] },
+      },
+      select: {
+        userId: true,
+        groupId: true,
+        displayName: true,
+        group: { select: { name: true, publicCode: true } },
+        user: { select: { nickname: true, birthday: true, birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map(({ group, user, ...row }) => ({
+      userId: row.userId,
+      groupId: row.groupId,
+      groupName: group.name,
+      groupCode: group.publicCode,
+      name: row.displayName ?? user.nickname,
+      birthday: user.birthday!,
+      remindDayOf: user.birthdayRemindDayOf,
+      remindDayBefore: user.birthdayRemindDayBefore,
+      remindWeekBefore: user.birthdayRemindWeekBefore,
+    }));
+  }
+
+  /** (#305) 펼칠 때 다시 본다: 그 팀에 생일을 보이는 멤버면 지금 생일 'MM-DD', 나갔거나 껐거나 지웠으면 null */
+  async findShownBirthday(groupId: number, userId: number): Promise<string | null> {
+    const row = await this.prisma.membership.findFirst({ where: { groupId, userId, showBirthday: true }, select: { user: { select: { birthday: true } } } });
+    return row?.user.birthday ?? null;
+  }
+
   /** dedupeKey 가 이미 있으면 건너뛴다 (D-89). 새로 만든 수 */
   async createNotifications(rows: (PlannedNotification | PlannedWeekly)[]): Promise<number> {
     if (rows.length === 0) return 0;
@@ -469,6 +567,7 @@ export class PushRepository {
               eventId: row.eventId ?? null,
               occurrence: row.occurrence ? dateToDb(row.occurrence) : null,
               anniversaryId: row.anniversaryId ?? null,
+              actorId: row.actorId ?? null,
               payload: toJson(row.payload),
             }),
       })),
@@ -558,6 +657,92 @@ export class PushRepository {
     });
   }
 
+  // ---------- (#189) 약속 투표 (설계 약속-투표.md 6장, D-241) ----------
+
+  /**
+   * 투표를 열거나 정한 트랜잭션 안에서. 문구를 미리 만든 채로 바로 예약한다 (가져오기 D-166 과 같은 방식).
+   * dedupeKey PO:{pollId} (열림), PC:{pollId} (정함). 받는 사람은 펼칠 때 투표 대상에서 고른다
+   */
+  async schedulePollTx(tx: Db, input: { pollId: number; groupId: number; actorId: number; stage: 'OPEN' | 'CLOSED'; payload: PushPayload }, now: Date): Promise<void> {
+    await tx.pushNotification.create({
+      data: {
+        kind: 'POLL',
+        dedupeKey: pollDedupeKey(input.stage, input.pollId),
+        groupId: input.groupId,
+        scheduledAt: now,
+        actorId: input.actorId,
+        payload: toJson(input.payload),
+      },
+      select: { id: true },
+    });
+  }
+
+  /** 마감이 지났는데 아직 마감 알림을 예약하지 않은 진행 중 투표, 마감 순 */
+  async listDuePollDeadlines(now: Date, limit: number): Promise<DuePollDeadline[]> {
+    const rows = await this.prisma.poll.findMany({
+      where: { status: 'OPEN', deadline: { lte: now }, deadlineNotifiedAt: null },
+      orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: { id: true, groupId: true, publicCode: true, title: true, deadline: true, creatorId: true, group: { select: { name: true, publicCode: true } } },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      groupId: row.groupId,
+      groupName: row.group.name,
+      groupCode: row.group.publicCode,
+      pollCode: row.publicCode,
+      title: row.title,
+      deadline: row.deadline as Date,
+      creatorId: row.creatorId,
+    }));
+  }
+
+  /**
+   * 마감 표시(deadlineNotifiedAt)를 한 번만 하고 그때만 알림을 예약한다 (dedupeKey PD:{pollId}, 예약 시각 = 마감).
+   * 마감에서 10분 넘게 지나 집었으면 펼칠 때 SKIPPED 가 된다 (D-88). 연 사람이 탈퇴했으면 표시만. 예약했으면 true
+   */
+  async schedulePollDeadline(poll: DuePollDeadline, payload: PushPayload, now: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.poll.updateMany({ where: { id: poll.id, status: 'OPEN', deadlineNotifiedAt: null }, data: { deadlineNotifiedAt: now } });
+      if (count !== 1 || poll.creatorId === null) return false;
+      const created = await tx.pushNotification.createMany({
+        data: [{ kind: 'POLL', dedupeKey: pollDedupeKey('DEADLINE', poll.id), groupId: poll.groupId, scheduledAt: poll.deadline, payload: toJson(payload) }],
+        skipDuplicates: true,
+      });
+      return created.count === 1;
+    });
+  }
+
+  /** 투표 알림을 펼칠 때 받을 사람을 고르는 값. 투표가 지워졌으면 null */
+  async findPollTargets(pollId: number): Promise<PollTargets | null> {
+    const row = await this.prisma.poll.findUnique({
+      where: { id: pollId },
+      select: { status: true, allMembers: true, creatorId: true, participants: { select: { userId: true } } },
+    });
+    if (!row) return null;
+    return { status: row.status, allMembers: row.allMembers, creatorId: row.creatorId, participantIds: idsOf(row.participants) };
+  }
+
+  /**
+   * (#189) userIds 중(null 이면 팀원 전원) 지금 팀원 × 기기, notifyPoll 과 팀 알림이 켜진 것. excludeUserId 는 뺀다.
+   * joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (지난 일을 알리는 "정함", D-180)
+   */
+  async listPollRecipients(groupId: number, userIds: number[] | null, excludeUserId: number | null, joinedBy: Date | null): Promise<Recipient[]> {
+    if (userIds !== null && userIds.length === 0) return [];
+    const rows = await this.prisma.membership.findMany({
+      where: {
+        groupId,
+        notify: true,
+        user: { notifyPoll: true },
+        ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
+        ...(userIds === null ? {} : { AND: [{ userId: { in: userIds } }] }),
+        ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),
+      },
+      select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
+    });
+    return rows.flatMap((row) => row.user.pushDevices.map((device) => ({ userId: row.userId, token: device.token, platform: device.platform })));
+  }
+
   // ---------- (#277) 주간 요약과 깨우기 (설계 5-9, D-203 ~ D-205) ----------
 
   /** 주간 알림을 켠(요약 또는 깨우기) 팀원 중 팀 알림을 켜고 기기가 있는 사람이 1명 이상인 팀 */
@@ -640,10 +825,20 @@ export class PushRepository {
     return row !== null;
   }
 
-  /** 팀의 기념일 (알림 시점 설정과 무관, #277) */
+  /** 팀의 기념일 (알림 시점 설정과 무관, #277). (#305) 이 팀에 보이는 멤버 생일을 "지민 생일" 매년 기념일로 뒤에 붙인다 */
   async listGroupAnniversaries(groupId: number): Promise<(AnniversaryLike & { name: string })[]> {
-    const rows = await this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } });
-    return rows.map((row) => ({ ...row, date: dbToDate(row.date) }));
+    const [rows, birthdays] = await Promise.all([
+      this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } }),
+      this.prisma.membership.findMany({
+        where: { groupId, showBirthday: true, user: { birthday: { not: null } } },
+        select: { displayName: true, user: { select: { nickname: true, birthday: true } } },
+        orderBy: { joinedAt: 'asc' },
+      }),
+    ]);
+    return [
+      ...rows.map((row) => ({ ...row, date: dbToDate(row.date) })),
+      ...birthdays.map((row) => ({ ...birthdayAnniversary(row.user.birthday!), name: birthdayTitle(row.displayName ?? row.user.nickname) })),
+    ];
   }
 
   /**
@@ -716,13 +911,14 @@ export class PushRepository {
         scheduledAt: true,
         createdAt: true,
         eventId: true,
+        occurrence: true,
         eventLogId: true,
         actorId: true,
         changeAction: true,
         payload: true,
       },
     });
-    return rows.map((row) => ({ ...row, payload: asPayload(row.payload) }));
+    return rows.map((row) => ({ ...row, occurrence: row.occurrence === null ? null : dbToDate(row.occurrence), payload: asPayload(row.payload) }));
   }
 
   /** PENDING 인 것만 SKIPPED (D-88) */
@@ -813,6 +1009,27 @@ export class PushRepository {
       select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
     });
     return rows.flatMap((row) => row.user.pushDevices.map((device) => ({ userId: row.userId, token: device.token, platform: device.platform })));
+  }
+
+  /**
+   * (#190) 일정 알림에서 그 회차에 불참으로 답한 사람을 뺀다 (Q3, D-228). 한 번짜리는 회차 = 시작 KST 날짜.
+   * 미정, 응답 안 함은 그대로 받는다. 일정이 없으면 그대로 돌려준다 (받는 사람 계산이 이미 0명)
+   */
+  async withoutNotGoing(recipients: Recipient[], eventId: number, occurrence: string | null): Promise<Recipient[]> {
+    if (recipients.length === 0) return recipients;
+    let date = occurrence;
+    if (date === null) {
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { startsAt: true } });
+      if (!event) return recipients;
+      date = kstDate(event.startsAt);
+    }
+    const rows = await this.prisma.eventRsvp.findMany({
+      where: { eventId, occurrence: dateToDb(date), status: 'NOT_GOING', userId: { in: [...new Set(recipients.map((r) => r.userId))] } },
+      select: { userId: true },
+    });
+    if (rows.length === 0) return recipients;
+    const out = new Set(rows.map((row) => row.userId));
+    return recipients.filter((recipient) => !out.has(recipient.userId));
   }
 
   /**

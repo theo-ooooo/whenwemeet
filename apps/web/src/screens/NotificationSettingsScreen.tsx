@@ -20,6 +20,8 @@ const KINDS: { key: keyof NotificationSettings; label: string; description: stri
   // (#269, D-148) 기념일마다 고른 시점(당일, 하루 전, 일주일 전) 전체의 사람별 스위치
   { key: "anniversary", label: "기념일", description: "기념일마다 고른 날 아침 9시에 알려 드려요" },
   { key: "join", label: "새 멤버 합류", description: "초대한 사람이 팀에 들어오면 알려 드려요" },
+  // (#189) 투표가 열리면 대상에게, 마감되면 연 사람에게, 시간을 정하면 대상에게
+  { key: "poll", label: "약속 투표", description: "팀원이 시간을 물어보거나 정하면, 내가 연 투표가 끝나면 알려 드려요" },
   // (#277, D-203) 숫자와 사실만. 권유형 문구를 쓰지 않는다 (D-204)
   { key: "weekly", label: "주간 요약", description: "월요일 아침 9시에 그 주 팀 일정을 알려 드려요" },
   {

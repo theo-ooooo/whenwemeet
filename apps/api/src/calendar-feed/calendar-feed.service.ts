@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnniversariesRepository } from '../anniversaries/anniversaries.repository.js';
+import { BirthdaysRepository } from '../anniversaries/birthdays.repository.js';
 import { ApiException } from '../common/errors.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { EventsService } from '../events/events.service.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { type CalendarFeedRow, CalendarFeedsRepository, type CalendarFeedSettings } from './calendar-feeds.repository.js';
-import { anniversaryEvents, eventToIcs, feedWindow } from './feed-items.js';
+import { anniversaryEvents, birthdayEvents, eventToIcs, feedWindow } from './feed-items.js';
 import { FEED_TOKEN_KEY_INFO, feedToken, feedTokenHash, lookupHash, newFeedSalt, tokenMatches } from './feed-token.js';
 import { buildIcs, type IcsEvent } from './ics.js';
 
@@ -65,6 +66,7 @@ export class CalendarFeedService {
     private readonly memberships: MembershipService,
     private readonly events: EventsService,
     private readonly anniversaries: AnniversariesRepository,
+    private readonly birthdays: BirthdaysRepository,
     private readonly config: ConfigService,
   ) {}
 
@@ -104,9 +106,11 @@ export class CalendarFeedService {
     if (!(await this.memberships.isMember(row.userId, row.groupId))) throw feedNotFound();
 
     const window = feedWindow(now);
-    const [views, anniversaries] = await Promise.all([
+    // (#305) 멤버 생일은 "기념일 포함" 을 따른다 (D-233)
+    const [views, anniversaries, birthdays] = await Promise.all([
       this.events.listForFeed(row.groupId, window.from, window.to),
       row.includeAnniversaries ? this.anniversaries.listForFeed(row.groupId) : Promise.resolve([]),
+      row.includeAnniversaries ? this.birthdays.listForFeed(row.groupId) : Promise.resolve([]),
     ]);
     const options = {
       includeMemo: row.includeMemo,
@@ -114,7 +118,11 @@ export class CalendarFeedService {
       webOrigin: this.webOrigin(),
       groupCode: row.group.publicCode,
     };
-    const items: IcsEvent[] = [...views.map((view) => eventToIcs(view, options)), ...anniversaries.flatMap((a) => anniversaryEvents(a, window))];
+    const items: IcsEvent[] = [
+      ...views.map((view) => eventToIcs(view, options)),
+      ...anniversaries.flatMap((a) => anniversaryEvents(a, window)),
+      ...birthdays.flatMap((b) => birthdayEvents(b, window)),
+    ];
     const body = buildIcs({ name: `${FEED_NAME_PREFIX}${row.group.name}`, timezone: FEED_TIMEZONE, refreshInterval: FEED_REFRESH, events: items });
     const etag = bodyEtag(body);
     await this.feeds.touchFetched(row.id, now);

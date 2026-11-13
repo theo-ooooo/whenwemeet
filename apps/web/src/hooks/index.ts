@@ -10,6 +10,8 @@ export { useGroup } from "./useGroup";
 export { useEvents } from "./useEvents";
 export { useEvent } from "./useEvent";
 export { useAnniversaries } from "./useAnniversaries";
+export { useBirthdays } from "./useBirthdays";
+export { useAnniversaryItems } from "./useAnniversaryItems";
 export { useFreeSlots, type FreeSlotsParams } from "./useFreeSlots";
 export { useNews } from "./useNews";
 export { useHealth, type Health } from "./useHealth";
@@ -17,12 +19,15 @@ export { useNotificationSettings, useUpdateNotificationSettings } from "./useNot
 export { useWidgetAgenda } from "./useWidgetAgenda";
 export { useTodoLists, useTodoList, useRefetchOnVisible } from "./useTodos";
 export { useTodoListEditor, isPendingItem } from "./useTodoListEditor";
+export { useEventDraft } from "./useEventDraft";
 export { useCalendarFeed } from "./useCalendarFeed";
+export { usePolls, usePoll } from "./usePolls";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
 export { useUpdateEvent } from "./useUpdateEvent";
 export { useDeleteEvent } from "./useDeleteEvent";
+export { useSetRsvp, useSetReaction } from "./useEventResponses";
 export { useCreateGroup } from "./useCreateGroup";
 export { useJoinGroup } from "./useJoinGroup";
 export { useCreateEventShare, useRevokeEventShare, useJoinEventShare } from "./useEventShare";
@@ -35,10 +40,12 @@ export { useCreateAnniversary } from "./useCreateAnniversary";
 export { useUpdateAnniversary } from "./useUpdateAnniversary";
 export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
+export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
 export { useUpdateStartCalendar } from "./useUpdateStartCalendar";
+export { useUpdateBirthday } from "./useUpdateBirthday";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
 export { useImportEvents, usePreviewImport, type ImportInput } from "./useImportEvents";

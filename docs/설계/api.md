@@ -30,6 +30,9 @@
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
+| NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요". (#189) 약속 투표 대상이 아닌데 표를 보냄. message "이 투표의 대상이 아니에요" |
+| POLL_CLOSED | 409 | (#189) 정한 투표에 표, 정하기, 취소 ("이미 정해진 투표예요"), 마감 지난 투표에 표 ("투표가 끝났어요") |
+| POLL_OPTION_PAST | 400 | (#189) 시작이 지난 후보를 새로 켜거나 정함. message "이미 지난 시간이에요" |
 | NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
 | EVENT_SHARE_NOT_FOUND | 404 | (#274) 일정 공유 링크 없음, 만료, 끊김, 일정 삭제, 회차 취소, 회차 소멸 (구분하지 않는다). message "링크가 만료됐거나 끊겼어요" |
@@ -117,11 +120,12 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
-| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar) |
+| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings) |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
+| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
 **이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
@@ -162,13 +166,13 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. (#274) 그 팀의 일정 공유 링크도 모두 끊는다. PERSONAL 이면 GROUP_NOT_INVITABLE |
 | GET | `/invites/:code?by=` | 선택 | `by?`(보낸 사람 표식) | `{ data: InvitePreview }`. 로그인 전 미리보기. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명으로 답한다 (#196, D-157, D-158) |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
-| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
+| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify?, showBirthday? }` | `{ data: Member & { notify, showBirthday } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400). `showBirthday` 는 이 팀 달력에 내 생일 보이기 (#305, 기본 true, 불리언 아니면 400) |
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
 GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, publicCode, memberCount, me: { color, displayName }, unreadNewsCount }   // publicCode: (#311) 주소용 공개 코드
 GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, publicCode, createdAt,
-                 members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
+                 members: Member[], me: Member & { notify: boolean; showBirthday: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
 InvitePreview = { groupName, memberCount,
                   inviter: { nickname: string } | null,   // (#196) by 가 이 팀 현재 멤버의 표식과 맞을 때만. 팀 표시 이름, 사진 없음
@@ -201,6 +205,8 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/events/:code` | 유저 | 쿼리 `occurrence?` | (#311) 일정 공개 코드로 단건 조회. 응답은 위와 같다. 코드 모양이 틀리거나 없거나 **그 팀 멤버가 아니면 모두 404 NOT_FOUND** (코드의 존재를 드러내지 않는다, D-197). 웹 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다 |
 | PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
+| PUT | `/groups/:groupId/events/:eventId/rsvp` | 멤버 (그 회차 참여자) | 쿼리 `occurrence` (반복은 필수), `{ status: Rsvp \| null }` (null = 응답 취소) | (#190) `{ data: Event['rsvp'] }` + GroupActivity EVENT_RSVP (2.6) |
+| PUT | `/groups/:groupId/events/:eventId/reaction` | 멤버 | 쿼리 `occurrence` (반복은 필수), `{ reaction: Reaction \| null }` | (#190) `{ data: Event['reactions'] }`. 새 소식 없음 |
 
 ```ts
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
@@ -218,7 +224,25 @@ Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, c
                participants: { all: boolean, members: Member[] },    // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
                color: string|null }                                  // (#343) 일정 색. null = 자동(화면은 참여자 색). 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
+// (#190) 목록, 단건, 생성, 수정 공통 (그 회차의 집계)
+Event += { rsvp: { going, notGoing, maybe, pending, mine: Rsvp|null },        // pending = 참여자 중 아직 응답 안 한 사람 수
+           reactions: { LIKE, EXCITED, ACK, mine: Reaction|null } }           // 지금 팀원의 반응만 센다
+// (#190) 단건 GET 만
+EventDetail += { rsvpMembers: { member: Member, status: Rsvp|null, respondedAt: ISO|null, stale: boolean }[],  // 참여자 가입순. stale = 응답한 뒤 그 회차 시작/끝이 바뀜 (D-226)
+                 reactionMembers: { member: Member, reaction: Reaction }[] }                                  // 반응한 지금 팀원, 가입순
+Rsvp = 'GOING'|'NOT_GOING'|'MAYBE'
+Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요, 확인했어요
 ```
+
+- (#190) 참석 여부와 반응 (설계 `참석-여부.md`, D-224 ~ D-228)
+  - 회차 단위: 반복은 `(eventId, 원래 회차 날짜)`, 한 번짜리는 `(eventId, 시작 KST 날짜)`. 반복에서 `occurrence` 가 없으면 400 VALIDATION_FAILED `field: 'occurrence'`, 회차가 아니거나 취소된 회차면 404 NOT_FOUND (단건 GET 과 같은 규칙). 한 번짜리는 `occurrence` 를 무시
+  - rsvp 는 그 일정의 참여자만 (모두면 지금 팀원 전원). 아니면 403 NOT_PARTICIPANT. 확인은 쓰기 트랜잭션 안에서 멤버십과 일정 행을 `FOR SHARE` 로 읽어 한다. reaction 은 팀원 누구나
+  - 본문 형식 오류(빠짐, 다른 값, 다른 필드)는 400 VALIDATION_FAILED. 경로에 사람이 없어 남의 응답은 바꿀 수 없다
+  - 같은 값이면 저장, 기록 모두 없다 (#62). 지난 회차도 응답할 수 있다
+  - 목록 집계는 창 안 회차 날짜 범위로 응답, 반응을 한 번씩 더 읽는다 (PK `(eventId, occurrence, userId)`)
+  - 정리: 참여자에서 빠지면 그 사람 응답 삭제(반응은 남김), 팀 나가기는 그 팀 일정의 내 응답, 반응 삭제, 탈퇴는 Cascade. "이 일정만" 삭제는 그 회차 응답, 반응 삭제. "이후 모두" 로 나누면 그 회차 이후를 새 원본으로 옮기고, 시작 날짜나 주기가 바뀌면 지운다. 첫 회차 "이후 모두" 는 회차 날짜(시작 날짜, 주기, 기준 날짜)가 바뀌면 전부 지운다. 한 번짜리 날짜를 옮기면 회차 날짜를 따라 옮긴다 (D-225)
+  - 시각이 바뀌어도 응답은 지우지 않는다. `stale` 로 알린다 (D-226)
+  - 일정 알림(REMINDER)은 그 회차에 불참으로 답한 사람에게 보내지 않는다 (D-228)
 
 - (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙
   - 응답 `participants` 는 목록, 단건, 생성/수정 모두 같은 모양. `members` 는 지금 멤버만(나가면 행이 지워진다), 순서는 `Membership.joinedAt`. `creator` 는 그대로 ("○○님이 추가")
@@ -303,6 +327,22 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
 
+#### 멤버 생일 (#305, D-230 ~ D-233)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/birthdays` | 멤버 | - | `{ data: Birthday[] }` 가입순. 생일이 있고 그 팀 `showBirthday` 가 켜진 멤버(나 포함, 개인 팀이면 나만) |
+
+```ts
+Birthday = { member: Member, date: 'MM-DD' }   // member 는 팀 표시 이름 ?? 닉네임, 색
+BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   // GET /me, PATCH /me/birthday
+```
+
+- 저장은 `User.birthday`(CHAR 5) 하나. Anniversary 행을 팀마다 만들지 않고 화면, 알림, 피드가 계산한다. 쓰기는 `PATCH /me/birthday` 와 `PATCH /groups/:id/me { showBirthday }` 뿐
+- 표시: 기념일 "매년 반복" 과 같은 규칙, 이름 "{표시 이름} 생일". 2월 29일은 평년에 2월 28일. 웹은 기념일 모양(음수 id, `kind: 'YEARLY'`, 기준 해 2000)으로 바꿔 달력 칸, 일 상세, 다가오는 일정, 사이드바, 위젯에 섞는다(`lib/birthday.ts`). 기념일 화면에서는 고칠 수 없는 줄(내 것은 내 정보 링크)
+- 팀을 나가거나 탈퇴하면 멤버십이 없어져 그 팀에서 바로 빠진다. 새 소식(#191)에는 남기지 않는다
+- 알림: 2.8 "생일 알림". 피드: 2.12 `includeAnniversaries` 를 따른다
+
 기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
 
 ### 2.5 빈 시간 찾기
@@ -379,7 +419,9 @@ EventNewsItem    = { kind: 'EVENT' } & NewsItem          // 일정 항목 모양
 ActivityNewsItem = { kind: 'ACTIVITY', id: number,
   type: 'ANNIVERSARY_CREATED'|'ANNIVERSARY_UPDATED'|'ANNIVERSARY_DELETED'
       | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED'
-      | 'EVENTS_IMPORTED',          // (#279)
+      | 'EVENTS_IMPORTED'           // (#279)
+      | 'EVENT_RSVP',               // (#190)
+      | 'POLL_CREATED'|'POLL_CLOSED',  // (#189)
   actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
   anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
   payload: ActivityPayload, createdAt, isNew }
@@ -388,6 +430,9 @@ ActivityPayload =
       changed?: ('name'|'date'|'kind')[], before?: { name?, date?, kind? } }   // 수정만: 바뀐 필드와 그 이전 값
   | { from: string, to: string }                                // GROUP_RENAMED
   | { count: number }                                           // EVENTS_IMPORTED (#279)
+  | { eventId, eventCode, occurrence: 'YYYY-MM-DD'|null, title, startsAt, endsAt, allDay, status: Rsvp }   // EVENT_RSVP (#190). occurrence 는 반복 회차만
+  | { pollId, code, title }                                     // POLL_CREATED (#189)
+  | { pollId, code, title, eventId, eventCode, eventLogId, startsAt, endsAt, allDay }   // POLL_CLOSED (#189). 정한 후보
   | {}                                                           // 멤버 3종
 ```
 
@@ -401,6 +446,9 @@ ActivityPayload =
 | MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
 | GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
 | EVENTS_IMPORTED (#279) | `POST /groups/:id/imports` 끝 (2.9) | 넣은 일정 0개 |
+| EVENT_RSVP (#190) | `PUT .../events/:eventId/rsvp` 로 정하거나 바꿈 | 같은 값. 같은 사람이 같은 회차를 2분 안에 다시 바꾸면 새 줄 대신 그 줄을 고친다(시각도 지금으로). 취소(null)는 2분 안 줄만 지우고 새 줄은 없다 (D-227). 반응은 남기지 않는다 |
+| POLL_CREATED (#189) | `POST /groups/:id/polls` | 취소(`DELETE .../polls/:id`)하면 그 기록도 지운다 |
+| POLL_CLOSED (#189) | `POST .../polls/:id/confirm` | - . 이 확정으로 생긴 EventLog CREATED(payload `eventLogId`)는 v2 목록에서 숨기고 `unreadNewsCount` 에서도 뺀다 (D-236) |
 
 - 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
 - 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
@@ -418,8 +466,10 @@ ActivityPayload =
    (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
    (#300) 내가 이 팀을 처음 여는 달력으로 고정했으면(User.startGroupId = 이 팀) LAST 로 되돌린다 (D-192)
    (#193) 내 이 팀 구독 주소(CalendarFeed)를 지운다 (D-217)
+   (#190) 그 팀 일정의 내 참석 여부(EventRsvp), 반응(EventReaction) 삭제
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
+   (#189) 그 팀 약속 투표의 내 표(PollVote)와 대상 행(PollParticipant)도 지운다. 기록 없음
 3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
 ```
 
@@ -437,6 +487,7 @@ ActivityPayload =
    c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
    d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId / GroupActivity.actorId 는 FK SetNull → "탈퇴한 멤버"
       (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
+      (#190) 남은 EventRsvp, EventReaction 행도 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
@@ -454,7 +505,8 @@ ActivityPayload =
 ```ts
 NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean,   // 기본 true
                          weekly: boolean,        // (#277) 주간 요약, 기본 true
-                         weeklyNudge: boolean }  // (#277) 다 같이 비는 시간(조용한 팀 깨우기), 기본 false (D-204)
+                         weeklyNudge: boolean,   // (#277) 다 같이 비는 시간(조용한 팀 깨우기), 기본 false (D-204)
+                         poll: boolean }         // (#189) 약속 투표(열림, 마감, 정함), 기본 true
 EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_BEFORE_0900'
 ```
 
@@ -475,6 +527,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+
+**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
 
 **들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 
@@ -587,10 +641,37 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 
 - (사용자, 팀) 하나에 주소 하나. 개인 팀도 된다. 토큰은 DB 에 없고 소금과 해시만 있다(D-218). 다시 조회해도 같은 주소
 - 피드 404 는 형식 오류, 없는 토큰, 재발급 전 토큰, 끈 주소, 나간 팀, 탈퇴, 지운 팀을 구분하지 않는다. 멤버십은 요청마다 확인
-- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목. 매핑은 설계 3장
+- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목과 (#305, D-233) 이 팀에 보이는 멤버 생일(그해 그날 종일 VEVENT "민지 생일", UID `b{userId}-{YYYYMMDD}@whenwemeet.day`, 투명). 매핑은 설계 3장
 - `ETag` = 본문 해시, `Cache-Control: private, max-age=900`. 피드 조회는 새 소식, 푸시, 활동 기록과 무관하다. 만들기, 재발급도 기록하지 않는다
 - 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음. 사용자에게 보이는 message 에는 "구독" 대신 "연결 주소" (D-221)
 - Sentry 는 `/ics/<토큰>` 경로를 지운다
+
+### 2.13 약속 투표 (#189, 설계 `약속-투표.md`, D-234 ~ D-241)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/polls` | 멤버 | `?status=open\|closed` (기본 open) | `{ data: PollSummary[] }`. 진행 중은 고를 후보가 남은 것 먼저, 마감 가까운 순(없음 뒤), 최근 연 순. 닫힌 것은 최근 30일 |
+| POST | `/groups/:groupId/polls` | 멤버 | `PollInput` | 201 `{ data: Poll }` + GroupActivity POLL_CREATED + 열림 알림 |
+| GET | `/polls/:code` | 멤버 | - | `{ data: Poll }`. 틀린 코드, 없는 투표, 비멤버 모두 404 |
+| PUT | `/groups/:groupId/polls/:pollId/votes` | 멤버 (대상) | `{ optionIds: number[] }` 내 "가능" 전체 (`[]` = 다 해제) | `{ data: Poll }` |
+| POST | `/groups/:groupId/polls/:pollId/confirm` | 멤버 | `{ optionId }` | 201 `{ data: { poll: Poll, event: Event, warning: 'BUSY_NOW'\|null } }` |
+| DELETE | `/groups/:groupId/polls/:pollId` | 멤버 | - | `{ data: { ok: true } }` 진행 중만 |
+
+```ts
+PollInput   = { title: string(1~50), options: { startsAt: ISO, endsAt: ISO, allDay: boolean }[] /* 2~5 */,
+                deadline?: ISO|null, participants?: 'ALL'|number[] /* 생략 = 'ALL' */ }
+Poll        = { id, publicCode, groupId, groupCode, title, status: 'OPEN'|'CLOSED', deadline: ISO|null, expired: boolean,
+                creator: Member|탈퇴자, createdAt, closedAt, eventId: number|null, eventCode: string|null, decidedOptionId: number|null,
+                participants: { all: boolean, members: Member[] },
+                options: { id, startsAt, endsAt, allDay, past: boolean, voters: Member[] }[], myVotes: number[], canVote: boolean }
+PollSummary = { id, publicCode, title, status, deadline, expired, eventId, eventCode, voterCount, targetCount, votedByMe, allPast, createdAt, closedAt }
+```
+
+- 검증 400 VALIDATION_FAILED: 개인 팀(field `groupId`), 제목, 후보 2~5개가 아님, 끝 <= 시작, 30일 초과, 지난 시작, 같은 구간 중복, 종일 후보가 KST 00:00 경계가 아님(field `options`), 지난 마감(`deadline`), 참여자 형식과 멤버(`participants`, 일정과 같은 규칙), 진행 중 10개 초과("진행 중인 투표가 너무 많아요"), 남의 후보(`optionIds`, `optionId`)
+- `expired` 는 읽을 때 계산 (`OPEN AND deadline <= now`). 마감 뒤 표는 409, 정하기는 된다 (D-235)
+- 지난 후보는 새로 켜거나 정하면 400 POLL_OPTION_PAST, 이미 켜 둔 표는 빠져도 남긴다 (D-238)
+- 정하기는 한 트랜잭션(일정 + CREATED 로그 + CLOSED + POLL_CLOSED + 정함 알림), 동시에 누르면 하나만 성공하고 나머지 409. 팀원 변경 알림 없음. 바빠진 대상이 있으면 `warning: 'BUSY_NOW'` (D-239)
+- 나가기: 그 팀 투표의 내 표와 대상 행 삭제(2.7). 탈퇴: Cascade
 
 ## 3. 기획 기능 → API 추적
 
@@ -601,6 +682,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 | 앱 로그인 (카카오, 애플), 웹 애플 로그인 | `/auth/kakao/native`, `/auth/apple/native`, `/auth/apple`, `/auth/apple/callback`, `/auth/handoff` (앱.md) |
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 처음 여는 달력 (#300) | `GET /me` 의 `startCalendar`, `PATCH /me/start-calendar` |
+| 멤버 생일 (#305) | `GET /me` 의 `birthday`, `PATCH /me/birthday`, `GET /groups/:id/birthdays`, `PATCH /groups/:id/me { showBirthday }` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
 | 초대 링크 + 6자리 코드, 재발급 | `GroupDetail.inviteCode/inviteUrl`, `POST /groups/:id/invite-code`, `GET /invites/:code`, `POST /groups/join` |
 | 팀 전환 | `GET /groups` |
@@ -621,6 +703,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
+| 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
 
 ## 4. 개발 전용
 

@@ -4,6 +4,7 @@ import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { CalendarFeedsRepository } from '../calendar-feed/calendar-feeds.repository.js';
+import { deleteMemberResponsesTx } from '../event-responses/event-responses.repository.js';
 import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { PushRepository } from '../push/push.repository.js';
@@ -18,6 +19,7 @@ export const MEMBERSHIP_WITH_USER = {
     lastSeenAt: true,
     joinedAt: true,
     notify: true,
+    showBirthday: true,
     user: USER_PUBLIC_SELECT,
   },
 } as const;
@@ -25,8 +27,8 @@ export const MEMBERSHIP_WITH_USER = {
 /** (#300) 고정한 팀에서 나가거나 팀이 지워졌을 때 처음 여는 달력을 마지막에 본 달력으로 (D-192) */
 const START_CALENDAR_RESET = { startCalendarMode: 'LAST', startGroupId: null } as const;
 
-/** notify: (#188) 팀 설정 "이 팀 알림 받기" */
-export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean };
+/** notify: (#188) 팀 설정 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기" */
+export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean; showBirthday: boolean };
 
 /** user 를 USER_PUBLIC_SELECT 모양으로 읽은 멤버십 행 → 응답용 `{ nickname, profileImageUrl }` */
 function withUserRow<T extends { user: UserPublicRecord }>(row: T, urls: FileUrlBuilder): Omit<T, 'user'> & { user: MembershipRow['user'] } {
@@ -56,6 +58,8 @@ export interface MembershipMeInput {
   displayName?: string | null;
   /** (#188) */
   notify?: boolean;
+  /** (#305) */
+  showBirthday?: boolean;
 }
 
 /** (#274) 합류 경로. 일정 링크로 들어오면 그 링크의 합류 수를 세고 새 소식에 경로를 남긴다 (D-185) */
@@ -124,7 +128,7 @@ export class MembershipsRepository {
     return rows.map((row) => row.groupId);
   }
 
-  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow & { notify: boolean }> {
+  async updateMe(membershipId: number, data: MembershipMeInput): Promise<MembershipRow & { notify: boolean; showBirthday: boolean }> {
     const row = await this.prisma.membership.update({
       where: { id: membershipId },
       data,
@@ -134,6 +138,7 @@ export class MembershipsRepository {
         displayName: true,
         joinedAt: true,
         notify: true,
+        showBirthday: true,
         user: USER_PUBLIC_SELECT,
       },
     });
@@ -187,6 +192,7 @@ export class MembershipsRepository {
    * (#274) 그 사람이 이 팀에서 만든 일정 공유 링크는 끊는다 (D-183). 팀이 지워지면 Cascade 로 같이 사라진다
    * (#300) 그 사람이 이 팀을 처음 여는 달력으로 고정했으면 LAST 로 되돌린다. 팀이 지워지면 이 팀을 고정한 사람 전부 (D-192)
    * (#193) 그 사람의 이 팀 구독 주소를 지운다 (즉시 404, D-217). 팀이 지워지면 Cascade
+   * (#190) 그 팀 일정의 그 사람 참석 여부, 반응을 지운다 (다시 들어와도 복구하지 않는다)
    */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
     const removed = await db.membership.delete({
@@ -196,6 +202,11 @@ export class MembershipsRepository {
     const { userId } = removed;
     await db.user.updateMany({ where: { id: userId, startGroupId: groupId }, data: START_CALENDAR_RESET });
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
+    // (#190) 그 팀 일정의 내 참석 여부, 반응도 지운다 (탈퇴는 User Cascade 로도 지워진다)
+    await deleteMemberResponsesTx(db, userId, groupId);
+    // (#189) 이 팀 투표의 내 표와 대상 행. 기록 없이 지운다 (설계 약속-투표.md 3장)
+    await db.pollVote.deleteMany({ where: { userId, option: { poll: { groupId } } } });
+    await db.pollParticipant.deleteMany({ where: { userId, poll: { groupId } } });
     await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
     await this.calendarFeeds.deleteMemberTx(db, userId, groupId);
     const remaining = await db.membership.count({ where: { groupId } });

@@ -1,12 +1,15 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useGroupContext } from "@/components/AppShell";
-import { newEventHref } from "@/lib/routes";
+import { newEventHref, pollHref } from "@/lib/routes";
 import { useMemo, useState } from "react";
-import { IconArrowRight, IconClock } from "@/components/icons";
+import { PollCreateSheet } from "@/components/PollCreateSheet";
+import { useToast } from "@/components/Toast";
+import { IconArrowRight, IconCheck, IconClock } from "@/components/icons";
 import { DatePicker, TimePicker } from "@/components/pickers";
 import { minutesOf } from "@/components/pickers/time";
-import { EmptyState, ErrorState, Segmented, Skeleton, Toggle } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Segmented, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useFreeSlots } from "@/hooks";
 import {
   addDays,
@@ -22,6 +25,7 @@ import {
   WEEKDAYS,
 } from "@/lib/date";
 import { upcomingSlots } from "@/lib/free-time";
+import { MAX_POLL_OPTIONS, MIN_POLL_OPTIONS, slotKey, type Slot } from "@/lib/poll";
 import type { FreeSlots } from "@/lib/types";
 
 type Period = "thisWeek" | "nextWeek" | "custom";
@@ -43,7 +47,13 @@ const MIN_OPTIONS = [
 const DAY_END_MAX = 24 * 60;
 
 export function FreeScreen() {
-  const { groupId } = useGroupContext();
+  const { groupId, group } = useGroupContext();
+  const router = useRouter();
+  const toast = useToast();
+  // (#189) 투표로 정하기: 결과 줄을 2~5개 골라 투표 만들기 시트로 (설계 약속-투표.md 5-1). 개인 팀은 숨긴다
+  const [pollMode, setPollMode] = useState(false);
+  const [picked, setPicked] = useState<Slot[]>([]);
+  const [sheet, setSheet] = useState(false);
   const today = todayKey();
   const [period, setPeriod] = useState<Period>("thisWeek");
   const [customFrom, setCustomFrom] = useState(today);
@@ -85,6 +95,15 @@ export function FreeScreen() {
   );
   const loading = freeQ.isLoading;
   const error = freeQ.error ? messageOf(freeQ.error, "빈 시간을 계산하지 못했어요. 다시 시도해 주세요") : null;
+
+  const canPoll = group?.type === "TEAM" && (result?.memberCount ?? 0) > 1 && (result?.slots.length ?? 0) > 0;
+  const pickedKeys = new Set(picked.map(slotKey));
+  function togglePick(slot: Slot) {
+    const key = slotKey(slot);
+    if (pickedKeys.has(key)) return setPicked((list) => list.filter((s) => slotKey(s) !== key));
+    if (picked.length >= MAX_POLL_OPTIONS) return toast.show(`후보는 ${MAX_POLL_OPTIONS}개까지 고를 수 있어요`);
+    setPicked((list) => [...list, slot]);
+  }
 
   // 날짜별 묶음
   const grouped = useMemo(() => {
@@ -182,7 +201,8 @@ export function FreeScreen() {
             </EmptyState>
           ) : result ? (
             <div className={loading ? "opacity-60 transition-opacity" : ""}>
-              <p className="px-1 text-[12px] leading-4 text-ink-2">
+              <div className="flex items-start gap-2 px-1">
+              <p className="min-w-0 flex-1 text-[12px] leading-4 text-ink-2">
                 {result.memberCount > 1 ? (
                   <>
                     <span className="font-bold text-ink">{result.memberCount}명</span> 모두 비는 시간이에요. 각자 다른 팀
@@ -193,6 +213,21 @@ export function FreeScreen() {
                   <>내 일정 기준으로 비는 시간이에요. 다른 팀 일정도 반영됐어요</>
                 )}
               </p>
+              {canPoll && (
+                <button
+                  type="button"
+                  aria-pressed={pollMode}
+                  onClick={() => {
+                    setPollMode((v) => !v);
+                    setPicked([]);
+                  }}
+                  className="hit -my-1 shrink-0 text-[13px] font-bold text-btn"
+                >
+                  {pollMode ? "그만 고르기" : "투표로 정하기"}
+                </button>
+              )}
+              </div>
+              {pollMode && <p className="mt-1 px-1 text-[12px] leading-4 text-ink">후보로 물어볼 시간을 2~5개 골라 주세요</p>}
               {/* 결과 칸이 넓으면(본문 main-2xl) 날짜 카드를 2단으로. 날짜 순서는 위에서 아래, 왼쪽 단 다음 오른쪽 단 (카드 높이가 달라도 빈틈 없이) */}
               <div className="mt-2 space-y-2 main-2xl:columns-2 main-2xl:gap-2 main-2xl:space-y-0">
                 {grouped.map(([key, slots]) => {
@@ -206,6 +241,33 @@ export function FreeScreen() {
                       <ul>
                         {slots.map((s) => {
                           const mins = Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000);
+                          const on = pickedKeys.has(slotKey(s));
+                          if (pollMode) {
+                            return (
+                              <li key={s.startsAt}>
+                                <button
+                                  type="button"
+                                  role="checkbox"
+                                  aria-checked={on}
+                                  onClick={() => togglePick(s)}
+                                  className="-mx-1.5 flex min-h-10 w-[calc(100%+12px)] items-center gap-2.5 rounded-sm px-1.5 text-left hover:bg-hover"
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className={`grid size-[22px] shrink-0 place-items-center rounded-[7px] border-[1.5px] ${on ? "border-btn bg-btn text-on-btn" : "border-line"}`}
+                                  >
+                                    {on && <IconCheck size={14} strokeWidth={2.6} />}
+                                  </span>
+                                  <span className="text-[14px] tabular-nums">
+                                    <b className="font-bold text-acc-ink">
+                                      {timeOf(s.startsAt)}~{timeOf(s.endsAt)}
+                                    </b>
+                                    <span className="ml-2 text-[12px] text-ink-2">{formatMinutes(mins)}</span>
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          }
                           return (
                             <li key={s.startsAt}>
                               <Link
@@ -233,8 +295,33 @@ export function FreeScreen() {
               </div>
             </div>
           ) : null}
+
+          {/* (#189) 아래 고정 줄. 폰은 독 위(토스트와 같은 높이 규칙), 넓은 화면은 결과 칸 아래에 붙는다 */}
+          {pollMode && canPoll && (
+            <div className="fixed inset-x-4 bottom-[calc(168px+env(safe-area-inset-bottom))] z-30 dock:bottom-[calc(92px+env(safe-area-inset-bottom))] fold:sticky fold:inset-x-auto fold:bottom-4 fold:mt-3">
+              <Button size="xl" full disabled={picked.length < MIN_POLL_OPTIONS} onClick={() => setSheet(true)} className="shadow-[var(--dock-shadow)]">
+                {picked.length < MIN_POLL_OPTIONS ? `후보를 ${MIN_POLL_OPTIONS - picked.length}개 더 골라 주세요` : `후보 ${picked.length}개로 투표 만들기`}
+              </Button>
+            </div>
+          )}
+          {pollMode && <div aria-hidden="true" className="h-16 fold:hidden" />}
         </section>
       </div>
+
+      <PollCreateSheet
+        open={sheet}
+        onClose={() => setSheet(false)}
+        groupId={groupId}
+        members={group?.members ?? []}
+        meId={group?.me.userId ?? null}
+        slots={picked}
+        minMinutes={minMinutes}
+        onCreated={(poll) => {
+          setSheet(false);
+          toast.show("투표를 열었어요");
+          router.push(pollHref(poll));
+        }}
+      />
     </div>
   );
 }

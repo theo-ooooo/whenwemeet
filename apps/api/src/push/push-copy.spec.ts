@@ -6,6 +6,10 @@ import {
   copula,
   eventUrl,
   importPayload,
+  pollClosedPayload,
+  pollDeadlinePayload,
+  pollOpenedPayload,
+  pollTimeLabel,
   joinPayload,
   kstDateLabel,
   kstTimeLabel,
@@ -230,6 +234,36 @@ describe('importPayload (#279)', () => {
       url: '/calendar?team=teamcode',
       expiration: Math.floor(now.getTime() / 1000) + 86_400,
     });
+  });
+});
+
+describe('약속 투표 문구 (#189, 설계 약속-투표.md 6장)', () => {
+  const now = new Date('2026-11-13T03:00:00Z');
+  const base = { groupName: '우리', groupCode: 'teamcode', pollCode: 'poll2345', title: '저녁 약속' };
+  const sec = (ms: number) => Math.floor(ms / 1000);
+
+  it('열림: 연 사람 이름, 후보 수와 마감, 투표 화면. 만료는 24시간과 마감 중 이른 쪽(최소 10분)', () => {
+    const deadline = new Date('2026-11-13T12:00:00Z');
+    expect(pollOpenedPayload({ ...base, actorName: '민지', optionCount: 3, deadline }, now)).toEqual({
+      title: "민지님이 '저녁 약속' 시간을 묻고 있어요",
+      subtitle: '우리',
+      body: '후보 3개, 마감 11월 13일 (금) 오후 9:00',
+      url: '/polls/poll2345?team=teamcode',
+      expiration: sec(deadline.getTime()),
+    });
+    expect(pollOpenedPayload({ ...base, actorName: '민지', optionCount: 2, deadline: null }, now)).toMatchObject({ body: '후보 2개', expiration: sec(now.getTime()) + 86_400 });
+    expect(pollOpenedPayload({ ...base, actorName: '민지', optionCount: 2, deadline: new Date(now.getTime() + 1000) }, now).expiration).toBe(sec(now.getTime()) + 600);
+  });
+
+  it('마감과 정함', () => {
+    expect(pollDeadlinePayload(base, now)).toMatchObject({ title: "'저녁 약속' 투표가 끝났어요", body: '시간을 정해 주세요', url: '/polls/poll2345?team=teamcode' });
+    const option = { startsAt: new Date('2026-11-22T10:00:00Z'), allDay: false };
+    expect(pollClosedPayload({ ...base, actorName: '지훈', eventCode: 'evnt2345', option }, now)).toMatchObject({
+      title: "지훈님이 '저녁 약속' 시간을 정했어요",
+      body: '11월 22일 (일) 오후 7:00',
+      url: '/events/evnt2345?team=teamcode',
+    });
+    expect(pollTimeLabel({ startsAt: new Date('2027-01-01T15:00:00Z'), allDay: true }, '2026-11-13')).toBe('2027년 1월 2일 (토) 종일');
   });
 });
 

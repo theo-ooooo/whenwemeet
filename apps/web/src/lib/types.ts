@@ -10,6 +10,8 @@ export type Member = {
   joinedAt?: string;
   /** (#188) "이 팀 알림 받기". GroupDetail.me 와 PATCH /groups/:id/me 응답에만 (다른 멤버는 싣지 않는다) */
   notify?: boolean;
+  /** (#305) "이 팀 달력에 내 생일 보이기". notify 와 같이 내 것에만 */
+  showBirthday?: boolean;
 };
 
 export type GroupSummary = {
@@ -46,7 +48,8 @@ export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" 
 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
 /** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean };
+/** (#189) poll 약속 투표(열림, 마감, 정함). 기본 켬 */
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -92,13 +95,35 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "pa
   /** (#248) all 이면 members 는 그 팀 지금 멤버 전원, 아니면 참여자 (0 = 참여자 없음). 가입순. 반복 회차는 원본 값.
    *  옛 API 는 없음 → lib/participants participantsOf 가 등록자로 대신한다 */
   participants?: { all: boolean; members: Member[] };
+  /** (#190) 그 회차의 참석 여부 집계. 옛 API 는 없음 → 응답 줄을 그리지 않는다 */
+  rsvp?: RsvpSummary;
+  /** (#190) 그 회차의 반응 집계. 옛 API 는 없음 */
+  reactions?: ReactionSummary;
 };
+
+/** (#190) 참석 여부. 응답 안 함은 null */
+export type Rsvp = "GOING" | "NOT_GOING" | "MAYBE";
+/** (#190) 짧은 반응. 화면 글자: 좋아요, 기대돼요, 확인했어요 */
+export type Reaction = "LIKE" | "EXCITED" | "ACK";
+
+/** (#190) pending = 참여자 중 아직 응답하지 않은 사람 수 */
+export type RsvpSummary = { going: number; notGoing: number; maybe: number; pending: number; mine: Rsvp | null };
+export type ReactionSummary = Record<Reaction, number> & { mine: Reaction | null };
+
+/** (#190) 단건의 사람별 응답 (참여자 가입순). stale = 응답한 뒤 그 회차 시각이 바뀜 */
+export type RsvpMember = { member: Member; status: Rsvp | null; respondedAt: string | null; stale: boolean };
+export type ReactionMember = { member: Member; reaction: Reaction };
 
 /** PATCH 본문. "이후 모두" 에서 날짜를 그대로 두면 startsAt, endsAt 을 빼고 보낸다 (QA3-M3) */
 export type EventPatchInput = Omit<EventInput, "startsAt" | "endsAt"> & Partial<Pick<EventInput, "startsAt" | "endsAt">>;
 
 /** 단건 GET 응답. 이 회차보다 뒤에 "이 일정만" 예외가 있는지 */
-export type EventDetailData = Event & { hasLaterExceptions: boolean };
+export type EventDetailData = Event & {
+  hasLaterExceptions: boolean;
+  /** (#190) 단건에만. 옛 API 는 없음 */
+  rsvpMembers?: RsvpMember[];
+  reactionMembers?: ReactionMember[];
+};
 
 /** 기념일 종류 (api.md 2.4, D-62): 함께한 날 세기(기본) / 매년 반복 / 그날만 */
 export type AnniversaryKind = "COUNT_UP" | "YEARLY" | "ONCE";
@@ -116,7 +141,15 @@ export type Anniversary = {
   reminders?: AnniversaryReminder[];
   creator: Member;
   createdAt: string;
+  /** (#305) 멤버 생일을 기념일 모양으로 바꾼 항목이면 그 사람 userId (lib/birthday.ts). 서버 기념일에는 없다 */
+  birthdayOf?: number;
 };
+
+/** (#305) GET /groups/:id/birthdays 한 줄. date 는 'MM-DD' (연도 없음) */
+export type Birthday = { member: Member; date: string };
+
+/** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null, reminders 는 팀원에게 알리는 시점 */
+export type BirthdaySettings = { date: string | null; reminders: AnniversaryReminder[] };
 
 export type AnniversaryInput = { name: string; date: string; kind?: AnniversaryKind; reminders?: AnniversaryReminder[] };
 
@@ -160,7 +193,24 @@ export type ActivityType =
   | "MEMBER_DELETED"
   | "GROUP_RENAMED"
   /** (#279) ICS 파일로 일정을 가져옴. payload { count } */
-  | "EVENTS_IMPORTED";
+  | "EVENTS_IMPORTED"
+  /** (#190) 참석 여부를 정하거나 바꿈. payload RsvpActivityPayload */
+  | "EVENT_RSVP"
+  /** (#189) 약속 투표를 열었다 { pollId, code, title }, 시간을 정했다 (+ eventCode, startsAt, endsAt, allDay) */
+  | "POLL_CREATED"
+  | "POLL_CLOSED";
+
+/** (#190) 참석 여부 기록. occurrence 는 반복 회차만, 한 번짜리는 null */
+export type RsvpActivityPayload = {
+  eventId: number;
+  eventCode: string;
+  occurrence: string | null;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  status: Rsvp;
+};
 
 export type AnniversaryField = "name" | "date" | "kind";
 
@@ -183,9 +233,22 @@ export type ActivityNewsItem = {
   /** 기념일 3종의 대상. 삭제된 기념일이면 null */
   anniversaryId: number | null;
   /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} (#274 일정 링크 합류는 { via: "EVENT_SHARE" }) */
-  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string };
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string } & Partial<Omit<RsvpActivityPayload, "title">> &
+    Partial<PollActivityPayload>;
   createdAt: string;
   isNew: boolean;
+};
+
+/** (#189) 투표 기록 payload. title 은 투표 제목(정하면 일정 제목) */
+export type PollActivityPayload = {
+  pollId: number;
+  code: string;
+  title: string;
+  eventId: number;
+  eventCode: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
 };
 
 /** 새 소식 한 줄. 키는 `${kind}:${id}` (두 기록의 id 가 겹칠 수 있다) */
@@ -204,6 +267,8 @@ export type Me = {
   createdAt: string;
   /** (#300) GET /me 에만 있다. PATCH /me 응답에는 없어 화면이 앞 값을 이어 쓴다 */
   startCalendar?: StartCalendar;
+  /** (#305) GET /me 에만 있다 (PATCH /me 응답에는 없어 앞 값을 이어 쓴다) */
+  birthday?: BirthdaySettings;
 };
 
 export type InvitePreview = {
@@ -337,3 +402,59 @@ export type TodoItem = {
 
 /** GET /todo-lists/:code */
 export type TodoListDetail = { list: TodoList; items: TodoItem[] };
+
+/* ---------- (#189) 약속 투표 (api.md 2.13) ---------- */
+
+export type PollStatus = "OPEN" | "CLOSED";
+
+/** 후보 하나. past = 시작이 지났다 (고를 수도 정할 수도 없다). voters 는 가입순 */
+export type PollOption = { id: number; startsAt: string; endsAt: string; allDay: boolean; past: boolean; voters: Member[] };
+
+export type Poll = {
+  id: number;
+  publicCode: string;
+  groupId: number;
+  groupCode: string;
+  title: string;
+  status: PollStatus;
+  deadline: string | null;
+  /** 마감이 지났다 (진행 중만). 표는 못 하고 정하기는 된다 */
+  expired: boolean;
+  creator: Member;
+  createdAt: string;
+  closedAt: string | null;
+  /** 정해서 생긴 일정. 지워졌으면 null */
+  eventId: number | null;
+  eventCode: string | null;
+  decidedOptionId: number | null;
+  participants: { all: boolean; members: Member[] };
+  options: PollOption[];
+  myVotes: number[];
+  canVote: boolean;
+};
+
+/** 홈 "정하는 중" 카드 */
+export type PollSummary = {
+  id: number;
+  publicCode: string;
+  title: string;
+  status: PollStatus;
+  deadline: string | null;
+  expired: boolean;
+  eventId: number | null;
+  eventCode: string | null;
+  voterCount: number;
+  targetCount: number;
+  votedByMe: boolean;
+  /** 모든 후보가 지났다 ("지난 투표") */
+  allPast: boolean;
+  createdAt: string;
+  closedAt: string | null;
+};
+
+export type PollOptionInput = { startsAt: string; endsAt: string; allDay: boolean };
+
+export type PollInput = { title: string; options: PollOptionInput[]; deadline?: string | null; participants?: "ALL" | number[] };
+
+/** 정하기 응답. warning BUSY_NOW = 그 사이 대상 중 누가 그 시간에 일정이 생겼다 (정하기는 됐다) */
+export type PollConfirmResult = { poll: Poll; event: Event; warning: "BUSY_NOW" | null };

@@ -38,4 +38,9 @@ export class UpdateMeDto {
   @IsOptional()
   @IsBoolean({ message: 'notify 는 true/false 여야 해요' })
   notify?: boolean;
+
+  /** (#305) 이 팀 달력에 내 생일 보이기 */
+  @IsOptional()
+  @IsBoolean({ message: 'showBirthday 는 true/false 여야 해요' })
+  showBirthday?: boolean;
 }

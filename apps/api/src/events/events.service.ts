@@ -5,6 +5,18 @@ import { parsePublicCode } from '../common/public-code.js';
 import { isCalendarDate, parseIsoDate } from '../common/validation.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { type EventReminder, remindAt, reminderFits, reminderMismatchMessage } from '../push/remind-at.js';
+import { EventResponsesRepository } from '../event-responses/event-responses.repository.js';
+import {
+  type ReactionMember,
+  reactionMembers,
+  type ReactionSummary,
+  type RsvpMember,
+  rsvpMembers,
+  type RsvpSummary,
+  occurrenceKey,
+  summarizeReactions,
+  summarizeRsvp,
+} from '../event-responses/responses.js';
 import type { EventInputDto, EventPatchDto } from './dto/event.dto.js';
 import {
   EventCreateInput,
@@ -78,10 +90,37 @@ export interface EventView {
   color: string | null;
 }
 
-/** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67) */
-export interface EventDetailView extends EventView {
-  hasLaterExceptions: boolean;
+/** (#190) 응답 집계를 붙인 일정 (목록, 단건, 생성, 수정 응답) */
+export interface EventWithResponses extends EventView {
+  rsvp: RsvpSummary;
+  reactions: ReactionSummary;
 }
+
+/** 단건 GET 응답. 웹이 "이후 모두" 확인 문구를 띄울지 정한다 (D-67). (#190) 사람별 응답은 단건에만 */
+export interface EventDetailView extends EventWithResponses {
+  hasLaterExceptions: boolean;
+  rsvpMembers: RsvpMember[];
+  reactionMembers: ReactionMember[];
+}
+
+/** (#190) 응답, 반응의 대상 회차 하나 */
+export interface ResponseTarget {
+  view: EventView;
+  /** 'YYYY-MM-DD'. 한 번짜리는 시작 KST 날짜 */
+  occurrence: string;
+  /** 그 회차의 지금 참여자 (모두면 지금 팀원 전원), 가입순 */
+  participants: Member[];
+  /** 지금 팀원, 가입순 */
+  members: Member[];
+}
+
+/** (#190) 응답이 붙는 회차 날짜. 한 번짜리는 시작 KST 날짜 (D-224) */
+export function responseOccurrence(view: Pick<EventView, 'occurrence' | 'startsAt'>): string {
+  return view.occurrence ?? kstDate(view.startsAt);
+}
+
+/** (#190) 사람 목록의 userId (탈퇴자 null 은 빼고) */
+const idsOf = (members: readonly Member[]): number[] => members.flatMap((member) => (member.userId === null ? [] : [member.userId]));
 
 /** 반복 일정 수정/삭제 범위 쿼리 (원문) */
 export interface ScopeQuery {
@@ -321,18 +360,76 @@ function parseScopeQuery(query: ScopeQuery): { scope: Scope; occurrence: string 
 
 const NOT_FOUND = () => new ApiException('NOT_FOUND', '일정을 찾을 수 없어요');
 
+/** (#190) 목록 집계용: (eventId, 회차) 키로 묶는다 */
+function groupBy<T extends { eventId: number; occurrence: string }>(rows: readonly T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = occurrenceKey(row.eventId, row.occurrence);
+    const list = map.get(key);
+    if (list) list.push(row);
+    else map.set(key, [row]);
+  }
+  return map;
+}
+
 @Injectable()
 export class EventsService {
   constructor(
     private readonly events: EventsRepository,
     private readonly memberships: MembershipService,
+    private readonly responses: EventResponsesRepository,
   ) {}
+
+  /**
+   * (#190) 일정들에 응답 집계를 붙인다. 목록 창의 회차 날짜 범위로 응답, 반응을 한 번씩 읽는다 (D-224)
+   */
+  private async withSummaries(views: EventView[], userId: number, resolver: MemberResolver): Promise<EventWithResponses[]> {
+    if (views.length === 0) return [];
+    const keys = views.map(responseOccurrence);
+    const sorted = [...keys].sort();
+    const { rsvps, reactions } = await this.responses.listForEvents([...new Set(views.map((view) => view.id))], sorted[0], sorted[sorted.length - 1]);
+    const rsvpBy = groupBy(rsvps);
+    const reactionBy = groupBy(reactions);
+    const memberIds = idsOf(resolver.all());
+    return views.map((view, index) => {
+      const key = occurrenceKey(view.id, keys[index]);
+      return {
+        ...view,
+        rsvp: summarizeRsvp(idsOf(view.participants.members), rsvpBy.get(key) ?? [], userId),
+        reactions: summarizeReactions(memberIds, reactionBy.get(key) ?? [], userId),
+      };
+    });
+  }
+
+  private async withSummary(view: EventView, userId: number, resolver: MemberResolver): Promise<EventWithResponses> {
+    const [decorated] = await this.withSummaries([view], userId, resolver);
+    return decorated;
+  }
+
+  /**
+   * (#190) 응답 대상 회차. 멤버 확인, 일정 찾기, 회차 확인(반복은 occurrence 필수, 규칙상 회차가 아니거나 취소된 회차면 404)은 단건 GET 과 같다
+   */
+  async resolveTarget(userId: number, groupId: number, eventId: number, occurrenceRaw: unknown): Promise<ResponseTarget> {
+    await this.memberships.assertMember(userId, groupId);
+    const row = await this.findInGroup(groupId, eventId);
+    const resolver = await this.memberships.resolverFor(groupId);
+    let view: EventView;
+    if (!row.repeat) {
+      view = toEventView(row, resolver);
+    } else {
+      if (occurrenceRaw === undefined || occurrenceRaw === '') throw validationFailed('occurrence', '반복 일정은 회차 날짜(occurrence)를 함께 보내야 해요');
+      const date = parseOccurrence(occurrenceRaw);
+      const exceptions = await this.events.listExceptions(row.id);
+      view = toOccurrenceView(row, this.resolveOccurrence(row, exceptions, date), resolver);
+    }
+    return { view, occurrence: responseOccurrence(view), participants: view.participants.members, members: resolver.all() };
+  }
 
   /**
    * 겹침 조건 `startsAt < to AND endsAt > from`. 반복 원본은 기간 안 회차로 펼친다 (#187).
    * startsAt 오름차순, 같으면 id, 그다음 회차 날짜
    */
-  async list(userId: number, groupId: number, fromRaw: string, toRaw: string): Promise<EventView[]> {
+  async list(userId: number, groupId: number, fromRaw: string, toRaw: string): Promise<EventWithResponses[]> {
     await this.memberships.assertMember(userId, groupId);
     const { from, to } = parseRange(fromRaw, toRaw, MAX_RANGE_DAYS);
     const [rows, series] = await Promise.all([this.events.listInRange(groupId, from, to), this.events.listSeriesForRange(groupId, from, to)]);
@@ -341,7 +438,8 @@ export class EventsService {
     for (const row of series) {
       for (const occurrence of expand(seriesRule(row), row.exceptions, from, to)) views.push(toOccurrenceView(row, occurrence, resolver));
     }
-    return sortViews(views);
+    // (#190) 집계만 붙인다. 사람 목록은 단건에만 (목록 응답이 커지지 않게)
+    return this.withSummaries(sortViews(views), userId, resolver);
   }
 
   /**
@@ -358,19 +456,30 @@ export class EventsService {
     return sortViews(views);
   }
 
-  /** 반복이면 `occurrence` 회차 (없으면 첫 회차). 한 번짜리는 `occurrence` 를 무시한다 */
+  /** 반복이면 `occurrence` 회차 (없으면 첫 회차). 한 번짜리는 `occurrence` 를 무시한다. (#190) 응답 집계와 사람별 응답을 붙인다 */
   async get(userId: number, groupId: number, eventId: number, occurrenceRaw?: unknown): Promise<EventDetailView> {
     await this.memberships.assertMember(userId, groupId);
     const row = await this.findInGroup(groupId, eventId);
     const resolver = await this.memberships.resolverFor(groupId);
-    if (!row.repeat) return { ...toEventView(row, resolver), hasLaterExceptions: false };
-
-    const date = occurrenceRaw === undefined || occurrenceRaw === '' ? kstDate(row.startsAt) : parseOccurrence(occurrenceRaw);
-    const exceptions = await this.events.listExceptions(row.id);
-    const occurrence = this.resolveOccurrence(row, exceptions, date);
+    let view: EventView;
+    let hasLaterExceptions = false;
+    if (!row.repeat) {
+      view = toEventView(row, resolver);
+    } else {
+      const date = occurrenceRaw === undefined || occurrenceRaw === '' ? kstDate(row.startsAt) : parseOccurrence(occurrenceRaw);
+      const exceptions = await this.events.listExceptions(row.id);
+      view = toOccurrenceView(row, this.resolveOccurrence(row, exceptions, date), resolver);
+      hasLaterExceptions = exceptions.some((exception) => exception.occurrence > date);
+    }
+    const { rsvps, reactions } = await this.responses.listForOccurrence(view.id, responseOccurrence(view));
+    const members = resolver.all();
     return {
-      ...toOccurrenceView(row, occurrence, resolver),
-      hasLaterExceptions: exceptions.some((exception) => exception.occurrence > date),
+      ...view,
+      rsvp: summarizeRsvp(idsOf(view.participants.members), rsvps, userId),
+      reactions: summarizeReactions(idsOf(members), reactions, userId),
+      hasLaterExceptions,
+      rsvpMembers: rsvpMembers(view.participants.members, rsvps, view.startsAt, view.endsAt),
+      reactionMembers: reactionMembers(members, reactions),
     };
   }
 
@@ -385,7 +494,7 @@ export class EventsService {
     return this.get(userId, row.groupId, row.id, occurrenceRaw);
   }
 
-  async create(userId: number, groupId: number, dto: EventInputDto): Promise<EventView> {
+  async create(userId: number, groupId: number, dto: EventInputDto): Promise<EventWithResponses> {
     await this.memberships.assertMember(userId, groupId);
     const startsAt = parseIsoDate(dto.startsAt, 'startsAt');
     const endsAt = parseIsoDate(dto.endsAt, 'endsAt');
@@ -416,7 +525,7 @@ export class EventsService {
       userId,
     );
     const resolver = await this.memberships.resolverFor(groupId);
-    return toEventView(row, resolver);
+    return this.withSummary(toEventView(row, resolver), userId, resolver);
   }
 
   /**
@@ -424,7 +533,13 @@ export class EventsService {
    * 합친 값이 현재 값과 같으면 저장도 로그도 하지 않고 현재 값을 돌려준다 (updatedAt 유지, 새 소식 없음, #62).
    * 반복 일정은 `occurrence` + `scope` 필수 (설계 4장 표). 한 번짜리는 둘 다 무시한다
    */
-  async update(userId: number, groupId: number, eventId: number, dto: EventPatchDto, query: ScopeQuery = {}): Promise<EventView> {
+  async update(userId: number, groupId: number, eventId: number, dto: EventPatchDto, query: ScopeQuery = {}): Promise<EventWithResponses> {
+    const view = await this.updateView(userId, groupId, eventId, dto, query);
+    // (#190) 응답 집계를 붙인다 (수정 뒤에도 회차 날짜가 같으면 응답이 남는다)
+    return this.withSummary(view, userId, await this.memberships.resolverFor(groupId));
+  }
+
+  private async updateView(userId: number, groupId: number, eventId: number, dto: EventPatchDto, query: ScopeQuery): Promise<EventView> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     const participants = parseParticipants(dto.participants);

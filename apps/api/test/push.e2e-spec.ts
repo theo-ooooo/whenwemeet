@@ -7,6 +7,7 @@ import { PushRepository } from '../src/push/push.repository.js';
 import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
+import { PollPlanner } from '../src/push/poll-planner.js';
 import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
@@ -119,11 +120,11 @@ describe('푸시 알림 (e2e)', () => {
     it('알림 설정: 기본 모두 켬, 불리언만, 빈 본문은 그대로', async () => {
       const get = await api(app).get('/v1/me/notification-settings').set(auth(minji)).expect(200);
       // (#277) 주간 요약은 기본 켬, 다 같이 비는 시간(깨우기)은 기본 끔 (D-204)
-      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false });
+      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
       const bad = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: 'no' }).expect(400);
       expect(bad.body.error.details[0].field).toBe('change');
       const patched = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: false }).expect(200);
-      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false });
+      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
       expect((await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({}).expect(200)).body.data.change).toBe(false);
     });
 
@@ -186,6 +187,25 @@ describe('푸시 알림 (e2e)', () => {
       await prisma.eventParticipant.create({ data: { eventId: event.id, userId: jihun.userId } });
       await scheduler.tick(at('17:00:10'));
       expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([JIHUN_TOKEN]);
+    });
+
+    it('(#190) 그 회차에 불참으로 답한 참여자에게는 가지 않는다. 미정은 받는다 (D-228)', async () => {
+      const event = await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).set(auth(jihun)).send({ status: 'NOT_GOING' }).expect(200);
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).set(auth(minji)).send({ status: 'MAYBE' }).expect(200);
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([MINJI_TOKEN]);
+    });
+
+    it('(#190) 반복 일정은 불참한 그 회차만 빠진다', async () => {
+      const event = await createEvent(minji, timed('주간', '18:00:00', '19:00:00', { reminder: 'HOUR_1', repeat: 'WEEKLY' }));
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).query({ occurrence: day }).set(auth(jihun)).send({ status: 'NOT_GOING' }).expect(200);
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([MINJI_TOKEN]);
+      fake.reset();
+      const next = kstDate(new Date(at('12:00:00').getTime() + 7 * DAY_MS));
+      await scheduler.tick(at('17:00:10', next));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to).sort()).toEqual([JIHUN_TOKEN, MINJI_TOKEN].sort());
     });
 
     it('팀원 변경 알림(CHANGE) 은 참여자와 무관하게 팀 전체, 참여자만 바꿔도 "수정"', async () => {
@@ -339,7 +359,7 @@ describe('푸시 알림 (e2e)', () => {
 
     it('6. 프로세스 둘(holder 둘) 이 같은 틱 → 임대 하나만, 발송 1벌. 임대가 넘어가도 중복 없음', async () => {
       await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
-      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher));
+      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher), app.get(PollPlanner));
       const now = at('17:00:10');
       const results = await Promise.all([scheduler.tick(now), other.tick(now)]);
       expect(results.filter((result) => result.ran)).toHaveLength(1);

@@ -9,5 +9,6 @@ import { FreeSlotsService } from './free-slots.service.js';
   imports: [GroupsModule, MembershipsModule, EventsModule],
   controllers: [FreeSlotsController],
   providers: [FreeSlotsService],
+  exports: [FreeSlotsService],
 })
 export class FreeSlotsModule {}

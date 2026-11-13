@@ -8,10 +8,10 @@ import Link from "next/link";
 import { ANNIVERSARIES_PATH } from "@/lib/routes";
 import { useEffect, useRef } from "react";
 import { EventDetail } from "./EventDetail";
-import { IconArrowRight, IconCalendar, IconChevronLeft, IconChevronRight, IconClock, IconClose, IconHeart, IconPlus } from "./icons";
+import { IconArrowRight, IconCalendar, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "./icons";
 import { DotCluster, useWho } from "./Participants";
 import { QuickAddForm } from "./QuickAdd";
-import { EmptyState, ErrorState, Skeleton } from "./ui";
+import { CloseButton, EmptyState, ErrorState, Skeleton } from "./ui";
 import { dayBadge } from "@/lib/day-detail";
 import { panelDays, panelTitle } from "@/lib/day-panel";
 import { timeColumn } from "@/lib/day-view";
@@ -49,6 +49,8 @@ type Props = {
   onPickDay: (date: DateKey) => void;
   onSaved: (ev: Event) => void;
   onDelete: () => void;
+  /** (#190) 일정 상세에서 참석 여부를 바꿨을 때 */
+  onResponded?: () => void;
   /** (#192) 빠른 추가의 처음 시작 시각 'HH:mm' (주 보기 빈 칸). 없으면 폼 기본값 */
   addStart?: string | null;
 };
@@ -96,6 +98,7 @@ export function DayPanel(props: Props) {
             onBack={props.onBack}
             onClose={props.onClose}
             onDelete={props.onDelete}
+            onResponded={props.onResponded}
           />
         ) : (
           <div aria-busy="true" className="space-y-2.5 py-2">
@@ -131,9 +134,7 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         {date === today && <em className="shrink-0 text-[12px] font-bold not-italic text-today-ink">오늘</em>}
         {holiday && <span className="min-w-0 truncate text-[12px] font-medium text-holiday">{holiday}</span>}
         <span className="flex-1" />
-        <button type="button" onClick={onClose} aria-label="닫기" className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
-          <IconClose size={18} />
-        </button>
+        <CloseButton onClick={onClose} className="-mr-1.5 shrink-0" />
       </div>
 
       {/* 앞뒤 날짜 ‹ 13 [14] 15 › (#331). 패널만 바뀌고 기록은 쌓지 않는다 (CalendarScreen changeDay) */}

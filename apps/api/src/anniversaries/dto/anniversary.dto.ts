@@ -12,7 +12,7 @@ const REMINDERS_MESSAGE = `알림은 ${ANNIVERSARY_REMINDERS.join(', ')} 중에�
  * (#269, D-144) 알림 시점 배열. 생략은 허용(생성은 당일만, 수정은 그대로), null 과 배열이 아닌 값은 거부.
  * `[]` = 알림 없음. 순서 무관, 중복 거부
  */
-function Reminders(): PropertyDecorator {
+export function Reminders(): PropertyDecorator {
   return (target, key) => {
     ValidateIf((_: unknown, value: unknown) => value !== undefined)(target, key);
     IsArray({ message: '알림은 배열이어야 해요' })(target, key);

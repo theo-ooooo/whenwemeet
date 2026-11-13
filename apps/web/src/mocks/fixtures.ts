@@ -3,6 +3,7 @@
 import { sameDayInYear } from "@/lib/anniversary";
 import {
   addDays,
+  dateKeyOf,
   keyOf,
   kstToIso,
   parseKey,
@@ -18,7 +19,9 @@ import type {
   GroupType,
   Member,
   NotificationSettings,
+  Reaction,
   Repeat,
+  Rsvp,
   StartCalendar,
 } from "@/lib/types";
 import { MEMBER_COLORS } from "@/lib/types";
@@ -33,6 +36,10 @@ export type UserRow = {
   notify?: NotificationSettings;
   /** (#300) 처음 여는 달력. 없으면 LAST */
   startCalendar?: StartCalendar;
+  /** (#305) 내 생일 'MM-DD'. 없으면 null */
+  birthday?: string | null;
+  /** (#305) 팀원에게 알리는 시점. 없으면 당일만 */
+  birthdayReminders?: AnniversaryReminder[];
 };
 export type GroupRow = {
   id: number;
@@ -50,6 +57,8 @@ export type MembershipRow = {
   lastSeenAt: string | null;
   /** (#188) 이 팀 알림 받기. 없으면 켬 */
   notify?: boolean;
+  /** (#305) 이 팀 달력에 내 생일 보이기. 없으면 켬 */
+  showBirthday?: boolean;
 };
 export type EventRow = {
   id: number;
@@ -120,6 +129,23 @@ export type TodoItemRow = {
   updatedAt: string;
 };
 
+/** (#189) 약속 투표 (설계 약속-투표.md 1장). 후보와 표를 한 행에 */
+export type PollRow = {
+  id: number;
+  groupId: number;
+  title: string;
+  status: "OPEN" | "CLOSED";
+  deadline: string | null;
+  allMembers: boolean;
+  participantIds: number[];
+  creatorId: number | null;
+  eventId: number | null;
+  decidedOptionId: number | null;
+  createdAt: string;
+  closedAt: string | null;
+  options: { id: number; startsAt: string; endsAt: string; allDay: boolean; voterIds: number[] }[];
+};
+
 /** (#191) 팀 활동 기록 (설계 GroupActivity). actorName 은 기록 시점 표시 이름 스냅샷 */
 export type ActivityRow = {
   id: number;
@@ -128,7 +154,8 @@ export type ActivityRow = {
   actorId: number | null;
   actorName: string;
   anniversaryId: number | null;
-  payload: ActivityNewsItem["payload"];
+  /** (#189) POLL_CLOSED 는 숨길 일정 기록 id(eventLogId) 를 함께 둔다 (D-236) */
+  payload: ActivityNewsItem["payload"] & { eventLogId?: number };
   createdAt: string;
 };
 
@@ -148,8 +175,17 @@ export type Store = {
   todoItems?: TodoItemRow[];
   /** (#193) 구독 주소. 없으면 빈 목록 */
   calendarFeeds?: CalendarFeedRow[];
+  /** (#190) 회차별 참석 여부, 반응. 없으면 빈 목록 */
+  rsvps?: RsvpRow[];
+  reactions?: ReactionRow[];
+  /** (#189) 약속 투표. 없으면 빈 목록 */
+  polls?: PollRow[];
   seq: number;
 };
+
+/** (#190) 참석 여부 한 줄. occurrence 는 반복 회차 날짜, 한 번짜리는 시작 KST 날짜 */
+export type RsvpRow = { eventId: number; occurrence: string; userId: number; status: Rsvp; seenStartsAt: string; seenEndsAt: string; updatedAt: string };
+export type ReactionRow = { eventId: number; occurrence: string; userId: number; kind: Reaction };
 
 /** (#193) 목 구독 주소 한 줄. 토큰은 목이라 그대로 둔다 (실제 API 는 해시만) */
 export type CalendarFeedRow = {
@@ -178,6 +214,8 @@ export const mockGroupCode = (id: number) => `team${id}`.padEnd(8, "x").slice(0,
 export const mockEventCode = (id: number) => `evnt${id}`.padEnd(8, "x").slice(0, 8);
 /** (#276) 할 일 목록 공개 코드 ("todo3xxx") */
 export const mockTodoCode = (id: number) => `todo${id}`.padEnd(8, "x").slice(0, 8);
+/** (#189) 투표 공개 코드 */
+export const mockPollCode = (id: number) => `poll${id}`.padEnd(8, "x").slice(0, 8);
 
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
@@ -207,7 +245,8 @@ export function buildStore(): Store {
 
   const users: UserRow[] = [
     { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40) },
-    { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38) },
+    // (#305) 하늘은 9일 뒤가 생일 (기념일 화면, 달력에 "하늘 생일")
+    { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38), birthday: addDays(today, 9).slice(5) },
     { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
     { id: DAD_ID, nickname: "아빠", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
   ];
@@ -489,7 +528,79 @@ export function buildStore(): Store {
     todo(7, 2, "충전기", ME_ID, 120, ME_ID, 26),
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, seq: 100 };
+  // (#190) 참석 여부와 반응: 가족 저녁(모두)은 엄마 참석, 아빠 미정, 하늘 반응. 할머니 댁은 내가 참여자가 아니다(세그먼트 없음).
+  // 우리 둘은 영화, 부모님 댁에 내가 참석. 나머지 앞으로의 일정은 "응답" 표시가 붙는다
+  const seen = (id: number) => {
+    const e = events.find((x) => x.id === id)!;
+    return { seenStartsAt: e.startsAt, seenEndsAt: e.endsAt, occurrence: dateKeyOf(e.startsAt) };
+  };
+  const rsvps: RsvpRow[] = [
+    { eventId: 21, userId: MOM_ID, status: "GOING", updatedAt: hoursAgo(3), ...seen(21) },
+    { eventId: 21, userId: DAD_ID, status: "MAYBE", updatedAt: hoursAgo(2), ...seen(21) },
+    { eventId: 27, userId: MOM_ID, status: "GOING", updatedAt: hoursAgo(5), ...seen(27) },
+    { eventId: 3, userId: ME_ID, status: "GOING", updatedAt: hoursAgo(6), ...seen(3) },
+    { eventId: 3, userId: OTHER_ID, status: "GOING", updatedAt: hoursAgo(4), ...seen(3) },
+    { eventId: 4, userId: ME_ID, status: "GOING", updatedAt: hoursAgo(6), ...seen(4) },
+  ];
+  const reactions: ReactionRow[] = [
+    { eventId: 21, userId: OTHER_ID, kind: "LIKE", occurrence: seen(21).occurrence },
+    { eventId: 21, userId: MOM_ID, kind: "EXCITED", occurrence: seen(21).occurrence },
+  ];
+  const familyDinner = events.find((x) => x.id === 21)!;
+  activities.push({
+    id: 4,
+    groupId: FAMILY_ID,
+    type: "EVENT_RSVP",
+    actorId: DAD_ID,
+    actorName: "아빠",
+    anniversaryId: null,
+    payload: {
+      eventId: 21,
+      eventCode: mockEventCode(21),
+      occurrence: null,
+      title: familyDinner.title,
+      startsAt: familyDinner.startsAt,
+      endsAt: familyDinner.endsAt,
+      allDay: false,
+      status: "MAYBE",
+    },
+    createdAt: hoursAgo(2),
+  });
+
+  // (#189) 우리 가족 팀에 진행 중 약속 투표 하나 (엄마가 열고 엄마, 아빠가 답함, 마감 내일). 홈 "정하는 중" 과 새 소식 확인용
+  const polls: PollRow[] = [
+    {
+      id: 1,
+      groupId: FAMILY_ID,
+      title: "주말 가족 외식",
+      status: "OPEN",
+      deadline: kstToIso(addDays(today, 1), "21:00"),
+      allMembers: true,
+      participantIds: [],
+      creatorId: MOM_ID,
+      eventId: null,
+      decidedOptionId: null,
+      createdAt: hoursAgo(3),
+      closedAt: null,
+      options: [
+        { id: 1, startsAt: kstToIso(addDays(today, 3), "12:00"), endsAt: kstToIso(addDays(today, 3), "14:00"), allDay: false, voterIds: [MOM_ID, DAD_ID] },
+        { id: 2, startsAt: kstToIso(addDays(today, 3), "18:00"), endsAt: kstToIso(addDays(today, 3), "20:00"), allDay: false, voterIds: [MOM_ID] },
+        { id: 3, startsAt: kstToIso(addDays(today, 4), "12:00"), endsAt: kstToIso(addDays(today, 4), "14:00"), allDay: false, voterIds: [DAD_ID] },
+      ],
+    },
+  ];
+  activities.push({
+    id: 5,
+    groupId: FAMILY_ID,
+    type: "POLL_CREATED",
+    actorId: MOM_ID,
+    actorName: "엄마",
+    anniversaryId: null,
+    payload: { pollId: 1, code: mockPollCode(1), title: "주말 가족 외식" },
+    createdAt: hoursAgo(3),
+  });
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

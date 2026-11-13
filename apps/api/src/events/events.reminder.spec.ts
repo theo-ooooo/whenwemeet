@@ -4,6 +4,7 @@ import { MembershipsRepository } from '../memberships/memberships.repository.js'
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventExceptionRow, EventRow, EventsRepository } from './events.repository.js';
 import { EventsService, resolveReminder } from './events.service.js';
+import { emptyResponses } from '../testing/responses-mock.js';
 
 /** (#188) 일정 알림 입력, 검증, remindAt, reminderSetAt (설계 4장, 7-2) */
 const kst = (value: string) => new Date(`${value}+09:00`);
@@ -69,7 +70,7 @@ describe('EventsService 일정 알림', () => {
   beforeEach(() => {
     events = mockRepository(EventsRepository);
     const membershipsRepo = mockRepository(MembershipsRepository);
-    service = new EventsService(events as never, new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config));
+    service = new EventsService(events as never, new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config), emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     events.listExceptions.mockResolvedValue([]);

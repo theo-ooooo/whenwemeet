@@ -4,14 +4,25 @@ import { ApiException } from '../common/errors.js';
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
-import { AccountCleanupPlan, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
+import { AccountCleanupPlan, type BirthdayRow, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
+import { type AnniversaryReminder, DEFAULT_ANNIVERSARY_REMINDERS, fromReminderFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
+import { birthdayColumns, birthdayFlags } from '../anniversaries/birthdays.js';
+import type { UpdateBirthdayDto } from './dto/update-birthday.dto.js';
 import type { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
 
 /** (#300) GET /me, PATCH /me/start-calendar 응답의 처음 여는 달력. groupId 는 GROUP 일 때만 값 */
 export type StartCalendar = StartCalendarRow;
 
-/** (#300) GET /me 응답 */
-export type MeProfile = AuthUser & { startCalendar: StartCalendar };
+/** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null(없음), reminders 는 팀원에게 알리는 시점 */
+export interface BirthdaySettings {
+  date: string | null;
+  reminders: AnniversaryReminder[];
+}
+
+/** (#300) GET /me 응답. (#305) 내 생일 */
+export type MeProfile = AuthUser & { startCalendar: StartCalendar; birthday: BirthdaySettings };
+
+const NO_BIRTHDAY: BirthdaySettings = { date: null, reminders: [...DEFAULT_ANNIVERSARY_REMINDERS] };
 
 const LAST: StartCalendar = { mode: 'LAST', groupId: null };
 
@@ -20,6 +31,10 @@ function toStartCalendar(row: StartCalendarRow | null): StartCalendar {
   if (!row) return LAST;
   if (row.mode === 'GROUP') return row.groupId === null ? LAST : row;
   return { mode: row.mode, groupId: null };
+}
+
+function toBirthdaySettings(row: BirthdayRow): BirthdaySettings {
+  return { date: row.birthday, reminders: fromReminderFlags(birthdayFlags(row)) };
 }
 
 function invalid(field: string, message: string): ApiException {
@@ -37,7 +52,20 @@ export class MeService {
 
   /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력 */
   async getProfile(user: AuthUser): Promise<MeProfile> {
-    return { ...user, startCalendar: toStartCalendar(await this.users.findStartCalendar(user.id)) };
+    const [start, birthday] = await Promise.all([this.users.findStartCalendar(user.id), this.users.findBirthday(user.id)]);
+    return { ...user, startCalendar: toStartCalendar(start), birthday: birthday ? toBirthdaySettings(birthday) : NO_BIRTHDAY };
+  }
+
+  /**
+   * PATCH /me/birthday (#305, D-230). 생일은 하나라 내가 속한 모든 팀(개인 팀 포함)에 같이 바뀐다.
+   * 팀마다 보일지는 PATCH /groups/:id/me showBirthday. reminders 생략은 그대로
+   */
+  async updateBirthday(userId: number, dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
+    const row = await this.users.updateBirthday(userId, {
+      birthday: dto.date,
+      ...(dto.reminders !== undefined ? birthdayColumns(toReminderFlags(dto.reminders)) : {}),
+    });
+    return toBirthdaySettings(row);
   }
 
   /**

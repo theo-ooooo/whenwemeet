@@ -4,10 +4,11 @@ import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameEditRow } from "@/components/NameEditRow";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { useToast } from "@/components/Toast";
-import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { Avatar, Button, ErrorState, InlineError, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -112,9 +113,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
         </p>
       )}
       {photoError && (
-        <p role="alert" className="mt-3 text-[12px] text-danger">
-          {photoError}
-        </p>
+        <InlineError className="mt-3">{photoError}</InlineError>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} tabIndex={-1} aria-hidden="true" />
 
@@ -259,9 +258,7 @@ export function MeScreen() {
           autoFocus
         />
         {deleteError && (
-          <p role="alert" className="mt-2 text-[12px] text-danger">
-            {deleteError}
-          </p>
+          <InlineError className="mt-2">{deleteError}</InlineError>
         )}
         <div className="mt-auto pt-8">
           <Button
@@ -281,7 +278,7 @@ export function MeScreen() {
   }
 
   // (#318, D-201) 폰은 그대로 한 열. fold 이상은 본문 폭을 다 쓰고(바깥 여백 28 32, 다른 화면과 같은 줄), lg 이상은 2단:
-  // 왼쪽 프로필, 내 팀, 로그아웃 / 오른쪽 화면 테마, 처음 여는 달력, 알림, 약관, 탈퇴. 폰과 fold 의 순서는 order 로 지킨다
+  // 왼쪽 프로필, (#305) 내 생일, 내 팀, 로그아웃 / 오른쪽 화면 테마, 처음 여는 달력, 알림, 약관, 탈퇴. 폰과 fold 의 순서는 order 로 지킨다
   return (
     <main className="flex min-h-dvh w-full flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] fold:px-8 fold:pt-7">
       <div className="mt-2 flex h-10 items-center justify-between fold:mt-0">
@@ -311,7 +308,11 @@ export function MeScreen() {
             </section>
           )}
         </div>
-        <div className="order-5 lg:order-none">
+        {/* (#305) 내 생일 (월, 일만, 선택). 프로필 바로 아래 */}
+        <div className="order-2 lg:order-none">
+          <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
+        </div>
+        <div className="order-6 lg:order-none">
           <section className="mt-2 rounded-xl bg-paper px-3.5 py-3">
             <h2 className="text-[13px] font-bold leading-5">내 팀 {groups ? `${groups.length}개` : ""}</h2>
             <ul className="mt-1">
@@ -338,7 +339,7 @@ export function MeScreen() {
             </ul>
           </section>
         </div>
-        <div className="order-6 lg:order-none">
+        <div className="order-7 lg:order-none">
           <form
             method="POST"
             action="/auth/logout"
@@ -362,22 +363,22 @@ export function MeScreen() {
         </div>
 
         <div className="contents lg:flex lg:flex-col lg:gap-2 lg:[&>*>*]:mt-0">
-        <div className="order-2 lg:order-none">
+        <div className="order-3 lg:order-none">
           <ThemePicker />
         </div>
         {/* (#300) 처음 여는 달력 (D-191) */}
-        <div className="order-3 lg:order-none">
+        <div className="order-4 lg:order-none">
           <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
         </div>
         {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
-        <div className="order-4 lg:order-none">
+        <div className="order-5 lg:order-none">
           <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">
             <IconBell size={18} className="shrink-0 text-ink-2" />
             <span className="min-w-0 flex-1 text-[15px] font-semibold">알림</span>
             <IconChevronRight size={14} className="shrink-0 text-ink-2" />
           </Link>
         </div>
-        <div className="order-7 lg:order-none">
+        <div className="order-8 lg:order-none">
           <p className="mt-6 text-center text-[12px] text-ink-2 lg:pt-4">
             <Link href="/terms" className="hit inline-block underline underline-offset-2">
               이용약관
@@ -396,7 +397,7 @@ export function MeScreen() {
             </Link>
           </p>
         </div>
-          <div className="order-8 mt-auto pt-10 text-center lg:order-none lg:mt-0 lg:pt-2">
+          <div className="order-9 mt-auto pt-10 text-center lg:order-none lg:mt-0 lg:pt-2">
             <button
               type="button"
               onClick={() => setLeaving(true)}

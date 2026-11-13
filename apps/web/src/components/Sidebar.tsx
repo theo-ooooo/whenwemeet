@@ -6,7 +6,7 @@
 // 접힌 아이콘은 마우스를 올리거나 키보드로 포커스하면 오른쪽에 이름 툴팁. 아래 묶음(다가오는 일정, 기념일)은 접힌 동안 받지 않는다
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { useAnniversaries, useEvents } from "@/hooks";
+import { useAnniversaryItems, useEvents } from "@/hooks";
 import { occurrenceTitle } from "@/lib/anniversary";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, formatDateKo, formatEventTime, kstToIso, todayKey } from "@/lib/date";
@@ -17,6 +17,7 @@ import { eventKey } from "@/lib/recurrence";
 import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, TODOS_PATH, UPCOMING_PATH } from "@/lib/routes";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
+import { PollSideLine } from "./PollHomeSection";
 import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconTeam, IconTodo } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
@@ -177,7 +178,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
 function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
-  const annQ = useAnniversaries(groupId ?? 0, { enabled });
+  const annQ = useAnniversaryItems(groupId ?? 0, { enabled });
   const meId = group?.me.userId ?? null;
   const personal = group?.type === "PERSONAL";
 
@@ -267,6 +268,9 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
       </nav>
 
       <div aria-hidden="true" className="mx-3 my-4 h-px shrink-0 bg-line" />
+
+      {/* (#189) 진행 중 약속 투표가 있으면 다가오는 일정 위에 한 줄 (설계 약속-투표.md 5-2) */}
+      {groupId !== null && <PollSideLine groupId={groupId} enabled={enabled && group?.type === "TEAM"} refreshKey={refreshKey} />}
 
       {/* 다가오는 일정 3줄: 3px 멤버 막대 + 제목 14/600 + 날짜와 시각 12 --mute. 누르면 그 일정 (반복은 회차까지) */}
       <section aria-labelledby="side-up" className="shrink-0">

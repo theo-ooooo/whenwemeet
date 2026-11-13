@@ -1,9 +1,11 @@
 // 새 소식 문구 (#187, 설계 4-3, 기획 3-6). React 를 import 하지 않는다 (단위 테스트 대상)
 // 화면은 "{이름}님이 '{제목}' " 뒤에 newsPhrase 를 붙인다
 import { KIND_OPTIONS } from "./anniversary";
-import { dateKeyOf, formatDateKo, parseKey, type DateKey } from "./date";
+import { dateKeyOf, formatDateKo, formatEventTime, parseKey, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
-import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, TEAM_PATH } from "./routes";
+import { pollActivityPhrase, pollActivitySubline } from "./poll";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, eventHref, pollHref, TEAM_PATH } from "./routes";
+import { RSVP_LABEL } from "./rsvp";
 import { euroJosa, hasBatchim } from "./text";
 import type { ActivityNewsItem, ActivityType, AnniversaryField, NewsEntry, NewsItem } from "./types";
 
@@ -54,6 +56,9 @@ const ACTIVITY_TYPES: readonly ActivityType[] = [
   "MEMBER_DELETED",
   "GROUP_RENAMED",
   "EVENTS_IMPORTED",
+  "EVENT_RSVP",
+  "POLL_CREATED",
+  "POLL_CLOSED",
 ];
 
 export const isActivity = (item: NewsEntry): item is ActivityNewsItem => item.kind === "ACTIVITY";
@@ -106,11 +111,22 @@ export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">)
       return `팀 이름을 ${quoted(p.from ?? "")}에서 ${withEuro(p.to ?? "")} 바꿨어요`;
     case "EVENTS_IMPORTED":
       return `일정 ${(p.count ?? 0).toLocaleString("en-US")}개를 가져왔어요`;
+    case "EVENT_RSVP":
+      // (#190) "{이름}님이 '저녁 약속'에 참석으로 답했어요"
+      return `${quoted(p.title ?? "")}에 ${p.status ? RSVP_LABEL[p.status] : "응답"}으로 답했어요`;
+    // (#189) 투표를 열었다 / 시간을 정했다. 정해서 생긴 일정 추가 줄은 서버가 숨긴다 (D-236)
+    case "POLL_CREATED":
+    case "POLL_CLOSED":
+      return pollActivityPhrase(item.type, p);
   }
 }
 
-/** 누르면 갈 곳. 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름 변경은 팀 설정. 삭제, 나가기, 탈퇴는 없음 */
-export function activityHref(item: Pick<ActivityNewsItem, "type">): string | null {
+/**
+ * 누르면 갈 곳. 기념일 추가, 수정은 기념일 화면, 합류와 팀 이름 변경은 팀 설정. 삭제, 나가기, 탈퇴는 없음.
+ * (#189) 투표 열림은 투표 화면, 정함은 그 일정 (닫힌 투표는 새 소식에서만 연다)
+ */
+export function activityHref(item: Pick<ActivityNewsItem, "type"> & { payload?: ActivityNewsItem["payload"] }): string | null {
+  const p = item.payload ?? {};
   switch (item.type) {
     case "ANNIVERSARY_CREATED":
     case "ANNIVERSARY_UPDATED":
@@ -120,6 +136,13 @@ export function activityHref(item: Pick<ActivityNewsItem, "type">): string | nul
       return TEAM_PATH;
     case "EVENTS_IMPORTED":
       return CALENDAR_PATH;
+    case "EVENT_RSVP":
+      // (#190) 그 일정(회차) 상세. 지워진 일정이면 상세가 "찾을 수 없어요" 를 보여 준다
+      return p.eventCode ? eventHref({ publicCode: p.eventCode, occurrence: p.occurrence ?? null }) : null;
+    case "POLL_CREATED":
+      return p.code ? pollHref({ publicCode: p.code }) : null;
+    case "POLL_CLOSED":
+      return p.eventCode ? eventHref({ publicCode: p.eventCode }) : p.code ? pollHref({ publicCode: p.code }) : null;
     default:
       return null;
   }
@@ -127,6 +150,13 @@ export function activityHref(item: Pick<ActivityNewsItem, "type">): string | nul
 
 /** 둘째 줄. 기념일은 "11월 22일, 함께한 날 세기" (올해가 아니면 연도), 그 밖은 null */
 export function activitySubline(item: Pick<ActivityNewsItem, "type" | "payload">, today: DateKey): string | null {
+  // (#190) 참석 여부는 일정 줄과 같은 날짜 시각
+  if (item.type === "EVENT_RSVP") {
+    const p = item.payload;
+    return p?.startsAt && p.endsAt ? `${newsDateLabel(p.startsAt, today)} ${formatEventTime(p.startsAt, p.endsAt, p.allDay ?? false)}` : null;
+  }
+  // (#189) 정한 투표는 정한 시간
+  if (item.type === "POLL_CLOSED") return pollActivitySubline(item.payload ?? {}, today);
   if (!item.type.startsWith("ANNIVERSARY_") || !item.payload?.date) return null;
   const { y, m, d } = parseKey(item.payload.date);
   const day = y === parseKey(today).y ? `${m}월 ${d}일` : `${y}년 ${m}월 ${d}일`;

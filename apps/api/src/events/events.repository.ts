@@ -6,7 +6,14 @@ import { generatePublicCode } from '../common/public-code.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { type CreatedLog, PushRepository } from '../push/push.repository.js';
 import { type ParticipantSet, participantsFailed, PARTICIPANTS_NOT_MEMBER_MESSAGE, participantsSnapshot } from './participants.js';
-import { addDays, type EventReminderValue, type ExceptionRule, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
+import {
+  deleteAllResponsesTx,
+  deleteOccurrenceResponsesTx,
+  moveOnceResponsesTx,
+  moveResponsesFromTx,
+  pruneRsvpsTx,
+} from '../event-responses/event-responses.repository.js';
+import { addDays, type EventReminderValue, type ExceptionRule, kstDate, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
 
 export const EVENT_SELECT = {
   id: true,
@@ -398,12 +405,26 @@ export class EventsRepository {
   /** 일정 생성 + CREATED 로그를 한 트랜잭션으로 */
   createWithLogTx(data: EventCreateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
-      await assertParticipantsTx(tx, data.groupId, data.participants);
-      const created = await tx.event.create({ data: toCreateData(data), select: EVENT_SELECT });
-      const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
+      const { row, log } = await this.insertWithLogTx(tx, data, actorId);
       await this.push.recordChangeTx(tx, log, false, new Date());
-      return toEventRow(created, this.urls);
+      return row;
     });
+  }
+
+  /**
+   * (#189) 호출자의 트랜잭션 안에서 일정 생성 + CREATED 로그 (참여자 검사 포함). 팀원 변경 알림은 만들지 않는다.
+   * 약속 투표 정하기가 쓴다 (알림은 투표 문구 1건, D-236)
+   */
+  async createWithLogInTx(tx: Db, data: EventCreateInput, actorId: number): Promise<{ row: EventRow; logId: number }> {
+    const { row, log } = await this.insertWithLogTx(tx, data, actorId);
+    return { row, logId: log.id };
+  }
+
+  private async insertWithLogTx(tx: Db, data: EventCreateInput, actorId: number): Promise<{ row: EventRow; log: CreatedLog }> {
+    await assertParticipantsTx(tx, data.groupId, data.participants);
+    const created = await tx.event.create({ data: toCreateData(data), select: EVENT_SELECT });
+    const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
+    return { row: toEventRow(created, this.urls), log };
   }
 
   /** 일정 수정 + UPDATED 로그를 한 트랜잭션으로. 참여자를 바꾸면 그 팀 멤버인지 같이 확인한다 (#248) */
@@ -411,6 +432,9 @@ export class EventsRepository {
     return this.prisma.$transaction(async (tx) => {
       await assertParticipantsTx(tx, event.groupId, data.participants);
       const updated = await tx.event.update({ where: { id: event.id }, data: toUpdateData(data), select: EVENT_SELECT });
+      // (#190) 빠진 참여자의 응답 삭제, 한 번짜리의 회차 날짜(= 시작 날짜)를 따라 옮긴다 (반복을 켜도 첫 회차 날짜가 같다)
+      if (data.participants) await pruneRsvpsTx(tx, event.id, data.participants);
+      await moveOnceResponsesTx(tx, event.id, kstDate(updated.startsAt));
       const log = await tx.eventLog.create({ data: snapshotLog(updated, actorId, 'UPDATED'), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, log, false, new Date());
       return toEventRow(updated, this.urls);
@@ -435,6 +459,8 @@ export class EventsRepository {
       await tx.event.update({ where: { id: event.id }, data: { repeatUntil: dateToDb(addDays(occurrence, -1)) } });
       await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: { gte: dateToDb(occurrence) } } });
       const created = await tx.event.create({ data: toCreateData(next), select: EVENT_SELECT });
+      // (#190) 색만 바꾼 나눔은 회차 날짜가 같아 응답을 새 원본으로 옮긴다 (D-225)
+      await moveResponsesFromTx(tx, event.id, occurrence, created.id);
       return toEventRow(created, this.urls);
     });
   }
@@ -486,6 +512,8 @@ export class EventsRepository {
         create: { eventId: event.id, occurrence: dateToDb(occurrence), ...cleared },
         update: cleared,
       });
+      // (#190) 없어진 회차의 응답, 반응도 지운다
+      await deleteOccurrenceResponsesTx(tx, event.id, occurrence);
       const created = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, created, false, new Date());
     });
@@ -495,8 +523,13 @@ export class EventsRepository {
   updateSeriesFromStartTx(event: SeriesRef, data: EventUpdateInput, log: ScopeLog): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
       await assertParticipantsTx(tx, event.groupId, data.participants);
+      const before = await tx.event.findUniqueOrThrow({ where: { id: event.id }, select: RULE_SELECT });
       await tx.eventException.deleteMany({ where: { eventId: event.id } });
       const updated = await tx.event.update({ where: { id: event.id }, data: toUpdateData(data), select: EVENT_SELECT });
+      // (#190) 회차 날짜가 바뀌면(시작 날짜, 주기, 기준 날짜) 맞는 회차가 없어 응답을 지운다. 같으면 남기고 종료일 뒤 것만 정리 (D-225)
+      if (!sameOccurrenceDates(before, updated)) await deleteAllResponsesTx(tx, event.id);
+      else if (updated.repeatUntil) await moveResponsesFromTx(tx, event.id, addDays(dbToDate(updated.repeatUntil), 1), null);
+      if (data.participants) await pruneRsvpsTx(tx, event.id, data.participants);
       const snapshot = { ...updated, participants: participantSetOf(updated) };
       const created = await tx.eventLog.create({ data: scopeLog(updated.groupId, updated.id, 'UPDATED', log, snapshot), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, created, false, new Date());
@@ -523,20 +556,39 @@ export class EventsRepository {
   splitSeriesTx(event: SeriesRef, occurrence: string, log: ScopeLog, next: EventCreateInput | null, snapshot?: LogSnapshot): Promise<EventRow | null> {
     return this.prisma.$transaction(async (tx) => {
       if (next) await assertParticipantsTx(tx, next.groupId, next.participants);
+      const before = await tx.event.findUniqueOrThrow({ where: { id: event.id }, select: RULE_SELECT });
       await tx.event.update({ where: { id: event.id }, data: { repeatUntil: dateToDb(addDays(occurrence, -1)) } });
       await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: { gte: dateToDb(occurrence) } } });
       if (!next) {
+        // (#190) 지운 회차들의 응답, 반응도 지운다
+        await moveResponsesFromTx(tx, event.id, occurrence, null);
         const deleted = await tx.eventLog.create({ data: scopeLog(event.groupId, event.id, 'DELETED', log, snapshot as LogSnapshot), select: LOG_REF_SELECT });
         await this.push.recordChangeTx(tx, deleted, false, new Date());
         return null;
       }
       const created = await tx.event.create({ data: toCreateData(next), select: EVENT_SELECT });
+      // (#190) 나눈 회차 이후 응답은 새 원본으로 옮긴다. 시작 날짜나 주기가 바뀌어 회차 날짜가 달라지면 지운다 (D-225)
+      const keepsDates = kstDate(created.startsAt) === occurrence && created.repeat === before.repeat;
+      await moveResponsesFromTx(tx, event.id, occurrence, keepsDates ? created.id : null);
+      if (keepsDates) await pruneRsvpsTx(tx, created.id, participantSetOf(created));
       const firstSnapshot = { ...created, participants: participantSetOf(created) };
       const updated = await tx.eventLog.create({ data: scopeLog(created.groupId, created.id, 'UPDATED', log, firstSnapshot), select: LOG_REF_SELECT });
       await this.push.recordChangeTx(tx, updated, false, new Date());
       return toEventRow(created, this.urls);
     });
   }
+}
+
+/** (#190) 회차 날짜를 정하는 원본 값 */
+const RULE_SELECT = { startsAt: true, repeat: true, repeatAnchor: true } as const;
+
+/** (#190) 두 원본 값이 같은 회차 날짜를 만드는지 (시작 KST 날짜, 주기, 기준 날짜) */
+function sameOccurrenceDates(
+  a: { startsAt: Date; repeat: Repeat | null; repeatAnchor: Date | null },
+  b: { startsAt: Date; repeat: Repeat | null; repeatAnchor: Date | null },
+): boolean {
+  const anchor = (value: Date | null) => (value === null ? null : dbToDate(value));
+  return kstDate(a.startsAt) === kstDate(b.startsAt) && a.repeat === b.repeat && anchor(a.repeatAnchor) === anchor(b.repeatAnchor);
 }
 
 /** (#188) 팀원 변경 묶기에 넘기는 로그 필드 */

@@ -3,7 +3,8 @@ import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-remi
 import { addDays, DAY_MS, dayToDate } from '../events/recurrence.js';
 import { type AnniversaryItem, anniversaryItemsOn, type AnniversaryLike } from './anniversary-items.js';
 import { anniversaryPayload, type ReminderOffsetDays } from './push-copy.js';
-import { type AnniversaryPlanRow, type PlannedNotification, PushRepository } from './push.repository.js';
+import { birthdayTitle, isBirthdayOn } from '../anniversaries/birthdays.js';
+import { type AnniversaryPlanRow, type BirthdayPlanRow, type PlannedNotification, PushRepository } from './push.repository.js';
 
 /**
  * 창 (lo, hi] 안에 KST 09:00 (= 날짜 D 의 00:00 UTC) 이 있으면 그 날짜 D. 창은 10분 이하라 많아야 하루 (설계 5-5)
@@ -67,7 +68,48 @@ export function planAnniversaries(rows: AnniversaryPlanRow[], day: string): Plan
   return planned;
 }
 
-/** 기념일 예약 계산 (설계 5-5. #269 부터 당일, 하루 전, 일주일 전) */
+/** (#305) 생일 알림 키 `B:{생일인 사람}:{팀}:{그날}{:D1|:D7}`. 펼칠 때 그날을 다시 읽는다 */
+export const birthdayDedupeKey = (userId: number, groupId: number, target: string, offsetKey: string) => `B:${userId}:${groupId}:${target}${offsetKey}`;
+
+/** (#305) 생일 알림 키에서 그날 'YYYY-MM-DD'. 생일 알림 키가 아니면 null */
+export function birthdayTargetOf(dedupeKey: string): string | null {
+  return /^B:\d+:\d+:(\d{4}-\d{2}-\d{2})/.exec(dedupeKey)?.[1] ?? null;
+}
+
+/**
+ * (#305, D-232) 보내는 날 `day` 09:00 의 팀원 생일 알림. 생일인 사람이 고른 시점(기본 당일)마다, 생일을 보이는 팀마다 1건.
+ * 문구는 기념일과 같은 모양("지민 생일", "오늘은 지민 생일이에요"), 받는 사람은 생일인 사람을 뺀 팀원(actorId)
+ */
+export function planBirthdays(rows: BirthdayPlanRow[], day: string): PlannedNotification[] {
+  const at = anniversaryNotifyAt(day);
+  const planned: PlannedNotification[] = [];
+  for (const row of rows) {
+    for (const offset of OFFSETS) {
+      if (!row[offset.flag]) continue;
+      const target = addDays(day, offset.days);
+      if (!isBirthdayOn(row.birthday, target)) continue;
+      planned.push({
+        kind: 'ANNIVERSARY',
+        dedupeKey: birthdayDedupeKey(row.userId, row.groupId, target, offset.key),
+        groupId: row.groupId,
+        scheduledAt: at,
+        actorId: row.userId,
+        payload: anniversaryPayload({
+          groupId: row.groupId,
+          groupName: row.groupName,
+          groupCode: row.groupCode,
+          name: birthdayTitle(row.name),
+          label: null,
+          date: target,
+          offsetDays: offset.days,
+        }),
+      });
+    }
+  }
+  return planned;
+}
+
+/** 기념일 예약 계산 (설계 5-5. #269 부터 당일, 하루 전, 일주일 전. #305 팀원 생일도 같은 틱에) */
 @Injectable()
 export class AnniversaryPlanner {
   constructor(private readonly push: PushRepository) {}
@@ -75,6 +117,7 @@ export class AnniversaryPlanner {
   async plan(lo: Date, hi: Date): Promise<PlannedNotification[]> {
     const day = anniversaryDayInWindow(lo, hi);
     if (!day) return [];
-    return planAnniversaries(await this.push.listAnniversaries(), day);
+    const [anniversaries, birthdays] = await Promise.all([this.push.listAnniversaries(), this.push.listBirthdays()]);
+    return [...planAnniversaries(anniversaries, day), ...planBirthdays(birthdays, day)];
   }
 }

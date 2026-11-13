@@ -17,6 +17,7 @@ import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useStat
 import { useGroupContext } from "@/components/AppShell";
 import { DayDock } from "@/components/DayDock";
 import { DayAddButton, DayFreeRow, DayPanel, type FreeHint } from "@/components/DayPanel";
+import { NeedsRsvpTag } from "@/components/EventResponses";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
@@ -25,7 +26,7 @@ import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/compon
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog, Skeleton } from "@/components/ui";
-import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
+import { messageOf, useAnniversaryItems, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
 import {
   dateParam,
   dayStepUrl,
@@ -66,11 +67,13 @@ import {
 import { cellDensity } from "@/lib/calendar-cell";
 import { fitWeek, packWeek, phoneDayLanes, phoneWeek, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
+import { needsMyRsvp } from "@/lib/rsvp";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
+import { PollHomeSection } from "@/components/PollHomeSection";
 import { TodoHomeSection } from "@/components/TodoHomeSection";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
@@ -241,7 +244,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const weekQ = useEvents(groupId, weekQueryOf(today), { enabled: wide });
   const loadWeek = weekQ.refetch;
   // 기념일은 못 받아도 빈 목록으로 본다 (D-day 줄만 안내로 바뀜)
-  const anniversariesQ = useAnniversaries(groupId);
+  const anniversariesQ = useAnniversaryItems(groupId);
   const { data: anniversaryData, error: anniversaryError } = anniversariesQ;
   const anniversaries = useMemo(
     () => anniversaryData ?? (anniversaryError ? [] : null),
@@ -300,6 +303,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     // 사이드바 "다가오는 일정" 도 다시 받게
     eventsChanged();
   }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, weekFreeOn, loadWeekFree, eventsChanged]);
+
+  // (#190) 참석 여부만 바뀌면 빈 시간은 그대로라(D-137) 일정 목록만 다시 받는다
+  const reloadEvents = useCallback(() => {
+    void loadEvents();
+    void loadUpcoming();
+    if (wide) void loadWeek();
+    eventsChanged();
+  }, [loadEvents, loadUpcoming, loadWeek, wide, eventsChanged]);
 
   const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
   let freeHint: FreeHint = null;
@@ -674,7 +685,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                 <button
                   type="button"
                   onClick={() => openDay(k, ev)}
-                  aria-label={withWho(`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+                  aria-label={withWho(
+                    `${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}${needsMyRsvp(ev, who.meId, who.personal, nowMs()) ? ", 응답 필요" : ""}`,
+                    ev,
+                    who,
+                  )}
                   className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
                 >
                   <span aria-hidden="true" className="flex h-4 w-full items-center">
@@ -685,6 +700,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                     <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
                   </span>
                   <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
+                    {needsMyRsvp(ev, who.meId, who.personal, nowMs()) && <NeedsRsvpTag />}
                     {ev.title}
                   </b>
                   <span aria-hidden="true" className="mt-auto truncate text-[12px] leading-4 text-ink-2">
@@ -765,6 +781,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       onPickDay={changeDay}
       onSaved={onQuickSaved}
       onDelete={askDelete}
+      onResponded={reloadEvents}
       addStart={addStart}
     />
   ) : null;
@@ -1052,8 +1069,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
         </div>
         )}
 
-        {/* phone: 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
+        {/* phone: (#189) 정하는 중(투표가 있을 때만), 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
         <div className="fold:hidden">
+          <PollHomeSection groupId={groupId} enabled={!wide && group?.type === "TEAM"} titleId={`${titleId}-ppoll`} />
           {phoneUpcoming}
           {phoneAnniversaries}
           <TodoHomeSection groupId={groupId} enabled={!wide} titleId={`${titleId}-ptodo`} />

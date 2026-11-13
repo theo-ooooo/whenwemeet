@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isBirthdayOn } from '../anniversaries/birthdays.js';
+import { birthdayTargetOf } from './anniversary-planner.js';
 import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
 import { changePayload, DELETED_MEMBER_NAME, joinPayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
-import { type ClaimedDelivery, type DueNotification, PushRepository } from './push.repository.js';
+import { type ClaimedDelivery, type DueNotification, parsePollDedupeKey, PushRepository, type Recipient } from './push.repository.js';
 import { mondayOfKey, WEEKLY_CATCH_UP_MS, WeeklyPlanner } from './weekly-planner.js';
 
 /** 예약 시각이 이만큼 넘게 지난 알림은 보내지 않는다 (D-88) */
@@ -65,6 +67,10 @@ export class PushDispatcher {
         await this.expandWeekly(row, now, stats);
         continue;
       }
+      if (row.kind === 'POLL') {
+        await this.expandPoll(row, now, stats);
+        continue;
+      }
       const payload = await this.payloadFor(row, now);
       if (!payload) {
         stats.skipped += await this.push.markSkipped([row.id]);
@@ -73,13 +79,17 @@ export class PushDispatcher {
       // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
       // (#297) 지난 일을 알리는 CHANGE, JOIN 은 그 일이 생긴 시각(예약 createdAt)까지 들어와 있던 팀원에게만 (D-180)
       const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
-      const recipients = await this.push.listRecipients(
+      // (#305) 생일 알림은 생일인 사람(actorId)에게 보내지 않는다 (D-232)
+      const excludesActor = reportsPast || row.kind === 'ANNIVERSARY';
+      let recipients = await this.push.listRecipients(
         row.groupId,
         row.kind,
-        reportsPast ? row.actorId : null,
+        excludesActor ? row.actorId : null,
         row.kind === 'REMINDER' ? row.eventId : null,
         reportsPast ? row.createdAt : null,
       );
+      // (#190) 그 회차에 불참으로 답한 사람에게는 일정 알림을 보내지 않는다 (Q3, D-228)
+      if (row.kind === 'REMINDER' && row.eventId !== null) recipients = await this.push.withoutNotGoing(recipients, row.eventId, row.occurrence);
       if (await this.push.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
         stats.dispatched += 1;
         stats.deliveries += recipients.length;
@@ -103,6 +113,33 @@ export class PushDispatcher {
       return;
     }
     if (await this.push.dispatchTx(row.id, now, built.payload, recipients)) {
+      stats.dispatched += 1;
+      stats.deliveries += recipients.length;
+    }
+  }
+
+  /**
+   * (#189) 약속 투표 알림. 문구는 예약할 때 만들었다. 받는 사람은 지금의 투표 대상에서 고른다 (설계 약속-투표.md 6장).
+   * 열림: 대상 중 연 사람 제외, 투표가 아직 진행 중일 때만. 정함: 대상 중 정한 사람 제외, 정한 시각까지 들어와 있던 사람.
+   * 마감: 연 사람 한 명, 아직 진행 중일 때만. 투표가 지워졌거나 조건이 안 맞으면 SKIPPED
+   */
+  private async expandPoll(row: DueNotification, now: Date, stats: ExpandStats): Promise<void> {
+    const key = parsePollDedupeKey(row.dedupeKey);
+    const poll = key ? await this.push.findPollTargets(key.pollId) : null;
+    let recipients: Recipient[] | null = null;
+    if (key && poll && row.payload) {
+      const targets = poll.allMembers ? null : poll.participantIds;
+      if (key.stage === 'OPEN' && poll.status === 'OPEN') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, null);
+      if (key.stage === 'CLOSED') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, row.createdAt);
+      if (key.stage === 'DEADLINE' && poll.status === 'OPEN' && poll.creatorId !== null) {
+        recipients = await this.push.listPollRecipients(row.groupId, [poll.creatorId], null, null);
+      }
+    }
+    if (recipients === null) {
+      stats.skipped += await this.push.markSkipped([row.id]);
+      return;
+    }
+    if (await this.push.dispatchTx(row.id, now, null, recipients)) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }
@@ -143,7 +180,15 @@ export class PushDispatcher {
       if (row.eventId === null || !(await this.push.eventExists(row.eventId))) return null;
       return row.payload;
     }
-    if (row.kind === 'ANNIVERSARY') return row.payload;
+    if (row.kind === 'ANNIVERSARY') {
+      // (#305) 생일: 그 사이 팀을 나갔거나, 이 팀에 안 보이게 했거나, 생일을 지우거나 바꿨으면 보내지 않는다
+      const target = birthdayTargetOf(row.dedupeKey);
+      if (target !== null && row.actorId !== null) {
+        const birthday = await this.push.findShownBirthday(row.groupId, row.actorId);
+        if (birthday === null || !isBirthdayOn(birthday, target)) return null;
+      }
+      return row.payload;
+    }
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 

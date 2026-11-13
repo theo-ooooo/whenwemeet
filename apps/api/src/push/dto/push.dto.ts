@@ -51,4 +51,9 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean({ message: 'weeklyNudge 는 true/false 여야 해요' })
   weeklyNudge?: boolean;
+
+  /** (#189) 약속 투표 (열림, 마감, 정함) */
+  @IsOptional()
+  @IsBoolean({ message: 'poll 은 true/false 여야 해요' })
+  poll?: boolean;
 }

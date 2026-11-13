@@ -103,6 +103,26 @@ describe("팀 활동 줄 (#191)", () => {
     expect(activityHref({ type: "MEMBER_DELETED" })).toBeNull();
   });
 
+  it("(#190) 참석 여부: 문구, 그 일정(회차) 상세로 이동, 둘째 줄은 일정 날짜와 시각", () => {
+    const payload = {
+      eventId: 5,
+      eventCode: "evntcode",
+      occurrence: null,
+      title: "저녁 약속",
+      startsAt: "2026-11-20T10:00:00.000Z",
+      endsAt: "2026-11-20T12:00:00.000Z",
+      allDay: false,
+      status: "GOING" as const,
+    };
+    expect(activityPhrase({ type: "EVENT_RSVP", payload })).toBe("'저녁 약속'에 참석으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "NOT_GOING" } })).toBe("'저녁 약속'에 불참으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "MAYBE" } })).toBe("'저녁 약속'에 미정으로 답했어요");
+    expect(activityHref({ type: "EVENT_RSVP", payload })).toBe("/events/evntcode");
+    expect(activityHref({ type: "EVENT_RSVP", payload: { ...payload, occurrence: "2026-11-20" } })).toBe("/events/evntcode?occurrence=2026-11-20");
+    expect(activitySubline({ type: "EVENT_RSVP", payload }, "2026-11-11")).toBe("11월 20일 (금) 19:00~21:00");
+    expect(knownNewsItems([{ kind: "ACTIVITY", id: 1, type: "EVENT_RSVP", actor: { userId: 1, displayName: "a", color: "#000000", profileImageUrl: null }, anniversaryId: null, payload, createdAt: "", isNew: false }])).toHaveLength(1);
+  });
+
   it("activitySubline: 기념일만 날짜와 종류, 다른 해는 연도", () => {
     expect(activitySubline(ann("ANNIVERSARY_CREATED"), "2026-11-11")).toBe("11월 22일, 함께한 날 세기");
     expect(activitySubline(ann("ANNIVERSARY_DELETED", { name: "생일", date: "2000-05-05", kind: "YEARLY" }), "2026-11-11")).toBe("2000년 5월 5일, 매년 반복");
@@ -114,9 +134,30 @@ describe("팀 활동 줄 (#191)", () => {
     const event = { id: 1, action: "CREATED", eventId: 7 } as NewsItem;
     const eventV2 = { ...event, kind: "EVENT" } as NewsItem;
     const activity = { kind: "ACTIVITY", id: 1, type: "MEMBER_JOINED", payload: {} } as unknown as ActivityNewsItem;
-    const future = { kind: "ACTIVITY", id: 2, type: "EVENT_RSVP", payload: {} } as unknown as ActivityNewsItem;
+    const future = { kind: "ACTIVITY", id: 2, type: "TODO_DONE", payload: {} } as unknown as ActivityNewsItem;
     const unknownKind = { kind: "POLL", id: 3 } as unknown as NewsItem;
     expect(knownNewsItems([event, eventV2, activity, future, unknownKind])).toEqual([event, eventV2, activity]);
     expect([event, eventV2, activity].map(newsKey)).toEqual(["EVENT:1", "EVENT:1", "ACTIVITY:1"]);
+  });
+});
+
+describe("(#189) 약속 투표 새 소식", () => {
+  const closed = { pollId: 1, code: "poll1xxx", title: "저녁 약속", eventId: 9, eventCode: "evnt9xxx", startsAt: "2026-11-22T10:00:00.000Z", endsAt: "2026-11-22T12:00:00.000Z", allDay: false };
+  it("문구: 열었어요, 시간을 정했어요. 정한 시간은 둘째 줄", () => {
+    expect(activityPhrase({ type: "POLL_CREATED", payload: { title: "저녁 약속" } })).toBe("'저녁 약속' 투표를 열었어요");
+    expect(activityPhrase({ type: "POLL_CLOSED", payload: closed })).toBe("'저녁 약속' 시간을 정했어요");
+    expect(activitySubline({ type: "POLL_CLOSED", payload: closed }, "2026-11-13")).toBe("11월 22일 (일) 오후 7:00~9:00");
+    expect(activitySubline({ type: "POLL_CLOSED", payload: { ...closed, startsAt: "2026-11-21T15:00:00.000Z", endsAt: "2026-11-22T15:00:00.000Z", allDay: true } }, "2026-11-13")).toBe("11월 22일 (일) 종일");
+    expect(activitySubline({ type: "POLL_CREATED", payload: { title: "x" } }, "2026-11-13")).toBeNull();
+  });
+  it("누르면: 열림은 투표 화면, 정함은 그 일정 (코드가 없으면 투표, 그것도 없으면 이동 없음)", () => {
+    expect(activityHref({ type: "POLL_CREATED", payload: { code: "poll1xxx" } })).toBe("/polls/poll1xxx");
+    expect(activityHref({ type: "POLL_CLOSED", payload: closed })).toBe("/events/evnt9xxx");
+    expect(activityHref({ type: "POLL_CLOSED", payload: { code: "poll1xxx" } })).toBe("/polls/poll1xxx");
+    expect(activityHref({ type: "POLL_CREATED", payload: {} })).toBeNull();
+  });
+  it("아는 종류라 거르지 않는다", () => {
+    const item = { kind: "ACTIVITY", id: 1, type: "POLL_CLOSED", actor: { userId: 2, displayName: "하늘", color: "#5B6CF4", profileImageUrl: null }, anniversaryId: null, payload: closed, createdAt: "", isNew: true } as ActivityNewsItem;
+    expect(knownNewsItems([item])).toHaveLength(1);
   });
 });

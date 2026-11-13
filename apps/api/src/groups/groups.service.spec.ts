@@ -67,6 +67,9 @@ describe('MembershipService', () => {
     expect(detail.inviteShareUrl).toBe(`http://web/join/ABCDEF?by=${markerOf(10, 1)}`);
     expect(detail.members.map((m) => m.displayName)).toEqual(['앨리스', '별명']);
     expect(detail.me.userId).toBe(1);
+    // (#305) 내 "이 팀 달력에 내 생일 보이기" 는 me 에만
+    expect(detail.me.showBirthday).toBe(true);
+    expect(detail.members[1]).not.toHaveProperty('showBirthday');
   });
 
   it('(#196) inviteShareUrl: 요청자마다 다르고 코드가 없으면(PERSONAL) null', async () => {
@@ -96,6 +99,7 @@ describe('GroupsService', () => {
     eventLogs = mockRepository(EventLogsRepository);
     activities = mockRepository(GroupActivitiesRepository);
     activities.countUnseenByOthers.mockResolvedValue(0);
+    activities.countUnseenPollClosedByOthers.mockResolvedValue(0);
     const memberships = new MembershipService(membershipsRepo as never, groupsRepo as never, config);
     pushScheduler = { kick: vi.fn() };
     service = new GroupsService(groupsRepo as never, membershipsRepo as never, eventLogs as never, memberships, pushScheduler as never, activities as never);
@@ -123,6 +127,17 @@ describe('GroupsService', () => {
     const [team] = await service.list(1);
     expect(team.unreadNewsCount).toBe(5);
     expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
+  });
+
+  it('(#189) list: 투표로 정한 수만큼 뺀다 (숨긴 CREATED 로그, D-236)', async () => {
+    membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
+    ]);
+    eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
+    activities.countUnseenByOthers.mockResolvedValueOnce(1);
+    activities.countUnseenPollClosedByOthers.mockResolvedValueOnce(1);
+    const [team] = await service.list(1);
+    expect(team.unreadNewsCount).toBe(2);
   });
 
   it('(#297) list: lastSeenAt 이 joinedAt 보다 이르면 joinedAt 이후만 센다 (D-180)', async () => {
@@ -278,6 +293,14 @@ describe('GroupsService', () => {
     const member = await service.updateMe(1, 10, { notify: false });
     expect(membershipsRepo.updateMe).toHaveBeenCalledWith(1001, { notify: false });
     expect(member).toMatchObject({ userId: 1, notify: false });
+  });
+
+  it('updateMe: showBirthday 를 저장하고 응답에 싣는다 (#305)', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.updateMe.mockResolvedValue({ ...membershipRow(), showBirthday: false });
+    const member = await service.updateMe(1, 10, { showBirthday: false });
+    expect(membershipsRepo.updateMe).toHaveBeenCalledWith(1001, { showBirthday: false });
+    expect(member).toMatchObject({ userId: 1, notify: true, showBirthday: false });
   });
 
   it('leave: 멤버 아님 → FORBIDDEN, PERSONAL → GROUP_PERSONAL_LEAVE, 팀 없음 → NOT_FOUND', async () => {

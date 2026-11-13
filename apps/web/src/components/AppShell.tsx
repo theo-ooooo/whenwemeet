@@ -13,7 +13,7 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, readGroupCookie, rememberGroup } from "@/lib/group-cookie";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, newEventHref, parsePublicCode, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, newEventHref, parsePublicCode, pollCodeOf, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
 import { trackInputModality } from "@/lib/input-modality";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
@@ -251,7 +251,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const isCalendar = tab === "calendar";
   // 일정 작성/수정 화면(/events/new, /events/<코드>/edit)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다.
   // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-209)
-  const isForm = info.form || info.todoCode !== null;
+  // (#189) 약속 투표 화면(/polls/<코드>)도 맨 아래 "이 시간으로 정하기" 가 주 동작이라 같다
+  const isForm = info.form || info.todoCode !== null || pollCodeOf(pathname) !== null;
   const shownGroup = group && group.id === groupId ? group : null;
 
   return (

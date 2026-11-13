@@ -3,6 +3,7 @@
 //   /events/<일정 공개 코드>[?occurrence=]        일정 상세 (달력 위 시트/오른쪽 패널, 새로 고침해도 같은 화면)
 //   /events/<일정 공개 코드>/edit[?occurrence=&scope=]   일정 수정 화면
 //   /todos, /todos/<목록 공개 코드>                 (#276) 할 일 목록, 목록 상세
+//   /polls/<투표 공개 코드>                         (#189) 약속 투표 (목록 화면은 없다. 홈 "정하는 중" 카드와 새 소식이 입구)
 //   ?team=<팀 공개 코드>  팀을 지정해야 할 때만 (알림, 위젯, 공유, 내 정보의 팀 목록). AppShell 이 쿠키를 바꾸고 주소에서 뗀다
 // 옛 /g/<id>/... 는 lib/legacy-routes.ts 가 308 로 새 주소에 맞춘다
 
@@ -30,6 +31,8 @@ export const ANNIVERSARIES_PATH = "/anniversaries";
 export const TODOS_PATH = "/todos";
 export const NEWS_PATH = "/news";
 export const TEAM_PATH = "/team";
+/** (#305) 내 정보의 "내 생일" 칸 */
+export const ME_BIRTHDAY_PATH = "/me#birthday";
 export const IMPORT_PATH = "/team/import";
 export const NEW_EVENT_PATH = "/events/new";
 
@@ -77,6 +80,20 @@ export function todoListHref(list: { publicCode: string }): string {
 /** (#276) 목록 화면. `new` 면 만들기 시트를 연 채로 */
 export function todosHref(opts: { create?: boolean } = {}): string {
   return `${TODOS_PATH}${opts.create ? "?new=1" : ""}`;
+}
+
+/** (#189) 약속 투표 화면 `/polls/<투표 공개 코드>` */
+export function pollHref(poll: { publicCode: string }): string {
+  return `/polls/${poll.publicCode}`;
+}
+
+/**
+ * (#189) `/polls/<코드>` 의 코드. 투표 화면이 아니면 null. 팀 화면 목록(SCREENS) 밖이라 팀을 바꾸면 달력으로 가고(afterTeamSwitch),
+ * 폰은 독과 + 를 숨긴다 (맨 아래 "이 시간으로 정하기" 가 주 동작)
+ */
+export function pollCodeOf(pathname: string): string | null {
+  const seg = pathname.split(/[?#]/, 1)[0].split("/").filter(Boolean);
+  return seg[0] === "polls" && seg.length === 2 ? parsePublicCode(seg[1]) : null;
 }
 
 /** 주소에 `?team=<코드>` 를 붙인다 (이미 있으면 바꾼다). 해시는 유지 */

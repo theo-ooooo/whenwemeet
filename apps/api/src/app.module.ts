@@ -13,10 +13,12 @@ import { EventsModule } from './events/events.module.js';
 import { FileUrlModule } from './files/file-url.module.js';
 import { FreeSlotsModule } from './free-slots/free-slots.module.js';
 import { GroupsModule } from './groups/groups.module.js';
+import { EventResponsesModule } from './event-responses/event-responses.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { HealthController } from './health/health.controller.js';
 import { MeModule } from './me/me.module.js';
 import { NewsModule } from './news/news.module.js';
+import { PollsModule } from './polls/polls.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PushModule } from './push/push.module.js';
 import { TodosModule } from './todos/todos.module.js';
@@ -31,11 +33,13 @@ import { TodosModule } from './todos/todos.module.js';
     GroupsModule,
     EventsModule,
     EventSharesModule,
+    EventResponsesModule,
     ImportsModule,
     AnniversariesModule,
     TodosModule,
     CalendarFeedModule,
     FreeSlotsModule,
+    PollsModule,
     NewsModule,
     MeModule,
     PushModule,

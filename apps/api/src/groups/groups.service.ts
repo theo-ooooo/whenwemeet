@@ -5,7 +5,7 @@ import { generatePublicCode } from '../common/public-code.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
-import { type JoinVia, MembershipsRepository } from '../memberships/memberships.repository.js';
+import { type JoinVia, type MembershipMeInput, MembershipsRepository } from '../memberships/memberships.repository.js';
 import { unseenAfter } from '../news/news.service.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
@@ -61,8 +61,11 @@ export class GroupsService {
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
       const after = unseenAfter(row.lastSeenAt, row.joinedAt);
+      // (#189) 투표로 정한 일정의 CREATED 로그는 새 소식에서 숨기므로(POLL_CLOSED 한 줄로 보인다) 그 수만큼 뺀다 (D-236)
       const unreadNewsCount =
-        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) + (await this.activities.countUnseenByOthers(row.group.id, after, userId));
+        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) +
+        (await this.activities.countUnseenByOthers(row.group.id, after, userId)) -
+        (await this.activities.countUnseenPollClosedByOthers(row.group.id, after, userId));
       summaries.push({
         id: row.group.id,
         type: row.group.type,
@@ -175,15 +178,19 @@ export class GroupsService {
     return this.memberships.groupDetail(groupId, userId);
   }
 
-  /** 내 색/표시 이름, 이 팀 알림 받기(#188). displayName null 은 닉네임으로 되돌림. 응답에 내 notify 포함 */
-  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin & { notify: boolean }> {
+  /**
+   * 내 색/표시 이름, 이 팀 알림 받기(#188), 이 팀 달력에 내 생일 보이기(#305). displayName null 은 닉네임으로 되돌림.
+   * 응답에 내 notify, showBirthday 포함
+   */
+  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin & { notify: boolean; showBirthday: boolean }> {
     const membership = await this.memberships.assertMember(userId, groupId);
-    const data: { color?: string; displayName?: string | null; notify?: boolean } = {};
+    const data: MembershipMeInput = {};
     if (dto.color !== undefined) data.color = dto.color.toUpperCase();
     if (dto.displayName !== undefined) data.displayName = dto.displayName;
     if (dto.notify !== undefined) data.notify = dto.notify;
+    if (dto.showBirthday !== undefined) data.showBirthday = dto.showBirthday;
     const updated = await this.membershipsRepo.updateMe(membership.id, data);
-    return { ...toMember(updated), notify: updated.notify };
+    return { ...toMember(updated), notify: updated.notify, showBirthday: updated.showBirthday };
   }
 
   /** 팀 나가기 (api.md 2.7). 멤버십 확인 → PERSONAL 거부 → 삭제와 빈 팀 정리는 한 트랜잭션 */
