@@ -59,6 +59,20 @@ export class GroupActivitiesRepository {
     });
   }
 
+  /** (#190) 같은 사람이 `since` 이후 남긴 참석 여부 기록. 최신순 (2분 합치기, D-227) */
+  listRsvpActivitiesTx(db: Db, groupId: number, actorId: number, since: Date): Promise<{ id: number; payload: unknown }[]> {
+    return db.groupActivity.findMany({
+      where: { groupId, actorId, type: 'EVENT_RSVP', createdAt: { gte: since } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true, payload: true },
+    });
+  }
+
+  /** (#190) 합친 기록을 새 값과 지금 시각으로 고친다 (D-227) */
+  async replaceTx(db: Db, id: number, payload: ActivityPayload, createdAt: Date): Promise<void> {
+    await db.groupActivity.update({ where: { id }, data: { payload: payload as object, createdAt }, select: { id: true } });
+  }
+
   async deleteTx(db: Db, id: number): Promise<void> {
     await db.groupActivity.delete({ where: { id } });
   }

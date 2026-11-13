@@ -92,6 +92,9 @@ model User {
   todoItemsDone    TodoItem[] @relation("TodoItemDoneBy")
   /// (#193) 팀별 외부 캘린더 구독 주소
   calendarFeeds    CalendarFeed[]
+  /// (#190) 일정 회차별 내 참석 여부, 반응
+  eventRsvps       EventRsvp[]
+  eventReactions   EventReaction[]
 }
 
 /// (#300) 처음 여는 달력. LAST 마지막에 본 달력(쿠키 wwm_group), PERSONAL 내 달력(개인 팀), GROUP 고정한 팀
@@ -306,6 +309,9 @@ model Event {
   importItems  EventImportItem[]
   /// (#274) 이 일정(회차)을 팀 밖에 보여주는 링크
   shares       EventShare[]
+  /// (#190) 회차별 참석 여부, 반응
+  rsvps        EventRsvp[]
+  reactions    EventReaction[]
 
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
@@ -348,6 +354,55 @@ model EventParticipant {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([eventId, userId])
+  @@index([userId])
+}
+
+/// (#190) 참석 여부 3값. 응답 안 함은 행이 없다
+enum RsvpStatus {
+  GOING
+  NOT_GOING
+  MAYBE
+}
+
+/// (#190) 짧은 반응 3개. 화면 글자: 좋아요, 기대돼요, 확인했어요 (이모지 없음)
+enum EventReactionKind {
+  LIKE
+  EXCITED
+  ACK
+}
+
+/// (#190) 일정 회차 하나에 대한 참여자의 참석 여부 (D-224). 반복이면 (eventId, 원래 회차 날짜), 한 번짜리는 시작 KST 날짜.
+/// 참여자에서 빠지거나 팀을 나가면 지운다. 한 번짜리 날짜를 옮기면 occurrence 도 같은 트랜잭션에서 옮긴다
+model EventRsvp {
+  eventId    Int
+  /// 회차 날짜 (KST). nullable 이면 MySQL 유일 키가 안 먹어 한 번짜리도 날짜를 넣는다
+  occurrence DateTime   @db.Date
+  userId     Int
+  status     RsvpStatus
+  /// 응답할 때 본 그 회차의 시작, 끝. 지금 회차 시각과 다르면 "응답한 뒤 시간이 바뀌었어요" (D-226)
+  seenStartsAt DateTime
+  seenEndsAt   DateTime
+  updatedAt  DateTime   @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, occurrence, userId])
+  @@index([userId])
+}
+
+/// (#190) 일정 회차 하나에 대한 팀원의 짧은 반응. 사람당 하나 (D-224)
+model EventReaction {
+  eventId    Int
+  occurrence DateTime          @db.Date
+  userId     Int
+  kind       EventReactionKind
+  createdAt  DateTime          @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, occurrence, userId])
   @@index([userId])
 }
 
@@ -450,6 +505,8 @@ enum GroupActivityType {
   GROUP_RENAMED
   /// (#279) ICS 파일로 일정을 가져옴. payload { count } (D-166)
   EVENTS_IMPORTED
+  /// (#190) 참석 여부를 정하거나 바꿈. payload { eventId, eventCode, occurrence, title, startsAt, status }. 2분 안 같은 회차는 한 줄 (D-227)
+  EVENT_RSVP
 }
 
 /// (#191) 팀에 생긴 일(기념일 변경, 멤버 합류와 나가기, 팀 이름 변경). 새 소식이 EventLog 와 합쳐 보여 준다 (D-150).

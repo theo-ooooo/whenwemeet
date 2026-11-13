@@ -6,6 +6,7 @@ import { membershipRow, mockRepository, RepositoryMock } from '../testing/reposi
 import { EventsRepository } from './events.repository.js';
 import { assertEventRange, EventsService, isUnchanged, parseRange } from './events.service.js';
 import { participantsFailed } from './participants.js';
+import { emptyResponses } from '../testing/responses-mock.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
 const ROW = {
@@ -57,7 +58,7 @@ describe('EventsService', () => {
     events = mockRepository(EventsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships);
+    service = new EventsService(events as never, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     events.listSeriesForRange.mockResolvedValue([]);
@@ -221,7 +222,7 @@ describe('EventsService 참여자', () => {
     events = mockRepository(EventsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships);
+    service = new EventsService(events as never, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([
       membershipRow(),

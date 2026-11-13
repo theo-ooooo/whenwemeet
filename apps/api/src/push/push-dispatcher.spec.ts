@@ -18,6 +18,7 @@ const due = (overrides: Partial<DueNotification> = {}): DueNotification => ({
   scheduledAt: NOW,
   createdAt: CREATED,
   eventId: 5,
+  occurrence: null,
   eventLogId: null,
   actorId: null,
   changeAction: null,
@@ -48,6 +49,7 @@ describe('PushDispatcher', () => {
     push.markSkipped.mockImplementation(async (ids) => ids.length);
     push.dispatchTx.mockResolvedValue(true);
     push.listRecipients.mockResolvedValue([]);
+    push.withoutNotGoing.mockImplementation(async (recipients) => recipients);
     push.eventExists.mockResolvedValue(true);
     for (const name of ['markSent', 'markFailed', 'requeue', 'saveReceipts'] as const) push[name].mockResolvedValue(undefined);
     push.deleteDevicesByTokens.mockResolvedValue(0);
@@ -73,6 +75,18 @@ describe('PushDispatcher', () => {
       expect(push.markSkipped).toHaveBeenLastCalledWith([2]);
     });
 
+    it('(#190) 일정 알림은 그 회차에 불참으로 답한 사람을 뺀다 (D-228). 다른 종류는 거르지 않는다', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 1, occurrence: '2026-11-12' })]);
+      push.listRecipients.mockResolvedValue([
+        { userId: 1, token: 'a', platform: 'IOS' },
+        { userId: 2, token: 'b', platform: 'IOS' },
+      ]);
+      push.withoutNotGoing.mockImplementation(async (recipients) => recipients.filter((r) => r.userId !== 2));
+      await dispatcher.expandDue(NOW);
+      expect(push.withoutNotGoing).toHaveBeenCalledWith(expect.any(Array), 5, '2026-11-12');
+      expect(push.dispatchTx).toHaveBeenCalledWith(1, NOW, null, [{ userId: 1, token: 'a', platform: 'IOS' }]);
+    });
+
     it('팀원 변경: 변경한 사람을 빼고, 로그 스냅샷과 팀 표시 이름으로 문구를 만들어 저장', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 3, kind: 'CHANGE', payload: null, eventLogId: 77, actorId: 1, changeAction: 'UPDATED' })]);
       push.findGroupRef.mockResolvedValue({ name: '우리', publicCode: 'teamcode' });
@@ -90,6 +104,7 @@ describe('PushDispatcher', () => {
       });
       await dispatcher.expandDue(NOW);
       expect(push.listRecipients).toHaveBeenCalledWith(10, 'CHANGE', 1, null, CREATED);
+      expect(push.withoutNotGoing).not.toHaveBeenCalled();
       expect(push.dispatchTx.mock.calls[0][2]).toMatchObject({ title: '민지님이 일정을 수정했어요', body: '저녁 약속, 11월 12일 (목) 오후 6:00' });
     });
 

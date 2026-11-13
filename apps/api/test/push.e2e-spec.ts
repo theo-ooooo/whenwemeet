@@ -188,6 +188,25 @@ describe('푸시 알림 (e2e)', () => {
       expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([JIHUN_TOKEN]);
     });
 
+    it('(#190) 그 회차에 불참으로 답한 참여자에게는 가지 않는다. 미정은 받는다 (D-228)', async () => {
+      const event = await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).set(auth(jihun)).send({ status: 'NOT_GOING' }).expect(200);
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).set(auth(minji)).send({ status: 'MAYBE' }).expect(200);
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([MINJI_TOKEN]);
+    });
+
+    it('(#190) 반복 일정은 불참한 그 회차만 빠진다', async () => {
+      const event = await createEvent(minji, timed('주간', '18:00:00', '19:00:00', { reminder: 'HOUR_1', repeat: 'WEEKLY' }));
+      await api(app).put(`/v1/groups/${groupId}/events/${event.id}/rsvp`).query({ occurrence: day }).set(auth(jihun)).send({ status: 'NOT_GOING' }).expect(200);
+      await scheduler.tick(at('17:00:10'));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to)).toEqual([MINJI_TOKEN]);
+      fake.reset();
+      const next = kstDate(new Date(at('12:00:00').getTime() + 7 * DAY_MS));
+      await scheduler.tick(at('17:00:10', next));
+      expect(fake.messages.filter((m) => m.data.kind === 'REMINDER').map((m) => m.to).sort()).toEqual([JIHUN_TOKEN, MINJI_TOKEN].sort());
+    });
+
     it('팀원 변경 알림(CHANGE) 은 참여자와 무관하게 팀 전체, 참여자만 바꿔도 "수정"', async () => {
       const event = await createEvent(minji, timed('점심', '12:00:00', '13:00:00', { participants: [minji.userId] }));
       await scheduler.tick(afterCoalesce());
