@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import { Allow, IsBoolean, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 import { Trim } from '../../common/validation.js';
 
 export class CreateGroupDto {
@@ -6,6 +6,13 @@ export class CreateGroupDto {
   @IsString({ message: '팀 이름은 문자열이어야 해요' })
   @Length(1, 30, { message: '팀 이름은 1~30자여야 해요' })
   name!: string;
+
+  /**
+   * (#278, D-250) 만들기 화면에서 고른 쓰임(two, family, friends, study). 저장도 응답도 하지 않고 로그 한 줄만 남긴다.
+   * 모르는 값이나 다른 형식도 400 없이 무시한다 (쓰임 고르기가 팀 만들기를 막지 않게)
+   */
+  @Allow()
+  preset?: unknown;
 }
 
 export class UpdateGroupDto {

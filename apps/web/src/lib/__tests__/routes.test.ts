@@ -30,6 +30,8 @@ describe("주소 만들기", () => {
   it("화면 주소", () => {
     expect(teamHref()).toBe("/team");
     expect(teamHref({ invite: true })).toBe("/team?invite=1");
+    // (#278) 시작 안내 "다른 캘린더 앱에서 보기"
+    expect(teamHref({ feed: true })).toBe("/team?feed=1");
     expect(calendarHref()).toBe("/calendar");
     expect(calendarHref({ date: "2026-11-12", month: null })).toBe("/calendar?date=2026-11-12");
     expect(eventHref({ publicCode: "evntcode" })).toBe("/events/evntcode");

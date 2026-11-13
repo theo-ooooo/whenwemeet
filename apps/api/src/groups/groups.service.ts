@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
 import { generatePublicCode } from '../common/public-code.js';
@@ -36,11 +36,22 @@ export interface GroupSummary {
   unreadNewsCount: number;
 }
 
+/** (#278, D-250) 팀 만들기 쓰임. 서버는 저장하지 않고 로그로만 센다 */
+export const GROUP_PRESETS = ['two', 'family', 'friends', 'study'] as const;
+export type GroupPreset = (typeof GROUP_PRESETS)[number];
+
+/** 아는 쓰임이면 그 값, 아니면(없음, 모르는 값, 문자열 아님) null */
+export function parseGroupPreset(raw: unknown): GroupPreset | null {
+  return typeof raw === 'string' && (GROUP_PRESETS as readonly string[]).includes(raw) ? (raw as GroupPreset) : null;
+}
+
 /** 초대 코드 충돌 시 재생성 횟수 상한 (32^6 공간이라 사실상 1회에 끝난다) */
 const INVITE_CODE_RETRIES = 5;
 
 @Injectable()
 export class GroupsService {
+  private readonly logger = new Logger('Groups');
+
   constructor(
     private readonly groupsRepo: GroupsRepository,
     private readonly membershipsRepo: MembershipsRepository,
@@ -79,8 +90,8 @@ export class GroupsService {
     return summaries;
   }
 
-  /** TEAM 팀 생성. 요청자가 첫 멤버, 초대 코드 발급 */
-  async create(userId: number, name: string): Promise<GroupDetail> {
+  /** TEAM 팀 생성. 요청자가 첫 멤버, 초대 코드 발급. (#278) preset 은 로그 한 줄만 (저장 안 함) */
+  async create(userId: number, name: string, preset?: unknown): Promise<GroupDetail> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const group = await this.groupsRepo.createTeam({
@@ -89,6 +100,8 @@ export class GroupsService {
           publicCode: generatePublicCode(),
           firstMember: { userId, color: pickLeastUsedColor([]) },
         });
+        const picked = parseGroupPreset(preset);
+        if (picked) this.logger.log(`groups.create groupId=${group.id} preset=${picked}`);
         return await this.memberships.groupDetail(group.id, userId);
       } catch (error) {
         if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES) throw error;
