@@ -108,7 +108,7 @@ describe('MeService', () => {
   });
   describe('내 생일 (#305)', () => {
     const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
-    const stored = { birthday: '02-29', birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: false };
+    const stored = { birthday: '02-29', remindDayOf: true, remindDayBefore: true, remindWeekBefore: false };
 
     it('GET /me 는 생일과 알림 시점을 붙인다. 없으면 date null 에 기본 당일만', async () => {
       users.findStartCalendar.mockResolvedValue(null);
@@ -121,15 +121,13 @@ describe('MeService', () => {
     });
 
     it('PATCH /me/birthday: 알림을 생략하면 생일만, 보내면 칸 셋을 함께 저장한다', async () => {
-      users.updateBirthday.mockImplementation(async (_id, data) => ({ ...stored, ...data }));
+      users.updateBirthday.mockImplementation(async (_id, { birthday, reminders }) => ({ ...stored, birthday, ...reminders }));
       expect(await service.updateBirthday(1, { date: '03-05' })).toEqual({ date: '03-05', reminders: ['DAY_OF', 'DAY_BEFORE'] });
       expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: '03-05' });
       expect(await service.updateBirthday(1, { date: '03-05', reminders: ['WEEK_BEFORE'] })).toEqual({ date: '03-05', reminders: ['WEEK_BEFORE'] });
       expect(users.updateBirthday).toHaveBeenLastCalledWith(1, {
         birthday: '03-05',
-        birthdayRemindDayOf: false,
-        birthdayRemindDayBefore: false,
-        birthdayRemindWeekBefore: true,
+        reminders: { remindDayOf: false, remindDayBefore: false, remindWeekBefore: true },
       });
       expect((await service.updateBirthday(1, { date: null })).date).toBeNull();
       expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: null });
