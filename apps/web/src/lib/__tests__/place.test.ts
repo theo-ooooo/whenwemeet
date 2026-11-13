@@ -36,11 +36,25 @@ describe("장소 초안", () => {
 });
 
 describe("길찾기, 표시", () => {
-  it("다시 찾았으면 좌표로 길찾기(이름의 쉼표는 빈칸), 못 찾았으면 ID 장소 상세, 직접 적은 장소는 글자 검색 (인코딩)", () => {
-    expect(directionsUrl(PICKED, CAND)).toBe(`https://map.kakao.com/link/to/${encodeURIComponent("서울숲")},37.5444,127.0374`);
-    expect(directionsUrl(PICKED, { ...CAND, name: "카페, 성수" })).toContain(encodeURIComponent("카페  성수"));
-    expect(directionsUrl(PICKED)).toBe("https://place.map.kakao.com/8209184");
-    expect(directionsUrl({ text: "강남역 #2 출구/앞?", query: null, kakaoPlaceId: null })).toBe(`https://map.kakao.com/link/search/${encodeURIComponent("강남역 #2 출구/앞?")}`);
+  it("카카오맵: 다시 찾았으면 좌표로 길찾기(이름의 쉼표는 빈칸), 못 찾았으면 ID 장소 상세, 직접 적은 장소는 글자 검색 (인코딩)", () => {
+    expect(directionsUrl(PICKED, CAND, "kakao")).toBe(`https://map.kakao.com/link/to/${encodeURIComponent("서울숲")},37.5444,127.0374`);
+    expect(directionsUrl(PICKED, { ...CAND, name: "카페, 성수" }, "kakao")).toContain(encodeURIComponent("카페  성수"));
+    expect(directionsUrl(PICKED, null, "kakao")).toBe("https://place.map.kakao.com/8209184");
+    expect(directionsUrl({ text: "강남역 #2 출구/앞?", query: null, kakaoPlaceId: null }, null, "kakao")).toBe(
+      `https://map.kakao.com/link/search/${encodeURIComponent("강남역 #2 출구/앞?")}`,
+    );
+  });
+
+  it("네이버 지도(기본): 다시 찾았으면 좌표와 이름으로 길찾기, 못 찾았거나 직접 적은 장소는 글자 검색", () => {
+    const u = new URL(directionsUrl(PICKED, CAND));
+    expect(u.origin + u.pathname).toBe("https://map.naver.com/index.nhn");
+    expect(Object.fromEntries(u.searchParams)).toEqual({ menu: "route", elng: "127.0374", elat: "37.5444", etext: "서울숲", pathType: "0" });
+    // 이름의 쉼표, &, # 도 그대로 한 값
+    expect(new URL(directionsUrl(PICKED, { ...CAND, name: "카페, A&B #1" })).searchParams.get("etext")).toBe("카페, A&B #1");
+    expect(new URL(directionsUrl(PICKED, { ...CAND, name: "  " })).searchParams.get("etext")).toBe("도착");
+    // 카카오 ID 는 네이버에서 못 쓰므로 고를 때 검색어로
+    expect(directionsUrl(PICKED)).toBe(`https://map.naver.com/p/search/${encodeURIComponent("숲")}`);
+    expect(directionsUrl({ text: "강남역 #2 출구/앞?", query: null, kakaoPlaceId: null })).toBe(`https://map.naver.com/p/search/${encodeURIComponent("강남역 #2 출구/앞?")}`);
   });
 
   it("지도 공유 링크를 붙여 넣었으면 그 링크를 연다 (https 지도 주소만)", () => {
@@ -48,6 +62,7 @@ describe("길찾기, 표시", () => {
     expect(mapShareUrlOf("http://kko.to/x")).toBeNull();
     expect(mapShareUrlOf("https://evil.example/x")).toBeNull();
     expect(directionsUrl({ text: "https://naver.me/xyz", query: null, kakaoPlaceId: null })).toBe("https://naver.me/xyz");
+    expect(directionsUrl({ text: "https://kko.to/xyz", query: null, kakaoPlaceId: null }, null, "kakao")).toBe("https://kko.to/xyz");
   });
 
   it("사용자 글자: 직접 적은 것, 없으면 검색어", () => {
