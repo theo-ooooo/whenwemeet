@@ -7,7 +7,7 @@
 
 | 항목 | 규칙 |
 |------|------|
-| 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값 |
+| 응답 봉투 | 모든 응답은 `{ status: number, data: any, message: string, error?: any }`. `status` 는 HTTP 상태 코드와 항상 같은 값. **예외**: (#193) 공개 구독 피드 `GET /ics/:token.ics` 는 외부 캘린더가 읽는 파일이라 `text/calendar` 본문 그대로, 실패는 본문 없는 상태 코드 (2.12, D-220) |
 | 성공 | `200 { status: 200, data, message: "OK" }`. 생성은 201. 삭제는 `data: { ok: true }`. 이 문서의 엔드포인트 표에 적힌 `{ data: ... }` 는 `data` 필드의 모양이다 |
 | 실패 | `{ status, data: null, message, error: { code, details? } }`. code 는 아래 오류 표, message 는 사용자에게 바로 보여도 되는 한국어 한 문장. `details` 는 검증 실패 시 필드별 위반 목록(`[{ field, message }]`), 이메일 로그인 오류는 이유 객체(`{ reason, retryAfterSec }` 등, 2.1 이메일 로그인) |
 | 인증 | `Authorization: Bearer <JWT>`. 표의 인증 열이 `유저` 면 필수, `멤버` 면 추가로 경로의 `groupId` 멤버십 필요 |
@@ -66,6 +66,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 일정 링크 미리보기 `GET /event-shares/:token` (#274) | IP | 30 / 1분 (초대 미리보기와 다른 묶음) |
 | 일정 링크 합류 `POST /event-shares/:token/join` (#274) | 사용자 **그리고** IP | 초대 합류 `POST /groups/join` 과 **같은 묶음** (두 길을 번갈아 써서 한도를 두 배로 받지 못하게) |
 | 일정 링크 만들기 `POST /groups/:id/events/:eventId/share` (#274) | 사용자 | 30 / 1시간 |
+| 구독 피드 `GET /ics/:token.ics` (#193) | 주소(경로 토큰) **그리고** IP | 주소 10 / 1분, IP 60 / 1분. 넘으면 본문 없는 429 + `Retry-After` |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
@@ -99,6 +100,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
 | `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
+| `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
 ## 2. 엔드포인트
@@ -415,6 +417,7 @@ ActivityPayload =
    (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
    (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
    (#300) 내가 이 팀을 처음 여는 달력으로 고정했으면(User.startGroupId = 이 팀) LAST 로 되돌린다 (D-192)
+   (#193) 내 이 팀 구독 주소(CalendarFeed)를 지운다 (D-217)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -564,6 +567,31 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 - `done: true` 는 doneAt = 지금, doneBy = 나, `false` 는 둘 다 null. 목록 updatedAt, editor 는 목록과 항목이 실제로 바뀔 때마다 올린다
 - 새 소식, 푸시 기록 없음. 요청 제한은 기본 한도만 (D-210)
 
+### 2.12 외부 캘린더 구독 (#193, 설계 `캘린더-내보내기.md`, D-217 ~ D-221)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/calendar-feed` | 멤버 | - | `{ data: CalendarFeed \| null }` 내 주소 (없으면 null) |
+| PUT | `/groups/:groupId/calendar-feed` | 멤버 | `{ includeMemo?: boolean, includeAnniversaries?: boolean }` | `{ data: CalendarFeed }` 없으면 만들고(메모 끔, 기념일 켬) 있으면 설정만 바꾼다(주소 유지) |
+| POST | `/groups/:groupId/calendar-feed/rotate` | 멤버 | - | `{ data: CalendarFeed }` 새 주소, 이전 주소는 즉시 404. 주소가 없으면 404 NOT_FOUND |
+| DELETE | `/groups/:groupId/calendar-feed` | 멤버 | - | `{ data: { ok: true } }` 끄기(행 삭제). 없어도 200 |
+| GET | `/ics/:token.ics` | 없음 | 헤더 `If-None-Match?` | `200 text/calendar; charset=utf-8` VCALENDAR (봉투 없음) / 304 / 404, 429 본문 없음 |
+
+```ts
+CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>.ics`
+                 webcalUrl,       // httpsUrl 의 스킴을 webcal: 로
+                 googleAddUrl,    // `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}` (컴퓨터 웹에서만 동작)
+                 includeMemo, includeAnniversaries, createdAt,
+                 lastFetchedAt: string | null }  // 외부 캘린더가 마지막으로 가져간 시각 (1분 단위)
+```
+
+- (사용자, 팀) 하나에 주소 하나. 개인 팀도 된다. 토큰은 DB 에 없고 소금과 해시만 있다(D-218). 다시 조회해도 같은 주소
+- 피드 404 는 형식 오류, 없는 토큰, 재발급 전 토큰, 끈 주소, 나간 팀, 탈퇴, 지운 팀을 구분하지 않는다. 멤버십은 요청마다 확인
+- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목. 매핑은 설계 3장
+- `ETag` = 본문 해시, `Cache-Control: private, max-age=900`. 피드 조회는 새 소식, 푸시, 활동 기록과 무관하다. 만들기, 재발급도 기록하지 않는다
+- 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음
+- Sentry 는 `/ics/<토큰>` 경로를 지운다
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -592,6 +620,7 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 | 일정 카드 공유 (#274) | 2.10 전부 |
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
+| 외부 캘린더 구독 (#193) | 2.12 전부 |
 
 ## 4. 개발 전용
 
