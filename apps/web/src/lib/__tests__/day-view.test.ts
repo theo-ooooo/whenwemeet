@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
-import { meridiem, nextOccurrences, shiftWeek, timeColumn, weekStrip } from "../day-view";
+import { meridiem, nextOccurrences, nowLineIndex, shiftWeek, weekStrip } from "../day-view";
 import type { Anniversary, Member } from "../types";
 
 const who: Member = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
@@ -60,19 +60,25 @@ describe("meridiem", () => {
   });
 });
 
-describe("timeColumn", () => {
+describe("nowLineIndex", () => {
   const d = "2026-11-10";
-  it("종일", () => {
-    expect(timeColumn({ startsAt: kstToIso(d), endsAt: kstToIso("2026-11-11"), allDay: true }, d)).toEqual({ label: "하루 종일", value: null });
+  const at = (hm: string) => Date.parse(kstToIso(d, hm));
+  const timed = (a: string) => ({ startsAt: kstToIso(d, a), allDay: false });
+  const allDay = { startsAt: kstToIso(d), allDay: true };
+  it("지난 일정과 아직 시작 안 한 일정 사이", () => {
+    expect(nowLineIndex([allDay, timed("08:00"), timed("11:00"), timed("18:00")], at("14:10"))).toBe(3);
   });
-  it("그날 시작하면 시작 시각 (KST)", () => {
-    expect(timeColumn({ startsAt: kstToIso(d, "19:00"), endsAt: kstToIso(d, "21:00"), allDay: false }, d)).toEqual({ label: "오후", value: "7:00" });
-    expect(timeColumn({ startsAt: kstToIso(d, "08:30"), endsAt: kstToIso(d, "09:00"), allDay: false }, d)).toEqual({ label: "오전", value: "8:30" });
+  it("진행 중인 일정은 지금 줄 앞 (시작이 지금 전)", () => {
+    expect(nowLineIndex([timed("13:00"), timed("18:00")], at("14:10"))).toBe(1);
   });
-  it("전날부터 이어지면 끝 시각, 그날을 다 덮으면 하루 종일", () => {
-    const start = kstToIso("2026-11-09", "22:00");
-    expect(timeColumn({ startsAt: start, endsAt: kstToIso(d, "02:00"), allDay: false }, d)).toEqual({ label: "오전", value: "~2:00" });
-    expect(timeColumn({ startsAt: start, endsAt: kstToIso("2026-11-11", "01:00"), allDay: false }, d)).toEqual({ label: "하루 종일", value: null });
+  it("모두 지났으면 맨 끝", () => {
+    expect(nowLineIndex([timed("08:00"), timed("09:00")], at("14:10"))).toBe(2);
+  });
+  it("앞에 시간 일정이 없으면 넣지 않는다 (다 앞으로, 종일뿐, 빈 목록)", () => {
+    expect(nowLineIndex([timed("18:00")], at("14:10"))).toBeNull();
+    expect(nowLineIndex([allDay, timed("18:00")], at("14:10"))).toBeNull();
+    expect(nowLineIndex([allDay], at("14:10"))).toBeNull();
+    expect(nowLineIndex([], at("14:10"))).toBeNull();
   });
 });
 

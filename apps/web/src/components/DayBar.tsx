@@ -42,6 +42,12 @@ type Props = {
   now?: number;
   /** 빈 구간을 누르면 그 시각(ms)으로 */
   onSelect?: (start: number) => void;
+  /** 요약 글자("둘 다 빔", "모두 빔")를 가를 사람 수. 기본은 members 수 (free 만 줄 때 넘긴다). 1 이면 "비는 시간" (개인 달력) */
+  memberCount?: number;
+  /** 카드 면과 안쪽 여백 없이 (넓은 화면 패널처럼 이미 흰 면 위에 놓일 때) */
+  bare?: boolean;
+  /** 머리 한 줄(title, 요약)을 그리지 않는다 (빈 시간 결과 카드처럼 위에 자기 머리가 있을 때). 읽기 이름은 그대로 */
+  hideHead?: boolean;
   className?: string;
 };
 
@@ -57,6 +63,9 @@ export function DayBar({
   showMembers,
   now,
   onSelect,
+  memberCount,
+  bare = false,
+  hideHead = false,
   className = "",
 }: Props) {
   const win = dayWindow(date, fromHour, toHour);
@@ -66,21 +75,25 @@ export function DayBar({
   const ticks = barTicks(fromHour, toHour);
   const nowAt = now === undefined ? null : nowLeft(win, now);
   const rows = showMembers ?? members.length > 1;
-  const who = members.length === 2 ? "둘 다" : "모두";
-  const freeText = (s: Interval) => `${clockRangeText(s.start, s.end)} ${who} 비어요`;
-  const summary = freeMin > 0 ? `${who} 빔` : `${who} 비는 시간 없음`;
+  // 혼자(개인 달력)면 "둘 다", "모두" 없이 (#378 B: 개인 달력은 내 바쁜 시간과 빈 시간만)
+  const people = memberCount ?? members.length;
+  const who = people === 1 ? "" : people === 2 ? "둘 다 " : "모두 ";
+  const freeText = (s: Interval) => `${clockRangeText(s.start, s.end)} ${who}비어요`;
+  const summary = freeMin > 0 ? (who ? `${who}빔` : "비는 시간") : `${who}비는 시간 없음`;
 
   return (
-    <div role="group" aria-label={`${title}, ${summary}${freeMin > 0 ? ` ${formatMinutes(freeMin)}` : ""}`} className={`rounded-xl bg-paper px-3.5 pb-2.5 pt-3 ${className}`}>
-      <div className="flex items-baseline justify-between gap-3 text-[12px] leading-4 text-ink-2">
-        <span>{title}</span>
-        <span>
-          {summary}
-          {freeMin > 0 && <b className="ml-1 font-bold text-acc-ink">{formatMinutes(freeMin)}</b>}
-        </span>
-      </div>
+    <div role="group" aria-label={`${title}, ${summary}${freeMin > 0 ? ` ${formatMinutes(freeMin)}` : ""}`} className={`${bare ? "" : "rounded-xl bg-paper px-3.5 pb-2.5 pt-3"} ${className}`}>
+      {!hideHead && (
+        <div className="flex items-baseline justify-between gap-3 text-[12px] leading-4 text-ink-2">
+          <span className="min-w-0 truncate">{title}</span>
+          <span className="shrink-0">
+            {summary}
+            {freeMin > 0 && <b className="ml-1 font-bold text-acc-ink">{formatMinutes(freeMin)}</b>}
+          </span>
+        </div>
+      )}
 
-      <div className={`relative ${nowAt !== null ? "mt-4" : "mt-2"}`}>
+      <div className={`relative ${nowAt !== null ? "mt-4" : hideHead ? "" : "mt-2"}`}>
         {nowAt !== null && (
           <span
             aria-hidden="true"
@@ -132,7 +145,7 @@ export function DayBar({
         {ticks.map((t, i) => (
           <span
             key={t.hour}
-            className="absolute top-0"
+            className="absolute top-0 whitespace-nowrap"
             style={{ left: `${t.left}%`, transform: i === 0 ? "none" : i === ticks.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}
           >
             {t.hour}

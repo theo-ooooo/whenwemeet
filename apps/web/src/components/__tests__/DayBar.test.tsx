@@ -80,4 +80,19 @@ describe("DayBar", () => {
     expect(container.querySelector("[data-now]")).toBeNull();
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
   });
+
+  it("(#378 B) 혼자(개인 달력)면 '비는 시간' 과 '비어요' 만, 멤버 줄 없음", () => {
+    render(<DayBar date={D} members={[members[0]]} onSelect={() => {}} />);
+    expect(screen.getByRole("group", { name: "이날 하루, 비는 시간 13시간" })).toBeTruthy();
+    expect(screen.getAllByRole("button")[0].getAttribute("aria-label")).toBe("오전 9:00 ~ 오후 6:00 비어요, 이 시간에 일정 추가");
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("(#378 B) memberCount 로 요약을 가르고, hideHead 면 머리 줄 없이 읽기 이름만, bare 면 카드 면 없음", () => {
+    const { container } = render(<DayBar date={D} members={[]} free={[iv("09:00", "16:00")]} memberCount={2} title="토 11/14" hideHead bare />);
+    const group = screen.getByRole("group", { name: "토 11/14, 둘 다 빔 7시간" });
+    expect(group.textContent).not.toContain("토 11/14");
+    expect(group.className).not.toContain("bg-paper");
+    expect(container.querySelector("[data-free]")?.textContent).toBe("오전 9:00 ~ 오후 4:00 둘 다 비어요");
+  });
 });

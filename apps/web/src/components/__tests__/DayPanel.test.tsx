@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// (#331) 넓은 화면 일 상세 패널: 머리(제목, ‹ 13 [14] 15 ›), 일정 줄, 비는 시간 줄 "만들기", Esc 와 포커스 복귀(DayDock)
+// (#331) 넓은 화면 일 상세 패널: 머리(제목, ‹ 13 [14] 15 ›), 일정 줄, (#378 B) 하루 막대와 공통 일정 줄, Esc 와 포커스 복귀(DayDock)
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetInputModality, trackInputModality } from "@/lib/input-modality";
@@ -15,7 +15,7 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: str
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("../AppShell", () => ({ useGroupContext: () => ({ group: { type: "TEAM", me: { userId: 1 } } }) }));
 
-const { DayPanel, DayFreeRow } = await import("../DayPanel");
+const { DayPanel } = await import("../DayPanel");
 const { DayDock } = await import("../DayDock");
 
 const member = (userId: number, name: string, color: string) => ({ userId, displayName: name, color, profileImageUrl: null, joinedAt: "2026-11-01T00:00:00.000Z" });
@@ -106,13 +106,23 @@ describe("날짜 단계", () => {
     expect(screen.getByRole("button", { name: /^11월 14일/ }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("일정 줄: 시각 열, 제목, 참여자. 누르면 일정 상세로", () => {
+  it("(#378 B) 일정 줄은 공통 EventRow: 시각 한 번, 참여자. 누르면 같은 자리에서 일정 상세 (이동 막음)", () => {
     const p = panel();
-    const row = screen.getByRole("button", { name: /저녁 약속/ });
-    expect(row.textContent).toContain("7:00");
+    const row = screen.getByRole("link", { name: /저녁 약속/ });
+    expect(row.getAttribute("href")).toBe("/events/abcd1234");
+    expect(row.textContent).toContain("오후 7:00 ~ 9:00");
     expect(row.getAttribute("aria-label")).toContain("나, 하늘");
-    fireEvent.click(row);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    row.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
     expect(p.onOpenEvent).toHaveBeenCalledWith(expect.objectContaining({ publicCode: "abcd1234" }));
+  });
+
+  it("(#378 B) ⌘ 클릭은 링크 그대로 (새 탭)", () => {
+    const p = panel();
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    screen.getByRole("link", { name: /저녁 약속/ }).dispatchEvent(click);
+    expect(p.onOpenEvent).not.toHaveBeenCalled();
   });
 
   it("빈 날은 빈 상태 안내, ✕ 는 닫기", () => {
@@ -130,16 +140,31 @@ describe("날짜 단계", () => {
   });
 });
 
-describe("비는 시간 줄", () => {
-  it("구간이 있으면 시각 + 만들기 링크", () => {
-    render(<DayFreeRow free={{ label: "둘 다 비는 시간", slot: { startsAt: "2026-11-14T09:00:00.000Z", endsAt: "2026-11-14T12:00:00.000Z" } }} newEventHref={(s, e) => `/events/new?start=${s}&end=${e}`} />);
-    expect(screen.getByText("18:00~21:00")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /일정 만들기/ }).getAttribute("href")).toContain("/events/new?start=2026-11-14T09:00:00.000Z");
+describe("(#378 B) 하루 막대", () => {
+  const two = [member(1, "지우", "#F26D6D"), member(2, "하늘", "#5B6CF4")];
+  it("멤버와 지금을 주면 막대(둘 다 빔 합계, 멤버 줄). 빈 구간을 누르면 그 시각으로 빠른 추가", () => {
+    const onAddAt = vi.fn();
+    panel({ members: two, now: Date.parse("2026-11-12T03:00:00.000Z"), onAddAt });
+    // 19:00~21:00 일정 하나 → 8~19, 21~23 이 빈다 (13시간)
+    expect(screen.getByRole("group", { name: "이날 하루, 둘 다 빔 13시간" })).toBeTruthy();
+    expect(screen.getByText(/지우 바쁜 시간 오후 7:00 ~ 9:00/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "오후 9:00 ~ 11:00 둘 다 비어요, 이 시간에 일정 추가" }), { detail: 0 });
+    expect(onAddAt).toHaveBeenCalledWith(Date.parse("2026-11-14T12:00:00.000Z"));
   });
-  it("없으면 '없어요', 만들기 없음", () => {
-    render(<DayFreeRow free={{ label: "둘 다 비는 시간", slot: null }} newEventHref={() => "/x"} />);
-    expect(screen.getByText("없어요")).toBeTruthy();
-    expect(screen.queryByRole("link")).toBeNull();
+  it("오늘이면 '오늘 하루' 와 진행 중인 일정 뒤 지금 줄", () => {
+    // 오늘 11/14 20:30 KST: 19~21 일정은 진행 중(지금 줄 앞), 22시 일정은 뒤
+    const later = ev({ id: 8, publicCode: "later001", title: "늦은 산책", startsAt: "2026-11-14T13:00:00.000Z", endsAt: "2026-11-14T13:30:00.000Z" });
+    panel({ today: "2026-11-14", members: two, now: Date.parse("2026-11-14T11:30:00.000Z"), events: [ev(), later] });
+    expect(screen.getByRole("group", { name: /^오늘 하루/ })).toBeTruthy();
+    const items = screen.getByRole("list", { name: "11월 14일 (토) 일정" }).querySelectorAll(":scope > li");
+    expect(items).toHaveLength(3);
+    expect(items[0].textContent).toContain("저녁 약속");
+    expect(items[1].textContent).toBe("지금 오후 8:30");
+    expect(items[2].textContent).toContain("늦은 산책");
+  });
+  it("멤버를 안 주면 막대 없음", () => {
+    panel();
+    expect(screen.queryByRole("group", { name: /하루/ })).toBeNull();
   });
 });
 

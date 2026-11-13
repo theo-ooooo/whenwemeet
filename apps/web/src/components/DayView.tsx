@@ -1,23 +1,27 @@
 "use client";
-// 폰(<600) 일 상세 (디자인규칙.md 2-3 시안 B, #212). 날짜 바텀 시트(DaySheet) 의 날짜 단계를 대신한다.
-// 제목 "11월 10일 (화)" + "월 보기" 알약 → 주간 줄 7칸 → 그날 요약 카드(비는 시간, 기념일) → 이날 일정 목록.
+// 폰(<600) 일 상세. 날짜 바텀 시트(DaySheet) 의 날짜 단계를 대신한다 (#212).
+// (#378 B, 일 상세 C안 "하루 막대 + 목록") 제목 "11월 17일 화요일" + "월 보기" 알약 → 주간 줄 7칸 → (기념일이 있는 날만) 기념일 한 줄
+// → 하루 막대(DayBar: 모두 비는 시간 코랄, 멤버 둘 이상이면 멤버별 얇은 줄, 오늘이면 "지금", 빈 구간을 누르면 그 시각으로 빠른 추가)
+// → 이날 일정 목록(DayEventList: 공통 일정 줄 EventRow, 지난 일정 흐리게, 오늘이면 "지금" 줄).
+// 비는 시간은 하루 막대가 보여 주므로 예전 위 요약 카드(비는 시간, 기념일)는 없앴다.
 // 주소와 기록(?day=1, pushState, 뒤로가기 = 월 보기) 은 CalendarScreen 이 맡는다. 일정 상세, 빠른 추가는 그 위에 DaySheet 로 뜬다
 import Link from "next/link";
-import { ANNIVERSARIES_PATH, FREE_PATH } from "@/lib/routes";
-import { useEffect, useRef } from "react";
-import { IconCalendar, IconFree, IconHeart, IconPlus } from "./icons";
-import type { FreeHint } from "./DayPanel";
-import { useWho } from "./Participants";
+import { ANNIVERSARIES_PATH } from "@/lib/routes";
+import { useEffect, useMemo, useRef } from "react";
+import { DayBar } from "./DayBar";
+import { DayEventList } from "./DayEvents";
+import { IconCalendar, IconChevronRight, IconHeart, IconPlus } from "./icons";
 import { ErrorState, Skeleton } from "./ui";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import { cellDensity } from "@/lib/calendar-cell";
+import { busyByMember, dayWindow } from "@/lib/day-bar";
 import { dayBadge } from "@/lib/day-detail";
-import { timeColumn, weekStrip } from "@/lib/day-view";
-import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
+import { panelTitle } from "@/lib/day-panel";
+import { weekStrip } from "@/lib/day-view";
+import { dowOf, formatDateKo, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
-import type { Event } from "@/lib/types";
-import { eventKey } from "@/lib/recurrence";
-import { barColors, splitBackground, withWho } from "@/lib/participants";
+import { lastInputWasKeyboard } from "@/lib/input-modality";
+import type { Event, Member } from "@/lib/types";
 
 type Props = {
   date: DateKey;
@@ -29,8 +33,10 @@ type Props = {
   onRetry: () => void;
   /** 그날 기념일 항목 전부 */
   anniversaries: Occurrence[];
-  /** 비는 시간 한 줄. null 이면 지난 날 또는 계산 실패 */
-  free: FreeHint;
+  /** 팀 멤버 (하루 막대의 멤버별 바쁜 시간). 개인 달력은 나 하나 */
+  members: Member[];
+  /** 지금 (ms). 지난 일정 흐리게, 오늘이면 "지금" 선과 줄 */
+  now: number;
   /** 주간 줄 스와이프 (useMonthSwipe 의 ref) */
   stripRef: React.Ref<HTMLUListElement>;
   onPickDay: (date: DateKey) => void;
@@ -39,7 +45,8 @@ type Props = {
   backLabel?: string;
   onOpenEvent: (ev: Event) => void;
   onAdd: () => void;
-  newEventHref: (start: string, end: string) => string;
+  /** 하루 막대의 빈 구간을 눌렀을 때: 그 시각(ms)으로 빠른 추가 */
+  onAddAt: (start: number) => void;
 };
 
 export function DayView({
@@ -50,36 +57,44 @@ export function DayView({
   eventsError,
   onRetry,
   anniversaries,
-  free,
+  members,
+  now,
   stripRef,
   onPickDay,
   onMonth,
   backLabel = "월 보기",
   onOpenEvent,
   onAdd,
-  newEventHref,
+  onAddAt,
 }: Props) {
-  const who = useWho();
   const heading = useRef<HTMLHeadingElement>(null);
-  // 열면 맨 위로, 닫으면 달력을 보던 자리로 (본문 흐름 안에 그리므로 스크롤을 직접 맞춘다)
+  // 열면 맨 위로, 닫으면 달력을 보던 자리로 (본문 흐름 안에 그리므로 스크롤을 직접 맞춘다).
+  // 제목으로 옮기는 포커스는 키보드로 열었을 때만 테두리를 그린다. 주소, 터치, 마우스로 열면 [data-quiet-focus] (#339, D-214)
   useEffect(() => {
     const y = window.scrollY;
     window.scrollTo(0, 0);
-    heading.current?.focus({ preventScroll: true });
+    const el = heading.current;
+    if (el) {
+      if (lastInputWasKeyboard()) delete el.dataset.quietFocus;
+      else el.dataset.quietFocus = "";
+      el.focus({ preventScroll: true });
+    }
     return () => window.scrollTo(0, y);
   }, []);
 
   const week = weekStrip(date);
-  const events = byDay ? (byDay.get(date) ?? []) : null;
+  const events = useMemo(() => (byDay ? (byDay.get(date) ?? []) : null), [byDay, date]);
   const holiday = holidayOf(date);
   const ann = anniversaries[0] ?? null;
+  // 하루 막대: 멤버별 바쁜 시간 (그날 8~23시, 참여자만, 종일 일정 제외)
+  const bar = useMemo(() => (events ? busyByMember(events, members, dayWindow(date)) : null), [events, members, date]);
 
   return (
     <div className="pt-1">
-      {/* 제목줄 32: "11월 10일 (화)" 18/700 + 오른쪽 "월 보기" 알약 */}
+      {/* 제목줄 40: "11월 17일 화요일" 18/700 + 오른쪽 "월 보기" 알약 */}
       <div className="flex h-10 items-center gap-2">
         <h1 id={titleId} ref={heading} tabIndex={-1} className="min-w-0 truncate text-[18px] font-bold leading-6 tracking-[-0.02em] outline-none">
-          {formatDateKo(date)}
+          {panelTitle(date)}
         </h1>
         {date === today && <em className="shrink-0 text-[12px] font-semibold not-italic text-today-ink">오늘</em>}
         {holiday && <span className="min-w-0 truncate text-[12px] font-medium text-holiday">{holiday}</span>}
@@ -134,40 +149,35 @@ export function DayView({
         })}
       </ul>
 
-      {/* 그날 요약: 흰 카드 한 장에 두 줄 (겹침 아이콘 20 + 라벨 14 + 값 15/700 --acc-ink). 값 링크는 hit 로 누르는 높이 44 (QA3-L3) */}
-      <div className="mt-[22px] rounded-xl bg-paper px-3.5">
-        <SummaryRow icon={<IconFree size={20} />} label={free?.label ?? "비는 시간"}>
-          {free === null ? (
-            <span className="text-[14px] text-ink-2">{date < today ? "지난 날이에요" : "계산하지 못했어요"}</span>
-          ) : free.slot === "loading" ? (
-            <Skeleton className="h-4 w-24" />
-          ) : free.slot ? (
-            <Link
-              href={newEventHref(free.slot.startsAt, free.slot.endsAt)}
-              aria-label={`${free.label} ${timeOf(free.slot.startsAt)}부터 ${timeOf(free.slot.endsAt)}까지, 눌러서 바로 약속 잡기`}
-              className="hit text-[15px] font-bold text-acc-ink hover:underline underline-offset-2"
-            >
-              {timeOf(free.slot.startsAt)}~{timeOf(free.slot.endsAt)}
-            </Link>
-          ) : (
-            <Link href={FREE_PATH} className="hit text-[14px] text-ink-2 hover:underline underline-offset-2">
-              없어요, 다른 날 찾기
-            </Link>
-          )}
-        </SummaryRow>
-        <div aria-hidden="true" className="h-px bg-line" />
-        <SummaryRow icon={<IconHeart size={20} />} label="기념일">
-          {ann ? (
-            <Link href={ANNIVERSARIES_PATH} className="min-w-0 truncate text-[15px] font-bold text-acc-ink hover:underline underline-offset-2">
-              {occurrenceTitle(ann)}
-              {anniversaries.length > 1 ? ` 외 ${anniversaries.length - 1}개` : ""}
-              {date !== today ? ` ${dayBadge(date, today)}` : ""}
-            </Link>
-          ) : (
-            <span className="text-[14px] text-ink-2">없어요</span>
-          )}
-        </SummaryRow>
-      </div>
+      {/* (#378 B) 기념일 한 줄: 기념일이 있는 날만. 하트 + "처음 만난 날 100일" (+ 외 N개) + D-n. 누르면 기념일 화면 */}
+      {ann && (
+        <Link
+          href={ANNIVERSARIES_PATH}
+          className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-paper px-3.5 text-[14px] hover:bg-hover"
+        >
+          <IconHeart size={18} className="shrink-0 text-acc-ink" />
+          <span className="min-w-0 flex-1 truncate font-semibold">
+            {occurrenceTitle(ann)}
+            {anniversaries.length > 1 ? ` 외 ${anniversaries.length - 1}개` : ""}
+          </span>
+          <b className="shrink-0 text-[12px] font-bold text-acc-ink">{dayBadge(date, today)}</b>
+          <IconChevronRight size={16} className="shrink-0 text-ink-2" />
+        </Link>
+      )}
+
+      {/* (#378 B) 하루 막대: 언제 비는지. 빈 구간(코랄)을 누르면 그 시각으로 빠른 추가 */}
+      {eventsError ? null : bar === null ? (
+        <Skeleton className="mt-3 h-[76px] rounded-xl" />
+      ) : (
+        <DayBar
+          className="mt-3"
+          date={date}
+          members={bar}
+          title={date === today ? "오늘 하루" : "이날 하루"}
+          now={date === today ? now : undefined}
+          onSelect={onAddAt}
+        />
+      )}
 
       {/* 이날 일정 */}
       <section aria-labelledby={`${titleId}-list`} className="mt-[22px]">
@@ -184,17 +194,11 @@ export function DayView({
           {eventsError ? (
             <ErrorState message={eventsError} onRetry={onRetry} />
           ) : events === null ? (
-            <ul className="space-y-2.5" aria-busy="true" aria-label="불러오는 중">
+            <div className="space-y-px overflow-hidden rounded-xl" aria-busy="true" aria-label="불러오는 중">
               {[0, 1].map((i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="w-12 shrink-0 space-y-1 pt-2.5">
-                    <Skeleton className="h-2.5 w-6" />
-                    <Skeleton className="h-4 w-9" />
-                  </span>
-                  <Skeleton className="h-[60px] flex-1 rounded-xl" />
-                </li>
+                <Skeleton key={i} className="h-[60px] rounded-none" />
               ))}
-            </ul>
+            </div>
           ) : events.length === 0 ? (
             <p className="flex h-11 items-center gap-1.5 text-[14px] text-ink-2">
               이 날은 일정이 없어요.
@@ -203,49 +207,10 @@ export function DayView({
               </button>
             </p>
           ) : (
-            <ul className="space-y-2.5">
-              {events.map((ev) => {
-                const col = timeColumn(ev, date);
-                return (
-                  <li key={eventKey(ev)} className="flex gap-2">
-                    <span aria-hidden="true" className="flex w-12 shrink-0 flex-col pt-2.5">
-                      <small className="text-[11px] leading-4 text-ink-2">{col.label}</small>
-                      {col.value && <b className="text-[16px] font-bold leading-5 tracking-[-0.02em]">{col.value}</b>}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onOpenEvent(ev)}
-                      aria-haspopup="dialog"
-                      aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
-                      className="flex min-h-[60px] min-w-0 flex-1 items-stretch gap-2.5 rounded-xl bg-paper px-3.5 py-2.5 text-left hover:bg-hover"
-                    >
-                      <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
-                      <span aria-hidden="true" className="min-w-0 flex-1 self-center">
-                        <b className="block truncate text-[15px] font-semibold leading-5">{ev.title}</b>
-                        <span className="block truncate text-[12px] leading-4 text-ink-2">
-                          {withWho(formatEventTime(ev.startsAt, ev.endsAt, ev.allDay), ev, who)}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <DayEventList events={events} date={date} today={today} now={now} onOpen={onOpenEvent} label={`${formatDateKo(date)} 일정`} />
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-function SummaryRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-12 items-center gap-2.5">
-      <span aria-hidden="true" className="shrink-0 text-ink-2">
-        {icon}
-      </span>
-      <span className="shrink-0 text-[14px]">{label}</span>
-      <span className="ml-auto flex min-w-0 items-center justify-end">{children}</span>
     </div>
   );
 }
