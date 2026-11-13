@@ -51,3 +51,12 @@ describe("/auth/logout 기기 해제 (#188 D-83)", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 });
+
+describe("/auth/logout next (#198 다시 로그인)", () => {
+  afterEach(() => upstream.mockReset());
+
+  it("폼의 next 는 규칙 안이면 로그인 화면에 싣고, 밖이면 버린다", async () => {
+    expect((await POST(req({ next: "/me/accounts" }))).headers.get("location")).toBe("https://whenwemeet.day/login?next=%2Fme%2Faccounts");
+    expect((await POST(req({ next: "https://evil.example" }))).headers.get("location")).toBe("https://whenwemeet.day/login");
+  });
+});

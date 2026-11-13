@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { EmailLoginVia, EmailSendStatus } from '../generated/prisma/enums.js';
+import type { EmailLoginPurpose, EmailLoginVia, EmailSendStatus } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** 메일 1통 = 1행 (이메일-로그인.md 2장, D-111). 토큰과 코드 원문은 받지 않는다 */
@@ -13,6 +13,10 @@ export interface NewChallenge {
   isReview: boolean;
   sendStatus: EmailSendStatus;
   createdAt: Date;
+  /** (#198) LINK 는 로그인한 사용자의 이메일 연결 (D-257). 없으면 LOGIN */
+  purpose?: EmailLoginPurpose;
+  /** (#198) LINK 를 요청한 사용자 */
+  userId?: number | null;
 }
 
 /** 검증에 쓰는 행 모양 */
@@ -88,8 +92,9 @@ export class EmailLoginChallengesRepository {
   /** 같은 이메일의 살아 있는 행을 무효로 하고 새 행을 넣는다. 한 트랜잭션 (4-2 request 3, 5단계). 새 행 id */
   invalidateLiveAndCreateTx(input: NewChallenge): Promise<number> {
     return this.prisma.$transaction(async (tx) => {
+      // (#198) 같은 쓰임(LOGIN, LINK)끼리만. 남이 연결을 요청해도 그 이메일 주인의 로그인 메일은 살아 있다
       await tx.emailLoginChallenge.updateMany({
-        where: { email: input.email, ...live(input.createdAt) },
+        where: { email: input.email, purpose: input.purpose ?? 'LOGIN', ...live(input.createdAt) },
         data: { invalidatedAt: input.createdAt },
       });
       const row = await tx.emailLoginChallenge.create({ data: input, select: { id: true } });
@@ -112,14 +117,24 @@ export class EmailLoginChallengesRepository {
     return this.prisma.emailLoginChallenge.findUnique({ where: { id }, select: CHALLENGE_SELECT });
   }
 
+  /** 로그인 링크. (#198) 연결(LINK) 메일의 토큰으로는 찾지 않는다 */
   findByLinkTokenHash(linkTokenHash: string): Promise<ChallengeRow | null> {
-    return this.prisma.emailLoginChallenge.findUnique({ where: { linkTokenHash }, select: CHALLENGE_SELECT });
+    return this.prisma.emailLoginChallenge.findFirst({ where: { linkTokenHash, purpose: 'LOGIN' }, select: CHALLENGE_SELECT });
   }
 
-  /** 같은 이메일의 살아 있는 최신 행. 새 요청이 이전 것을 무효로 하므로 보통 최대 1개 */
+  /** 같은 이메일의 살아 있는 최신 로그인 행. 새 요청이 이전 것을 무효로 하므로 보통 최대 1개. (#198) LINK 행은 빼고 */
   findLatestLiveByEmail(email: string, now: Date): Promise<ChallengeRow | null> {
     return this.prisma.emailLoginChallenge.findFirst({
-      where: { email, ...live(now) },
+      where: { email, purpose: 'LOGIN', ...live(now) },
+      orderBy: { id: 'desc' },
+      select: CHALLENGE_SELECT,
+    });
+  }
+
+  /** (#198) userId 가 요청한 같은 이메일의 살아 있는 최신 연결(LINK) 행 */
+  findLatestLiveLink(email: string, userId: number, now: Date): Promise<ChallengeRow | null> {
+    return this.prisma.emailLoginChallenge.findFirst({
+      where: { email, purpose: 'LINK', userId, ...live(now) },
       orderBy: { id: 'desc' },
       select: CHALLENGE_SELECT,
     });

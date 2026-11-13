@@ -667,3 +667,21 @@ describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
     expect(titles("되돌B")).toEqual(all);
   });
 });
+
+describe("(#198) 목 로그인 방법", () => {
+  it("목록, 티켓 연결, 같은 제공자 409, 이메일 연결 코드, 해제와 마지막 하나", () => {
+    const list = () => (call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[]);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO"]);
+    expect(call("POST", "/me/auth-accounts/link-start", { provider: "KAKAO" }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { ticket: "mock-inuse" }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { ticket: "mock-APPLE" }).status).toBe(200);
+    expect(call("POST", "/auth/email/request", { email: "link@example.com", purpose: "LINK" }).status).toBe(200);
+    // 연결 코드는 로그인에 못 쓴다
+    expect(call("POST", "/auth/email/code", { email: "link@example.com", code: "000000" }).status).toBe(400);
+    const linked = call("POST", "/me/auth-accounts", { provider: "EMAIL", email: "link@example.com", code: "000000" });
+    expect(linked.status).toBe(200);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO", "APPLE", "EMAIL"]);
+    for (const a of list().slice(1)) expect(call("DELETE", `/me/auth-accounts/${a.id}`).status).toBe(200);
+    expect(call("DELETE", `/me/auth-accounts/${list()[0].id}`).status).toBe(409);
+  });
+});

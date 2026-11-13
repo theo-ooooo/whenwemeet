@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { AnniversariesModule } from './anniversaries/anniversaries.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { AuthAccountsModule } from './auth-accounts/auth-accounts.module.js';
 import { CalendarFeedModule } from './calendar-feed/calendar-feed.module.js';
 import { HttpExceptionFilter } from './common/http-exception.filter.js';
 import { ResponseInterceptor } from './common/response.interceptor.js';
@@ -44,6 +45,7 @@ import { TodosModule } from './todos/todos.module.js';
     PlacesModule,
     NewsModule,
     MeModule,
+    AuthAccountsModule,
     PushModule,
   ],
   controllers: [HealthController],

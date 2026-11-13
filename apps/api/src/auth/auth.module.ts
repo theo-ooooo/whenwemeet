@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule, type JwtSignOptions } from '@nestjs/jwt';
 import { AuthHandoffsModule } from '../auth-handoffs/auth-handoffs.module.js';
+import { AuthLinkTicketsModule } from '../auth-link-tickets/auth-link-tickets.module.js';
 import { AvatarsModule } from '../avatars/avatars.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { AppAuthService } from './app-auth.service.js';
@@ -10,6 +11,7 @@ import { AppleAuthService } from './apple-auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { LinkTicketsService } from './link-tickets.service.js';
 import { RateLimitGuard, RateLimitSettings } from '../rate-limit/rate-limit.guard.js';
 import { RateLimitStore } from '../rate-limit/rate-limit.store.js';
 import { APPLE_JWKS, AppleProvider, createAppleJwks } from './providers/apple.provider.js';
@@ -23,6 +25,7 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     UsersModule,
     AvatarsModule,
     AuthHandoffsModule,
+    AuthLinkTicketsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -40,6 +43,7 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     AuthService,
     AppAuthService,
     AppleAuthService,
+    LinkTicketsService,
     KakaoProvider,
     DevProvider,
     AppleProvider,
@@ -52,6 +56,6 @@ import { KakaoProvider } from './providers/kakao.provider.js';
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
-  exports: [AuthService, AuthProviders, JwtModule],
+  exports: [AuthService, AuthProviders, JwtModule, LinkTicketsService, AppleAuthService, KakaoProvider, AppleProvider],
 })
 export class AuthModule {}
