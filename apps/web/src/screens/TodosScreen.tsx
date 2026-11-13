@@ -7,7 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { IconChevronRight, IconPlus, IconTodo } from "@/components/icons";
-import { Button, EmptyState, ErrorState, Field, MemberDot, Sheet, Skeleton, inputClass } from "@/components/ui";
+import { NameField } from "@/components/NameField";
+import { Button, EmptyState, ErrorState, MemberDot, RowGroup, Sheet, Skeleton } from "@/components/ui";
 import { messageOf, useCreateTodoList, useRefetchOnVisible, useTodoLists } from "@/hooks";
 import { formatRelative } from "@/lib/date";
 import { todoListHref } from "@/lib/routes";
@@ -150,24 +151,25 @@ export function TodosScreen() {
         )}
       </div>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title="목록 추가">
-        <form onSubmit={submit} className="space-y-3">
-          <Field label="이름" hint={`${name.trim().length}/${TODO_LIST_NAME_MAX}`} error={formError}>
-            {(id, describedBy) => (
-              <input
-                id={id}
-                aria-describedby={describedBy}
-                className={inputClass}
-                value={name}
-                maxLength={TODO_LIST_NAME_MAX}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="예: 장보기, 여행 준비물"
-                autoFocus
-              />
-            )}
-          </Field>
-          <Button type="submit" size="lg" full disabled={!valid} loading={create.isPending}>
-            만들기
+      {/* (#378) 이름 칸 하나(라벨 없음, 글자 수는 80% 부터) + 추가 */}
+      <Sheet open={open} onClose={() => setOpen(false)} title="목록 추가" tone="bg">
+        <form onSubmit={submit} className="space-y-3 pb-1">
+          <RowGroup>
+            <NameField
+              label="목록 이름"
+              value={name}
+              onChange={setName}
+              max={TODO_LIST_NAME_MAX}
+              limitInput
+              placeholder="예: 장보기, 여행 준비물"
+              autoFocus
+              autoComplete="off"
+              enterKeyHint="done"
+              error={formError}
+            />
+          </RowGroup>
+          <Button type="submit" size="xl" full disabled={!valid} loading={create.isPending}>
+            추가
           </Button>
         </form>
       </Sheet>

@@ -67,4 +67,18 @@ describe("EventColorPicker", () => {
     expect(group.getAttribute("aria-disabled")).toBe("true");
     expect(document.getElementById(group.getAttribute("aria-describedby")!)?.textContent).toBe("반복 일정의 색은 이후 모두에서 바꿀 수 있어요");
   });
+
+  it("(#378) bare: 카드 머리 없이 칸 묶음만. 누르면 onPicked(시트 닫기), 방향키로 옮길 때는 부르지 않는다", () => {
+    const onChange = vi.fn();
+    const onPicked = vi.fn();
+    render(<EventColorPicker bare value={null} onChange={onChange} onPicked={onPicked} autoColors={[]} />);
+    expect(screen.getByRole("radiogroup", { name: "색" })).toBeTruthy();
+    // 머리줄의 값 글자("자동")는 없다
+    expect(screen.queryByText("색")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("radio", { name: "자동, 참여자 색" }), { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith(expect.any(String));
+    expect(onPicked).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "민트" }));
+    expect(onPicked).toHaveBeenCalledTimes(1);
+  });
 });

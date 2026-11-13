@@ -2,13 +2,15 @@
 // 달력에서 바로 일정 추가 (#46). 폴더블.md 5-2 부터는 날짜 상세(DayPanel) 의 "이 날 일정 추가" 가 같은 자리에서 이 폼으로 바뀐다.
 // 날짜 칸을 누르면 바로 열리던 경로(모바일 재탭, PC 빈 곳 클릭)는 없앴다. 바로 추가는 + 버튼이 맡는다.
 // 필드: 제목, 종일, 시작/종료 시각. 저장은 useCreateEvent, "자세히" 는 새 일정 폼으로 값을 넘긴다.
+// (#378) 일정 폼과 같은 카드, 줄 모양. 알림은 줄(누르면 카드 안에 펼침), 버튼은 "자세히 | 추가"
 import { useRouter } from "next/navigation";
 import { newEventHref } from "@/lib/routes";
 import { useId, useState } from "react";
-import { IconChevronLeft } from "./icons";
+import { IconBell, IconChevronLeft } from "./icons";
+import { NameField } from "./NameField";
 import { TimeList, TimePicker } from "./pickers";
-import { ReminderInline, ReminderNote } from "./ReminderPicker";
-import { Button, CloseButton, InlineError, RowButton, Toggle, captionClass, titleInputClass } from "./ui";
+import { ReminderInline } from "./ReminderPicker";
+import { Button, CloseButton, InlineError, RowButton, RowGroup, ToggleRow } from "./ui";
 import { messageOf, useCreateEvent, useEventDraft } from "@/hooks";
 import { haptic } from "@/lib/app-bridge";
 import { maybeOpenPushPrompt } from "@/lib/push";
@@ -87,34 +89,33 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
         <CloseButton onClick={onClose} className="shrink-0" />
       </div>
 
-      <label htmlFor={`${ids}-title`} className="sr-only">
-        제목
-      </label>
-      <input
-        id={`${ids}-title`}
-        autoFocus
-        className={`${titleInputClass} mt-2`}
-        placeholder="무슨 일정인가요?"
-        value={title}
-        onChange={(e) => dispatch({ type: "title", value: e.target.value })}
-        aria-invalid={Boolean(titleError)}
-        aria-describedby={titleError ? `${ids}-title-err` : undefined}
-        enterKeyHint="done"
-      />
-      {titleError && (
-        <InlineError id={`${ids}-title-err`} className="mt-1.5">
-          {titleError}
-        </InlineError>
-      )}
+      {/* (#378) 일정 폼과 같은 카드 모양. 패널이 흰 면이라 카드는 바탕색(inset) */}
+      <RowGroup inset className="mt-2">
+        <NameField
+          id={`${ids}-title`}
+          label="제목"
+          autoFocus
+          placeholder="무슨 일정인가요?"
+          value={title}
+          onChange={(v) => dispatch({ type: "title", value: v })}
+          error={titleError}
+          errorId={`${ids}-title-err`}
+          enterKeyHint="done"
+          autoComplete="off"
+        />
+      </RowGroup>
 
-      <div className="mt-2">
-        <Toggle checked={allDay} onChange={(v) => dispatch({ type: "allDay", value: v })} label="종일" />
+      <RowGroup inset className="mt-2">
+        <ToggleRow label="종일" checked={allDay} onChange={(v) => dispatch({ type: "allDay", value: v })} />
         {!allDay && (
-          <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-2.5">
-            <div>
-              <span className={captionClass}>시작</span>
+          <div className="flex min-h-12 items-center gap-2 py-1.5">
+            <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">
+              시간
+            </span>
+            <div className="ml-auto flex items-center gap-1.5">
               <TimePicker
                 id={`${ids}-start`}
+                look="chipInset"
                 label="시작 시각"
                 value={start}
                 onChange={changeStart}
@@ -122,11 +123,12 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
                 inlineOpen={timeOpen === "start"}
                 onInlineToggle={() => setTimeOpen((o) => (o === "start" ? null : "start"))}
               />
-            </div>
-            <div>
-              <span className={captionClass}>종료</span>
+              <span aria-hidden="true" className="text-ink-2">
+                ~
+              </span>
               <TimePicker
                 id={`${ids}-end`}
+                look="chipInset"
                 label="종료 시각"
                 value={end}
                 onChange={changeEnd}
@@ -140,7 +142,7 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
           </div>
         )}
         {!allDay && timeOpen && (
-          <div className="mt-2 rounded-sm border border-line p-1.5">
+          <div className="py-1.5">
             <TimeList
               key={timeOpen}
               value={timeOpen === "start" ? start : end}
@@ -156,30 +158,28 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
             />
           </div>
         )}
-      </div>
-      <div className="mt-2 border-t border-line pt-1">
-        <RowButton
-          label="알림"
-          value={REMINDER_LABEL[reminder]}
-          chevron={false}
-          onClick={() => setReminderOpen((o) => !o)}
-          aria-expanded={reminderOpen}
-          className="rounded-sm"
-        />
-        {reminderOpen && (
-          <ReminderInline
-            allDay={allDay}
-            value={reminder}
-            onPick={(v) => {
-              dispatch({ type: "reminder", value: v });
-              setReminderOpen(false);
-              // 권한 안내 시트 계기 ② (8-1)
-              if (v !== "NONE") void maybeOpenPushPrompt();
-            }}
+        <div>
+          <RowButton
+            label="알림"
+            icon={<IconBell size={18} />}
+            value={REMINDER_LABEL[reminder]}
+            onClick={() => setReminderOpen((o) => !o)}
+            aria-expanded={reminderOpen}
           />
-        )}
-        <ReminderNote className="-mt-1" />
-      </div>
+          {reminderOpen && (
+            <ReminderInline
+              allDay={allDay}
+              value={reminder}
+              onPick={(v) => {
+                dispatch({ type: "reminder", value: v });
+                setReminderOpen(false);
+                // 권한 안내 시트 계기 ② (8-1)
+                if (v !== "NONE") void maybeOpenPushPrompt();
+              }}
+            />
+          )}
+        </div>
+      </RowGroup>
       {rangeError && (
         <InlineError id={`${ids}-range-err`} className="mt-1.5">
           {rangeError}
@@ -187,12 +187,13 @@ export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId,
       )}
       {saveError && <InlineError className="mt-2">{saveError}</InlineError>}
 
+      {/* 자세히 | 추가 (새로 만들면 "추가", 입력 화면 규칙 5) */}
       <div className="mt-3 flex gap-2">
-        <Button type="button" variant="secondary" size="lg" onClick={more} className="shrink-0 px-4">
+        <Button type="button" variant="secondary" size="xl" onClick={more} className="basis-[30%] shrink-0 px-4">
           자세히
         </Button>
-        <Button type="submit" size="lg" full loading={create.isPending}>
-          저장
+        <Button type="submit" size="xl" full loading={create.isPending} className="min-w-0 flex-1">
+          추가
         </Button>
       </div>
     </form>

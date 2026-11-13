@@ -61,4 +61,28 @@ describe("PollCreateSheet (#189)", () => {
     });
     expect(screen.getByRole("alert").textContent).toBe("진행 중인 투표가 너무 많아요");
   });
+
+  it("(#378) 후보는 한 줄씩. 구간이 긴 후보는 줄을 눌러 시작 시각을 고치고, 직접 추가는 같은 카드, 마감은 칸 안 세그먼트", async () => {
+    mutate.mockResolvedValue({ ok: true, data: { id: 1, publicCode: "poll1xxx" }, error: null });
+    render(<PollCreateSheet open onClose={vi.fn()} groupId={10} members={members} meId={1} slots={slots.slice(0, 2)} minMinutes={120} onCreated={vi.fn()} />);
+    // 22일 구간(13~19시)은 2시간 후보라 줄을 눌러 시작을 고를 수 있고, 23일(10~12시)은 꽉 차 고칠 수 없다
+    const row = screen.getByRole("button", { name: /2030년 11월 22일 .*, 시작 시각, 오후 1:00$/ });
+    expect(row.textContent).toMatch(/오후 1:00~3:00/);
+    expect(screen.queryByRole("button", { name: /11월 23일 .*, 시작 시각/ })).toBeNull();
+    fireEvent.click(row);
+    const typed = screen.getByPlaceholderText("HH:mm");
+    fireEvent.change(typed, { target: { value: "16:30" } });
+    fireEvent.keyDown(typed, { key: "Enter" });
+    expect(screen.getByText(/2030년 11월 22일 \(금\) 오후 4:30~6:30/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "직접 추가" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "없음" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("button", { name: /^대상/ })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/제목/), { target: { value: "모임" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "투표 만들기" }));
+    });
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.arrayContaining([{ startsAt: kst("2030-11-22T16:30"), endsAt: kst("2030-11-22T18:30"), allDay: false }]) }),
+    );
+  });
 });

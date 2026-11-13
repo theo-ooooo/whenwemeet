@@ -3,21 +3,14 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { IconCalendar, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { NameField } from "@/components/NameField";
 import { DatePicker } from "@/components/pickers";
-import { ReminderNote } from "@/components/ReminderPicker";
-import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, captionClass, inputClass } from "@/components/ui";
+import { ReminderChoicesRow } from "@/components/ReminderChoicesRow";
+import { Button, EmptyState, ErrorState, MemberDot, RowGroup, Segmented, Sheet, SkeletonList } from "@/components/ui";
 import { messageOf, useAnniversaries, useBirthdays, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
-import {
-  DEFAULT_REMINDERS,
-  REMINDER_CHOICES,
-  isChoiceOn,
-  reminderHint,
-  remindersOf,
-  sameReminders,
-  toggleReminder,
-} from "@/lib/anniversary-reminder";
+import { DEFAULT_REMINDERS, reminderHint, remindersOf, sameReminders } from "@/lib/anniversary-reminder";
 import { formatBirthday, withBirthdays } from "@/lib/birthday";
 import { formatDateKo, todayKey } from "@/lib/date";
 import { ME_BIRTHDAY_PATH, TEAM_PATH } from "@/lib/routes";
@@ -44,7 +37,6 @@ export function AnniversariesScreen() {
   const kindLabelId = useId();
   // (#269) 알림 시점. 기념일에 하나, 팀 공통 (기획 푸시-알림.md 3-7)
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
-  const reminderLabelId = useId();
   // (#305) 멤버 생일은 같은 목록에 섞되 고치지 않는다 (내 생일은 내 정보에서). 못 받으면 기념일만
   const birthdaysQ = useBirthdays(groupId);
   const birthdays = birthdaysQ.data;
@@ -220,57 +212,43 @@ export function AnniversariesScreen() {
         )}
       </div>
 
-      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.mode === "edit" ? "기념일 수정" : "기념일 추가"}>
-        <form onSubmit={save} className="space-y-3">
-          <Field label="이름" hint={`${name.trim().length}/30`} error={formError}>
-            {(id, describedBy) => (
-              <input
-                id={id}
-                aria-describedby={describedBy}
-                className={inputClass}
-                value={name}
-                maxLength={30}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="예: 처음 만난 날, 결혼기념일"
-                autoFocus
-              />
-            )}
-          </Field>
-          <Field label="날짜">
-            {(id) => (
-              <DatePicker id={id} label="기념일 날짜" value={date} onChange={setDate} withYear />
-            )}
-          </Field>
-          {/* 종류 (기획 3-1): 세그먼트 3개, 기본 함께한 날 세기 */}
-          <div>
-            <span id={kindLabelId} className={captionClass}>
-              종류
-            </span>
-            <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
-            <p className="t-sub mt-1.5">{KIND_OPTIONS.find((o) => o.value === kind)?.hint}</p>
-          </div>
-          {/* 알림 (#269, 기획 푸시-알림.md 3-7): 당일 / 하루 전 / 일주일 전 여러 개, "없음" 은 셋을 끈다. 모두 오전 9시 */}
-          <div>
-            <span id={reminderLabelId} className={captionClass}>
-              알림 <span className="font-normal">(오전 9시)</span>
-            </span>
-            <ToggleChips
-              labelledBy={reminderLabelId}
-              options={REMINDER_CHOICES}
-              isOn={(v) => isChoiceOn(reminders, v)}
-              onToggle={(v) => setReminders((prev) => toggleReminder(prev, v))}
+      {/* (#378) 이름 + 날짜 줄 카드, 종류 세그먼트 + 알림 줄 카드, 안내 한 줄, 맨 아래 추가/저장 */}
+      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing?.mode === "edit" ? "기념일 수정" : "기념일 추가"} tone="bg">
+        <form onSubmit={save} className="space-y-2 pb-1">
+          <RowGroup>
+            <NameField
+              label="기념일 이름"
+              value={name}
+              onChange={setName}
+              max={30}
+              limitInput
+              placeholder="예: 처음 만난 날, 결혼기념일"
+              autoFocus
+              autoComplete="off"
+              error={formError}
             />
-            {reminderHint(kind, reminders) && <p className="t-sub mt-1.5">{reminderHint(kind, reminders)}</p>}
-            <ReminderNote className="mt-1.5" />
-          </div>
-          <Button type="submit" size="lg" full disabled={!valid} loading={saving}>
-            {editing?.mode === "edit" ? "저장" : "추가"}
-          </Button>
-          {editing?.mode === "edit" && (
-            <Button type="button" variant="danger" size="lg" full onClick={() => remove(editing.item)}>
-              삭제
+            <DatePicker look="row" rowLabel="날짜" rowIcon={<IconCalendar size={18} />} label="기념일 날짜" value={date} onChange={setDate} withYear />
+          </RowGroup>
+          {/* 종류 (기획 3-1): 칸 안 세그먼트 3개, 기본 함께한 날 세기. 알림 (#269): 당일 / 하루 전 / 일주일 전 여러 개, 모두 오전 9시 */}
+          <RowGroup hint={reminderHint(kind, reminders) ?? KIND_OPTIONS.find((o) => o.value === kind)?.hint}>
+            <div className="pb-3 pt-2.5">
+              <span id={kindLabelId} className="mb-2 block text-[14px] font-semibold">
+                종류
+              </span>
+              <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
+            </div>
+            <ReminderChoicesRow label="알림" value={reminders} onChange={setReminders} />
+          </RowGroup>
+          <div className="space-y-2 pt-1">
+            <Button type="submit" size="xl" full disabled={!valid} loading={saving}>
+              {editing?.mode === "edit" ? "저장" : "추가"}
             </Button>
-          )}
+            {editing?.mode === "edit" && (
+              <Button type="button" variant="ghost" size="lg" full onClick={() => remove(editing.item)} className="text-danger!">
+                삭제
+              </Button>
+            )}
+          </div>
         </form>
       </Sheet>
     </div>

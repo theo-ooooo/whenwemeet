@@ -1,8 +1,8 @@
 "use client";
 // (#188) 일정 알림 시각 고르기 (푸시-알림.md 4-1, 8장). 선택지는 종일 여부로 갈린다 (lib/reminder.ts)
 //   ReminderSheet:   일정 폼의 "알림" 줄을 누르면 뜨는 목록 (반복 시트와 같은 모양)
-//   ReminderInline:  빠른 추가처럼 이미 시트 안인 곳에서 줄 아래로 펼치는 목록
-//   ReminderNote:    푸시를 받을 수 없는 곳(웹, 1.0.x 앱) 의 안내 한 줄
+//   ReminderInline:  빠른 추가처럼 이미 시트 안인 곳에서 줄 아래로 펼치는 목록 (카드 안 줄 사이에 펼친다)
+//   ReminderNote:    푸시를 받을 수 없는 곳(웹, 1.0.x 앱) 의 안내 한 줄. (#378) 폼 본문이 아니라 알림을 고르는 목록 안에만 둔다
 import { useSyncExternalStore } from "react";
 import { IconCheck } from "./icons";
 import { Sheet } from "./ui";
@@ -50,14 +50,17 @@ export function ReminderSheet({
   return (
     <Sheet open={open} onClose={onClose} title="알림">
       <Options allDay={allDay} value={value} onPick={onPick} />
+      {/* (#378) 못 받는 기기 안내는 고르는 자리에 한 번만 (폼 본문에는 두지 않는다) */}
+      <ReminderNote className="px-3 pb-1" />
     </Sheet>
   );
 }
 
 export function ReminderInline({ allDay, value, onPick }: { allDay: boolean; value: EventReminder; onPick: (v: EventReminder) => void }) {
   return (
-    <div className="mt-1 rounded-sm border border-line p-1">
+    <div className="py-1">
       <Options allDay={allDay} value={value} onPick={onPick} compact />
+      <ReminderNote className="px-3 pb-1" />
     </div>
   );
 }

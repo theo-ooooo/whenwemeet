@@ -7,9 +7,10 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { GroupGone } from "@/components/GroupGone";
 import { Symbol } from "@/components/Logo";
-import { IconFree, IconHeart, IconPoll, IconTeam } from "@/components/icons";
+import { IconCalendar, IconFree, IconHeart, IconPoll, IconTeam } from "@/components/icons";
+import { NameField } from "@/components/NameField";
 import { DatePicker, TimePicker } from "@/components/pickers";
-import { Button, captionClass, Field, InlineError, inputClass, Segmented } from "@/components/ui";
+import { Button, InlineError, RowGroup, Segmented } from "@/components/ui";
 import { messageOf, useCreateAnniversary, useCreateEvent, useGroup, useMe } from "@/hooks";
 import { formatBirthday } from "@/lib/birthday";
 import { dowOf, formatDateKo, todayKey } from "@/lib/date";
@@ -68,9 +69,10 @@ function Title({ lines, sub }: { lines: [string, string]; sub: string }) {
   );
 }
 
-const formClass = "mt-8 flex flex-1 flex-col";
-const cardClass = "mt-6 space-y-3 rounded-xl bg-paper px-3.5 py-3.5";
-const footClass = "mt-auto pt-8";
+// (#378) 버튼은 내용 바로 아래 (화면 맨 아래로 떨어뜨리지 않는다, 팀 만들기와 같다)
+const formClass = "mt-8 flex flex-col";
+const cardClass = "mt-6 space-y-3 rounded-lg bg-paper px-3.5 py-3.5";
+const footClass = "mt-5";
 
 /* ---------- 커플: 처음 만난 날 ---------- */
 
@@ -92,31 +94,19 @@ function FirstMeetStep({ groupId, onDone }: { groupId: number; onDone: () => voi
   return (
     <form onSubmit={submit} className={formClass}>
       <Title lines={["처음 만난 날이", "언제예요?"]} sub="넣어 두면 100일, 1주년이 달력에 저절로 떠요" />
-      <div className={cardClass}>
-        <Field label="이름" hint={`${name.trim().length}/30`}>
-          {(id, describedBy) => (
-            <input
-              id={id}
-              aria-describedby={describedBy}
-              className={inputClass}
-              value={name}
-              maxLength={30}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={FIRST_MEET_NAME}
-              autoComplete="off"
-            />
-          )}
-        </Field>
-        <Field label="날짜">{(id) => <DatePicker id={id} label="처음 만난 날" value={date} onChange={setDate} withYear />}</Field>
-        <p className="flex items-center gap-1.5 text-[13px] font-medium leading-5 text-acc-ink">
+      {/* (#378) 이름 칸(라벨 없음) + 날짜 줄 한 카드, 미리보기 한 줄 */}
+      <RowGroup className="mt-6">
+        <NameField label="기념일 이름" value={name} onChange={setName} max={30} limitInput placeholder={FIRST_MEET_NAME} autoComplete="off" />
+        <DatePicker look="row" rowLabel="날짜" rowIcon={<IconCalendar size={18} />} label="처음 만난 날" value={date} onChange={setDate} withYear />
+        <p className="flex items-center gap-1.5 py-2.5 text-[13px] font-medium leading-5 text-acc-ink">
           <IconHeart size={16} className="shrink-0" />
           {firstMeetPreview(date)}
         </p>
-      </div>
+      </RowGroup>
       {error && <InlineError className="mt-2 px-1">{messageOf(error, "저장하지 못했어요. 다시 시도해 주세요")}</InlineError>}
       <div className={footClass}>
-        <Button type="submit" size="lg" full disabled={!valid} loading={isPending}>
-          저장
+        <Button type="submit" size="xl" full disabled={!valid} loading={isPending}>
+          추가
         </Button>
       </div>
     </form>
@@ -143,7 +133,7 @@ function BirthdayStep({ groupId, onDone }: { groupId: number; onDone: () => void
       <div className={footClass}>
         {mine ? (
           <Button
-            size="lg"
+            size="xl"
             full
             onClick={() => {
               finishStep(groupId, "birthday");
@@ -157,7 +147,7 @@ function BirthdayStep({ groupId, onDone }: { groupId: number; onDone: () => void
           <Link
             href={ME_BIRTHDAY_PATH}
             onClick={() => finishStep(groupId, "birthday")}
-            className="flex h-11 w-full items-center justify-center rounded-md bg-btn px-5 text-[13.5px] font-bold text-on-btn hover:brightness-95"
+            className="flex h-12 w-full items-center justify-center rounded-md bg-btn px-5 text-[15px] font-bold text-on-btn hover:brightness-95"
           >
             내 생일 넣기
           </Link>
@@ -192,7 +182,7 @@ function FriendsStep({ onDone, fromCalendar }: { onDone: () => void; fromCalenda
         ))}
       </ol>
       <div className={footClass}>
-        <Button size="lg" full onClick={onDone}>
+        <Button size="xl" full onClick={onDone}>
           {fromCalendar ? "달력으로" : "초대하러 가기"}
         </Button>
       </div>
@@ -228,40 +218,33 @@ function MeetingStep({ groupId, onDone }: { groupId: number; onDone: () => void 
   return (
     <form onSubmit={submit} className={formClass}>
       <Title lines={["정기 모임이", "있나요?"]} sub="요일과 시간을 넣으면 매주 달력에 들어가요" />
-      <div className={cardClass}>
-        <Field label="제목">
-          {(id) => (
-            <input
-              id={id}
-              className={inputClass}
-              value={title}
-              maxLength={50}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={MEETING_TITLE}
-              autoComplete="off"
-            />
-          )}
-        </Field>
-        <div>
-          <span id={dowLabelId} className={captionClass}>
+      {/* (#378) 모임 이름 칸(라벨 없음) → 요일 세그먼트 → 시간 줄, 안내 한 줄 */}
+      <RowGroup className="mt-6" hint={start >= end ? undefined : `첫 모임은 ${formatDateKo(first)}, 그 뒤로 매주 같은 요일이에요`}>
+        <NameField label="모임 이름" value={title} onChange={setTitle} max={50} limitInput placeholder={MEETING_TITLE} autoComplete="off" />
+        <div className="pb-3 pt-2.5">
+          <span id={dowLabelId} className="mb-2 block text-[14px] font-semibold">
             요일
           </span>
           <Segmented labelledBy={dowLabelId} value={String(dow)} options={DOW_OPTIONS} onChange={(v) => setDow(Number(v))} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="시작">{(id) => <TimePicker id={id} label="시작 시각" value={start} onChange={setStart} />}</Field>
-          <Field label="끝">{(id) => <TimePicker id={id} label="끝 시각" value={end} onChange={setEnd} aria-invalid={start >= end} />}</Field>
+        <div className="flex min-h-12 items-center gap-2 py-1.5">
+          <span aria-hidden="true" className="shrink-0 text-[14px] font-semibold">
+            시간
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <TimePicker look="chip" label="시작 시각" value={start} onChange={setStart} />
+            <span aria-hidden="true" className="text-ink-2">
+              ~
+            </span>
+            <TimePicker look="chip" label="끝 시각" value={end} onChange={setEnd} aria-invalid={start >= end} />
+          </div>
         </div>
-        {start >= end ? (
-          <InlineError className="px-1">끝 시각이 시작보다 늦어야 해요</InlineError>
-        ) : (
-          <p className="t-sub px-1">첫 모임은 {formatDateKo(first)}, 그 뒤로 매주 같은 요일이에요</p>
-        )}
-      </div>
+        {start >= end && <InlineError className="py-2">끝 시각이 시작보다 늦어야 해요</InlineError>}
+      </RowGroup>
       {error && <InlineError className="mt-2 px-1">{messageOf(error, "저장하지 못했어요. 다시 시도해 주세요")}</InlineError>}
       <div className={footClass}>
-        <Button type="submit" size="lg" full disabled={!valid} loading={isPending}>
-          저장
+        <Button type="submit" size="xl" full disabled={!valid} loading={isPending}>
+          추가
         </Button>
       </div>
     </form>

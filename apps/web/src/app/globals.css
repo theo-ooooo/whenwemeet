@@ -444,3 +444,13 @@ body {
   backdrop-filter: blur(16px);
   box-shadow: var(--dock-shadow);
 }
+
+/* (#378) 바닥에 붙는 저장 줄이 있는 폼(일정 작성): 포커스로 스크롤될 때 입력 칸이 그 줄(버튼 48 + 위아래 여백)에 가리지 않게 띄운다. 넓은 화면은 줄이 붙지 않는다 */
+html:has(form[data-sticky-foot]) {
+  scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+@media (width >= 600px) {
+  html:has(form[data-sticky-foot]) {
+    scroll-padding-bottom: 0;
+  }
+}

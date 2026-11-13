@@ -63,4 +63,16 @@ describe("ScreenHeader", () => {
     render(<ScreenHeader title="x" fallbackHref="/calendar" back="phone" />);
     expect(screen.getByRole("link", { name: "뒤로" }).className).toContain("fold:hidden");
   });
+
+  it("(#378) onBack 을 주면 이동하지 않고 그것만 부른다 (입력 화면 이탈 확인). ⌘ 클릭은 링크 그대로", () => {
+    canBack = true;
+    const onBack = vi.fn();
+    render(<ScreenHeader title="새 일정" fallbackHref="/calendar" backLabel="취소" onBack={onBack} />);
+    const link = screen.getByRole("link", { name: "취소" });
+    fireEvent.click(link);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(back).not.toHaveBeenCalled();
+    fireEvent.click(link, { metaKey: true });
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
 });
