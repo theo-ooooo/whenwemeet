@@ -64,7 +64,7 @@ import {
   type DateKey,
 } from "@/lib/date";
 import { cellDensity } from "@/lib/calendar-cell";
-import { fitWeek, packWeek, phoneDayLanes, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
+import { fitWeek, packWeek, phoneDayLanes, phoneWeek, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
@@ -78,6 +78,7 @@ import { haptic } from "@/lib/app-bridge";
 import { resolveCalView, withCalView, type CalView } from "@/lib/calendar-view";
 import { useCalendarViewPref } from "@/lib/useCalendarView";
 import { weekDays, weekFetchRange, weekTitle } from "@/lib/week-layout";
+import { PhoneWeekChips } from "@/screens/calendar/PhoneMonthChips";
 import { ViewToggle } from "@/screens/calendar/ViewToggle";
 import { WeekView } from "@/screens/calendar/WeekView";
 
@@ -326,6 +327,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const gridFrom = grid[0];
   const gridTo = grid[grid.length - 1];
   const annByDay = useMemo(() => occurrencesByDay(anniversaries, gridFrom, gridTo), [anniversaries, gridFrom, gridTo]);
+  // (#355) 폰 칸 이름 칩: 주마다 칸당 4줄. 기념일, 공휴일 글자가 있는 칸은 0번 줄을 그 글자가 쓴다
+  const phoneWeeks = useMemo(
+    () => weeks.map((w) => phoneWeek(w.packed, PHONE_LANES, w.packed.days.map((d) => (annByDay.get(d)?.length ?? 0) > 0 || Boolean(holidayOf(d))))),
+    [weeks, annByDay],
+  );
   // phone "기념일" 구역 카드: 기념일마다 다음 항목 하나 (#212)
   const annCards = useMemo(() => (anniversaries ? nextOccurrences(anniversaries, today, 10) : null), [anniversaries, today]);
 
@@ -1008,6 +1014,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                     col={col}
                     fit2={w.fit2.days[col]}
                     fit3={w.fit3.days[col]}
+                    phoneMore={phoneWeeks[Math.floor(i / 7)].more[col]}
                     loading={events === null}
                     onPick={() => onCell(key)}
                     onOpen={(ev) => openDay(key, ev)}
@@ -1030,6 +1037,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                       <WeekBar key={`3@${p.key}@${p.col}`} piece={p} className="hidden taller:flex" onOpen={() => openDay(w.packed.days[p.col], p.event)} />
                     ))}
                   </div>
+                ))}
+              </div>
+            )}
+            {/* (#355) 폰: 주마다 이름 칩을 칸 위에 겹쳐 그린다. 누르기는 아래 칸 버튼이 받는다(칸 = 일 상세) */}
+            {events !== null && (
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid fold:hidden" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+                {phoneWeeks.map((pw, r) => (
+                  <PhoneWeekChips key={weeks[r].packed.days[0]} chips={pw.chips} />
                 ))}
               </div>
             )}
@@ -1090,6 +1105,9 @@ const ROW_PX = 20;
 // 칸 위 1px 테두리 다음부터 첫 줄까지: 위 여백 4 + 숫자 줄 24 + 줄 위 여백 2
 const FIRST_ROW_TOP = 30;
 
+// (#355) 폰 칸 이름 칩: 칸당 4줄 (screens/calendar/PhoneMonthChips.tsx)
+const PHONE_LANES = 4;
+
 /**
  * 넓은 화면 여러 날 일정 막대 (#202). 한 주 줄 위에 걸친 칸만큼 한 줄로. 모양은 칩과 같다
  * (11/500, 높이 18, 모서리 5, 옅은 멤버 색 면 + 진한 글자). 진짜 시작, 끝만 둥글고 칸 안쪽 4px 에서 시작한다.
@@ -1129,7 +1147,8 @@ function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; classNa
 
 // 칸 모양은 칸 높이로 고른다 (폴더블.md 4-2): 넓은 화면에서 칸이 [container-type:size] 이고,
 // 높이 ≥84px 이면 tall: 로 2줄, ≥110px 이면 taller: 로 3줄. 줄은 위에서부터 여러 날 막대 레인(WeekBar 가 겹쳐 그림, 칸은 자리만) →
-// 한 날 일정 칩(디자인규칙.md 2-2) → 넘치면 "+N개 더". 그보다 낮으면(폰, 아이폰 듀오 가로) 4px 막대 + 점 + 제목 한 줄
+// 한 날 일정 칩(디자인규칙.md 2-2) → 넘치면 "+N개 더". 그보다 낮으면(아이폰 듀오 가로) 4px 막대 + 점 + 제목 한 줄.
+// 폰(<600)은 칸 높이 104 에 이름 칩 4줄 (#355, 칩은 달력 격자 위 PhoneWeekChips 가 겹쳐 그리고 칸은 숫자, 기념일/공휴일 줄, "+N" 배지만)
 function DayCell({
   dateKey,
   inMonth,
@@ -1142,6 +1161,7 @@ function DayCell({
   col,
   fit2,
   fit3,
+  phoneMore,
   loading,
   onPick,
   onOpen,
@@ -1162,6 +1182,8 @@ function DayCell({
   /** 칩 2줄(tall), 3줄(taller) 일 때 이 칸의 칩 자리 */
   fit2: DayFit<Event>;
   fit3: DayFit<Event>;
+  /** (#355) 폰 칸에서 못 그린 일정 수 (날짜 숫자 옆 "+N") */
+  phoneMore: number;
   loading: boolean;
   onPick: () => void;
   onOpen: (ev: Event) => void;
@@ -1207,7 +1229,7 @@ function DayCell({
   const rowsVar = { "--rows2": `${fit2.chipRow * ROW_PX}px`, "--rows3": `${fit3.chipRow * ROW_PX}px` } as React.CSSProperties;
 
   return (
-    <li data-date={dateKey} className="relative h-[52px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
+    <li data-date={dateKey} className="relative h-[104px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
       <button
         type="button"
         onClick={onPick}
@@ -1218,9 +1240,18 @@ function DayCell({
         className="absolute inset-0 hover:bg-hover/50"
       />
       {isAnchor && <span aria-hidden="true" className="pointer-events-none absolute inset-px rounded-sm border-2 border-pri" />}
+      {/* (#355) 폰: 4줄에 못 든 일정 수를 날짜 숫자 오른쪽 위 작은 배지로. 오른쪽 끝은 칸 안(좁은 칸은 숫자 원 귀퉁이에 살짝 겹친다) */}
+      {phoneMore > 0 && !loading && (
+        <b
+          aria-hidden="true"
+          className="pointer-events-none absolute top-[3px] right-[max(1px,calc(50%-26px))] z-[1] h-[13px] rounded-[7px] bg-line px-[3px] text-[9px] leading-[13px] font-bold whitespace-nowrap text-ink-2 ring-1 ring-paper fold:hidden"
+        >
+          +{phoneMore}
+        </b>
+      )}
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
         <span className="relative flex max-w-full min-w-0 items-center tall:gap-1">
-          <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
+          <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none max-fold:size-[22px] max-fold:text-[12px] tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
           {holidayText && (
             <span aria-hidden="true" className={`hidden truncate text-[11px] font-medium tall:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}>
               {holidayText}
@@ -1240,7 +1271,7 @@ function DayCell({
         {holidayText && (
           <span
             aria-hidden="true"
-            className={`relative block max-w-full shrink-0 truncate text-[10px] font-medium leading-3 tall:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
+            className={`relative block max-w-full shrink-0 truncate text-[10px] font-medium leading-3 max-fold:mt-[2px] max-fold:leading-[15px] tall:hidden ${inMonth ? "text-holiday" : "text-holiday-faint"}`}
           >
             {holidayText}
           </span>
@@ -1249,7 +1280,7 @@ function DayCell({
         {annText && (
           <span
             aria-hidden="true"
-            className={`relative flex max-w-full shrink-0 items-center justify-center gap-px text-[10px] font-semibold leading-3 text-acc-ink tall:hidden ${inMonth ? "" : "opacity-60"}`}
+            className={`relative flex max-w-full shrink-0 items-center justify-center gap-px text-[10px] font-semibold leading-3 text-acc-ink max-fold:mt-[2px] max-fold:h-[15px] tall:hidden ${inMonth ? "" : "opacity-60"}`}
           >
             {/* 하트로 기념일임을 보인다 (주말 칸에서 공휴일처럼 보이지 않게, #140 L3) */}
             <IconHeart size={8} strokeWidth={2.6} className="shrink-0" />
@@ -1257,8 +1288,8 @@ function DayCell({
           </span>
         )}
 
-        {/* 점 + 제목 한 줄 */}
-        <span aria-hidden="true" className="relative block w-full tall:hidden">
+        {/* 점 + 제목 한 줄: 넓은 화면의 낮은 칸(아이폰 듀오 가로 등)만. 폰은 이름 칩(#355, PhoneMonthChips) */}
+        <span aria-hidden="true" className="relative block w-full max-fold:hidden tall:hidden">
           {loading ? null : (
             <>
               {phone.lanes.map((s, i) => {
