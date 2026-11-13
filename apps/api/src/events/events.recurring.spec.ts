@@ -5,9 +5,18 @@ import { membershipRow, mockRepository, RepositoryMock } from '../testing/reposi
 import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
 import { assertRepeatRule, EventsService, inheritedUntil } from './events.service.js';
 import { expand, kstDate, type Repeat } from './recurrence.js';
+import type { Mock } from 'vitest';
 import { emptyResponses } from '../testing/responses-mock.js';
 
 /** 반복 일정 (#187, 설계 4장) 서비스 단위 테스트. Repository 는 목 */
+
+/**
+ * splitSeriesTx 는 오버로드(수정 → EventRow, 삭제 → number)라 RepositoryMock 이 마지막 시그니처(number)로만 잡는다.
+ * 테스트는 두 형태를 다 쓰므로 이 목만 구현 시그니처 기준으로 넓힌다 (타입만, 동작 같음)
+ */
+type EventsMock = Omit<RepositoryMock<EventsRepository>, 'splitSeriesTx'> & {
+  splitSeriesTx: Mock<(...args: unknown[]) => Promise<EventRow | number>>;
+};
 
 const kst = (value: string) => new Date(`${value}+09:00`);
 const config = { getOrThrow: () => 'http://web' } as never;
@@ -53,12 +62,12 @@ const exception = (overrides: Partial<EventExceptionRow>): EventExceptionRow => 
 });
 
 describe('EventsService 반복 일정', () => {
-  let events: RepositoryMock<EventsRepository>;
+  let events: EventsMock;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let service: EventsService;
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository);
+    events = mockRepository(EventsRepository) as unknown as EventsMock;
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
     service = new EventsService(events as never, memberships, emptyResponses() as never);
@@ -631,12 +640,12 @@ describe('EventsService 반복 일정', () => {
 
 /** (#248) 반복 일정의 참여자 (설계 3-3, D-135). 참여자는 원본에만 붙는다 */
 describe('EventsService 반복 일정 참여자', () => {
-  let events: RepositoryMock<EventsRepository>;
+  let events: EventsMock;
   let service: EventsService;
   const PICKED: EventRow = { ...SERIES, allMembers: false, participantIds: [2] };
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository);
+    events = mockRepository(EventsRepository) as unknown as EventsMock;
     const membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
     service = new EventsService(events as never, memberships, emptyResponses() as never);
