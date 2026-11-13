@@ -1,6 +1,6 @@
 // (#190) 참석 여부와 반응 공용 규칙
 import { describe, expect, it } from "vitest";
-import { applyMyReaction, applyMyRsvp, isParticipant, needsMyRsvp, nextReaction, occurrenceQuery, rsvpSummaryText, showRsvp } from "../rsvp";
+import { applyMyReaction, applyMyRsvp, isParticipant, nextReaction, occurrenceQuery, rsvpSummaryText, showRsvp } from "../rsvp";
 import type { Event, Member, RsvpSummary } from "../types";
 
 const m = (userId: number, displayName = `멤버${userId}`): Member => ({ userId, displayName, color: "#3B82F6", profileImageUrl: null });
@@ -49,15 +49,7 @@ describe("rsvp (#190)", () => {
     expect(rsvpSummaryText(SUM)).toBe("아직 아무도 답하지 않았어요");
   });
 
-  it("needsMyRsvp: 참여자, 아직 안 답함, 끝나지 않음, 팀 일정일 때만 (Q4)", () => {
-    expect(needsMyRsvp(ev(), 1, false, NOW)).toBe(true);
-    expect(needsMyRsvp(ev({ rsvp: { ...SUM, mine: "MAYBE" } }), 1, false, NOW)).toBe(false);
-    expect(needsMyRsvp(ev(), 3, false, NOW)).toBe(false);
-    expect(needsMyRsvp(ev(), 1, true, NOW)).toBe(false);
-    expect(needsMyRsvp(ev({ rsvp: undefined }), 1, false, NOW)).toBe(false);
-    // 끝난 일정(지난 회차)에는 표시하지 않는다
-    expect(needsMyRsvp(ev(), 1, false, Date.parse("2026-11-20T12:00:00.000Z"))).toBe(false);
-  });
+
 
   it("applyMyRsvp: 이전 값에서 빼고 새 값에 더한다. null 은 응답 전으로", () => {
     const a = applyMyRsvp(SUM, "GOING");

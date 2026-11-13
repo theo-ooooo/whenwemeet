@@ -46,16 +46,6 @@ export function rsvpSummaryText(s: RsvpSummary): string {
   return parts.join(", ");
 }
 
-/**
- * 다가오는 일정 카드와 목록 화면의 "응답" 표시 (Q4). 내가 참여자이고, 아직 답하지 않았고, 지나지 않은(끝나지 않은) 일정.
- * 개인 팀, 옛 API(집계 없음)는 표시하지 않는다
- */
-export function needsMyRsvp(ev: Pick<Event, "creator" | "participants" | "rsvp" | "endsAt">, meId: number | null, personal: boolean, nowMs: number): boolean {
-  if (personal || !ev.rsvp || ev.rsvp.mine !== null) return false;
-  if (Date.parse(ev.endsAt) <= nowMs) return false;
-  return isParticipant(ev, meId);
-}
-
 /** 내 응답을 바꾼 집계 (서버 응답 전 화면에 먼저 그린다). 참여자가 아니면 그대로 */
 export function applyMyRsvp(s: RsvpSummary, next: Rsvp | null): RsvpSummary {
   const out = { ...s };
