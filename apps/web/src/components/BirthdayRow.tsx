@@ -1,15 +1,16 @@
 "use client";
 // (#305) 내 정보 > "내 생일" 한 줄과 고르기 시트 (D-230 ~ D-232).
-// 줄 모양은 같은 화면의 "처음 여는 달력", "알림" 줄. 시트는 월, 일 고르기(연도 없음) + 팀원에게 알리는 시점(기념일 알림 칩 그대로).
+// 줄 모양은 같은 화면의 "처음 여는 달력", "알림" 줄. 시트는 생일 줄(월, 일 고르기, 연도 없음) + 팀원에게 알리는 시점 줄(기념일 알림과 같은 규칙, #378).
 // 저장하면 내가 속한 모든 팀 달력에 "닉네임 생일" 로 매년 보인다. 팀마다 끄기는 팀 설정
-import { useEffect, useId, useRef, useState } from "react";
-import { IconChevronRight, IconHeart } from "./icons";
-import { ReminderNote } from "./ReminderPicker";
+import { useEffect, useRef, useState } from "react";
+import { IconCalendar, IconChevronRight, IconHeart } from "./icons";
+import { MonthDayPicker, type MonthDay } from "./pickers/MonthDayPicker";
+import { ReminderChoicesRow } from "./ReminderChoicesRow";
 import { useToast } from "./Toast";
-import { Button, InlineError, Sheet, ToggleChips, captionClass, inputClass } from "./ui";
+import { Button, InlineError, RowGroup, Sheet } from "./ui";
 import { messageOf, useUpdateBirthday } from "@/hooks";
-import { DEFAULT_REMINDERS, REMINDER_CHOICES, isChoiceOn, normalizeReminders, sameReminders, toggleReminder } from "@/lib/anniversary-reminder";
-import { MONTH_DAYS, clampDay, formatBirthday, parseBirthday, toBirthday } from "@/lib/birthday";
+import { DEFAULT_REMINDERS, normalizeReminders, sameReminders } from "@/lib/anniversary-reminder";
+import { formatBirthday, parseBirthday, toBirthday } from "@/lib/birthday";
 import type { AnniversaryReminder, BirthdaySettings } from "@/lib/types";
 
 /** 화면이 /me#birthday 로 열렸는가 (기념일 화면의 "내 생일 넣기") */
@@ -25,21 +26,16 @@ export function BirthdayRow({
 }) {
   const ready = value !== undefined;
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState(1);
-  const [day, setDay] = useState(1);
+  // 고른 월, 일. 아직 없으면 null (줄에 "고르기", 저장은 고른 뒤에)
+  const [picked, setPicked] = useState<MonthDay | null>(null);
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
   const { mutate, isPending } = useUpdateBirthday();
-  const monthId = useId();
-  const dayId = useId();
-  const reminderLabelId = useId();
 
   function openSheet() {
     if (!value) return;
-    const p = parseBirthday(value.date);
-    setMonth(p?.m ?? 1);
-    setDay(p?.d ?? 1);
+    setPicked(parseBirthday(value.date));
     setReminders(normalizeReminders(value.reminders));
     setError(null);
     setOpen(true);
@@ -92,74 +88,33 @@ export function BirthdayRow({
       </button>
 
       {ready && (
-        <Sheet open={open} onClose={() => setOpen(false)} title="내 생일">
+        <Sheet open={open} onClose={() => setOpen(false)} title="내 생일" tone="bg">
+          {/* (#378) 기기 기본 선택 상자 둘 대신 날짜 줄 하나(월, 일 고르기 시트) + 알림 줄. 안내 한 줄, 맨 아래 저장 */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void save(toBirthday(month, day));
+              if (picked) void save(toBirthday(picked.m, picked.d));
             }}
-            className="space-y-3"
+            className="space-y-2 pb-1"
           >
-            <p className="t-sub">넣으면 내가 속한 팀 달력에 매년 보여요. 연도는 받지 않아요</p>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label htmlFor={monthId} className={captionClass}>
-                  월
-                </label>
-                <select
-                  id={monthId}
-                  className={inputClass}
-                  value={month}
-                  onChange={(e) => {
-                    const m = Number(e.target.value);
-                    setMonth(m);
-                    setDay((d) => clampDay(m, d));
-                  }}
-                >
-                  {MONTH_DAYS.map((_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {i + 1}월
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label htmlFor={dayId} className={captionClass}>
-                  일
-                </label>
-                <select id={dayId} className={inputClass} value={day} onChange={(e) => setDay(Number(e.target.value))}>
-                  {Array.from({ length: MONTH_DAYS[month - 1] }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {i + 1}일
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {month === 2 && day === 29 && <p className="t-sub">윤년이 아닌 해에는 2월 28일에 보여요</p>}
-            {/* 팀원에게 알리는 시점: 기념일 알림과 같은 칩 (#269). 나에게는 오지 않는다 */}
-            <div>
-              <span id={reminderLabelId} className={captionClass}>
-                팀원에게 알림 <span className="font-normal">(오전 9시)</span>
-              </span>
-              <ToggleChips
-                labelledBy={reminderLabelId}
-                options={REMINDER_CHOICES}
-                isOn={(v) => isChoiceOn(reminders, v)}
-                onToggle={(v) => setReminders((prev) => toggleReminder(prev, v))}
-              />
-              <ReminderNote className="mt-1.5" />
-            </div>
-            <p className="t-sub">팀마다 보이지 않게 하려면 팀 설정에서 끄면 돼요</p>
-            {error && <InlineError>{error}</InlineError>}
-            <Button type="submit" size="lg" full loading={isPending}>
-              저장
-            </Button>
-            {value.date !== null && (
-              <Button type="button" variant="danger" size="lg" full disabled={isPending} onClick={() => void save(null)}>
-                생일 지우기
+            <RowGroup hint="내가 속한 팀 달력에 매년 보여요. 연도는 받지 않아요">
+              <MonthDayPicker label="생일" icon={<IconCalendar size={18} />} value={picked} onChange={setPicked} />
+              {/* 팀원에게 알리는 시점: 기념일 알림과 같은 규칙 (#269). 나에게는 오지 않는다 */}
+              <ReminderChoicesRow label="팀원에게 알림" value={reminders} onChange={setReminders} />
+            </RowGroup>
+            {picked?.m === 2 && picked.d === 29 && <p className="t-sub px-1">윤년이 아닌 해에는 2월 28일에 보여요</p>}
+            {error && <InlineError className="px-1">{error}</InlineError>}
+            <div className="space-y-2 pt-1">
+              <Button type="submit" size="xl" full disabled={!picked} loading={isPending}>
+                저장
               </Button>
-            )}
+              {value.date !== null && (
+                <Button type="button" variant="ghost" size="lg" full disabled={isPending} onClick={() => void save(null)} className="text-danger!">
+                  생일 지우기
+                </Button>
+              )}
+            </div>
+            <p className="t-sub px-1 text-center">팀마다 보이지 않게 하려면 팀 설정에서 끄면 돼요</p>
           </form>
         </Sheet>
       )}

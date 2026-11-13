@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { Symbol } from "@/components/Logo";
-import { Button, Field, inputClass } from "@/components/ui";
+import { NameField } from "@/components/NameField";
+import { Button, RowGroup } from "@/components/ui";
 import { messageOf, useCreateGroup } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
 import { teamHref } from "@/lib/routes";
@@ -53,37 +54,35 @@ export function NewGroupScreen() {
         </Link>
       </div>
 
-      <form onSubmit={submit} className="mt-8 flex flex-1 flex-col">
+      {/* (#378) 큰 제목 → 이름 칸(라벨 없음, 글자 수는 80% 부터) → 쓰임 세그먼트 → 바로 아래 만들기. 버튼을 화면 맨 아래로 떨어뜨리지 않는다 */}
+      <form onSubmit={submit} className="mt-8 flex flex-col">
         <h1 className="text-[28px] font-bold leading-9 tracking-[-0.03em]">
           어떤 모임의
           <br />
           달력인가요?
         </h1>
-        <p className="mt-2 text-[14px] leading-5 text-soft">고르면 시작을 도와 드려요. 안 골라도 괜찮아요</p>
 
-        <PresetChips value={preset} onChange={pick} />
+        <RowGroup className="mt-6">
+          <NameField
+            label="팀 이름"
+            value={name}
+            onChange={setName}
+            max={30}
+            limitInput
+            autoFocus
+            autoComplete="off"
+            enterKeyHint="done"
+            placeholder="예: 우리 둘, 김씨네, 목요 스터디"
+            error={error}
+          />
+        </RowGroup>
 
-        <div className="mt-4 rounded-xl bg-paper px-3.5 py-3.5">
-          <Field label="팀 이름" hint={`${trimmed.length}/30`} error={error}>
-            {(id, describedBy) => (
-              <input
-                id={id}
-                aria-describedby={describedBy}
-                className={inputClass}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={30}
-                autoFocus
-                autoComplete="off"
-                enterKeyHint="done"
-                placeholder="예: 우리 둘, 김씨네, 목요 스터디"
-              />
-            )}
-          </Field>
-        </div>
+        <RowGroup className="mt-2" hint="고르면 시작을 도와 드려요. 안 골라도 괜찮아요">
+          <PresetChips value={preset} onChange={pick} />
+        </RowGroup>
 
-        <div className="mt-auto pt-8">
-          <Button type="submit" size="lg" full disabled={!valid} loading={loading}>
+        <div className="mt-5">
+          <Button type="submit" size="xl" full disabled={!valid} loading={loading}>
             만들기
           </Button>
           {/* 이미 있는 팀에 들어갈 사람은 만들지 않고 코드로 합류 (#56) */}
@@ -97,8 +96,8 @@ export function NewGroupScreen() {
 }
 
 /**
- * (#278) 쓰임 칩 한 줄 (가로로 넘김). 높이 36, 알약, 고른 칩은 먹색 면 + --on-ink 글자 (디자인규칙 4-1 선택 표현).
- * radiogroup: 고른 칩만 Tab, 화살표 Home End 로 옮기며 고른다
+ * (#278) 쓰임 고르기. (#378) 카드 안 세그먼트 한 줄(5칸, 기념일 종류와 같은 모양). "직접" 은 쓰임 없음(null) = 지금 흐름.
+ * radiogroup: 고른 칸만 Tab, 화살표 Home End 로 옮기며 고른다
  */
 function PresetChips({ value, onChange }: { value: PresetKey | null; onChange: (v: PresetKey | null) => void }) {
   const labelId = useId();
@@ -119,13 +118,15 @@ function PresetChips({ value, onChange }: { value: PresetKey | null; onChange: (
   }
 
   return (
-    <div className="mt-6">
-      <span id={labelId} className="sr-only">
-        어떤 모임인가요
+    <div className="pb-3 pt-2.5">
+      <span id={labelId} className="mb-2 block text-[14px] font-semibold">
+        용도
       </span>
-      <div role="radiogroup" aria-labelledby={labelId} className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none]">
+      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-5 gap-1 rounded-sm bg-surface p-1">
         {PRESET_CHIPS.map((c, i) => {
           const on = i === current;
+          // 칸이 좁아 "직접 정하기" 는 "직접" 으로 보이고 읽기 이름은 그대로
+          const short = c.key === null ? "직접" : c.label;
           return (
             <button
               key={c.label}
@@ -135,14 +136,17 @@ function PresetChips({ value, onChange }: { value: PresetKey | null; onChange: (
               type="button"
               role="radio"
               aria-checked={on}
+              aria-label={short === c.label ? undefined : c.label}
               tabIndex={on ? 0 : -1}
               onClick={() => onChange(c.key)}
               onKeyDown={(e) => onKey(e, i)}
-              className={`anim-pick h-9 shrink-0 rounded-full px-4 text-[14px] whitespace-nowrap ${
-                on ? "bg-ink font-bold text-on-ink" : "bg-paper font-medium text-ink hover:brightness-95"
+              className={`anim-pick hit flex h-9 min-w-0 items-center justify-center rounded-[8px] border px-0.5 text-[13px] whitespace-nowrap ${
+                on
+                  ? "border-[var(--seg-edge)] bg-[var(--seg-on)] font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "border-transparent font-medium text-soft hover:text-ink"
               }`}
             >
-              {c.label}
+              {short}
             </button>
           );
         })}

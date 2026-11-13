@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-// (#305) 내 정보 "내 생일": 줄 값, 시트에서 월일 고르기(달 바꾸면 없는 날은 마지막 날), 2월 29일 안내, 알림 칩, 저장, 지우기, 실패
+// (#305) 내 정보 "내 생일": 줄 값, 시트에서 월일 고르기, 2월 29일 안내, 알림, 저장, 지우기, 실패.
+// (#378) 기기 선택 상자 둘 대신 생일 줄(월, 일 고르기) 하나, 알림은 줄 → 고르기
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BirthdaySettings } from "@/lib/types";
@@ -20,8 +21,11 @@ const { BirthdayRow } = await import("../BirthdayRow");
 const ok = <T,>(d: T): Outcome<T> => ({ ok: true, data: d, error: null });
 const NONE: BirthdaySettings = { date: null, reminders: ["DAY_OF"] };
 
-function select(label: string): HTMLSelectElement {
-  return screen.getByLabelText(label) as HTMLSelectElement;
+/** (#378) 생일 줄을 눌러 월, 일 고르기를 열고 달, 날을 누른다 */
+function pickMonthDay(m: number, d: number) {
+  fireEvent.click(screen.getByRole("button", { name: /^생일,/ }));
+  fireEvent.click(screen.getByRole("radio", { name: `${m}월` }));
+  fireEvent.click(screen.getByRole("button", { name: `${m}월 ${d}일` }));
 }
 
 describe("BirthdayRow (#305)", () => {
@@ -39,16 +43,26 @@ describe("BirthdayRow (#305)", () => {
     expect(screen.getByRole("button", { name: /내 생일/ }).textContent).toContain("넣지 않음");
   });
 
-  it("월일을 골라 저장: 알림을 안 바꾸면 date 만, 달을 바꾸면 없는 날은 마지막 날", async () => {
+  it("월일을 골라 저장: 고르기 전에는 저장 못 함, 알림을 안 바꾸면 date 만, 달마다 그 달 날 수만큼", async () => {
     const onChange = vi.fn();
     mutate.mockResolvedValue(ok({ date: "04-30", reminders: ["DAY_OF"] }));
     render(<BirthdayRow value={NONE} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /내 생일/ }));
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    fireEvent.change(select("일"), { target: { value: "31" } });
-    fireEvent.change(select("월"), { target: { value: "4" } });
-    expect(select("일").value).toBe("30");
-    expect(select("일").options).toHaveLength(30);
+    expect(screen.getByRole("dialog", { name: "내 생일" })).toBeTruthy();
+    // 기기 기본 선택 상자 대신 날짜 줄 하나 (#378)
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByRole("button", { name: "생일, 선택 안 함" }).textContent).toContain("고르기");
+    expect((screen.getByRole("button", { name: "저장" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /^생일,/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "4월" }));
+    expect(screen.getByRole("group", { name: "4월 날짜" }).querySelectorAll("button")).toHaveLength(30);
+    fireEvent.click(screen.getByRole("radio", { name: "2월" }));
+    expect(screen.getByRole("group", { name: "2월 날짜" }).querySelectorAll("button")).toHaveLength(29);
+    fireEvent.click(screen.getByRole("radio", { name: "4월" }));
+    fireEvent.click(screen.getByRole("button", { name: "4월 30일" }));
+    // 날을 누르면 고르기가 닫히고 줄에 값
+    expect(screen.queryByRole("group", { name: "4월 날짜" })).toBeNull();
+    expect(screen.getByRole("button", { name: "생일, 4월 30일" })).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "저장" }));
     });
@@ -58,14 +72,18 @@ describe("BirthdayRow (#305)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("2월 29일이면 평년 안내, 알림을 바꾸면 reminders 를 싣는다", async () => {
+  it("2월 29일이면 평년 안내, 알림 줄에서 시점을 바꾸면 reminders 를 싣는다", async () => {
     mutate.mockResolvedValue(ok({ date: "02-29", reminders: ["DAY_OF", "DAY_BEFORE"] }));
     render(<BirthdayRow value={NONE} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /내 생일/ }));
-    fireEvent.change(select("월"), { target: { value: "2" } });
-    fireEvent.change(select("일"), { target: { value: "29" } });
+    pickMonthDay(2, 29);
     expect(screen.getByText("윤년이 아닌 해에는 2월 28일에 보여요")).toBeTruthy();
+    // 알림은 줄 → 고르기 (여러 개, 기념일과 같은 규칙)
+    fireEvent.click(screen.getByRole("button", { name: "팀원에게 알림 오전 9시, 당일" }));
     fireEvent.click(screen.getByRole("button", { name: "하루 전" }));
+    expect(screen.getByRole("button", { name: "하루 전" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "완료" }));
+    expect(screen.getByRole("button", { name: "팀원에게 알림 오전 9시, 당일, 하루 전" })).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "저장" }));
     });
@@ -77,8 +95,12 @@ describe("BirthdayRow (#305)", () => {
     render(<BirthdayRow value={{ date: "12-24", reminders: ["WEEK_BEFORE"] }} onChange={onChange} />);
     expect(screen.getByRole("button", { name: /내 생일/ }).textContent).toContain("12월 24일");
     fireEvent.click(screen.getByRole("button", { name: /내 생일/ }));
-    expect(select("월").value).toBe("12");
-    expect(select("일").value).toBe("24");
+    expect(screen.getByRole("button", { name: "생일, 12월 24일" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "팀원에게 알림 오전 9시, 일주일 전" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "생일, 12월 24일" }));
+    expect(screen.getByRole("radio", { name: "12월" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("button", { name: "12월 24일" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(screen.getByRole("button", { name: "12월 24일" }), { key: "Escape" });
     mutate.mockResolvedValueOnce({ ok: false, data: null, error: { message: "잠시 후 다시 시도해 주세요" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "생일 지우기" }));

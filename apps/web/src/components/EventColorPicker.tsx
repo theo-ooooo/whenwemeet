@@ -15,11 +15,15 @@ type Props = {
   disabled?: boolean;
   /** 막혀 있을 때 아래 안내 한 줄 */
   note?: string;
+  /** (#378) 카드와 "색 ··· 값" 머리 없이 칸 묶음만 (일정 폼의 색 시트 안) */
+  bare?: boolean;
+  /** (#378) 누르거나 Enter, Space 로 고른 뒤 (방향키로 옮길 때는 부르지 않는다). 시트를 닫는 데 쓴다 */
+  onPicked?: () => void;
 };
 
 const OPTIONS: (string | null)[] = [null, ...PICKABLE_COLORS];
 
-export function EventColorPicker({ value, onChange, autoColors, disabled = false, note }: Props) {
+export function EventColorPicker({ value, onChange, autoColors, disabled = false, note, bare = false, onPicked }: Props) {
   const labelId = useId();
   const noteId = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -42,19 +46,22 @@ export function EventColorPicker({ value, onChange, autoColors, disabled = false
   }
 
   return (
-    <div className="rounded-xl bg-paper px-3.5 py-3">
-      <div className="flex min-h-6 items-center gap-3">
-        <span id={labelId} className="shrink-0 text-[14px] font-semibold">
-          색
-        </span>
-        <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{eventColorName(value)}</span>
-      </div>
+    <div className={bare ? "" : "rounded-xl bg-paper px-3.5 py-3"}>
+      {!bare && (
+        <div className="flex min-h-6 items-center gap-3">
+          <span id={labelId} className="shrink-0 text-[14px] font-semibold">
+            색
+          </span>
+          <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{eventColorName(value)}</span>
+        </div>
+      )}
       <div
         role="radiogroup"
-        aria-labelledby={labelId}
+        aria-labelledby={bare ? undefined : labelId}
+        aria-label={bare ? "색" : undefined}
         aria-describedby={note ? noteId : undefined}
         aria-disabled={disabled || undefined}
-        className={`mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2.5 ${disabled ? "opacity-45" : ""}`}
+        className={`${bare ? "py-1" : "mt-2.5"} flex flex-wrap items-center gap-x-3 gap-y-2.5 ${disabled ? "opacity-45" : ""}`}
       >
         {OPTIONS.map((c, i) => {
           const selected = i === selectedIndex;
@@ -67,7 +74,10 @@ export function EventColorPicker({ value, onChange, autoColors, disabled = false
             "aria-checked": selected,
             tabIndex: selected ? 0 : -1,
             disabled,
-            onClick: () => onChange(c),
+            onClick: () => {
+              onChange(c);
+              onPicked?.();
+            },
             onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => onKeyDown(e, i),
           };
           if (c === null) {

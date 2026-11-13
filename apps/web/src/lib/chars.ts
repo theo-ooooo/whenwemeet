@@ -8,3 +8,8 @@ export function clampChars(s: string, max: number): string {
   const arr = Array.from(s);
   return arr.length > max ? arr.slice(0, max).join("") : s;
 }
+
+/** (#378) 글자 수 표시는 거의 다 찼을 때만 (상한의 80% 이상). 이름, 제목, 메모 칸 공통 */
+export function nearLimit(count: number, max: number): boolean {
+  return count >= Math.ceil(max * 0.8);
+}

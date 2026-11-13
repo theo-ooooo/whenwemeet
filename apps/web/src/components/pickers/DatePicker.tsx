@@ -4,7 +4,8 @@
 // 키보드: 방향키 하루/한 주, PageUp/PageDown 한 달, Home/End 주 처음/끝, Enter 또는 Space 선택, Esc 닫기
 import { useEffect, useId, useRef, useState } from "react";
 import { IconChevronLeft, IconChevronRight } from "../icons";
-import { PickerShell, triggerClass } from "./PickerShell";
+import { RowIcon } from "../ui";
+import { PickerShell, triggerClassOf, type PickerLook } from "./PickerShell";
 import { addDays, dowOf, formatDateKo, monthGrid, parseKey, shiftMonth, todayKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 
@@ -20,9 +21,13 @@ type Props = {
   /** 연도를 항상 보일지. 기본은 올해가 아닐 때만 */
   withYear?: boolean;
   "aria-describedby"?: string;
+  /** (#378) 트리거 모양. 기본 field. row 면 rowLabel(줄 이름), rowIcon 으로 "아이콘 이름 ··· 날짜 ›" */
+  look?: PickerLook;
+  rowLabel?: string;
+  rowIcon?: React.ReactNode;
 };
 
-export function DatePicker({ value, onChange, label, id, min, max, className = "", withYear, ...rest }: Props) {
+export function DatePicker({ value, onChange, label, id, min, max, className = "", withYear, look = "field", rowLabel, rowIcon, ...rest }: Props) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const showYear = withYear ?? (value ? parseKey(value).y !== parseKey(todayKey()).y : false);
@@ -37,9 +42,18 @@ export function DatePicker({ value, onChange, label, id, min, max, className = "
         aria-label={`${label}, ${value ? formatDateKo(value, true) : "선택 안 함"}`}
         aria-describedby={rest["aria-describedby"]}
         onClick={() => setOpen((v) => !v)}
-        className={`${triggerClass} ${className}`}
+        className={`${triggerClassOf(look)} ${className}`}
       >
-        <span className="truncate">{value ? formatDateKo(value, showYear) : "날짜 선택"}</span>
+        {look === "row" ? (
+          <>
+            {rowIcon && <RowIcon>{rowIcon}</RowIcon>}
+            <span className="shrink-0 text-[14px] font-semibold">{rowLabel ?? label}</span>
+            <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2 tabular-nums">{value ? formatDateKo(value, showYear) : "고르기"}</span>
+            <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+          </>
+        ) : (
+          <span className="truncate">{value ? formatDateKo(value, showYear) : "날짜 선택"}</span>
+        )}
       </button>
       <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={312}>
         <Calendar

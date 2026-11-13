@@ -71,10 +71,6 @@ export function Spinner({ className = "" }: { className?: string }) {
 export const inputClass =
   "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-3 text-[14px] leading-5 font-normal text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
 
-/** 일정 제목 입력 (#174 L3): 빠른 추가와 일정 작성이 같은 모양. 44 상자 + 16/600. 상자, 바탕, 포커스는 inputClass 와 같다 */
-export const titleInputClass =
-  "w-full min-h-11 rounded-sm border-0 bg-surface px-3.5 py-2.5 text-[16px] leading-6 font-semibold tracking-[-0.01em] text-ink placeholder:font-semibold placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-60";
-
 /** 입력 위 작은 이름 12/500 (시작, 종료, 기념일 종류 등). Field 의 label 과 같은 모양 */
 export const captionClass = "mb-1.5 block text-[12px] font-medium leading-4 text-ink-2";
 
@@ -162,10 +158,10 @@ function SwitchTrack({ checked }: { checked: boolean }) {
 
 /* ---------- 줄 버튼 ---------- */
 
-const rowClass = "flex min-h-11 w-full items-center gap-3 py-1 text-left";
+export const rowClass = "flex min-h-11 w-full items-center gap-3 py-1 text-left";
 
 /** 줄 왼쪽 아이콘 칸 (18~20 선 아이콘, `--mute`). 설정 줄 "아이콘 이름 ··· 값 ›" (#378) */
-function RowIcon({ children, className = "text-ink-2" }: { children: React.ReactNode; className?: string }) {
+export function RowIcon({ children, className = "text-ink-2" }: { children: React.ReactNode; className?: string }) {
   return (
     <span aria-hidden="true" className={`grid size-5 shrink-0 place-items-center ${className}`}>
       {children}
@@ -282,11 +278,14 @@ export function ToggleRow({
 export function RowGroup({
   title,
   hint,
+  inset = false,
   className = "",
   children,
 }: {
   title?: string;
   hint?: string;
+  /** 흰 면(`--tile`) 위에 놓을 때(빠른 추가 패널처럼 시트가 흰 면). 카드를 바탕 면(`--bg`)으로 뒤집는다 */
+  inset?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -298,7 +297,7 @@ export function RowGroup({
           {title}
         </h2>
       )}
-      <div className="divide-y divide-line rounded-lg bg-paper px-3.5 py-0.5">{children}</div>
+      <div className={`divide-y divide-line rounded-lg px-3.5 py-0.5 ${inset ? "bg-surface" : "bg-paper"}`}>{children}</div>
       {hint && <p className="t-sub mt-1.5 px-1">{hint}</p>}
     </>
   );
@@ -348,50 +347,6 @@ export function Segmented<T extends string>({
             }`}
           >
             {o.icon}
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * (#269) 여러 개 켜고 끄는 칩 줄 (기념일 알림 시점). 모양은 Segmented 와 같고 각 칸이 aria-pressed 토글.
- * 켜고 끄는 규칙(예: "없음" 이 나머지를 끔)은 부르는 쪽이 정한다
- */
-export function ToggleChips<T extends string>({
-  labelledBy,
-  options,
-  isOn,
-  onToggle,
-}: {
-  labelledBy: string;
-  options: { value: T; label: string }[];
-  isOn: (v: T) => boolean;
-  onToggle: (v: T) => void;
-}) {
-  return (
-    <div
-      role="group"
-      aria-labelledby={labelledBy}
-      className="grid gap-1 rounded-sm bg-surface p-1"
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-    >
-      {options.map((o) => {
-        const on = isOn(o.value);
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onToggle(o.value)}
-            className={`anim-pick hit flex h-9 items-center justify-center rounded-[8px] border px-1 text-[13px] whitespace-nowrap ${
-              on
-                ? "border-[var(--seg-edge)] bg-[var(--seg-on)] font-bold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
-                : "border-transparent font-medium text-soft hover:text-ink"
-            }`}
-          >
             {o.label}
           </button>
         );
@@ -543,11 +498,14 @@ export function Sheet({
   open,
   onClose,
   title,
+  tone = "tile",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** (#378) "bg" 면 시트 면을 바탕색으로 두고 안에 흰 카드(RowGroup)를 쌓는다 (입력 시트: 기념일, 목록, 투표, 생일) */
+  tone?: "tile" | "bg";
   children: React.ReactNode;
 }) {
   useEscape(open, onClose);
@@ -572,7 +530,7 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl bg-paper px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]"
+        className={`anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl ${tone === "bg" ? "bg-surface" : "bg-paper"} px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]`}
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)] lg:hidden" />
         <SheetHeader titleId={titleId} title={title} onClose={onClose} />

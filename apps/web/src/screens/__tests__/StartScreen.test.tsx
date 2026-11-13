@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// (#278) 첫 단계 화면: 커플 저장, 저장 실패, 건너뛰기, 가족 내 생일(#305), 친구, 스터디 매주 일정, 멤버 아님
+// (#278) 첫 단계 화면: 커플 저장, 저장 실패 (#378 새로 만드는 단계의 버튼은 "추가"), 건너뛰기, 가족 내 생일(#305), 친구, 스터디 매주 일정, 멤버 아님
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveStart } from "@/lib/start-guide";
@@ -63,15 +63,15 @@ describe("StartScreen", () => {
     expect(screen.getByRole("heading").textContent).toBe("처음 만난 날이언제예요?");
     fireEvent.change(screen.getByTestId("date"), { target: { value: "2025-10-03" } });
     expect(screen.getByText(/일째예요/)).toBeTruthy();
-    await click("저장");
+    await click("추가");
     expect(createAnniversary).toHaveBeenCalledWith({ name: "처음 만난 날", date: "2025-10-03", kind: "COUNT_UP" });
     expect(localStorage.getItem("wwm.start.9")).toBe("two:first");
     expect(replace).toHaveBeenCalledWith("/team?invite=1");
   });
 
-  it("달력 안내에서 다시 열었으면 저장 뒤 달력으로", async () => {
+  it("달력 안내에서 다시 열었으면 추가 뒤 달력으로", async () => {
     render(<StartScreen groupId={9} preset="two" fromCalendar />);
-    await click("저장");
+    await click("추가");
     expect(replace).toHaveBeenCalledWith("/calendar");
   });
 
@@ -79,7 +79,7 @@ describe("StartScreen", () => {
     createAnniversary.mockResolvedValue({ ok: false, error: { status: 429 } });
     saveStart(9, "two");
     render(<StartScreen groupId={9} preset="two" fromCalendar={false} />);
-    await click("저장");
+    await click("추가");
     expect(replace).not.toHaveBeenCalled();
     expect(localStorage.getItem("wwm.start.9")).toBe("two");
   });
@@ -127,10 +127,10 @@ describe("StartScreen", () => {
     fireEvent.click(screen.getByRole("radio", { name: "목" }));
     fireEvent.change(screen.getByLabelText("끝 시각"), { target: { value: "18:00" } });
     expect(screen.getByRole("alert").textContent).toBe("끝 시각이 시작보다 늦어야 해요");
-    expect((screen.getByRole("button", { name: "저장" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "추가" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("끝 시각"), { target: { value: "21:30" } });
     expect(screen.getByText(/^첫 모임은 \d+월 \d+일 \(목\)/)).toBeTruthy();
-    await click("저장");
+    await click("추가");
     expect(createEvent).toHaveBeenCalledWith(expect.objectContaining({ title: "정기 모임", repeat: "WEEKLY", participants: "ALL", allDay: false }));
     const body = createEvent.mock.calls[0][0] as { startsAt: string; endsAt: string };
     expect(Date.parse(body.endsAt) - Date.parse(body.startsAt)).toBe(150 * 60_000);

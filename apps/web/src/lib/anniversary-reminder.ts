@@ -48,3 +48,10 @@ export function sameReminders(a: readonly AnniversaryReminder[], b: readonly Ann
   const y = normalizeReminders(b);
   return x.length === y.length && x.every((r, i) => r === y[i]);
 }
+
+/** (#378) 알림 줄 값 "당일, 하루 전" (없으면 "없음"). 순서는 당일, 하루 전, 일주일 전 */
+export function reminderSummary(list: readonly AnniversaryReminder[]): string {
+  const on = normalizeReminders(list);
+  if (on.length === 0) return "없음";
+  return on.map((r) => REMINDER_CHOICES.find((c) => c.value === r)?.label ?? r).join(", ");
+}

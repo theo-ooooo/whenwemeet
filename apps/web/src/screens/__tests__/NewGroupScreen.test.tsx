@@ -37,7 +37,9 @@ const submit = async () => {
 describe("NewGroupScreen 쓰임 칩", () => {
   it("처음은 직접 정하기, 칩 다섯 개", () => {
     render(<NewGroupScreen />);
-    expect(screen.getAllByRole("radio").map((r) => r.textContent)).toEqual(["커플", "가족", "친구", "스터디", "직접 정하기"]);
+    // (#378) 카드 안 세그먼트 5칸. 좁은 칸이라 "직접 정하기" 는 "직접" 으로 보이고 읽기 이름은 그대로
+    expect(screen.getAllByRole("radio").map((r) => r.textContent)).toEqual(["커플", "가족", "친구", "스터디", "직접"]);
+    expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label") ?? r.textContent)).toEqual(["커플", "가족", "친구", "스터디", "직접 정하기"]);
     expect(chip("직접 정하기").getAttribute("aria-checked")).toBe("true");
     expect(nameInput().value).toBe("");
   });
@@ -104,5 +106,23 @@ describe("NewGroupScreen 옛 API", () => {
     await submit();
     expect(mutate.mock.calls).toEqual([[{ name: "우리 가족", preset: "family" }], [{ name: "우리 가족" }]]);
     expect(replace).toHaveBeenCalledWith("/groups/start?preset=family");
+  });
+});
+
+describe("NewGroupScreen 이름 칸 (#378)", () => {
+  it("라벨 글자 없이 칸 안 안내만, 글자 수는 24자(80%)부터", () => {
+    render(<NewGroupScreen />);
+    expect(screen.queryByText("0/30")).toBeNull();
+    fireEvent.change(nameInput(), { target: { value: "가".repeat(23) } });
+    expect(screen.queryByText("23/30")).toBeNull();
+    fireEvent.change(nameInput(), { target: { value: "가".repeat(24) } });
+    expect(screen.getByText("24/30")).toBeTruthy();
+    expect(nameInput().getAttribute("aria-describedby")).toBeTruthy();
+  });
+
+  it("만들기 버튼은 이름, 쓰임 바로 아래 (같은 폼 안 마지막 묶음)", () => {
+    render(<NewGroupScreen />);
+    const button = screen.getByRole("button", { name: "만들기" });
+    expect(button.closest("form")?.className).not.toMatch(/flex-1/);
   });
 });

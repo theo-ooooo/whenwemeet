@@ -21,10 +21,12 @@ type Props = {
   subtitle?: React.ReactNode;
   /** "phone" 이면 넓은 화면(≥600, 사이드바가 있는 곳)에서 ‹ 를 숨긴다 */
   back?: "always" | "phone";
+  /** (#378) 주면 ‹ 를 누를 때 이동하지 않고 이걸 부른다 (작성 중 이탈 확인이 있는 입력 화면). 새 탭, 가운데 클릭은 링크 그대로 */
+  onBack?: () => void;
   className?: string;
 };
 
-export function ScreenHeader({ title, fallbackHref, backLabel = "뒤로", right, subtitle, back = "always", className = "" }: Props) {
+export function ScreenHeader({ title, fallbackHref, backLabel = "뒤로", right, subtitle, back = "always", onBack, className = "" }: Props) {
   const router = useRouter();
   return (
     <div className={`pt-1 ${className}`}>
@@ -35,6 +37,11 @@ export function ScreenHeader({ title, fallbackHref, backLabel = "뒤로", right,
           onClick={(e) => {
             // 새 탭, 가운데 클릭은 링크 그대로
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            if (onBack) {
+              e.preventDefault();
+              onBack();
+              return;
+            }
             if (!canGoBack()) return;
             e.preventDefault();
             router.back();

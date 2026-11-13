@@ -5,10 +5,11 @@
 // 검색이 안 되면(키 없음 503, 카카오 오류) 후보 없이 직접 입력만 남는다. 검색어는 저장하지 않는다
 import { useId, useRef, useState } from "react";
 import { usePlaceResolve, usePlaceSearch } from "@/hooks";
-import { placeHint, type DraftPlace } from "@/lib/place";
+import { charCount, nearLimit } from "@/lib/chars";
+import { PLACE_MAX, placeHint, type DraftPlace } from "@/lib/place";
 import type { PlaceCandidate } from "@/lib/types";
 import { IconClose, IconPin } from "./icons";
-import { captionClass, inputClass, Spinner } from "./ui";
+import { Spinner } from "./ui";
 
 /** 후보는 6개까지 (폰 화면 한 번에) */
 const MAX_OPTIONS = 6;
@@ -66,13 +67,8 @@ export function PlaceField({
   };
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <label htmlFor={id} className={captionClass}>
-          장소
-        </label>
-        {!place.picked && <span className="text-[12px] leading-4 text-ink-2">{placeHint(place)}</span>}
-      </div>
+    <div className="py-1">
+      {/* (#378) 제목 아래 같은 카드의 한 줄: 핀 + "장소 추가". 이름 글자는 sr-only, 글자 수는 80% 부터 */}
       {place.picked ? (
         <PickedCard
           id={id}
@@ -83,7 +79,12 @@ export function PlaceField({
           }}
         />
       ) : (
-      <div className="relative">
+      <div className="flex min-h-11 items-center gap-3">
+        <IconPin size={18} className="shrink-0 text-ink-2" />
+        <label htmlFor={id} className="sr-only">
+          장소
+        </label>
+        <div className="relative min-w-0 flex-1">
         <input
           ref={inputRef}
           id={id}
@@ -96,8 +97,8 @@ export function PlaceField({
           aria-describedby={hintId}
           autoComplete="off"
           enterKeyHint="done"
-          className={`${inputClass} ${place.text ? "pr-11" : ""}`}
-          placeholder="장소 이름이나 주소로 찾기"
+          className={`-mx-1.5 min-h-11 w-[calc(100%+12px)] rounded-sm bg-transparent px-1.5 text-[14px] leading-5 text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 ${place.text ? "pr-10" : ""}`}
+          placeholder="장소 추가"
           value={place.text}
           onChange={(e) => {
             onType(e.target.value);
@@ -117,16 +118,18 @@ export function PlaceField({
               onClear();
               inputRef.current?.focus();
             }}
-            className="hit absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
+            className="hit absolute -right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
           >
             <IconClose size={16} />
           </button>
         )}
+        </div>
+        {nearLimit(charCount(place.text), PLACE_MAX) && <span className="shrink-0 text-[12px] tabular-nums text-ink-2">{placeHint(place)}</span>}
       </div>
       )}
 
       {showList && (
-        <div className="mt-1.5 overflow-hidden rounded-sm border border-line bg-paper">
+        <div className="mb-1.5 mt-1 overflow-hidden rounded-sm border border-line bg-paper">
           <ul id={listId} role="listbox" aria-label="장소 후보">
             {options.map((c, i) => (
               <li
@@ -163,14 +166,13 @@ export function PlaceField({
         </div>
       )}
 
-      <p id={hintId} className="t-sub mt-1.5 flex items-center gap-1">
-        {place.picked ? (
-          "카카오 장소로 저장돼요. 일정을 열 때마다 카카오에서 이름과 지도를 다시 받아요"
-        ) : typed ? (
-          "목록에서 고르면 지도에 표시돼요. 고르지 않으면 적은 이름 그대로 저장돼요"
-        ) : (
-          "카페, 식당 이름이나 주소로 찾아 보세요"
-        )}
+      {/* 안내는 적었을 때 한 줄만. 빈 칸은 "장소 추가" 가 대신한다(읽기 이름에는 남긴다) */}
+      <p id={hintId} className={typed && !place.picked ? "t-sub pb-1.5 pl-[30px]" : "sr-only"}>
+        {place.picked
+          ? "카카오 장소로 저장돼요. 일정을 열 때마다 카카오에서 이름과 지도를 다시 받아요"
+          : typed
+            ? "목록에서 고르면 지도에 표시돼요. 고르지 않으면 적은 이름 그대로 저장돼요"
+            : "카페, 식당 이름이나 주소로 찾아 보세요"}
       </p>
     </div>
   );
@@ -182,13 +184,13 @@ function PickedCard({ id, picked, onClear }: { id: string; picked: NonNullable<D
   const name = picked.name ?? r.data?.place?.name ?? picked.query;
   const address = picked.name ? picked.address : (r.data?.place?.address ?? null);
   return (
-    <div id={id} tabIndex={-1} className="flex min-h-11 items-center gap-2.5 rounded-sm bg-surface py-2 pl-3.5 pr-1.5">
+    <div id={id} tabIndex={-1} className="flex min-h-11 items-center gap-3 rounded-sm py-1.5">
       <IconPin size={18} active className="shrink-0 text-ink-2" />
       <span className="min-w-0 flex-1">
         <b className="block truncate text-[14px] font-semibold leading-5">{name}</b>
         {address && <span className="block truncate text-[12px] leading-4 text-ink-2">{address}</span>}
       </span>
-      <button type="button" aria-label="고른 장소 풀기" onClick={onClear} className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+      <button type="button" aria-label="고른 장소 풀기" onClick={onClear} className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
         <IconClose size={16} />
       </button>
     </div>
