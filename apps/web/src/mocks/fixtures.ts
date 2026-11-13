@@ -3,6 +3,7 @@
 import { sameDayInYear } from "@/lib/anniversary";
 import {
   addDays,
+  dateKeyOf,
   keyOf,
   kstToIso,
   parseKey,
@@ -18,7 +19,9 @@ import type {
   GroupType,
   Member,
   NotificationSettings,
+  Reaction,
   Repeat,
+  Rsvp,
   StartCalendar,
 } from "@/lib/types";
 import { MEMBER_COLORS } from "@/lib/types";
@@ -148,8 +151,15 @@ export type Store = {
   todoItems?: TodoItemRow[];
   /** (#193) 구독 주소. 없으면 빈 목록 */
   calendarFeeds?: CalendarFeedRow[];
+  /** (#190) 회차별 참석 여부, 반응. 없으면 빈 목록 */
+  rsvps?: RsvpRow[];
+  reactions?: ReactionRow[];
   seq: number;
 };
+
+/** (#190) 참석 여부 한 줄. occurrence 는 반복 회차 날짜, 한 번짜리는 시작 KST 날짜 */
+export type RsvpRow = { eventId: number; occurrence: string; userId: number; status: Rsvp; seenStartsAt: string; seenEndsAt: string; updatedAt: string };
+export type ReactionRow = { eventId: number; occurrence: string; userId: number; kind: Reaction };
 
 /** (#193) 목 구독 주소 한 줄. 토큰은 목이라 그대로 둔다 (실제 API 는 해시만) */
 export type CalendarFeedRow = {
@@ -489,7 +499,46 @@ export function buildStore(): Store {
     todo(7, 2, "충전기", ME_ID, 120, ME_ID, 26),
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, seq: 100 };
+  // (#190) 참석 여부와 반응: 가족 저녁(모두)은 엄마 참석, 아빠 미정, 하늘 반응. 할머니 댁은 내가 참여자가 아니다(세그먼트 없음).
+  // 우리 둘은 영화, 부모님 댁에 내가 참석. 나머지 앞으로의 일정은 "응답" 표시가 붙는다
+  const seen = (id: number) => {
+    const e = events.find((x) => x.id === id)!;
+    return { seenStartsAt: e.startsAt, seenEndsAt: e.endsAt, occurrence: dateKeyOf(e.startsAt) };
+  };
+  const rsvps: RsvpRow[] = [
+    { eventId: 21, userId: MOM_ID, status: "GOING", updatedAt: hoursAgo(3), ...seen(21) },
+    { eventId: 21, userId: DAD_ID, status: "MAYBE", updatedAt: hoursAgo(2), ...seen(21) },
+    { eventId: 27, userId: MOM_ID, status: "GOING", updatedAt: hoursAgo(5), ...seen(27) },
+    { eventId: 3, userId: ME_ID, status: "GOING", updatedAt: hoursAgo(6), ...seen(3) },
+    { eventId: 3, userId: OTHER_ID, status: "GOING", updatedAt: hoursAgo(4), ...seen(3) },
+    { eventId: 4, userId: ME_ID, status: "GOING", updatedAt: hoursAgo(6), ...seen(4) },
+  ];
+  const reactions: ReactionRow[] = [
+    { eventId: 21, userId: OTHER_ID, kind: "LIKE", occurrence: seen(21).occurrence },
+    { eventId: 21, userId: MOM_ID, kind: "EXCITED", occurrence: seen(21).occurrence },
+  ];
+  const familyDinner = events.find((x) => x.id === 21)!;
+  activities.push({
+    id: 4,
+    groupId: FAMILY_ID,
+    type: "EVENT_RSVP",
+    actorId: DAD_ID,
+    actorName: "아빠",
+    anniversaryId: null,
+    payload: {
+      eventId: 21,
+      eventCode: mockEventCode(21),
+      occurrence: null,
+      title: familyDinner.title,
+      startsAt: familyDinner.startsAt,
+      endsAt: familyDinner.endsAt,
+      allDay: false,
+      status: "MAYBE",
+    },
+    createdAt: hoursAgo(2),
+  });
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useStat
 import { useGroupContext } from "@/components/AppShell";
 import { DayDock } from "@/components/DayDock";
 import { DayAddButton, DayFreeRow, DayPanel, type FreeHint } from "@/components/DayPanel";
+import { NeedsRsvpTag } from "@/components/EventResponses";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
@@ -66,6 +67,7 @@ import {
 import { cellDensity } from "@/lib/calendar-cell";
 import { fitWeek, packWeek, phoneDayLanes, phoneWeek, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
+import { needsMyRsvp } from "@/lib/rsvp";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
@@ -300,6 +302,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     // 사이드바 "다가오는 일정" 도 다시 받게
     eventsChanged();
   }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, weekFreeOn, loadWeekFree, eventsChanged]);
+
+  // (#190) 참석 여부만 바뀌면 빈 시간은 그대로라(D-137) 일정 목록만 다시 받는다
+  const reloadEvents = useCallback(() => {
+    void loadEvents();
+    void loadUpcoming();
+    if (wide) void loadWeek();
+    eventsChanged();
+  }, [loadEvents, loadUpcoming, loadWeek, wide, eventsChanged]);
 
   const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
   let freeHint: FreeHint = null;
@@ -674,7 +684,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                 <button
                   type="button"
                   onClick={() => openDay(k, ev)}
-                  aria-label={withWho(`${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
+                  aria-label={withWho(
+                    `${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}${needsMyRsvp(ev, who.meId, who.personal, nowMs()) ? ", 응답 필요" : ""}`,
+                    ev,
+                    who,
+                  )}
                   className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
                 >
                   <span aria-hidden="true" className="flex h-4 w-full items-center">
@@ -685,6 +699,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                     <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
                   </span>
                   <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
+                    {needsMyRsvp(ev, who.meId, who.personal, nowMs()) && <NeedsRsvpTag />}
                     {ev.title}
                   </b>
                   <span aria-hidden="true" className="mt-auto truncate text-[12px] leading-4 text-ink-2">
@@ -765,6 +780,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       onPickDay={changeDay}
       onSaved={onQuickSaved}
       onDelete={askDelete}
+      onResponded={reloadEvents}
       addStart={addStart}
     />
   ) : null;

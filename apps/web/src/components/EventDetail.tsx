@@ -2,16 +2,20 @@
 // 일정 상세. 날짜 상세(DayPanel) 안에서 일정 행이나 칩을 누르면 같은 표면이 이것으로 바뀐다 (폴더블.md 5-2)
 // 내용: 제목, 시간, 반복, 알림, 참여자(#248), 메모, "○○님이 추가", 등록/수정 시각, 수정/복제/삭제. 제목줄 [공유](#274).
 // 개인 팀은 사람 표시가 없던 그대로 등록자 한 줄만 둔다 (7-2)
+// (#190) 참여자 줄 아래 참석 여부(참여자만)와 반응 줄. 개인 팀은 둘 다 숨긴다
 import { useRouter } from "next/navigation";
 import { useEventShareSheet } from "./EventShareSheet";
 import { IconArrowRight, IconBell, IconChevronLeft, IconShare } from "./icons";
 import { CloseButton } from "./ui";
+import { EventResponses } from "./EventResponses";
 import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { isShareEnded } from "@/lib/event-share";
 import { eventCopyHref, eventEditHref } from "@/lib/routes";
+import { eventKey } from "@/lib/recurrence";
 import { recurrenceLines } from "@/lib/recurrence-label";
+import { showRsvp } from "@/lib/rsvp";
 import { reminderDetail } from "@/lib/reminder";
 import { iGa } from "@/lib/text";
 import type { Event } from "@/lib/types";
@@ -35,6 +39,7 @@ export function EventDetail({
   onBack,
   onClose,
   onDelete,
+  onResponded,
 }: {
   event: Event;
   groupId: number;
@@ -44,6 +49,8 @@ export function EventDetail({
   onBack: () => void;
   onClose: () => void;
   onDelete: () => void;
+  /** (#190) 참석 여부를 바꾸면 목록을 다시 받게 (다가오는 일정의 "응답" 표시) */
+  onResponded?: () => void;
 }) {
   const router = useRouter();
   const who = useWho();
@@ -136,6 +143,9 @@ export function EventDetail({
         </p>
       )}
       {!who.personal && <ParticipantList event={ev} meId={who.meId} />}
+      {!who.personal && ev.rsvp && (
+        <EventResponses key={eventKey(ev)} event={ev} groupId={groupId} meId={who.meId} showRsvp={showRsvp(ev, who.personal)} onChanged={onResponded} />
+      )}
       {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
       {/* 참여자와 등록자는 다를 수 있다. 등록자는 여기 한 줄 (#248 D-140) */}
       {!who.personal && <p className="mt-2.5 text-[12px] leading-4 text-ink-2">{ev.creator.displayName}님이 추가</p>}
