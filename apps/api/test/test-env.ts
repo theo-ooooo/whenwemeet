@@ -38,5 +38,8 @@ export function applyTestEnv(): string {
   process.env.RESEND_API_URL = 'http://127.0.0.1:9';
   process.env.REVIEW_EMAIL = 'review@e2e.example';
   process.env.REVIEW_CODE = '246810';
+  // (#199) 장소 검색은 가짜 공급자 (실제 카카오로 나가지 않게 키를 비운다)
+  process.env.KAKAO_REST_API_KEY = '';
+  process.env.PLACE_SEARCH_FAKE = '';
   return url;
 }

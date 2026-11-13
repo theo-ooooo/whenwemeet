@@ -61,6 +61,12 @@ export class EventsController {
 export class EventLookupController {
   constructor(private readonly events: EventsService) {}
 
+  /** (#199) 일정 검색 `GET /events/search?q=&groupId=&limit=` (api.md 2.3). ':code' 보다 먼저 등록한다 */
+  @Get('search')
+  search(@CurrentUser() user: AuthUser, @Query('q') q: unknown, @Query('groupId') groupId: unknown, @Query('limit') limit: unknown) {
+    return this.events.search(user.id, { q, groupId, limit });
+  }
+
   @Get(':code')
   getByCode(@CurrentUser() user: AuthUser, @Param('code') code: string, @Query('occurrence') occurrence: unknown) {
     return this.events.getByCode(user.id, code, occurrence);

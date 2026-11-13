@@ -72,9 +72,32 @@ export type EventInput = {
   /** (#343) 일정 색 (MEMBER_COLORS 키 하나). null = 자동(참여자 색). 생성에서 생략 = 자동, 수정에서 생략 = 그대로.
    *  반복 "이 일정만" 수정에는 싣지 않는다 (서버 400, D-215). 옛 API 응답에는 없음 = 자동 */
   color?: string | null;
+  /** (#199) 장소. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, null = 지우기. 반복 "이 일정만" 으로도 바꿀 수 있다 */
+  place?: PlaceInput | null;
 };
 
-export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "participants"> & {
+/**
+ * (#199) 보내는 장소 (D-242). 카카오 정책상 카카오가 준 이름, 주소, 좌표는 보내지도 저장하지도 않는다.
+ * 직접 적은 장소는 text, 검색에서 고른 장소는 kakaoPlaceId + query(고를 때 사용자가 적은 검색어)
+ */
+export type PlaceInput = { text?: string | null; query?: string | null; kakaoPlaceId?: string | null };
+
+/** (#199) 받는 장소. 이름, 주소, 좌표는 보일 때 GET /places/resolve 로 다시 찾는다. url 은 카카오 ID 가 있을 때 카카오맵 장소 상세 */
+export type Place = { text: string | null; query: string | null; kakaoPlaceId: string | null; url: string | null };
+
+/** (#199) GET /places/search 후보 하나 */
+export type PlaceCandidate = { kakaoPlaceId: string; name: string; address: string | null; lat: number; lng: number; category: string | null };
+
+/** (#199) GET /events/search 한 줄. 반복이면 event 는 회차 하나 (occurrence 채움) */
+export type EventSearchItem = {
+  event: Event;
+  group: { id: number; name: string; publicCode: string };
+  matched: ("title" | "memo" | "place")[];
+  upcoming: boolean;
+};
+export type EventSearchResult = { items: EventSearchItem[]; hasMore: boolean };
+
+export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "participants" | "place"> & {
   id: number;
   groupId: number;
   /** (#311) 주소용 공개 코드 (`/events/<코드>`) */
@@ -99,6 +122,8 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "pa
   rsvp?: RsvpSummary;
   /** (#190) 그 회차의 반응 집계. 옛 API 는 없음 */
   reactions?: ReactionSummary;
+  /** (#199) 장소 (반복 회차는 예외 반영). 옛 API 는 없음 = 장소 없음 */
+  place?: Place | null;
 };
 
 /** (#190) 참석 여부. 응답 안 함은 null */

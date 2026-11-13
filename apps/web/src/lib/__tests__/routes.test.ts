@@ -53,6 +53,12 @@ describe("주소 만들기", () => {
 });
 
 describe("routeInfo, activeTab, afterTeamSwitch", () => {
+  it("(#199) /search 는 팀 화면이지만 메뉴 칩이 없고, 팀을 바꿔도 머문다", () => {
+    expect(routeInfo("/search").screen).toBe("search");
+    expect(activeTab("/search")).toBeNull();
+    expect(afterTeamSwitch("/search")).toBeNull();
+  });
+
   it("화면과 일정 코드, 작성 화면 여부", () => {
     expect(routeInfo("/calendar")).toEqual({ screen: "calendar", eventCode: null, form: false, eventDetail: false, todoCode: null });
     expect(routeInfo("/team/import")).toEqual({ screen: "team", eventCode: null, form: true, eventDetail: false, todoCode: null });

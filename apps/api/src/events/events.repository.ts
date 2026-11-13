@@ -13,6 +13,7 @@ import {
   moveResponsesFromTx,
   pruneRsvpsTx,
 } from '../event-responses/event-responses.repository.js';
+import { exceptionPlaceFromColumns, PLACE_SELECT, placeColumns, type PlaceColumns, placeFromColumns, type PlaceValue } from './place.js';
 import { addDays, type EventReminderValue, type ExceptionRule, kstDate, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
 
 export const EVENT_SELECT = {
@@ -38,6 +39,8 @@ export const EVENT_SELECT = {
   participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
   /** (#343) 일정 색. null 이면 자동 (D-215) */
   color: true,
+  /** (#199) 장소 열 세 개: 카카오 ID, 고를 때 검색어, 직접 적은 글자 (D-242) */
+  ...PLACE_SELECT,
 } as const;
 
 /** (#248) 빈 시간 판정용 참여자 필드 (D-137) */
@@ -54,6 +57,8 @@ export const EVENT_EXCEPTION_SELECT = {
   memo: true,
   reminder: true,
   reminderSetAt: true,
+  /** (#199) 이 회차의 장소. 셋 다 null 이면 원본 값 */
+  ...PLACE_SELECT,
 } as const;
 
 export interface EventRow {
@@ -86,6 +91,8 @@ export interface EventRow {
   participantIds: number[];
   /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색 (D-215) */
   color: string | null;
+  /** (#199) 장소. null 이면 없음 (D-242) */
+  place: PlaceValue | null;
 }
 
 /** 반복 원본 + 예외 (일정 목록 펼치기용) */
@@ -102,15 +109,18 @@ export type EventExceptionRow = ExceptionRule & {
   memo: string | null;
   reminder: EventReminderValue | null;
   reminderSetAt: Date | null;
+  /** (#199) null 이면 원본 장소, CLEARED_PLACE(text '') 면 이 회차만 장소 없음 */
+  place: PlaceValue | null;
 };
 
-type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor' | 'participantIds'> & {
-  repeatUntil: Date | null;
-  repeatAnchor: Date | null;
-  creator: UserPublicRecord | null;
-  participants: { userId: number }[];
-};
-type ExceptionRecord = Omit<EventExceptionRow, 'occurrence'> & { occurrence: Date };
+type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor' | 'participantIds' | 'place'> &
+  PlaceColumns & {
+    repeatUntil: Date | null;
+    repeatAnchor: Date | null;
+    creator: UserPublicRecord | null;
+    participants: { userId: number }[];
+  };
+type ExceptionRecord = Omit<EventExceptionRow, 'occurrence' | 'place'> & PlaceColumns & { occurrence: Date };
 
 /** `YYYY-MM-DD` ↔ `@db.Date`. 시각 없는 값이라 UTC 자정으로 고정해 날짜가 밀리지 않게 한다 (기념일과 같은 규칙) */
 export function dateToDb(value: string): Date {
@@ -121,9 +131,10 @@ export function dbToDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function toEventRow({ participants, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
+function toEventRow({ participants, placeId, placeQuery, placeText, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
   return {
     ...record,
+    place: placeFromColumns({ placeId, placeQuery, placeText }),
     repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
     repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
@@ -141,8 +152,12 @@ function participantSetOf(record: { allMembers: boolean; participants: { userId:
   return { allMembers: record.allMembers, ids: record.allMembers ? [] : participantIdsOf(record.participants) };
 }
 
-function toExceptionRow(record: ExceptionRecord): EventExceptionRow {
-  return { ...record, occurrence: dbToDate(record.occurrence) };
+function toExceptionRow({ placeId, placeQuery, placeText, ...record }: ExceptionRecord): EventExceptionRow {
+  return {
+    ...record,
+    occurrence: dbToDate(record.occurrence),
+    place: exceptionPlaceFromColumns({ placeId, placeQuery, placeText }),
+  };
 }
 
 /** (#248) 빈 시간에서 그 일정이 누구를 바쁘게 하는지 (D-137) */
@@ -187,6 +202,8 @@ export interface EventCreateInput {
   participants: ParticipantSet;
   /** (#343) 일정 색. 생략하면 null(자동). 가져오기(ICS)는 늘 생략 (D-215) */
   color?: string | null;
+  /** (#199) 장소. 생략하면 없음 */
+  place?: PlaceValue | null;
 }
 
 export interface EventUpdateInput {
@@ -208,6 +225,8 @@ export interface EventUpdateInput {
   participants?: ParticipantSet;
   /** (#343) 생략하면 바꾸지 않는다 */
   color?: string | null;
+  /** (#199) 장소. null 이면 없음 */
+  place: PlaceValue | null;
 }
 
 /** 회차 예외로 저장할 값. null 은 원본 값 */
@@ -219,6 +238,8 @@ export interface ExceptionFields {
   memo: string | null;
   /** (#188) 원본 알림과 다를 때만 값 */
   reminder: EventReminderValue | null;
+  /** (#199) 원본 장소와 다를 때만 값. 이 회차만 지우면 CLEARED_PLACE (text '') */
+  place: PlaceValue | null;
 }
 
 /** 반복 일정에서 범위를 고른 변경의 로그 정보 */
@@ -258,9 +279,10 @@ function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: str
 }
 
 /** (#248) 새 일정의 allMembers + 참여자 행. (#311) 공개 코드가 없으면 여기서 만든다 (새 원본, 가져오기 포함 모든 생성 경로) */
-function toCreateData({ participants, publicCode, ...data }: EventCreateInput) {
+function toCreateData({ participants, publicCode, place, ...data }: EventCreateInput) {
   return {
     ...toEventData(data),
+    ...placeColumns(place ?? null),
     publicCode: publicCode ?? generatePublicCode(),
     allMembers: participants.allMembers,
     participants: { create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
@@ -268,10 +290,11 @@ function toCreateData({ participants, publicCode, ...data }: EventCreateInput) {
 }
 
 /** (#248) 수정. 참여자를 주면 행을 지우고 다시 만든다 (설계 3-5) */
-function toUpdateData({ participants, ...data }: EventUpdateInput) {
-  if (!participants) return toEventData(data);
+function toUpdateData({ participants, place, ...data }: EventUpdateInput) {
+  if (!participants) return { ...toEventData(data), ...placeColumns(place) };
   return {
     ...toEventData(data),
+    ...placeColumns(place),
     allMembers: participants.allMembers,
     participants: { deleteMany: {}, create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
   };
@@ -337,6 +360,72 @@ export class EventsRepository {
   async findByPublicCode(publicCode: string): Promise<EventRow | null> {
     const row = await this.prisma.event.findUnique({ where: { publicCode }, select: EVENT_SELECT });
     return row && toEventRow(row, this.urls);
+  }
+
+  /**
+   * (#199) 검색: 한 번짜리 일정 중 제목, 메모, 장소 글자(직접 적은 것, 고를 때 검색어)에 pattern(LIKE, 이스케이프 '!')이 맞는 것.
+   * upcoming 은 끝이 now 뒤(시작 오름차순), past 는 그 밖(시작 내림차순). 각각 take 개까지 (D-245)
+   */
+  async searchOnce(groupIds: number[], pattern: string, now: Date, take: number): Promise<{ upcoming: EventRow[]; past: EventRow[] }> {
+    if (groupIds.length === 0) return { upcoming: [], past: [] };
+    const groups = Prisma.join(groupIds);
+    const [upcomingIds, pastIds] = await Promise.all([
+      this.prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM Event
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt > ${now} AND ${matchSql('', pattern)}
+        ORDER BY startsAt ASC, id ASC LIMIT ${take}`,
+      this.prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM Event
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt <= ${now} AND ${matchSql('', pattern)}
+        ORDER BY startsAt DESC, id DESC LIMIT ${take}`,
+    ]);
+    const load = async (ids: { id: number }[]) => {
+      if (ids.length === 0) return [];
+      const rows = await this.prisma.event.findMany({ where: { id: { in: ids.map((row) => row.id) } }, select: EVENT_SELECT });
+      const byId = new Map(rows.map((row) => [row.id, toEventRow(row, this.urls)]));
+      return ids.flatMap((row) => byId.get(row.id) ?? []);
+    };
+    const [upcoming, past] = await Promise.all([load(upcomingIds), load(pastIds)]);
+    return { upcoming, past };
+  }
+
+  /**
+   * (#199) 검색: 원본 값이 맞는 반복 원본(matchedIds), 예외 값(제목, 메모, 장소)이 맞는 취소 안 된 회차(exceptionHits),
+   * 그리고 둘에 걸린 원본 전부(예외 포함). 원본, 회차 각각 cap 개까지 (D-245)
+   */
+  async searchSeries(
+    groupIds: number[],
+    pattern: string,
+    cap: number,
+  ): Promise<{ series: SeriesRow[]; matchedIds: number[]; exceptionHits: { eventId: number; occurrence: string }[] }> {
+    if (groupIds.length === 0) return { series: [], matchedIds: [], exceptionHits: [] };
+    const groups = Prisma.join(groupIds);
+    const [matched, hits] = await Promise.all([
+      this.prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM Event
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NOT NULL AND ${matchSql('', pattern)}
+        ORDER BY id ASC LIMIT ${cap}`,
+      this.prisma.$queryRaw<{ eventId: number; occurrence: Date }[]>`
+        SELECT x.eventId, x.occurrence FROM EventException x JOIN Event e ON e.id = x.eventId
+        WHERE e.groupId IN (${groups}) AND e.\`repeat\` IS NOT NULL AND x.cancelled = false AND ${matchSql('x.', pattern)}
+        ORDER BY x.eventId ASC, x.occurrence ASC LIMIT ${cap}`,
+    ]);
+    const ids = [...new Set([...matched.map((row) => row.id), ...hits.map((row) => row.eventId)])];
+    if (ids.length === 0) return { series: [], matchedIds: [], exceptionHits: [] };
+    const rows = await this.prisma.event.findMany({
+      where: { id: { in: ids }, repeat: { not: null } },
+      orderBy: { id: 'asc' },
+      select: { ...EVENT_SELECT, exceptions: { select: EVENT_EXCEPTION_SELECT } },
+    });
+    return {
+      series: rows.map(({ exceptions, ...row }) => ({
+        ...toEventRow(row, this.urls),
+        repeat: row.repeat as Repeat,
+        exceptions: exceptions.map(toExceptionRow),
+      })),
+      matchedIds: matched.map((row) => row.id),
+      exceptionHits: hits.map((row) => ({ eventId: row.eventId, occurrence: dbToDate(row.occurrence) })),
+    };
   }
 
   /** 원본 하나의 예외 전부, 회차 날짜 오름차순 */
@@ -488,12 +577,14 @@ export class EventsRepository {
   ): Promise<void> {
     const where = { eventId_occurrence: { eventId: event.id, occurrence: dateToDb(occurrence) } };
     const setAt = reminderSetAt ? { reminderSetAt } : {};
+    // (#199) 장소는 열 세 개로. null 이면 모두 null(원본 장소), 이 회차만 지우면 placeText ''
+    const data = fields && (({ place, ...rest }) => ({ ...rest, ...placeColumns(place) }))(fields);
     await this.prisma.$transaction(async (tx) => {
-      if (fields) {
+      if (data) {
         await tx.eventException.upsert({
           where,
-          create: { eventId: event.id, occurrence: dateToDb(occurrence), ...fields, ...setAt },
-          update: { cancelled: false, ...fields, ...setAt },
+          create: { eventId: event.id, occurrence: dateToDb(occurrence), ...data, ...setAt },
+          update: { cancelled: false, ...data, ...setAt },
         });
       } else {
         await tx.eventException.deleteMany({ where: { eventId: event.id, occurrence: dateToDb(occurrence) } });
@@ -505,7 +596,17 @@ export class EventsRepository {
 
   /** "이 일정만" 삭제: 예외 upsert `cancelled = true` + DELETED THIS 로그 */
   async cancelOccurrenceWithLogTx(event: SeriesRef, occurrence: string, log: ScopeLog, snapshot: LogSnapshot): Promise<void> {
-    const cleared = { cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null, reminder: null, reminderSetAt: null };
+    const cleared = {
+      cancelled: true,
+      title: null,
+      startsAt: null,
+      endsAt: null,
+      allDay: null,
+      memo: null,
+      reminder: null,
+      reminderSetAt: null,
+      ...placeColumns(null),
+    };
     await this.prisma.$transaction(async (tx) => {
       await tx.eventException.upsert({
         where: { eventId_occurrence: { eventId: event.id, occurrence: dateToDb(occurrence) } },
@@ -577,6 +678,20 @@ export class EventsRepository {
       return toEventRow(created, this.urls);
     });
   }
+}
+
+/**
+ * (#199) 검색 조건: 제목, 메모, 장소 글자(placeText), 장소 검색어(placeQuery) 중 하나가. 카카오가 준 이름, 주소는 저장하지 않으므로 찾지 않는다 (D-245). pattern 과 LIKE (이스케이프 문자 '!').
+ * 열의 콜레이션(utf8mb4_0900_ai_ci)이라 대소문자를 가리지 않는다. prefix 는 테이블 별칭 ('' 또는 'x.')
+ */
+function matchSql(prefix: '' | 'x.', pattern: string): Prisma.Sql {
+  const col = (name: string) => Prisma.raw(`${prefix}${name}`);
+  return Prisma.sql`(${col('title')} LIKE ${pattern} ESCAPE '!' OR ${col('memo')} LIKE ${pattern} ESCAPE '!' OR ${col('placeText')} LIKE ${pattern} ESCAPE '!' OR ${col('placeQuery')} LIKE ${pattern} ESCAPE '!')`;
+}
+
+/** (#199) 검색어 → LIKE 패턴. '!', '%', '_' 는 '!' 로 이스케이프해 글자 그대로 찾는다 */
+export function likePattern(query: string): string {
+  return `%${query.replace(/[!%_]/g, (char) => `!${char}`)}%`;
 }
 
 /** (#190) 회차 날짜를 정하는 원본 값 */

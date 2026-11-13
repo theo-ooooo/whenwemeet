@@ -241,6 +241,35 @@ export function IconShare(p: IconProps) {
   );
 }
 
+/** (#199) 일정 검색 돋보기. 렌즈는 둥근 사각(3-1 원 피하기), 겹침 조각 없음 */
+export function IconSearch(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3.5" y="3.5" width="13" height="13" rx="4.5" />
+      <path d="M15 15l5.5 5.5" />
+    </Svg>
+  );
+}
+
+/** (#199) 장소 핀. 겹침 조각은 핀 안 작은 둥근 사각 하나 */
+export function IconPin({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+      <rect data-piece x="10" y="8" width="4" height="4" rx="1.2" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
+/** (#199) 지도 크게 보기 (네 모서리 바깥 화살표). 겹침 조각 없음 */
+export function IconExpand(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5V9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15M15 20h3.5a1.5 1.5 0 0 0 1.5-1.5V15" />
+    </Svg>
+  );
+}
+
 /** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양). 카카오 공유 버튼 안 (#195, #274) */
 export function KakaoSymbol() {
   return (

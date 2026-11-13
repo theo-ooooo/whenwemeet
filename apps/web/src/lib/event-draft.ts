@@ -6,10 +6,11 @@ import { minutesOf, timeOfMinutes } from "@/components/pickers/time";
 import { charCount, clampChars } from "./chars";
 import { addDays, dateKeyOf, kstToIso, timeOf, todayKey, type DateKey } from "./date";
 import { eventColorBody } from "./colors";
+import { draftPlaceOf, NO_PLACE, pickPlace, placeBody, placeSnapshot, typePlace, type DraftPlace } from "./place";
 import { normalizePick, participantsBody, pickOf, samePick, type ParticipantPick } from "./participants";
 import { followingUntil, formRepeatOf, keepsLoadedTimes } from "./recurrence";
 import { reminderAfterAllDayChange, reminderOf, reminderToSend } from "./reminder";
-import type { EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, Repeat } from "./types";
+import type { EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, PlaceCandidate, Repeat } from "./types";
 
 // 서버 기준(코드포인트) 글자 수 (#63)
 export const TITLE_MAX = 50;
@@ -40,6 +41,8 @@ export type EventDraft = {
   pick: ParticipantPick | null;
   /** (#343) 일정 색. null = 자동(참여자 색) */
   color: string | null;
+  /** (#199) 장소. 직접 적은 글자, 또는 검색에서 고른 장소(카카오 ID + 검색어만 보낸다, D-242) */
+  place: DraftPlace;
 };
 
 export type DraftAction =
@@ -54,7 +57,11 @@ export type DraftAction =
   | { type: "reminder"; value: EventReminder }
   /** 참여자 시트 완료. 새 일정에서 기본값([나]) 그대로 고르면 null 로 둔다 (작성 중으로 보지 않게) */
   | { type: "pick"; value: ParticipantPick; meId: number | null }
-  | { type: "color"; value: string | null };
+  | { type: "color"; value: string | null }
+  /** (#199) 장소 칸에 적기 (고른 장소 이름을 고치면 직접 적은 장소가 된다), 후보 고르기, 지우기 */
+  | { type: "placeText"; value: string }
+  | { type: "placePick"; value: PlaceCandidate; query: string }
+  | { type: "placeClear" };
 
 const BLANK: EventDraft = {
   title: "",
@@ -70,6 +77,7 @@ const BLANK: EventDraft = {
   reminder: "NONE",
   pick: null,
   color: null,
+  place: NO_PLACE,
 };
 
 /* ---------- 처음 값 ---------- */
@@ -119,6 +127,7 @@ export function draftFromEvent(ev: EventDetailData, copy: boolean): EventDraft {
     reminder: reminderOf(ev.reminder),
     pick: pickOf(ev),
     color: ev.color ?? null,
+    place: draftPlaceOf(ev.place),
   };
 }
 
@@ -149,6 +158,12 @@ export function applyDraft(d: EventDraft, a: DraftAction, span: DraftSpan): Even
       return { ...d, pick: d.pick === null && a.meId !== null && samePick(a.value, [a.meId]) ? null : normalizePick(a.value) };
     case "color":
       return { ...d, color: a.value };
+    case "placeText":
+      return { ...d, place: typePlace(a.value) };
+    case "placePick":
+      return { ...d, place: pickPlace(a.value, a.query) };
+    case "placeClear":
+      return { ...d, place: NO_PLACE };
   }
 }
 
@@ -261,6 +276,7 @@ function snapshot(d: EventDraft): string {
     d.reminder,
     d.pick === null ? null : normalizePick(d.pick),
     d.color === null ? null : d.color.toUpperCase(),
+    placeSnapshot(d.place),
   ]);
 }
 
@@ -288,7 +304,7 @@ export function quickDetailQuery(d: EventDraft): URLSearchParams {
 }
 
 /**
- * 일정 폼의 기본 본문 (반복, 참여자, 색 제외). 날짜가 비면 null.
+ * 일정 폼의 기본 본문 (반복, 참여자, 색 제외. 장소는 포함, #199). 날짜가 비면 null.
  * 수정에서 메모를 비우면 "" 를 보내 지운다 (생략하면 서버가 기존 메모를 유지한다).
  * 알림은 생성에서 "없음" 이면 생략, 수정은 API 가 아는 필드면 늘 싣는다 (lib/reminder reminderToSend)
  */
@@ -296,6 +312,8 @@ export function eventInput(d: EventDraft, editing: { reminder?: unknown } | null
   const t = draftTimes(d);
   if (!t) return null;
   const sentReminder = reminderToSend(d.reminder, editing);
+  // (#199) 장소: 새 일정은 비면 생략, 수정은 비면 null(지우기). "이 일정만" 이면 그 회차에만
+  const sentPlace = placeBody(d.place, Boolean(editing));
   return {
     title: d.title.trim(),
     startsAt: t.startsAt,
@@ -303,6 +321,7 @@ export function eventInput(d: EventDraft, editing: { reminder?: unknown } | null
     allDay: d.allDay,
     memo: d.memo.trim() || (editing ? "" : undefined),
     ...(sentReminder === undefined ? {} : { reminder: sentReminder }),
+    ...(sentPlace === undefined ? {} : { place: sentPlace }),
   };
 }
 

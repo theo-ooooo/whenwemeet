@@ -34,6 +34,7 @@ const SERIES: EventRow = {
   allMembers: true,
   participantIds: [] as number[],
   color: null,
+  place: null,
 };
 const ONCE: EventRow = { ...SERIES, id: 100, title: '한 번', memo: null, repeat: null, startsAt: kst('2026-11-18T19:00:00'), endsAt: kst('2026-11-18T20:00:00') };
 
@@ -47,6 +48,7 @@ const exception = (overrides: Partial<EventExceptionRow>): EventExceptionRow => 
   memo: null,
   reminder: null,
   reminderSetAt: null,
+  place: null,
   ...overrides,
 });
 
@@ -75,7 +77,7 @@ describe('EventsService 반복 일정', () => {
       events.createWithLogTx.mockResolvedValue({ ...SERIES, creatorId: 1, repeatUntil: '2026-12-31' });
       const view = await service.create(1, 10, { ...input, repeat: 'WEEKLY', repeatUntil: '2026-12-31' });
       expect(events.createWithLogTx).toHaveBeenCalledWith(
-        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null },
+        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, place: null },
         1,
       );
       expect(view).toMatchObject({ repeat: 'WEEKLY', repeatUntil: '2026-12-31', occurrence: '2026-11-11', seriesStartsAt: SERIES.startsAt });
@@ -200,7 +202,7 @@ describe('EventsService 반복 일정', () => {
       events.findInGroup.mockResolvedValue(ONCE);
       events.updateWithLogTx.mockResolvedValue({ ...ONCE, title: '변경' });
       await service.update(1, 10, 100, { title: '변경' }, { scope: 'bogus', occurrence: 'x' });
-      expect(events.updateWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ id: 100 }), { title: '변경', startsAt: ONCE.startsAt, endsAt: ONCE.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null }, 1);
+      expect(events.updateWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ id: 100 }), { title: '변경', startsAt: ONCE.startsAt, endsAt: ONCE.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null, place: null }, 1);
     });
 
     it('한 번짜리에 반복을 켜면 그 일정이 첫 회차가 된다', async () => {
@@ -229,9 +231,9 @@ describe('EventsService 반복 일정', () => {
       expect(events.saveExceptionWithLogTx).toHaveBeenCalledWith(
         SERIES,
         '2026-11-25',
-        { title: null, startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), allDay: null, memo: null, reminder: null },
+        { title: null, startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), allDay: null, memo: null, reminder: null, place: null },
         { actorId: 1, scope: 'THIS', occurrence: '2026-11-25' },
-        { title: '저녁', startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), allDay: false, memo: '원본 메모', reminder: 'NONE', repeat: 'WEEKLY', participants: { allMembers: true, ids: [] } },
+        { title: '저녁', startsAt: kst('2026-11-25T20:00:00'), endsAt: kst('2026-11-25T22:00:00'), allDay: false, memo: '원본 메모', reminder: 'NONE', repeat: 'WEEKLY', participants: { allMembers: true, ids: [] }, place: null },
         // (#188) 회차 시각이 바뀌었으니 기준 시각 (D-86)
         expect.any(Date),
       );
@@ -240,7 +242,7 @@ describe('EventsService 반복 일정', () => {
 
     it('제목, 메모 지움 (null 이든 빈 문자열이든 예외에는 빈 문자열)', async () => {
       await service.update(1, 10, 200, { title: '이번만', memo: null as never }, q);
-      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toEqual({ title: '이번만', startsAt: null, endsAt: null, allDay: null, memo: '', reminder: null });
+      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toEqual({ title: '이번만', startsAt: null, endsAt: null, allDay: null, memo: '', reminder: null, place: null });
       // (#188) 제목, 메모만 바꾸면 기준 시각은 그대로
       expect(events.saveExceptionWithLogTx.mock.calls[0][5]).toBeNull();
       const view = await service.update(1, 10, 200, { memo: '' }, q);
@@ -248,10 +250,25 @@ describe('EventsService 반복 일정', () => {
       expect(view.memo).toBe('');
     });
 
+    it('(#199) 장소: 원본과 다르면 예외에 장소 전체, 지우면 CLEARED_PLACE (그 회차만 없음), 원본과 같으면 null', async () => {
+      const cafe = { text: null, query: '온화', kakaoPlaceId: '1' };
+      events.findInGroup.mockResolvedValue({ ...SERIES, place: cafe });
+      const moved = await service.update(1, 10, 200, { place: { text: '서울숲' } }, q);
+      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toMatchObject({ place: { text: '서울숲', query: null, kakaoPlaceId: null } });
+      expect(moved.place).toMatchObject({ text: '서울숲', url: null });
+      const cleared = await service.update(1, 10, 200, { place: null }, q);
+      expect(events.saveExceptionWithLogTx.mock.calls[1][2]).toMatchObject({ place: { text: '', query: null, kakaoPlaceId: null } });
+      expect(cleared.place).toBeNull();
+      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', place: { text: '', query: null, kakaoPlaceId: null } })]);
+      const back = await service.update(1, 10, 200, { place: { query: '온화', kakaoPlaceId: '1' } }, q);
+      expect(events.saveExceptionWithLogTx.mock.calls[2][2]).toBeNull();
+      expect(back.place).toMatchObject({ query: '온화', url: 'https://place.map.kakao.com/1' });
+    });
+
     it('기존 예외에 덮어 쓴다 (현재 값 = 예외 반영 값)', async () => {
       events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', title: '이번만' })]);
       await service.update(1, 10, 200, { memo: '새 메모' }, q);
-      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toEqual({ title: '이번만', startsAt: null, endsAt: null, allDay: null, memo: '새 메모', reminder: null });
+      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toEqual({ title: '이번만', startsAt: null, endsAt: null, allDay: null, memo: '새 메모', reminder: null, place: null });
     });
 
     it('예외가 원본과 같은 값이 되면 예외 행을 지운다 (fields = null)', async () => {
@@ -306,6 +323,7 @@ describe('EventsService 반복 일정', () => {
           remindAt: null,
           // (#188) 반복 규칙이 바뀌었으니 기준 시각 (D-86)
           reminderSetAt: expect.any(Date),
+          place: null,
         },
         { actorId: 1, scope: 'FOLLOWING', occurrence: '2026-11-11' },
       );
@@ -355,6 +373,7 @@ describe('EventsService 반복 일정', () => {
           reminderSetAt: expect.any(Date),
           participants: { allMembers: true, ids: [] },
           color: null,
+          place: null,
         },
       );
       expect(view).toMatchObject({ id: 201, occurrence: '2026-11-25', seriesStartsAt: created.startsAt });
@@ -470,6 +489,7 @@ describe('EventsService 반복 일정', () => {
       allDay: false,
       memo: '원본 메모',
       repeat: 'WEEKLY',
+      place: null,
     });
 
     it('this: 예외 cancelled upsert + DELETED THIS (스냅샷은 그 회차)', async () => {

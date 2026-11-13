@@ -315,6 +315,11 @@ model Event {
   /// (#343) 일정 색. 멤버 색 키 8개(common/member.ts MEMBER_COLORS) 중 하나. null 이면 자동(참여자 색) (D-215).
   /// 반복 일정은 원본 단위 (회차 예외 없음)
   color         String?       @db.Char(7)
+  /// (#199) 장소 (D-242). 카카오 정책상 카카오가 준 이름, 주소, 좌표는 저장하지 않는다. 보일 때마다 placeQuery 로 다시 찾아 placeId 를 고른다.
+  /// placeId: 고른 카카오 장소 ID. placeQuery: 고를 때 사용자가 적은 검색어. placeText: 고르지 않고 적은 장소 글자. 셋 다 null 이면 장소 없음
+  placeId       String?       @db.VarChar(20)
+  placeQuery    String?       @db.VarChar(100)
+  placeText     String?       @db.VarChar(100)
 
   group        Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator      User?              @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
@@ -357,6 +362,11 @@ model EventException {
   reminder      EventReminder?
   /// (#188) 이 회차의 시각이나 알림을 바꾼 시각. null 이면 원본 값
   reminderSetAt DateTime?
+  /// (#199) 이 회차의 장소. 셋 다 null 이면 원본 장소, placeText 가 '' 이고 나머지가 null 이면 이 회차만 장소 없음 (메모와 같은 규칙, D-65).
+  /// 그 밖이면 셋이 원본 장소 전체를 대신한다
+  placeId       String?   @db.VarChar(20)
+  placeQuery    String?   @db.VarChar(100)
+  placeText     String?   @db.VarChar(100)
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

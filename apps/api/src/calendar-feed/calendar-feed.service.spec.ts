@@ -62,7 +62,7 @@ describe('CalendarFeedService (#193)', () => {
   let service: CalendarFeedService;
 
   function build(env: Record<string, string | undefined> = { API_PUBLIC_ORIGIN: 'https://api.whenwemeet.day/' }) {
-    service = new CalendarFeedService(feeds as never, memberships as never, events as never, anniversaries as never, birthdays as never, configWith(env));
+    service = new CalendarFeedService(feeds as never, memberships as never, events as never, anniversaries as never, birthdays as never, configWith(env), { resolveQuietly: async () => null } as never);
   }
 
   beforeEach(() => {
