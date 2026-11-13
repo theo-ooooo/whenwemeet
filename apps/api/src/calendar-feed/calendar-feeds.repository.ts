@@ -26,7 +26,7 @@ export interface CalendarFeedRow {
 }
 
 export interface CalendarFeedWithGroup extends CalendarFeedRow {
-  group: { name: string; publicCode: string };
+  group: { name: string; publicCode: string; type: 'PERSONAL' | 'TEAM' };
 }
 
 export interface CalendarFeedSettings {
@@ -76,7 +76,7 @@ export class CalendarFeedsRepository {
   findByHash(tokenHash: string): Promise<CalendarFeedWithGroup | null> {
     return this.prisma.calendarFeed.findUnique({
       where: { tokenHash },
-      select: { ...FEED_SELECT, group: { select: { name: true, publicCode: true } } },
+      select: { ...FEED_SELECT, group: { select: { name: true, publicCode: true, type: true } } },
     });
   }
 

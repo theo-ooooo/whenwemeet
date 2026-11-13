@@ -108,7 +108,12 @@ export class CalendarFeedService {
       this.events.listForFeed(row.groupId, window.from, window.to),
       row.includeAnniversaries ? this.anniversaries.listForFeed(row.groupId) : Promise.resolve([]),
     ]);
-    const options = { includeMemo: row.includeMemo, webOrigin: this.webOrigin(), groupCode: row.group.publicCode };
+    const options = {
+      includeMemo: row.includeMemo,
+      includeParticipants: row.group.type === 'TEAM',
+      webOrigin: this.webOrigin(),
+      groupCode: row.group.publicCode,
+    };
     const items: IcsEvent[] = [...views.map((view) => eventToIcs(view, options)), ...anniversaries.flatMap((a) => anniversaryEvents(a, window))];
     const body = buildIcs({ name: `${FEED_NAME_PREFIX}${row.group.name}`, timezone: FEED_TIMEZONE, refreshInterval: FEED_REFRESH, events: items });
     const etag = bodyEtag(body);

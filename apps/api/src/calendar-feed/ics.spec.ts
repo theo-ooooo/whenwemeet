@@ -15,7 +15,7 @@ import { feedToken, feedTokenHash, lookupHash, newFeedSalt, tokenMatches } from 
 import { buildIcs, escapeText, foldLine, formatUtc, type IcsEvent } from './ics.js';
 
 const kst = (value: string) => new Date(`${value}+09:00`);
-const OPTIONS = { includeMemo: false, webOrigin: 'https://whenwemeet.day', groupCode: 'teamcode' };
+const OPTIONS = { includeMemo: false, includeParticipants: true, webOrigin: 'https://whenwemeet.day', groupCode: 'teamcode' };
 const UPDATED = new Date('2026-11-01T00:00:00Z');
 
 function event(overrides: Partial<FeedEventInput> = {}): FeedEventInput {
@@ -152,6 +152,9 @@ describe('일정 → VEVENT', () => {
     expect(eventDescription(event({ participants: { all: true, members: [] } }), false)).toBe('참여: 모두');
     expect(eventDescription(event({ memo: '메모만' }), true)).toBe('메모만');
     expect(eventDescription(event({ memo: '메모만' }), false)).toBeNull();
+    // 개인 팀은 참여자 줄 없이 메모만
+    expect(eventDescription(e, true, false)).toBe('창가 자리;예약');
+    expect(eventDescription(e, false, false)).toBeNull();
     const lines = unfold(calendar([eventToIcs(e, { ...OPTIONS, includeMemo: true })]));
     expect(lines).toContain('DESCRIPTION:참여: 민지\\, 지훈\\n\\n창가 자리\\;예약');
   });

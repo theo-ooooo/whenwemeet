@@ -46,6 +46,8 @@ export interface FeedEventInput {
 
 export interface FeedOptions {
   includeMemo: boolean;
+  /** 개인 팀은 참여자가 늘 나 하나라 "참여:" 줄을 넣지 않는다 */
+  includeParticipants: boolean;
   /** 웹 주소 (`https://whenwemeet.day`) */
   webOrigin: string;
   /** 팀 공개 코드 (`?team=`) */
@@ -72,11 +74,11 @@ export function eventUid(id: number, occurrence: string | null): string {
   return occurrence ? `e${id}-${occurrence.replace(/-/g, '')}@${UID_DOMAIN}` : `e${id}@${UID_DOMAIN}`;
 }
 
-/** 설명: 첫 줄 "참여: 민지, 지훈" (Q5, 이름만), 메모는 켰을 때만 빈 줄 하나 띄우고 */
-export function eventDescription(event: FeedEventInput, includeMemo: boolean): string | null {
+/** 설명: 첫 줄 "참여: 민지, 지훈" (Q5, 이름만. 개인 팀은 없음), 메모는 켰을 때만 빈 줄 하나 띄우고 */
+export function eventDescription(event: FeedEventInput, includeMemo: boolean, includeParticipants = true): string | null {
   const lines: string[] = [];
-  if (event.participants.all) lines.push('참여: 모두');
-  else if (event.participants.members.length > 0) lines.push(`참여: ${event.participants.members.map((m) => m.displayName).join(', ')}`);
+  const names = event.participants.all ? '모두' : event.participants.members.map((m) => m.displayName).join(', ');
+  if (includeParticipants && names) lines.push(`참여: ${names}`);
   const memo = includeMemo ? event.memo?.trim() : '';
   if (memo) {
     if (lines.length > 0) lines.push('');
@@ -111,7 +113,7 @@ export function eventToIcs(event: FeedEventInput, options: FeedOptions): IcsEven
     start,
     end,
     summary: event.title,
-    description: eventDescription(event, options.includeMemo),
+    description: eventDescription(event, options.includeMemo, options.includeParticipants),
     url: eventUrl(event, options),
   };
 }

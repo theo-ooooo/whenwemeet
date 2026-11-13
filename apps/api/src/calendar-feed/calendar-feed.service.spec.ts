@@ -24,7 +24,7 @@ const ROW = {
   lastFetchedAt: null,
   createdAt: new Date('2026-11-01T00:00:00Z'),
 };
-const ROW_WITH_GROUP = { ...ROW, group: { name: '우리', publicCode: 'teamcode' } };
+const ROW_WITH_GROUP = { ...ROW, group: { name: '우리', publicCode: 'teamcode', type: 'TEAM' as const } };
 
 const VIEW = {
   id: 7,
