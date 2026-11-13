@@ -21,6 +21,7 @@ import type {
   Repeat,
   StartCalendar,
 } from "@/lib/types";
+import { MEMBER_COLORS } from "@/lib/types";
 import type { MockException } from "./recurrence";
 
 export type UserRow = {
@@ -276,6 +277,17 @@ export function buildStore(): Store {
     ev(33, TEAM_ID, "심야 보드게임", addDays(today, 2), "23:00", addDays(today, 3), "01:30", ME_ID),
     ev(34, TEAM_ID, "독서 모임", addDays(today, -3), "15:00", addDays(today, -3), "17:00", OTHER_ID),
     ev(35, TEAM_ID, "생일 파티", addDays(today, -12), "18:00", addDays(today, -12), "21:00", ME_ID),
+    // (#355) 폰 월 달력 이름 칩 확인용: 하루 6개(4개 + "+2"), 긴 제목, 주를 넘는 여러 날(목~일), 일정 색, 다음다음 달(6주 달) 일정
+    ev(36, TEAM_ID, "스터디", d(17), "08:00", d(17), "09:00", ME_ID),
+    { ...ev(37, TEAM_ID, "택배 받기", d(17), "10:00", d(17), "10:30", OTHER_ID), color: MEMBER_COLORS[2] },
+    ev(38, TEAM_ID, "치과 정기검진", d(17), "11:00", d(17), "12:00", ME_ID),
+    { ...ev(39, TEAM_ID, "헬스", d(17), "18:00", d(17), "19:00", OTHER_ID), color: MEMBER_COLORS[4] },
+    ev(40, TEAM_ID, "독서 모임 준비", d(17), "20:00", d(17), "21:00", ME_ID),
+    ev(41, TEAM_ID, "저녁 장보기", d(17), "21:00", d(17), "21:30", OTHER_ID),
+    { ...ev(42, TEAM_ID, "강남역 스타벅스에서 분기 회고 겸 팀 회의", d(18), "14:00", d(18), "16:00", ME_ID), color: MEMBER_COLORS[3] },
+    { ...ev(43, TEAM_ID, "회사 워크숍 (양평 리조트)", d(19), "00:00", d(23), "00:00", OTHER_ID, true), color: MEMBER_COLORS[7] },
+    { ...ev(44, TEAM_ID, "겨울 여행", addDays(today, 58), "00:00", addDays(today, 62), "00:00", ME_ID, true), color: MEMBER_COLORS[6] },
+    ev(45, TEAM_ID, "새해 계획 세우기", addDays(today, 50), "10:00", addDays(today, 50), "11:00", OTHER_ID),
     // 반복 일정 (#187): 2주 전 내일 요일부터 매주 19:30~21:00. 다음 주 회차는 "이 일정만" 20:00 으로 옮김
     {
       ...ev(10, TEAM_ID, "같이 요리하기", weeklyStart, "19:30", weeklyStart, "21:00", OTHER_ID, false, "장보기는 번갈아"),
