@@ -224,7 +224,3 @@ function PersonRow({ member, meId, note = null, value }: { member: Member; meId:
   );
 }
 
-/** (#190 Q4) 다가오는 일정 카드와 목록 화면 제목 앞 "응답" 글자. 색 점은 참여자 색 규칙(D-140)과 헷갈려 쓰지 않는다 */
-export function NeedsRsvpTag() {
-  return <span className="mr-1 inline-block align-[1px] text-[11px] font-bold leading-none tracking-normal text-acc-ink">응답</span>;
-}

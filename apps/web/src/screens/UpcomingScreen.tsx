@@ -18,8 +18,6 @@ import { dayBadge } from "@/lib/day-detail";
 import { formatDateKo, kstToIso, todayKey, type DateKey } from "@/lib/date";
 import { eventKey } from "@/lib/recurrence";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
-import { needsMyRsvp } from "@/lib/rsvp";
-import { NeedsRsvpTag } from "@/components/EventResponses";
 import type { Anniversary } from "@/lib/types";
 import {
   groupPast,
@@ -208,8 +206,6 @@ function DayGroups({
   first: boolean;
 }) {
   const who = useWho();
-  // (#190) "응답" 표시는 끝나지 않은 일정에만
-  const [now] = useState(Date.now);
   return (
     <>
       {days.map((d, i) => {
@@ -250,13 +246,12 @@ function DayGroups({
                     <Row key={eventKey(ev)} divider={j > 0 || d.anniversaries.length > 0}>
                       <Link
                         href={eventHref(ev)}
-                        aria-label={withWho(`${ev.title}, ${time}${needsMyRsvp(ev, who.meId, who.personal, now) ? ", 응답 필요" : ""}`, ev, who)}
+                        aria-label={withWho(`${ev.title}, ${time}`, ev, who)}
                         className={rowCls}
                       >
                         <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                         <span aria-hidden="true" className={metaCls}>
                           <b className="block truncate text-[15px] font-semibold leading-5 main-lg:min-w-0 main-lg:flex-1">
-                            {needsMyRsvp(ev, who.meId, who.personal, now) && <NeedsRsvpTag />}
                             {ev.title}
                           </b>
                           <span className="block truncate text-[12px] leading-4 text-ink-2 main-lg:max-w-[50%] main-lg:shrink-0 main-lg:text-[13px]">
