@@ -332,7 +332,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             className={`@container/main min-w-0 flex-1 px-5 ${
               isForm
                 ? "pb-[calc(24px+env(safe-area-inset-bottom))]"
-                : "pb-[calc(64px+12px+64px+16px+24px+env(safe-area-inset-bottom))] dock:pb-[calc(64px+16px+24px+env(safe-area-inset-bottom))]"
+                : "pb-dock"
             } fold:px-8 fold:py-7 ${
               isCalendar ? "" : "fold:w-full fold:min-w-0"
             }`}

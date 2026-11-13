@@ -233,6 +233,25 @@
   --seg-edge: #6c6c72;
 }
 
+/* (#378) 아래 탭 여백 토큰 하나. 폰 독(64) + 독 아래 띄움(16) + 여유(24) + 안전 영역. 폭 390 미만은 + 가 독 위로 올라가므로 64 + 12 를 더한다 (4-1).
+ * fold 이상(≥600)은 독이 없어 0. 본문 아래 여백은 pb-dock, 바닥에 붙는 버튼 줄은 bottom-[var(--dock-clearance)] 처럼 이 값을 쓴다 */
+:root {
+  --dock-clearance: calc(64px + 12px + 64px + 16px + 24px + env(safe-area-inset-bottom));
+}
+@media (width >= 390px) {
+  :root {
+    --dock-clearance: calc(64px + 16px + 24px + env(safe-area-inset-bottom));
+  }
+}
+@media (width >= 600px) {
+  :root {
+    --dock-clearance: 0px;
+  }
+}
+@utility pb-dock {
+  padding-bottom: var(--dock-clearance);
+}
+
 html,
 body {
   min-height: 100%;

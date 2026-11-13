@@ -3,21 +3,22 @@
 // 기본은 지금 보는 팀, 위 "이 팀 / 모든 팀" 로 넓힌다. 적는 대로 300ms 뒤 찾고(엔터는 바로), 검색어는 주소에만 둔다(저장 안 함).
 // 결과는 "다가오는 일정"(시작 순) 다음 "지난 일정"(최근 순). 줄: 날짜, 시각, 반복 표시, 제목(일치 부분 강조), 장소나 메모 한 줄,
 // 모든 팀이면 팀 이름. 누르면 기존 일정 상세(`/events/<코드>`, 다른 팀 일정이면 그 팀으로)
-import Link from "next/link";
+// (#378) 머리줄은 하위 화면 공통 ScreenHeader("‹ 일정 검색"), 결과 줄은 일정 줄 EventRow (디자인규칙.md 8장)
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { IconChevronLeft, IconPin, IconSearch } from "@/components/icons";
-import { barColors, splitBackground } from "@/lib/participants";
+import { EventList, EventRow } from "@/components/EventRow";
+import { IconSearch } from "@/components/icons";
+import { useWho } from "@/components/Participants";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { EmptyState, ErrorState, Segmented, Skeleton, inputClass } from "@/components/ui";
 import { messageOf, useEventSearch } from "@/hooks";
 import { clampChars } from "@/lib/chars";
 import { todayKey } from "@/lib/date";
-import { highlight, repeatTag, SEARCH_MAX, searchDateText, searchHref, searchPreview, searchTimeText } from "@/lib/event-search";
+import { highlight, repeatTag, SEARCH_MAX, searchDateText, searchHref, searchPreview } from "@/lib/event-search";
 import { eventKey } from "@/lib/recurrence";
-import { CALENDAR_PATH, eventHref } from "@/lib/routes";
+import { CALENDAR_PATH } from "@/lib/routes";
 import type { EventSearchItem } from "@/lib/types";
-import { Row, metaCls, rowCls } from "./UpcomingScreen";
 
 type Scope = "team" | "all";
 const SCOPES: { value: Scope; label: string }[] = [
@@ -50,17 +51,8 @@ export function SearchScreen() {
   const showTeam = scope === "all" && multiTeam;
 
   return (
-    <div className="pt-1">
-      <div className="flex h-10 items-center justify-between gap-3">
-        <h1 className="t-title">일정 검색</h1>
-        <Link
-          href={CALENDAR_PATH}
-          className="hit flex h-8 shrink-0 items-center gap-0.5 rounded-sm bg-paper pl-2 pr-3 text-[13px] font-bold hover:brightness-95 fold:hidden"
-        >
-          <IconChevronLeft size={16} />
-          달력
-        </Link>
-      </div>
+    <div>
+      <ScreenHeader title="일정 검색" fallbackHref={CALENDAR_PATH} />
 
       <form
         role="search"
@@ -122,14 +114,16 @@ export function SearchScreen() {
 }
 
 function ResultGroup({ title, items, q, today, showTeam, spaced = false }: { title: string; items: EventSearchItem[]; q: string; today: string; showTeam: boolean; spaced?: boolean }) {
+  const who = useWho();
+  const [now] = useState(Date.now);
   return (
     <section aria-label={title} className={spaced ? "mt-6" : ""}>
       <h2 className="mb-2 text-[13px] font-bold leading-[18px] text-ink-2">{title}</h2>
-      <ul className="overflow-hidden rounded-xl bg-paper">
-        {items.map((it, i) => (
-          <ResultRow key={`${it.group.id}-${eventKey(it.event)}`} item={it} q={q} today={today} showTeam={showTeam} divider={i > 0} />
+      <EventList>
+        {items.map((it) => (
+          <ResultRow key={`${it.group.id}-${eventKey(it.event)}`} item={it} q={q} today={today} showTeam={showTeam} who={who} now={now} />
         ))}
-      </ul>
+      </EventList>
     </section>
   );
 }
@@ -150,38 +144,42 @@ function Marked({ text, q }: { text: string; q: string }) {
   );
 }
 
-function ResultRow({ item, q, today, showTeam, divider }: { item: EventSearchItem; q: string; today: string; showTeam: boolean; divider: boolean }) {
+function ResultRow({
+  item,
+  q,
+  today,
+  showTeam,
+  who,
+  now,
+}: {
+  item: EventSearchItem;
+  q: string;
+  today: string;
+  showTeam: boolean;
+  who: ReturnType<typeof useWho>;
+  now: number;
+}) {
   const ev = item.event;
-  const date = searchDateText(ev.startsAt, today);
-  const time = searchTimeText(ev);
   const tag = repeatTag(ev.repeat);
+  // 장소는 일정 줄이 핀과 함께 그린다. 메모가 맞았을 때만 메모 한 줄을 더 (장소 줄과 겹치지 않게)
   const preview = searchPreview(item, q);
-  const label = [ev.title, date, time, tag, showTeam ? item.group.name : null, preview?.text].filter(Boolean).join(", ");
+  const memo = preview?.kind === "memo" ? preview.text : null;
   return (
-    <Row divider={divider}>
-      <Link href={eventHref(ev)} aria-label={label} className={rowCls}>
-        <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
-        <span aria-hidden="true" className={`${metaCls} main-lg:block!`}>
-          <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
-            <span className="shrink-0 font-semibold">{date}</span>
-            <span className="truncate">{time}</span>
-            {tag && <span className="shrink-0 rounded-[4px] bg-hover px-1 text-[11px] font-semibold leading-4">{tag}</span>}
-            {showTeam && <span className="ml-auto max-w-[40%] shrink-0 truncate font-semibold text-soft">{item.group.name}</span>}
-          </span>
-          <b className="mt-0.5 block truncate text-[15px] font-semibold leading-5">
-            <Marked text={ev.title} q={q} />
-          </b>
-          {preview && (
-            <span className="mt-0.5 flex items-center gap-1 text-[12px] leading-4 text-soft">
-              {preview.kind === "place" && <IconPin size={13} className="shrink-0 text-ink-2" />}
-              <span className="truncate">
-                <Marked text={preview.text} q={q} />
-              </span>
-            </span>
-          )}
-        </span>
-      </Link>
-    </Row>
+    <EventRow
+      event={ev}
+      who={who}
+      dateText={searchDateText(ev.startsAt, today)}
+      now={now}
+      title={<Marked text={ev.title} q={q} />}
+      extra={
+        <>
+          {tag && <span className="shrink-0 rounded-[4px] bg-hover px-1 text-[11px] font-semibold leading-4">{tag}</span>}
+          {showTeam && <span className="ml-auto max-w-[40%] shrink-0 truncate font-semibold text-soft">{item.group.name}</span>}
+        </>
+      }
+      note={memo ? <Marked text={memo} q={q} /> : undefined}
+      labelExtra={[tag, showTeam ? item.group.name : null, memo]}
+    />
   );
 }
 
