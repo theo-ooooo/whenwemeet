@@ -6,7 +6,7 @@ import { addDays, DAY_MS, KST_OFFSET_MS, kstDate, kstMidnight, type Repeat } fro
 import type { ChangeAction } from './coalesce.js';
 import type { EventReminder } from './remind-at.js';
 
-export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY';
+export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY' | 'POLL';
 /** (#277) WEEKLY 의 변형. 주간 요약, 조용한 팀 깨우기 (D-203) */
 export type WeeklyVariant = 'SUMMARY' | 'NUDGE';
 export type Platform = 'IOS' | 'ANDROID';
@@ -90,6 +90,8 @@ export const calendarUrl = (groupCode: string) => `/calendar?team=${groupCode}`;
 /** (#277) 다가오는 일정 목록 (D-70), 빈 시간 찾기 */
 export const upcomingUrl = (groupCode: string) => `/upcoming?team=${groupCode}`;
 export const freeUrl = (groupCode: string) => `/free?team=${groupCode}`;
+/** (#189) 약속 투표 화면 */
+export const pollUrl = (groupCode: string, pollCode: string) => `/polls/${pollCode}?team=${groupCode}`;
 
 /** 종일 일정의 마지막 날 (끝은 배타적) */
 function lastAllDayDate(endsAt: Date): string {
@@ -265,6 +267,60 @@ export function importPayload(groupCode: string, groupName: string, actorName: s
     subtitle: groupName,
     body: null,
     url: calendarUrl(groupCode),
+    expiration: epochSeconds(now.getTime() + DAY_MS),
+  };
+}
+
+/** (#189) 약속 투표 알림의 공통 대상 */
+export interface PollTarget {
+  groupName: string;
+  groupCode: string;
+  pollCode: string;
+  title: string;
+}
+
+/** (#189) 후보 하나를 문장으로: '11월 22일 (토) 오후 7:00', 종일은 '11월 22일 (토) 종일'. today 는 지금의 KST 날짜 (연도 표기) */
+export function pollTimeLabel(option: { startsAt: Date; allDay: boolean }, today: string): string {
+  return `${kstDateLabel(kstDate(option.startsAt), today)} ${option.allDay ? '종일' : kstTimeLabel(option.startsAt)}`;
+}
+
+/**
+ * (#189) 투표 열림 (설계 약속-투표.md 6장). 대상 팀원(연 사람 제외)에게 바로. 본문은 후보 수와 마감.
+ * 만료는 24시간 뒤와 마감 중 이른 쪽 (마감이 지나면 답할 수 없다)
+ */
+export function pollOpenedPayload(target: PollTarget & { actorName: string; optionCount: number; deadline: Date | null }, now: Date): PushPayload {
+  const deadline = target.deadline ? `, 마감 ${pollTimeLabel({ startsAt: target.deadline, allDay: false }, kstDate(now))}` : '';
+  const expiresAt = Math.min(now.getTime() + DAY_MS, target.deadline?.getTime() ?? Number.POSITIVE_INFINITY);
+  return {
+    title: `${target.actorName}님이 '${target.title}' 시간을 묻고 있어요`,
+    subtitle: target.groupName,
+    body: `후보 ${target.optionCount}개${deadline}`,
+    url: pollUrl(target.groupCode, target.pollCode),
+    expiration: epochSeconds(Math.max(expiresAt, now.getTime() + 10 * MINUTE_MS)),
+  };
+}
+
+/** (#189) 마감 (연 사람에게 1건). 정하기는 마감 뒤에도 된다 */
+export function pollDeadlinePayload(target: PollTarget, now: Date): PushPayload {
+  return {
+    title: `'${target.title}' 투표가 끝났어요`,
+    subtitle: target.groupName,
+    body: '시간을 정해 주세요',
+    url: pollUrl(target.groupCode, target.pollCode),
+    expiration: epochSeconds(now.getTime() + DAY_MS),
+  };
+}
+
+/** (#189) 정함. 그 확정으로 생긴 일정의 팀원 변경 알림 대신 이 1건 (D-226). 누르면 그 일정 */
+export function pollClosedPayload(
+  target: PollTarget & { actorName: string; eventCode: string; option: { startsAt: Date; allDay: boolean } },
+  now: Date,
+): PushPayload {
+  return {
+    title: `${target.actorName}님이 '${target.title}' 시간을 정했어요`,
+    subtitle: target.groupName,
+    body: pollTimeLabel(target.option, kstDate(now)),
+    url: eventUrl(target.groupCode, target.eventCode, null),
     expiration: epochSeconds(now.getTime() + DAY_MS),
   };
 }

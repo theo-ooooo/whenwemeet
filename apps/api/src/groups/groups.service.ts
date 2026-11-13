@@ -61,8 +61,11 @@ export class GroupsService {
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
       const after = unseenAfter(row.lastSeenAt, row.joinedAt);
+      // (#189) 투표로 정한 일정의 CREATED 로그는 새 소식에서 숨기므로(POLL_CLOSED 한 줄로 보인다) 그 수만큼 뺀다 (D-226)
       const unreadNewsCount =
-        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) + (await this.activities.countUnseenByOthers(row.group.id, after, userId));
+        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) +
+        (await this.activities.countUnseenByOthers(row.group.id, after, userId)) -
+        (await this.activities.countUnseenPollClosedByOthers(row.group.id, after, userId));
       summaries.push({
         id: row.group.id,
         type: row.group.type,

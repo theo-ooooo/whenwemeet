@@ -106,6 +106,19 @@ describe('NewsService', () => {
     expect(items[1]).toMatchObject({ kind: 'EVENT', action: 'UPDATED', title: 't' });
   });
 
+  it('(#189) list v2: 투표로 정해 생긴 일정 CREATED 로그는 POLL_CLOSED 한 줄로 숨긴다 (D-226). v1 은 그대로', async () => {
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ joinedAt: new Date('2026-09-01T00:00:00.000Z') }));
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
+    eventLogs.listRecentByOthers.mockResolvedValue([eventLog(301, '2026-11-07T00:00:00.000Z'), eventLog(302, '2026-11-04T00:00:00.000Z')]);
+    activities.listRecentByOthers.mockResolvedValue([
+      activity(9, 'POLL_CLOSED', '2026-11-07T00:00:00.000Z', { actorId: 2, actorName: '밥', payload: { pollId: 5, code: 'poll2345', title: '저녁', eventId: 40, eventCode: 'evnt2345', eventLogId: 301, startsAt: '2026-11-14T10:00:00.000Z', endsAt: '2026-11-14T12:00:00.000Z', allDay: false } }),
+    ]);
+    const items = (await service.list(1, 10, now, 2)).items as MergedNewsItem[];
+    expect(items.map((item) => `${item.kind}:${item.id}`)).toEqual(['ACTIVITY:9', 'EVENT:302']);
+    const v1 = (await service.list(1, 10, now, 1)).items;
+    expect(v1.map((item) => item.id)).toEqual([301, 302]);
+  });
+
   it('mergeNews: 합친 뒤 50건 상한, 같은 시각 같은 종류는 id 내림차순', () => {
     const at = (iso: string) => new Date(iso);
     const events = Array.from({ length: 30 }, (_, i) => ({ kind: 'EVENT', id: i + 1, createdAt: at(`2026-11-0${(i % 9) + 1}T00:00:00.000Z`) }) as EventNewsItem);

@@ -65,4 +65,19 @@ export class FreeSlotsService {
     const slots = findFreeSlots({ from, to, dayStartMin, dayEndMin, minMinutes: query.minMinutes, busy });
     return { slots, memberCount: memberIds.length };
   }
+
+  /**
+   * (#189) [from, to) 에 memberIds 중 누군가를 바쁘게 하는 일정이 있는지. 빈 시간 찾기와 같은 규칙(멤버들의 모든 팀, 참여자로 거름,
+   * 종일 일정 제외 = includeAllDay 기본값)으로 본다. 약속 투표를 정하기 직전 다시 확인에 쓴다 (설계 약속-투표.md 4장)
+   */
+  async anyBusy(memberIds: number[], from: Date, to: Date): Promise<boolean> {
+    if (memberIds.length === 0 || from.getTime() >= to.getTime()) return false;
+    const allGroupIds = await this.membershipsRepo.listDistinctGroupIds(memberIds);
+    const [onceRows, seriesRows] = await Promise.all([this.events.listBusyRanges(allGroupIds, from, to, false), this.events.listBusySeries(allGroupIds, from, to)]);
+    const members = new Set(memberIds);
+    if (onceRows.some((row) => isBusyForAny(row, members))) return true;
+    return seriesRows
+      .filter((row) => isBusyForAny(row, members))
+      .some((row) => expand(row, row.exceptions, from, to).some((occurrence) => !occurrence.allDay));
+  }
 }

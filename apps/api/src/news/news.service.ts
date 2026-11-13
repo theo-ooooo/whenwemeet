@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DELETED_MEMBER, LEFT_MEMBER_COLOR, Member, MemberResolver } from '../common/member.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import type { Repeat } from '../events/recurrence.js';
-import type { ActivityPayload, GroupActivityType } from '../group-activities/activity.js';
+import { type ActivityPayload, type GroupActivityType, pollEventLogIds } from '../group-activities/activity.js';
 import { GroupActivitiesRepository, type GroupActivityRow } from '../group-activities/group-activities.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
@@ -152,7 +152,9 @@ export class NewsService {
       createdAt: row.createdAt,
       isNew: isNew(row.createdAt),
     }));
-    const events: EventNewsItem[] = items.map((item) => ({ kind: 'EVENT', ...item }));
+    // (#189) 투표로 정한 일정의 CREATED 로그는 POLL_CLOSED 한 줄로 보인다 (D-226, Q4)
+    const hidden = pollEventLogIds(activityRows);
+    const events: EventNewsItem[] = items.filter((item) => !hidden.has(item.id)).map((item) => ({ kind: 'EVENT', ...item }));
     return { items: mergeNews(events, activities), lastSeenAt: me.lastSeenAt };
   }
 

@@ -58,6 +58,8 @@ model User {
   notifyWeekly      Boolean   @default(true)
   /// (#277) 내 정보 > 알림 "다 같이 비는 시간" (조용한 팀 깨우기). 법률 확인 전이라 기본 끔 (D-204)
   notifyWeeklyNudge Boolean   @default(false)
+  /// (#189) 내 정보 > 알림 "약속 투표" (투표 열림, 마감, 정함). 기본 켬
+  notifyPoll        Boolean   @default(true)
   /// (#188) 마지막 앱 로그인 (handoff 교환 성공). 권한 허용률 지표의 분모 (D-97)
   lastAppLoginAt    DateTime?
   /// (#300) 처음 여는 달력. 기본 LAST(마지막에 본 달력). GROUP 이면 startGroupId 의 팀 (D-191)
@@ -101,6 +103,10 @@ model User {
   /// (#190) 일정 회차별 내 참석 여부, 반응
   eventRsvps       EventRsvp[]
   eventReactions   EventReaction[]
+  /// (#189) 내가 연 약속 투표, 내 표, 내가 대상인 투표
+  pollsCreated       Poll[]            @relation("PollCreator")
+  pollVotes          PollVote[]
+  pollParticipations PollParticipant[]
 }
 
 /// (#300) 처음 여는 달력. LAST 마지막에 본 달력(쿠키 wwm_group), PERSONAL 내 달력(개인 팀), GROUP 고정한 팀
@@ -245,6 +251,8 @@ model Group {
   todoLists         TodoList[]
   /// (#193) 멤버별 외부 캘린더 구독 주소
   calendarFeeds     CalendarFeed[]
+  /// (#189) 약속 투표
+  polls             Poll[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -320,6 +328,8 @@ model Event {
   /// (#190) 회차별 참석 여부, 반응
   rsvps        EventRsvp[]
   reactions    EventReaction[]
+  /// (#189) 이 일정을 정한 약속 투표 (투표로 정해 생긴 일정만)
+  poll         Poll?
 
   @@index([groupId, startsAt])
   @@index([groupId, endsAt])
@@ -515,6 +525,11 @@ enum GroupActivityType {
   EVENTS_IMPORTED
   /// (#190) 참석 여부를 정하거나 바꿈. payload { eventId, eventCode, occurrence, title, startsAt, status }. 2분 안 같은 회차는 한 줄 (D-227)
   EVENT_RSVP
+  /// (#189) 약속 투표를 열었다. payload { pollId, code, title }
+  POLL_CREATED
+  /// (#189) 약속 투표에서 시간을 정했다. payload { pollId, code, title, eventId, eventCode, eventLogId, startsAt, endsAt, allDay }.
+  /// 그 확정으로 생긴 EventLog CREATED(eventLogId) 는 새 소식에서 숨긴다 (D-226)
+  POLL_CLOSED
 }
 
 /// (#191) 팀에 생긴 일(기념일 변경, 멤버 합류와 나가기, 팀 이름 변경). 새 소식이 EventLog 와 합쳐 보여 준다 (D-150).
@@ -654,6 +669,8 @@ enum PushKind {
   JOIN
   /// (#277) 주간 요약과 조용한 팀 깨우기. payload.variant = 'SUMMARY' | 'NUDGE' (D-203)
   WEEKLY
+  /// (#189) 약속 투표: 열림(PO:), 정함(PC:), 마감(PD:). 문구는 예약할 때 만든다 (D-227)
+  POLL
 }
 
 /// (#188) PENDING 예약 → DISPATCHED 받을 기기로 펼침 / CANCELLED 묶음으로 취소, (#277) 주간 알림을 보내지 않기로 판정 / SKIPPED 10분(주간은 3시간) 넘게 늦어 버림
@@ -830,4 +847,83 @@ model CalendarFeed {
 
   @@unique([userId, groupId])
   @@index([groupId])
+}
+
+/// (#189) 약속 투표 상태. 마감(expired)은 읽을 때 deadline 으로 계산한다 (D-225)
+enum PollStatus {
+  OPEN
+  CLOSED
+}
+
+/// (#189) 약속 투표 (설계 약속-투표.md, D-224 ~ D-228). 빈 시간 결과에서 고른 후보 2~5개 중 하나를 정하면 그대로 일정이 된다
+model Poll {
+  id                 Int        @id @default(autoincrement())
+  groupId            Int
+  /// 주소(`/polls/<code>`)에서 번호 대신 쓰는 공개 코드 (common/public-code.ts, #311 과 같은 규칙)
+  publicCode         String     @unique @db.Char(8)
+  /// 정하면 일정 제목이 된다
+  title              String     @db.VarChar(50)
+  status             PollStatus @default(OPEN)
+  /// 마감. 지나면 표를 받지 않고 만든 사람에게 푸시 1건. 정하기는 그 뒤에도 된다. null 이면 마감 없음
+  deadline           DateTime?
+  /// true 면 "모두"(그 팀 멤버 전원, 동적). false 면 participants 행 (일정 참여자 D-130 과 같은 규칙)
+  allMembers         Boolean    @default(true)
+  /// 연 사람. 탈퇴하면 null ("탈퇴한 멤버")
+  creatorId          Int?
+  /// 정해서 생긴 일정. 일정이 지워지면 null
+  eventId            Int?       @unique
+  /// 정한 후보 (FK 없음. 후보는 투표와 함께만 지워진다)
+  decidedOptionId    Int?
+  /// 마감 푸시를 예약한 시각. 틱이 한 번만 집게 한다
+  deadlineNotifiedAt DateTime?
+  createdAt          DateTime   @default(now())
+  closedAt           DateTime?
+
+  group        Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator      User?             @relation("PollCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  event        Event?            @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  options      PollOption[]
+  participants PollParticipant[]
+
+  @@index([groupId, status])
+  @@index([status, deadline])
+}
+
+/// (#189) 후보 시간. 시간 후보이거나 종일 후보(KST 00:00 ~ 다음 날 00:00 단위)
+model PollOption {
+  id       Int      @id @default(autoincrement())
+  pollId   Int
+  startsAt DateTime
+  endsAt   DateTime
+  allDay   Boolean  @default(false)
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@unique([pollId, startsAt, endsAt])
+}
+
+/// (#189) "가능" 표. 행이 있으면 가능. 나가면 그 팀 투표의 내 표를 지우고 탈퇴는 Cascade
+model PollVote {
+  optionId  Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([optionId, userId])
+  @@index([userId])
+}
+
+/// (#189) allMembers = false 일 때 투표 대상. 나가면 행 삭제
+model PollParticipant {
+  pollId Int
+  userId Int
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, userId])
+  @@index([userId])
 }

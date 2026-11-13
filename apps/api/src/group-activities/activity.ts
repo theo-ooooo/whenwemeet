@@ -14,7 +14,10 @@ export type GroupActivityType =
   /** (#279) ICS 파일로 일정을 가져옴 (D-166) */
   | 'EVENTS_IMPORTED'
   /** (#190) 참석 여부를 정하거나 바꿈 (D-227) */
-  | 'EVENT_RSVP';
+  | 'EVENT_RSVP'
+  /** (#189) 약속 투표를 열었다, 시간을 정했다 (D-226) */
+  | 'POLL_CREATED'
+  | 'POLL_CLOSED';
 
 export type AnniversaryField = 'name' | 'date' | 'kind';
 
@@ -46,6 +49,25 @@ export interface MemberJoinedPayload {
   via: 'EVENT_SHARE';
 }
 
+/** (#189) 투표를 열었다. 투표가 취소되면 이 기록도 지운다 */
+export interface PollCreatedPayload {
+  pollId: number;
+  /** 투표 공개 코드 (`/polls/<code>`) */
+  code: string;
+  title: string;
+}
+
+/** (#189) 시간을 정했다. eventLogId 는 이 확정으로 생긴 CREATED 로그 (새 소식에서 숨긴다, D-226) */
+export interface PollClosedPayload extends PollCreatedPayload {
+  eventId: number;
+  eventCode: string;
+  eventLogId: number;
+  /** 정한 후보 (ISO) */
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+}
+
 /** 멤버 3종은 빈 객체 (DB 에는 null). 일정 링크 합류만 MemberJoinedPayload */
 export type ActivityPayload =
   | AnniversaryPayload
@@ -53,7 +75,20 @@ export type ActivityPayload =
   | EventsImportedPayload
   | MemberJoinedPayload
   | RsvpActivityPayload
+  | PollCreatedPayload
+  | PollClosedPayload
   | Record<string, never>;
+
+/** (#189) POLL_CLOSED 기록들이 가리키는 EventLog id (새 소식에서 숨길 확정 일정 기록, D-226) */
+export function pollEventLogIds(rows: readonly { type: GroupActivityType; payload: unknown }[]): Set<number> {
+  const ids = new Set<number>();
+  for (const row of rows) {
+    if (row.type !== 'POLL_CLOSED' || !row.payload || typeof row.payload !== 'object') continue;
+    const id = (row.payload as Partial<PollClosedPayload>).eventLogId;
+    if (typeof id === 'number') ids.add(id);
+  }
+  return ids;
+}
 
 /** 기록할 사람. name 은 그 순간의 표시 이름 (팀 표시 이름 ?? 닉네임) 스냅샷 (D-152) */
 export interface ActivityActor {

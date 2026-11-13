@@ -235,6 +235,49 @@ describe('PushDispatcher', () => {
     });
   });
 
+  describe('(#189) 약속 투표 펼치기', () => {
+    const r = [{ userId: 2, token: 'b', platform: 'IOS' as const }];
+    const poll = (over = {}) => ({ status: 'OPEN' as const, allMembers: false, creatorId: 1, participantIds: [1, 2], ...over });
+    beforeEach(() => push.listPollRecipients.mockResolvedValue(r));
+
+    it('열림: 대상 중 연 사람 제외. 진행 중일 때만, 투표가 없으면 SKIPPED', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 1, kind: 'POLL', dedupeKey: 'PO:5', actorId: 1, eventId: null }), due({ id: 2, kind: 'POLL', dedupeKey: 'PO:6', actorId: 1, eventId: null })]);
+      push.findPollTargets.mockImplementation(async (id) => (id === 5 ? poll() : null));
+      const stats = await dispatcher.expandDue(NOW);
+      expect(push.listPollRecipients).toHaveBeenCalledWith(10, [1, 2], 1, null);
+      expect(push.dispatchTx).toHaveBeenCalledWith(1, NOW, null, r);
+      expect(push.markSkipped).toHaveBeenLastCalledWith([2]);
+      expect(stats).toMatchObject({ dispatched: 1, skipped: 1 });
+    });
+
+    it('정함: 정한 사람 제외, 그때까지 들어온 팀원("모두"면 null)', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 3, kind: 'POLL', dedupeKey: 'PC:5', actorId: 2, eventId: null })]);
+      push.findPollTargets.mockResolvedValue(poll({ status: 'CLOSED', allMembers: true, participantIds: [] }));
+      await dispatcher.expandDue(NOW);
+      expect(push.listPollRecipients).toHaveBeenCalledWith(10, null, 2, CREATED);
+    });
+
+    it('마감: 연 사람 한 명. 이미 정했거나 연 사람이 탈퇴했으면 SKIPPED', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 4, kind: 'POLL', dedupeKey: 'PD:5', eventId: null })]);
+      push.findPollTargets.mockResolvedValueOnce(poll());
+      await dispatcher.expandDue(NOW);
+      expect(push.listPollRecipients).toHaveBeenCalledWith(10, [1], null, null);
+      push.findPollTargets.mockResolvedValueOnce(poll({ status: 'CLOSED' }));
+      await dispatcher.expandDue(NOW);
+      push.findPollTargets.mockResolvedValueOnce(poll({ creatorId: null }));
+      await dispatcher.expandDue(NOW);
+      expect(push.markSkipped.mock.calls.filter(([ids]) => ids.length === 1 && ids[0] === 4)).toHaveLength(2);
+      expect(push.dispatchTx).toHaveBeenCalledTimes(1);
+    });
+
+    it('키 모양이 틀리면 SKIPPED', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 5, kind: 'POLL', dedupeKey: 'PX:1', eventId: null })]);
+      await dispatcher.expandDue(NOW);
+      expect(push.findPollTargets).not.toHaveBeenCalled();
+      expect(push.markSkipped).toHaveBeenLastCalledWith([5]);
+    });
+  });
+
   describe('발송 결과 (5-6 표)', () => {
     const run = async (rows: ClaimedDelivery[], result: ExpoSendResult) => {
       push.claimQueued.mockResolvedValue(rows);

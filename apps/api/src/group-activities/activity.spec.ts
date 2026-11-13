@@ -1,6 +1,19 @@
-import { anniversaryChanges, anniversaryUpdatedPayload, isSameAnniversary, snapshotName } from './activity.js';
+import { anniversaryChanges, anniversaryUpdatedPayload, isSameAnniversary, pollEventLogIds, snapshotName } from './activity.js';
 
 const BASE = { name: '처음 만난 날', date: '2024-03-15', kind: 'COUNT_UP' as const };
+
+describe('(#189) pollEventLogIds', () => {
+  it('POLL_CLOSED 의 eventLogId 만 모은다', () => {
+    expect([
+      ...pollEventLogIds([
+        { type: 'POLL_CLOSED', payload: { eventLogId: 3 } },
+        { type: 'POLL_CREATED', payload: { pollId: 1 } },
+        { type: 'POLL_CLOSED', payload: null },
+        { type: 'MEMBER_LEFT', payload: { eventLogId: 9 } },
+      ]),
+    ]).toEqual([3]);
+  });
+});
 
 describe('팀 활동 기록 규칙 (#191)', () => {
   it('같은 값 수정은 바뀐 것 없음 → 기록 안 함 (#62 규칙)', () => {

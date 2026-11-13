@@ -405,12 +405,26 @@ export class EventsRepository {
   /** 일정 생성 + CREATED 로그를 한 트랜잭션으로 */
   createWithLogTx(data: EventCreateInput, actorId: number): Promise<EventRow> {
     return this.prisma.$transaction(async (tx) => {
-      await assertParticipantsTx(tx, data.groupId, data.participants);
-      const created = await tx.event.create({ data: toCreateData(data), select: EVENT_SELECT });
-      const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
+      const { row, log } = await this.insertWithLogTx(tx, data, actorId);
       await this.push.recordChangeTx(tx, log, false, new Date());
-      return toEventRow(created, this.urls);
+      return row;
     });
+  }
+
+  /**
+   * (#189) 호출자의 트랜잭션 안에서 일정 생성 + CREATED 로그 (참여자 검사 포함). 팀원 변경 알림은 만들지 않는다.
+   * 약속 투표 정하기가 쓴다 (알림은 투표 문구 1건, D-226)
+   */
+  async createWithLogInTx(tx: Db, data: EventCreateInput, actorId: number): Promise<{ row: EventRow; logId: number }> {
+    const { row, log } = await this.insertWithLogTx(tx, data, actorId);
+    return { row, logId: log.id };
+  }
+
+  private async insertWithLogTx(tx: Db, data: EventCreateInput, actorId: number): Promise<{ row: EventRow; log: CreatedLog }> {
+    await assertParticipantsTx(tx, data.groupId, data.participants);
+    const created = await tx.event.create({ data: toCreateData(data), select: EVENT_SELECT });
+    const log = await tx.eventLog.create({ data: snapshotLog(created, actorId, 'CREATED'), select: LOG_REF_SELECT });
+    return { row: toEventRow(created, this.urls), log };
   }
 
   /** 일정 수정 + UPDATED 로그를 한 트랜잭션으로. 참여자를 바꾸면 그 팀 멤버인지 같이 확인한다 (#248) */
