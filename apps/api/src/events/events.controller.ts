@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { IdParam } from '../common/id-param.js';
@@ -53,6 +53,18 @@ export class EventsController {
     @Query('scope') scope: unknown,
   ) {
     return this.events.remove(user.id, groupId, eventId, { occurrence, scope });
+  }
+}
+
+/** (#375) 일정 삭제 되돌리기 (D-251). DELETE 응답의 deletionId 로. 팀원 누구나, 7일 안 */
+@Controller('groups/:groupId/event-deletions')
+export class EventDeletionsController {
+  constructor(private readonly events: EventsService) {}
+
+  @Post(':deletionId/restore')
+  @HttpCode(200)
+  restore(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @IdParam('deletionId') deletionId: number) {
+    return this.events.restore(user.id, groupId, deletionId);
   }
 }
 

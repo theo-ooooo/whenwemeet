@@ -658,13 +658,15 @@ export class EventsService {
       : this.updateFollowing(userId, current, exceptions, occurrence, dto, participants);
   }
 
-  /** 삭제 전 스냅샷으로 DELETED 로그를 남긴다. 반복 일정은 `occurrence` + `scope` 필수 (설계 4장 표) */
-  async remove(userId: number, groupId: number, eventId: number, query: ScopeQuery = {}): Promise<{ ok: true }> {
+  /**
+   * 삭제 전 스냅샷으로 DELETED 로그를 남긴다. 반복 일정은 `occurrence` + `scope` 필수 (설계 4장 표).
+   * (#375) 삭제 직전 모습을 보관하고 그 번호(`deletionId`)를 돌려준다. 되돌리기는 restore (D-251)
+   */
+  async remove(userId: number, groupId: number, eventId: number, query: ScopeQuery = {}): Promise<{ ok: true; deletionId: number }> {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     if (!current.repeat) {
-      await this.events.deleteWithLogTx(current, userId);
-      return { ok: true };
+      return { ok: true, deletionId: await this.events.deleteWithLogTx(current, userId) };
     }
 
     const { scope, occurrence: date } = parseScopeQuery(query);
@@ -672,14 +674,27 @@ export class EventsService {
     const occurrence = this.resolveOccurrence(current, exceptions, date);
     const snapshot: LogSnapshot = { ...occurrenceValues(current, occurrence), repeat: current.repeat };
     const log: ScopeLog = { actorId: userId, scope: scope === 'this' ? 'THIS' : 'FOLLOWING', occurrence: date };
+    let deletionId: number;
     if (scope === 'this') {
-      await this.events.cancelOccurrenceWithLogTx(current, date, log, snapshot);
+      deletionId = await this.events.cancelOccurrenceWithLogTx(current, date, log, snapshot);
     } else if (date === kstDate(current.startsAt)) {
-      await this.events.deleteSeriesWithLogTx(current, log, snapshot);
+      deletionId = await this.events.deleteSeriesWithLogTx(current, log, snapshot);
     } else {
-      await this.events.splitSeriesTx(current, date, log, null, snapshot);
+      deletionId = await this.events.splitSeriesTx(current, date, log, null, snapshot);
     }
-    return { ok: true };
+    return { ok: true, deletionId };
+  }
+
+  /**
+   * (#375) 일정 삭제 되돌리기 `POST /groups/:groupId/event-deletions/:deletionId/restore` (D-251).
+   * 팀원 누구나, 지운 뒤 7일 안. 없거나 다른 팀이거나 기간이 지났으면 404, 그 사이 일정이 바뀌었으면 409
+   */
+  async restore(userId: number, groupId: number, deletionId: number, now: Date = new Date()): Promise<{ ok: true; eventId: number; occurrence: string | null }> {
+    await this.memberships.assertMember(userId, groupId);
+    const result = await this.events.restoreDeletionTx(groupId, deletionId, now);
+    if (result === 'NOT_FOUND') throw new ApiException('NOT_FOUND', '되돌릴 수 있는 기간이 지났어요');
+    if (result === 'CONFLICT') throw new ApiException('EVENT_RESTORE_CONFLICT');
+    return { ok: true, ...result };
   }
 
   /** 한 번짜리 일정 수정. 반복을 켜면 이 일정이 첫 회차가 된다 (기획 3-4) */

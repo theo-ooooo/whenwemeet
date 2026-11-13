@@ -74,6 +74,8 @@ describe('EventsService', () => {
     await expect(service.create(9, 10, input)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.update(9, 10, 100, {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(service.remove(9, 10, 100)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(service.restore(9, 10, 5)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(events.restoreDeletionTx).not.toHaveBeenCalled();
     expect(events.listInRange).not.toHaveBeenCalled();
     expect(events.findInGroup).not.toHaveBeenCalled();
   });
@@ -201,13 +203,25 @@ describe('EventsService', () => {
 
   it('remove: 현재 행을 스냅샷으로 넘겨 DELETED 로그 + 삭제', async () => {
     events.findInGroup.mockResolvedValueOnce(ROW);
-    events.deleteWithLogTx.mockResolvedValue(undefined);
-    expect(await service.remove(1, 10, 100)).toEqual({ ok: true });
+    events.deleteWithLogTx.mockResolvedValue(7);
+    expect(await service.remove(1, 10, 100)).toEqual({ ok: true, deletionId: 7 });
     expect(events.deleteWithLogTx).toHaveBeenCalledWith(ROW, 1);
 
     events.findInGroup.mockResolvedValueOnce(null);
     await expect(service.remove(1, 10, 999)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(events.deleteWithLogTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('(#375) restore: 팀원 누구나. 없거나 기간이 지나면 404, 그 사이 바뀌었으면 409 (D-251)', async () => {
+    const now = new Date('2026-11-13T00:00:00Z');
+    events.restoreDeletionTx.mockResolvedValueOnce({ eventId: 100, occurrence: null });
+    expect(await service.restore(2, 10, 5, now)).toEqual({ ok: true, eventId: 100, occurrence: null });
+    expect(events.restoreDeletionTx).toHaveBeenCalledWith(10, 5, now);
+
+    events.restoreDeletionTx.mockResolvedValueOnce('NOT_FOUND');
+    await expect(service.restore(2, 10, 5, now)).rejects.toMatchObject({ code: 'NOT_FOUND', message: '되돌릴 수 있는 기간이 지났어요' });
+    events.restoreDeletionTx.mockResolvedValueOnce('CONFLICT');
+    await expect(service.restore(2, 10, 5, now)).rejects.toMatchObject({ code: 'EVENT_RESTORE_CONFLICT' });
   });
 });
 

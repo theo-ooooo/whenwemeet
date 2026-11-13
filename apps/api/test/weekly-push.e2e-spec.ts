@@ -8,6 +8,7 @@ import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
 import { PollPlanner } from '../src/push/poll-planner.js';
+import { EventDeletionsRepository } from '../src/event-deletions/event-deletions.repository.js';
 import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
@@ -158,6 +159,7 @@ describe('주간 알림 (e2e, #277)', () => {
       app.get(WeeklyPlanner),
       app.get(PushDispatcher),
       app.get(PollPlanner),
+      app.get(EventDeletionsRepository),
     );
     // 임대가 만료된 뒤 다른 holder
     expect((await restarted.tick(mon('09:30:00'))).weekly).toBe(0);

@@ -254,6 +254,13 @@ export interface ReceiptCandidate {
 }
 
 /** EventsRepository 의 `...WithLogTx` 가 막 만든 로그 */
+/** (#375) 삭제 하나가 팀원 변경 알림 묶음에 한 일. 되돌리면 거꾸로 한다 (revertChangeTx, D-251) */
+export type ChangeRevert =
+  | { type: 'create'; notificationId: number }
+  | { type: 'cancel'; notificationId: number }
+  /** 앞 묶음의 동작과 보일 로그 */
+  | { type: 'update'; notificationId: number; changeAction: ChangeAction; eventLogId: number };
+
 export interface CreatedLog {
   id: number;
   groupId: number;
@@ -568,10 +575,10 @@ export class PushRepository {
    * EventLog 를 쓴 트랜잭션 안에서 부른다. 변경한 사람이 없거나(탈퇴) PERSONAL 팀이면 아무것도 하지 않는다.
    * 대기 중인 같은 묶음(변경한 사람, 일정)을 잠그고 coalesce 표대로 합친다
    */
-  async recordChangeTx(tx: Db, log: CreatedLog, removesEvent: boolean, now: Date): Promise<void> {
-    if (log.actorId === null || log.eventId === null) return;
+  async recordChangeTx(tx: Db, log: CreatedLog, removesEvent: boolean, now: Date): Promise<ChangeRevert | null> {
+    if (log.actorId === null || log.eventId === null) return null;
     const group = await tx.group.findUnique({ where: { id: log.groupId }, select: { type: true } });
-    if (!group || group.type === 'PERSONAL') return;
+    if (!group || group.type === 'PERSONAL') return null;
 
     const key = coalesceKey(log.actorId, log.eventId);
     const locked = await tx.$queryRaw<{ id: number }[]>`
@@ -590,7 +597,7 @@ export class PushRepository {
 
     const result = coalesce(pending, { id: log.id, action: log.action }, removesEvent);
     if (result.type === 'create') {
-      await tx.pushNotification.create({
+      const created = await tx.pushNotification.create({
         data: {
           kind: 'CHANGE',
           dedupeKey: `C:${log.id}`,
@@ -604,14 +611,39 @@ export class PushRepository {
         },
         select: { id: true },
       });
-    } else if (result.type === 'cancel') {
+      return { type: 'create', notificationId: created.id };
+    }
+    if (result.type === 'cancel') {
       await tx.pushNotification.update({ where: { id: current!.id }, data: { status: 'CANCELLED' }, select: { id: true } });
-    } else if (result.type === 'update') {
+      return { type: 'cancel', notificationId: current!.id };
+    }
+    if (result.type === 'update') {
       await tx.pushNotification.update({
         where: { id: current!.id },
         data: { changeAction: result.changeAction, eventLogId: result.eventLogId },
         select: { id: true },
       });
+      return { type: 'update', notificationId: current!.id, changeAction: pending!.changeAction, eventLogId: pending!.eventLogId };
+    }
+    return null;
+  }
+
+  /**
+   * (#375) 삭제를 되돌린 트랜잭션 안에서: 그 삭제가 묶음에 한 일을 거꾸로 한다 (D-251). 아직 보내지 않은 것만.
+   * create → 그 알림 취소, update → 앞 동작과 로그로, cancel(추가 후 삭제로 둘 다 취소) → 2분 창 안이면 다시 대기.
+   * 삭제 뒤 같은 묶음에 다른 변경이 합쳐졌으면(보일 로그가 삭제 로그가 아님) 그대로 둔다. 이미 보낸 알림은 거둘 수 없다
+   */
+  async revertChangeTx(tx: Db, revert: ChangeRevert, deletedLogId: number, now: Date): Promise<void> {
+    const where = { id: revert.notificationId };
+    if (revert.type === 'create') {
+      await tx.pushNotification.updateMany({ where: { ...where, status: 'PENDING', eventLogId: deletedLogId }, data: { status: 'CANCELLED' } });
+    } else if (revert.type === 'update') {
+      await tx.pushNotification.updateMany({
+        where: { ...where, status: 'PENDING', eventLogId: deletedLogId },
+        data: { changeAction: revert.changeAction, eventLogId: revert.eventLogId },
+      });
+    } else {
+      await tx.pushNotification.updateMany({ where: { ...where, status: 'CANCELLED', scheduledAt: { gt: now } }, data: { status: 'PENDING' } });
     }
   }
 

@@ -8,6 +8,7 @@ import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
 import { PollPlanner } from '../src/push/poll-planner.js';
+import { EventDeletionsRepository } from '../src/event-deletions/event-deletions.repository.js';
 import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
@@ -359,7 +360,7 @@ describe('푸시 알림 (e2e)', () => {
 
     it('6. 프로세스 둘(holder 둘) 이 같은 틱 → 임대 하나만, 발송 1벌. 임대가 넘어가도 중복 없음', async () => {
       await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
-      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher), app.get(PollPlanner));
+      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher), app.get(PollPlanner), app.get(EventDeletionsRepository));
       const now = at('17:00:10');
       const results = await Promise.all([scheduler.tick(now), other.tick(now)]);
       expect(results.filter((result) => result.ran)).toHaveLength(1);
