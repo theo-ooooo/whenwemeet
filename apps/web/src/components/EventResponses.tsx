@@ -1,10 +1,13 @@
 "use client";
 // 일정 상세의 참석 여부와 짧은 반응 (#190, 설계 docs/설계/참석-여부.md 7장)
 //   RsvpBlock:      참여자 줄 바로 아래. 내 참석 세그먼트(참여자만) + 집계 한 줄(누르면 사람별 시트)
+//                   (#378) 고른 칸은 먹색으로 칠하고 "내 참석" 옆에 "참석함" 처럼 적는다 (예전 세그먼트는 칸 바탕과 같은 색이라 고른 칸이 안 보였다)
+//   between:        (#378) 참석과 반응 사이에 끼울 칸 (일정 상세의 메모: 시간 → 장소 → 참여자, 참석 → 메모 → 반응)
 //   ReactionRow:    글자 알약 3개 "좋아요 2". 팀원 누구나, 내 반응은 --ink 테두리, 다시 누르면 취소
 // 목록 응답의 집계로 바로 그리고, 사람별 목록은 단건 GET(rsvpMembers)으로 받는다. 개인 팀은 부르는 쪽이 숨긴다
 import { useId, useState } from "react";
-import { Avatar, InlineError, RowButton, Segmented, Sheet } from "./ui";
+import { IconCheck } from "./icons";
+import { Avatar, InlineError, RowButton, Sheet } from "./ui";
 import { useToast } from "./Toast";
 import { messageOf, useEvent, useSetReaction, useSetRsvp } from "@/hooks";
 import { REACTION_OPTIONS, RSVP_LABEL, RSVP_OPTIONS, applyMyReaction, applyMyRsvp, isParticipant, nextReaction, occurrenceQuery, rsvpSummaryText, EMPTY_REACTIONS } from "@/lib/rsvp";
@@ -18,6 +21,7 @@ export function EventResponses({
   meId,
   showRsvp,
   onChanged,
+  between,
 }: {
   event: Event;
   groupId: number;
@@ -26,6 +30,8 @@ export function EventResponses({
   showRsvp: boolean;
   /** 응답이 바뀌면 목록(다가오는 일정의 "응답" 표시)을 다시 받게 */
   onChanged?: () => void;
+  /** (#378) 참석 칸과 반응 줄 사이 (메모) */
+  between?: React.ReactNode;
 }) {
   const toast = useToast();
   const occurrence = occurrenceQuery(ev);
@@ -90,16 +96,13 @@ export function EventResponses({
         <div className="mt-2 rounded-sm bg-surface px-3.5 py-2.5">
           {canRespond && (
             <>
-              <small id={segId} className="mb-1.5 block text-[12px] leading-4 text-ink-2">
-                내 참석
-              </small>
-              <Segmented<Rsvp>
-                labelledBy={segId}
-                // 아직 답하지 않았으면 아무 칸도 고르지 않은 상태 (세 값 밖의 값)
-                value={(mine ?? "") as Rsvp}
-                options={RSVP_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                onChange={(v) => void pickRsvp(v)}
-              />
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <small id={segId} className="text-[12px] leading-4 text-ink-2">
+                  내 참석
+                </small>
+                {mine && <b className="text-[12px] font-bold leading-4 text-ink">{MINE_TEXT[mine]}</b>}
+              </div>
+              <RsvpSegment labelledBy={segId} value={mine} onChange={(v) => void pickRsvp(v)} />
               {myRow?.stale && mine && <p className="mt-1.5 text-[12px] leading-4 text-ink-2">답한 뒤에 시간이 바뀌었어요. 다시 골라 주세요</p>}
               {error && <InlineError className="mt-1.5">{error}</InlineError>}
             </>
@@ -113,6 +116,7 @@ export function EventResponses({
           />
         </div>
       )}
+      {between}
       <ReactionRow summary={reactions} onPress={(k) => void pressReaction(k)} />
       <ResponsesSheet
         open={sheetOpen}
@@ -123,6 +127,38 @@ export function EventResponses({
         meId={meId}
       />
     </>
+  );
+}
+
+/** "내 참석" 옆 한 마디 */
+const MINE_TEXT: Record<Rsvp, string> = { GOING: "참석함", MAYBE: "미정", NOT_GOING: "불참함" };
+
+/**
+ * (#378) 내 참석 세 칸. 칸 바탕(--surface) 위에 흰 칸 셋을 두고, 고른 칸만 먹색 면 + 흰 글자 + 체크.
+ * 공통 Segmented 는 고른 칸이 흰 면이라 이 회색 칸 안에서는 고른 칸이 잘 안 보인다 (나머지 화면 점검 1)
+ */
+function RsvpSegment({ labelledBy, value, onChange }: { labelledBy: string; value: Rsvp | null; onChange: (v: Rsvp) => void }) {
+  return (
+    <div role="radiogroup" aria-labelledby={labelledBy} className="grid grid-cols-3 gap-1.5">
+      {RSVP_OPTIONS.map((o) => {
+        const on = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(o.value)}
+            className={`anim-pick flex h-10 items-center justify-center gap-1 rounded-sm border text-[14px] ${
+              on ? "border-ink bg-ink font-bold text-paper" : "border-line bg-paper font-medium text-soft hover:text-ink"
+            }`}
+          >
+            {on && <IconCheck size={14} strokeWidth={2.4} />}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

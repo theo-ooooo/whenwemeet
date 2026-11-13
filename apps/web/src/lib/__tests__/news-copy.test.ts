@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityHref, activityPhrase, activitySubline, knownNewsItems, newsDateLabel, newsHref, newsKey, newsPhrase } from "../news-copy";
+import { activityHref, activityPhrase, activitySubline, groupNewsByDay, knownNewsItems, newsDateLabel, newsDayOf, newsHref, newsKey, newsKindOf, newsPhrase } from "../news-copy";
 import type { ActivityNewsItem, ActivityType, NewsItem } from "../types";
 
 type Item = Pick<NewsItem, "action" | "repeat" | "scope" | "occurrence" | "eventCode">;
@@ -159,5 +159,40 @@ describe("(#189) 약속 투표 새 소식", () => {
   it("아는 종류라 거르지 않는다", () => {
     const item = { kind: "ACTIVITY", id: 1, type: "POLL_CLOSED", actor: { userId: 2, displayName: "하늘", color: "#5B6CF4", profileImageUrl: null }, anniversaryId: null, payload: closed, createdAt: "", isNew: true } as ActivityNewsItem;
     expect(knownNewsItems([item])).toHaveLength(1);
+  });
+});
+
+describe("(#378) 새 소식 묶음과 종류 아이콘", () => {
+  const TODAY = "2026-11-13"; // 금요일
+  it("오늘, 어제, 이번 주(월요일부터), 이전. 시각은 KST 날짜로", () => {
+    expect(newsDayOf("2026-11-12T15:30:00.000Z", TODAY)).toBe("오늘"); // KST 13일 00:30
+    expect(newsDayOf("2026-11-12T14:30:00.000Z", TODAY)).toBe("어제"); // KST 12일 23:30
+    expect(newsDayOf("2026-11-10T03:00:00.000Z", TODAY)).toBe("이번 주"); // 화요일
+    expect(newsDayOf("2026-11-09T00:00:00.000Z", TODAY)).toBe("이번 주"); // 월요일 9시
+    expect(newsDayOf("2026-11-08T03:00:00.000Z", TODAY)).toBe("이전"); // 지난 일요일
+  });
+  it("월요일에는 어제(일요일)도 '어제'", () => {
+    expect(newsDayOf("2026-11-15T03:00:00.000Z", "2026-11-16")).toBe("어제");
+    expect(newsDayOf("2026-11-14T03:00:00.000Z", "2026-11-16")).toBe("이전");
+  });
+  it("받은 순서를 지키며 묶는다", () => {
+    const at = (iso: string) => ({ createdAt: iso });
+    const groups = groupNewsByDay([at("2026-11-13T01:00:00Z"), at("2026-11-12T22:00:00Z"), at("2026-11-12T01:00:00Z"), at("2026-11-01T01:00:00Z")], TODAY);
+    expect(groups.map((g) => [g.day, g.items.length])).toEqual([
+      ["오늘", 2],
+      ["어제", 1],
+      ["이전", 1],
+    ]);
+    expect(groupNewsByDay([], TODAY)).toEqual([]);
+  });
+  it("종류: 일정 기록과 가져오기는 일정, 기념일, 팀, 투표, 참석", () => {
+    const act = (type: ActivityType) => ({ kind: "ACTIVITY", id: 1, type, payload: {} }) as unknown as ActivityNewsItem;
+    expect(newsKindOf({ id: 1, action: "CREATED" } as NewsItem)).toBe("event");
+    expect(newsKindOf(act("EVENTS_IMPORTED"))).toBe("event");
+    expect(newsKindOf(act("ANNIVERSARY_UPDATED"))).toBe("anniversary");
+    expect(newsKindOf(act("MEMBER_JOINED"))).toBe("team");
+    expect(newsKindOf(act("GROUP_RENAMED"))).toBe("team");
+    expect(newsKindOf(act("POLL_CLOSED"))).toBe("poll");
+    expect(newsKindOf(act("EVENT_RSVP"))).toBe("rsvp");
   });
 });

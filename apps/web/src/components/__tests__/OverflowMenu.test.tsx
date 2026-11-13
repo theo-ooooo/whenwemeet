@@ -120,4 +120,16 @@ describe("OverflowMenu", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(document.activeElement).toBe(button);
   });
+
+  it('(#378) confirm: "caller" 위험 항목은 메뉴의 확인 창 없이 메뉴만 닫고 onSelect (부르는 쪽이 확인 창, 범위 시트를 띄운다)', () => {
+    const del = vi.fn();
+    render(<OverflowMenu label="일정 메뉴" items={[{ label: "삭제", destructive: true, confirm: "caller", onSelect: del }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "일정 메뉴" }));
+    const item = screen.getByRole("menuitem", { name: "삭제" });
+    expect(item.className).toContain("text-danger");
+    fireEvent.click(item);
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
 });

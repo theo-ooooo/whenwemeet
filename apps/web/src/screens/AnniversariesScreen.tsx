@@ -3,11 +3,11 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconCalendar, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { IconCake, IconCalendar, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { NameField } from "@/components/NameField";
 import { DatePicker } from "@/components/pickers";
 import { ReminderChoicesRow } from "@/components/ReminderChoicesRow";
-import { Button, EmptyState, ErrorState, MemberDot, RowGroup, Segmented, Sheet, SkeletonList } from "@/components/ui";
+import { Button, EmptyState, ErrorState, RowGroup, Segmented, Sheet, SkeletonList } from "@/components/ui";
 import { messageOf, useAnniversaries, useBirthdays, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
 import { DEFAULT_REMINDERS, reminderHint, remindersOf, sameReminders } from "@/lib/anniversary-reminder";
@@ -180,21 +180,13 @@ export function AnniversariesScreen() {
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
                     aria-haspopup="dialog"
-                    className="flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full"
+                    className={rowClass}
                   >
+                    <DdayCell value={row.value} tone={row.tone} />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-[15px] font-semibold leading-5">{a.name}</b>
-                      <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
-                        {formatDateKo(a.date, true)}
-                        <MemberDot className="ml-1" color={a.creator.color} size={6} />
-                        {a.creator.displayName}
-                      </span>
-                      {row.sub && <span className="block text-[12px] font-normal leading-4 text-ink-2">{row.sub}</span>}
-                    </span>
-                    <span
-                      className={`shrink-0 text-[15px] font-bold tabular-nums ${row.tone === "today" ? "text-acc-ink" : row.tone === "past" ? "text-ink-2" : "text-ink"}`}
-                    >
-                      {row.value}
+                      <span className="block truncate text-[12px] leading-4 text-ink-2">{formatDateKo(a.date, true)}</span>
+                      {row.sub && <span className="block truncate text-[12px] leading-4 text-ink-2">{row.sub}</span>}
                     </span>
                   </button>
                 </li>
@@ -255,31 +247,44 @@ export function AnniversariesScreen() {
   );
 }
 
+/** (#378) 줄 모양: 왼쪽 D-day 칸 + 이름과 날짜. D-day 가 오른쪽 끝에 떨어져 있어 줄과 이어지지 않던 것을 앞으로 (나머지 화면 점검 7) */
+const rowClass = "flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full";
+
+/** 왼쪽 D-day 칸 (15/700). 오늘은 코랄 글자, 지난 '그날만' 은 흐리게 */
+function DdayCell({ value, tone }: { value: string; tone: "today" | "ahead" | "past" }) {
+  return (
+    <span
+      className={`w-14 shrink-0 text-[15px] font-bold leading-5 tabular-nums tracking-[-0.01em] ${tone === "today" ? "text-acc-ink" : tone === "past" ? "text-ink-2" : "text-ink"}`}
+    >
+      {value}
+    </span>
+  );
+}
+
 /**
  * (#305) 멤버 생일 한 줄. 기념일처럼 고치지 않는다: 내 생일은 내 정보로 가는 링크, 다른 사람 생일은 그냥 줄.
- * 날짜는 연도 없이 "매년 3월 5일"
+ * 날짜는 연도 없이 "매년 3월 5일". (#378) 이름 옆 작은 케이크 선 아이콘으로 기념일과 구분하고, 넣은 사람 점은 뺐다
  */
 function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boolean; value: string; tone: "today" | "ahead" | "past" }) {
   const date = formatBirthday(item.date.slice(5));
   const body = (
     <>
+      <DdayCell value={value} tone={tone} />
       <span className="min-w-0 flex-1">
-        <b className="block truncate text-[15px] font-semibold leading-5">{item.name}</b>
-        <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
-          <MemberDot color={item.creator.color} size={6} />
-          {mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}
+        <span className="flex min-w-0 items-center gap-1.5">
+          <b className="truncate text-[15px] font-semibold leading-5">{item.name}</b>
+          <IconCake size={15} className="shrink-0 text-ink-2" />
         </span>
+        <span className="block truncate text-[12px] leading-4 text-ink-2">{mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}</span>
       </span>
-      <span className={`shrink-0 text-[15px] font-bold tabular-nums ${tone === "today" ? "text-acc-ink" : "text-ink"}`}>{value}</span>
       {mine && <IconChevronRight size={14} className="-mr-1 shrink-0 text-ink-2" />}
     </>
   );
-  const cls = "flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full";
   return mine ? (
-    <Link href={ME_BIRTHDAY_PATH} className={cls} aria-label={`${item.name}, 매년 ${date}, ${value}. 내 정보에서 바꾸기`}>
+    <Link href={ME_BIRTHDAY_PATH} className={rowClass} aria-label={`${item.name}, 매년 ${date}, ${value}. 내 정보에서 바꾸기`}>
       {body}
     </Link>
   ) : (
-    <div className={cls}>{body}</div>
+    <div className={rowClass}>{body}</div>
   );
 }

@@ -277,3 +277,31 @@ describe("DayDock (패널 틀)", () => {
     expect(document.activeElement?.textContent).toBe("밖");
   });
 });
+
+describe("(#378) 일정 상세: 아래는 수정 하나, 복제와 삭제는 ⋯ 메뉴", () => {
+  it("아래 버튼은 '수정' 하나. 복제, 삭제 버튼이 화면에 늘 있지 않다", () => {
+    panel({ step: "event", event: ev() });
+    expect(screen.getAllByRole("button", { name: "수정" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "복제" })).toBeNull();
+  });
+
+  it("⋯ 메뉴의 삭제는 빨간 글자, 고르면 부르는 쪽 확인(onDelete)으로. 메뉴가 따로 확인 창을 띄우지 않는다", () => {
+    const p = panel({ step: "event", event: ev() });
+    fireEvent.click(screen.getByRole("button", { name: "일정 메뉴" }));
+    const items = screen.getAllByRole("menuitem").map((el) => el.textContent);
+    expect(items.slice(-2)).toEqual(["복제", "삭제"]);
+    const del = screen.getByRole("menuitem", { name: "삭제" });
+    expect(del.className).toContain("text-danger");
+    fireEvent.click(del);
+    expect(p.onDelete).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("칸 순서: 시간 → 참여자 → 메모 (메모가 참여자 위에 있지 않다)", () => {
+    panel({ step: "event", event: ev({ memo: "운동복 챙기기" }) });
+    const people = screen.getByText("참여자");
+    const memo = screen.getByRole("heading", { name: "메모" });
+    expect(people.compareDocumentPosition(memo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

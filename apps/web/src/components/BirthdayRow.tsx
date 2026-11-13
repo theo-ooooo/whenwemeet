@@ -79,12 +79,13 @@ export function BirthdayRow({
         onClick={openSheet}
         disabled={!ready}
         aria-haspopup="dialog"
-        className="mt-2 flex min-h-12 w-full scroll-mt-4 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 text-left hover:brightness-95 disabled:cursor-default"
+        // (#378) 내 정보의 설정 줄 묶음(RowGroup) 안 한 줄: "아이콘 이름 ··· 값 ›" (ui.tsx RowButton 과 같은 모양)
+        className="flex min-h-11 w-full scroll-mt-4 items-center gap-3 py-1 text-left disabled:cursor-default"
       >
-        <IconHeart size={18} className="shrink-0 text-ink-2" />
-        <span className="shrink-0 text-[15px] font-semibold">내 생일</span>
-        <span className="min-w-0 flex-1 truncate text-right text-[13px] text-ink-2">{label}</span>
-        <IconChevronRight size={14} className="shrink-0 text-ink-2" />
+        <IconHeart size={18} className="mx-px shrink-0 text-ink-2" />
+        <span className="shrink-0 text-[14px] font-semibold">내 생일</span>
+        <span className="min-w-0 flex-1 truncate text-right text-[14px] text-ink-2">{label}</span>
+        <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
       </button>
 
       {ready && (

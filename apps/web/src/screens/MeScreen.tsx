@@ -1,14 +1,17 @@
 "use client";
+// 내 정보 (#378, 나머지 화면 점검 4). 팀 화면 뼈대(AppShell) 안이라 위 앱 머리줄과 독이 있다.
+// 머리줄 "‹ 내 정보"(넓은 화면은 사이드바가 있어 ‹ 없음) → 프로필 칸(누르면 사진과 닉네임 시트, "바꾸기" 버튼 없음)
+// → 줄 묶음(내 생일, 처음 여는 달력, 알림) → 화면 테마 → 내 팀 → 로그아웃, 약관, 탈퇴
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
-import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { IconBell, IconCamera, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
-import { NameEditRow } from "@/components/NameEditRow";
+import { NameForm } from "@/components/NameSheet";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { useToast } from "@/components/Toast";
-import { Avatar, Button, ErrorState, InlineError, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { Avatar, Button, ErrorState, InlineError, RowGroup, RowLink, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -27,9 +30,9 @@ function photoErrorText(e: ApiFailure): string {
   return messageOf(e, "사진을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
 }
 
-/** 내 정보 상단: 사진(탭 → 바꾸기/기본으로), 닉네임(이름 바꾸기 공통 모양 #171) */
+/** 내 정보 상단: 프로필 칸. 누르면 시트에서 사진(바꾸기, 기본으로)과 닉네임을 바꾼다 (#378: "바꾸기" 버튼 대신 칸을 누른다) */
 function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void }) {
-  const [photoOpen, setPhotoOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { mutate: updateMe, isPending: saving } = useUpdateMe();
@@ -46,7 +49,6 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
   }
 
   function pickPhoto() {
-    setPhotoOpen(false);
     setPhotoError(null);
     fileRef.current?.click();
   }
@@ -64,7 +66,6 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
   }
 
   async function resetPhoto() {
-    setPhotoOpen(false);
     setPhotoError(null);
     const r = await removeAvatar();
     if (!r.ok) {
@@ -74,61 +75,78 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
     onChange({ ...me, profileImageUrl: null });
   }
 
+  const avatar = (size: number) => (
+    <span className="relative shrink-0">
+      <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={size} />
+      {photoBusy && (
+        <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white">
+          <Spinner />
+        </span>
+      )}
+    </span>
+  );
+
   return (
-    <section className="mt-3 rounded-xl bg-paper px-3.5 py-3.5">
-      {/* 위 맞춤: 편집 중 오류 줄이 생겨도 사진이 움직이지 않는다 (#171) */}
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => setPhotoOpen(true)}
-          disabled={photoBusy}
-          aria-label="프로필 사진 바꾸기"
-          className="relative shrink-0 rounded-full outline-offset-2 transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-ink disabled:cursor-wait"
-        >
-          <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={56} />
-          {/* 누르면 사진을 바꿀 수 있다는 표시 (#140 L12) */}
-          <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 grid size-5 place-items-center rounded-full border-2 border-paper bg-ink text-surface">
-            <IconCamera size={11} strokeWidth={2.2} />
-          </span>
-          {photoBusy && (
-            <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white">
-              <Spinner />
-            </span>
-          )}
-        </button>
-        <div className="min-w-0 flex-1">
-          <NameEditRow
-            label="닉네임"
-            value={me.nickname}
-            max={NICKNAME_MAX}
-            saving={saving}
-            onSave={saveNickname}
-            autoComplete="nickname"
-          />
-        </div>
-      </div>
-      {uploading && (
-        <p role="status" className="t-sub mt-3">
+    <section>
+      <button
+        type="button"
+        onClick={() => {
+          setPhotoError(null);
+          setOpen(true);
+        }}
+        aria-haspopup="dialog"
+        aria-label={`${me.nickname}, 프로필 사진과 닉네임 바꾸기`}
+        className="flex w-full items-center gap-3 rounded-xl bg-paper px-3.5 py-3.5 text-left hover:brightness-95"
+      >
+        {avatar(56)}
+        <span aria-hidden="true" className="min-w-0 flex-1">
+          <b className="block truncate text-[17px] font-bold leading-6 tracking-[-0.01em]">{me.nickname}</b>
+          <span className="t-sub block">사진, 닉네임 바꾸기</span>
+        </span>
+        <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+      </button>
+      {uploading && !open && (
+        <p role="status" className="t-sub mt-2 px-1">
           사진을 올리는 중이에요
         </p>
       )}
-      {photoError && (
-        <InlineError className="mt-3">{photoError}</InlineError>
-      )}
+      {photoError && !open && <InlineError className="mt-2 px-1">{photoError}</InlineError>}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} tabIndex={-1} aria-hidden="true" />
 
-      <Sheet open={photoOpen} onClose={() => setPhotoOpen(false)} title="프로필 사진">
-        <div className="flex flex-col gap-2">
-          <Button size="lg" full onClick={pickPhoto}>
-            사진 바꾸기
-          </Button>
-          {me.profileImageUrl && (
-            <Button size="lg" full variant="secondary" onClick={resetPhoto}>
-              기본으로
+      <Sheet open={open} onClose={() => setOpen(false)} title="프로필">
+        <div className="flex items-center gap-3 pb-3">
+          {avatar(56)}
+          <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={pickPhoto} disabled={photoBusy}>
+              <IconCamera size={14} strokeWidth={2.2} />
+              사진 바꾸기
             </Button>
-          )}
-          <p className="t-sub mt-1 text-center">jpg, png, webp 10MB 까지 올릴 수 있어요</p>
+            {me.profileImageUrl && (
+              <Button size="sm" variant="secondary" onClick={resetPhoto} disabled={photoBusy}>
+                기본으로
+              </Button>
+            )}
+          </div>
         </div>
+        {uploading ? (
+          <p role="status" className="t-sub -mt-1 mb-3">
+            사진을 올리는 중이에요
+          </p>
+        ) : photoError ? (
+          <InlineError className="-mt-1 mb-3">{photoError}</InlineError>
+        ) : (
+          <p className="t-sub -mt-1 mb-3">jpg, png, webp 10MB 까지 올릴 수 있어요</p>
+        )}
+        <NameForm
+          label="닉네임"
+          value={me.nickname}
+          max={NICKNAME_MAX}
+          saving={saving}
+          onSave={saveNickname}
+          onDone={() => setOpen(false)}
+          autoComplete="nickname"
+          autoFocus={false}
+        />
       </Sheet>
     </section>
   );
@@ -144,7 +162,7 @@ const THEMES: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
 function ThemePicker() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "system" as ThemeChoice);
   return (
-    <section className="mt-2 rounded-xl bg-paper px-3.5 py-3.5">
+    <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <h2 id="theme-label" className="text-[13px] font-bold leading-5">
         화면 테마
       </h2>
@@ -189,7 +207,6 @@ function VersionInfo() {
 }
 
 export function MeScreen() {
-  const router = useRouter();
   // (#188) 푸시 지원 앱이면 이 기기 토큰을 등록, 정리
   usePushSync();
   const meQ = useMe();
@@ -233,15 +250,19 @@ export function MeScreen() {
 
   if (leaving) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))]">
-        <button
-          type="button"
-          onClick={() => setLeaving(false)}
-          className="hit h-8 self-start rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95"
-        >
-          돌아가기
-        </button>
-        <h1 className="t-title mt-6">정말 탈퇴할까요?</h1>
+      <div className="flex min-h-full flex-col fold:max-w-[480px]">
+        {/* 머리줄 모양은 ScreenHeader 와 같다. ‹ 는 탈퇴 확인을 닫고 내 정보로 */}
+        <div className="flex h-11 items-center gap-1 pt-1">
+          <button
+            type="button"
+            onClick={() => setLeaving(false)}
+            aria-label="돌아가기"
+            className="-ml-2.5 grid size-11 shrink-0 place-items-center rounded-sm text-ink hover:bg-hover"
+          >
+            <IconChevronLeft size={22} />
+          </button>
+          <h1 className="t-title min-w-0 flex-1 truncate">정말 탈퇴할까요?</h1>
+        </div>
         <p className="mt-2 text-[14px] leading-5 text-soft">
           개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오나 Apple
           연결도 끊어져요.
@@ -257,162 +278,110 @@ export function MeScreen() {
           autoComplete="off"
           autoFocus
         />
-        {deleteError && (
-          <InlineError className="mt-2">{deleteError}</InlineError>
-        )}
-        <div className="mt-auto pt-8">
-          <Button
-            size="lg"
-            full
-            variant="dangerFill"
-            disabled={typed.trim() !== "탈퇴"}
-            loading={deleting}
-            onClick={deleteAccount}
-          >
+        {deleteError && <InlineError className="mt-2">{deleteError}</InlineError>}
+        <div className="pt-8">
+          <Button size="lg" full variant="dangerFill" disabled={typed.trim() !== "탈퇴"} loading={deleting} onClick={deleteAccount}>
             회원 탈퇴
           </Button>
           {typed.trim() !== "탈퇴" && <p className="t-sub mt-2 text-center">위 칸에 &quot;탈퇴&quot; 를 입력하면 버튼이 켜져요</p>}
         </div>
-      </main>
+      </div>
     );
   }
 
-  // (#318, D-201) 폰은 그대로 한 열. fold 이상은 본문 폭을 다 쓰고(바깥 여백 28 32, 다른 화면과 같은 줄), lg 이상은 2단:
-  // 왼쪽 프로필, (#305) 내 생일, 내 팀, 로그아웃 / 오른쪽 화면 테마, 처음 여는 달력, 알림, 약관, 탈퇴. 폰과 fold 의 순서는 order 로 지킨다
+  // 폰은 한 열. 본문 폭 main-lg(≥696, #323) 는 2단: 왼쪽 프로필, 줄 묶음(내 생일, 처음 여는 달력, 알림), 내 팀 / 오른쪽 화면 테마, 로그아웃, 약관, 탈퇴
   return (
-    <main className="flex min-h-dvh w-full flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] fold:px-8 fold:pt-7">
-      <div className="mt-2 flex h-10 items-center justify-between fold:mt-0">
-        <h1 className="t-title">내 정보</h1>
-        <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
-          뒤로
-        </button>
-      </div>
+    <div className="flex min-h-full flex-col">
+      <ScreenHeader title="내 정보" fallbackHref={CALENDAR_PATH} back="phone" />
 
       {error ? (
         <div className="mt-3">
           <ErrorState message={error} onRetry={load} />
         </div>
       ) : (
-        <div className="flex flex-1 flex-col lg:grid lg:flex-none lg:grid-cols-2 lg:items-start lg:gap-x-3 lg:pt-3">
-        <div className="contents lg:flex lg:flex-col lg:gap-2 lg:[&>*>*]:mt-0">
-        <div className="order-1 lg:order-none">
-          {me ? (
-            <ProfileCard me={me} onChange={(next) => setMe(next)} />
-          ) : (
-            <section className="mt-3 flex items-center gap-3 rounded-xl bg-paper px-3.5 py-3.5">
-              <Skeleton className="size-14 rounded-full" />
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="mt-2 h-3 w-40" />
-              </div>
-            </section>
-          )}
-        </div>
-        {/* (#305) 내 생일 (월, 일만, 선택). 프로필 바로 아래 */}
-        <div className="order-2 lg:order-none">
-          <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
-        </div>
-        <div className="order-6 lg:order-none">
-          <section className="mt-2 rounded-xl bg-paper px-3.5 py-3">
-            <h2 className="text-[13px] font-bold leading-5">내 팀 {groups ? `${groups.length}개` : ""}</h2>
-            <ul className="mt-1">
+        <div className="mt-3 flex flex-1 flex-col gap-5 main-lg:grid main-lg:flex-none main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3">
+          <div className="flex flex-col gap-5">
+            {me ? (
+              <ProfileCard me={me} onChange={(next) => setMe(next)} />
+            ) : (
+              <section className="flex items-center gap-3 rounded-xl bg-paper px-3.5 py-3.5">
+                <Skeleton className="size-14 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="mt-2 h-3 w-40" />
+                </div>
+              </section>
+            )}
+            {/* (#305) 내 생일, (#300) 처음 여는 달력 (D-191), (#188) 알림 (푸시-알림.md 8장): 설정 줄 한 묶음 */}
+            <RowGroup>
+              <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
+              <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
+              <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
+            </RowGroup>
+            <RowGroup title={`내 팀${groups ? ` ${groups.length}개` : ""}`}>
               {groups
-                ? groups.map((g, i) => (
-                    <li key={g.id} className={i === 0 ? "" : "border-t border-line"}>
-                      <Link href={withTeam(CALENDAR_PATH, g.publicCode)} className="flex min-h-11 items-center gap-2 py-2">
-                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
-                        <span className="shrink-0 text-[12px] text-ink-2">{g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}</span>
-                        <IconChevronRight size={14} className="shrink-0 text-ink-2" />
-                      </Link>
-                    </li>
+                ? groups.map((g) => (
+                    <RowLink key={g.id} href={withTeam(CALENDAR_PATH, g.publicCode)} label={g.name} value={g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`} />
                   ))
                 : [0, 1].map((i) => <Skeleton key={i} className="my-3 h-5 w-full" />)}
               {/* 팀 만들기 입구 (#172). 개인 달력만 있는 사용자도 여기서 시작할 수 있게 */}
-              {groups && (
-                <li className="border-t border-line">
-                  <Link href="/groups/new" className="flex h-10 items-center gap-2 text-[14px] font-semibold text-acc-ink">
-                    <IconPlus size={16} strokeWidth={2.2} className="shrink-0" />
-                    팀 만들기
-                  </Link>
-                </li>
-              )}
-            </ul>
-          </section>
-        </div>
-        <div className="order-7 lg:order-none">
-          <form
-            method="POST"
-            action="/auth/logout"
-            className="mt-2"
-            onSubmit={(e) => {
-              // 제출 순간의 값을 싣는다 (화면을 그린 뒤 등록됐을 수 있다)
-              const field = e.currentTarget.elements.namedItem("pushToken");
-              if (field instanceof HTMLInputElement) field.value = storedPushToken() ?? "";
-              postToApp({ type: "logout" });
-              // 서버 기기 해제는 route handler 가 쿠키를 지우기 전에 한다 (D-83). 이 기기 기록은 여기서 지운다
-              forgetPushToken({ leave: true });
-            }}
-          >
-            {/* (#188) 이 기기 푸시 토큰. 없으면 빈 값이라 route handler 가 건너뛴다 */}
-            <input type="hidden" name="pushToken" defaultValue="" />
-            <Button type="submit" variant="tile" size="lg" full>
-              로그아웃
-            </Button>
-          </form>
-        </div>
-        </div>
+              {groups && <RowLink href="/groups/new" label="팀 만들기" icon={<IconPlus size={16} strokeWidth={2.2} />} />}
+            </RowGroup>
+          </div>
 
-        <div className="contents lg:flex lg:flex-col lg:gap-2 lg:[&>*>*]:mt-0">
-        <div className="order-3 lg:order-none">
-          <ThemePicker />
-        </div>
-        {/* (#300) 처음 여는 달력 (D-191) */}
-        <div className="order-4 lg:order-none">
-          <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
-        </div>
-        {/* (#188) 알림 설정 (푸시-알림.md 8장) */}
-        <div className="order-5 lg:order-none">
-          <Link href="/me/notifications" className="mt-2 flex min-h-12 items-center gap-2.5 rounded-xl bg-paper px-3.5 py-2 hover:brightness-95">
-            <IconBell size={18} className="shrink-0 text-ink-2" />
-            <span className="min-w-0 flex-1 text-[15px] font-semibold">알림</span>
-            <IconChevronRight size={14} className="shrink-0 text-ink-2" />
-          </Link>
-        </div>
-        <div className="order-8 lg:order-none">
-          <p className="mt-6 text-center text-[12px] text-ink-2 lg:pt-4">
-            <Link href="/terms" className="hit inline-block underline underline-offset-2">
-              이용약관
-            </Link>
-            <span aria-hidden="true" className="mx-2">
-              |
-            </span>
-            <Link href="/privacy" className="hit inline-block underline underline-offset-2">
-              개인정보처리방침
-            </Link>
-            <span aria-hidden="true" className="mx-2">
-              |
-            </span>
-            <Link href="/support" className="hit inline-block underline underline-offset-2">
-              고객 지원
-            </Link>
-          </p>
-        </div>
-          <div className="order-9 mt-auto pt-10 text-center lg:order-none lg:mt-0 lg:pt-2">
-            <button
-              type="button"
-              onClick={() => setLeaving(true)}
-              className="hit rounded-sm px-3 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-danger"
+          <div className="flex flex-1 flex-col gap-5 main-lg:flex-none">
+            <ThemePicker />
+            <form
+              method="POST"
+              action="/auth/logout"
+              onSubmit={(e) => {
+                // 제출 순간의 값을 싣는다 (화면을 그린 뒤 등록됐을 수 있다)
+                const field = e.currentTarget.elements.namedItem("pushToken");
+                if (field instanceof HTMLInputElement) field.value = storedPushToken() ?? "";
+                postToApp({ type: "logout" });
+                // 서버 기기 해제는 route handler 가 쿠키를 지우기 전에 한다 (D-83). 이 기기 기록은 여기서 지운다
+                forgetPushToken({ leave: true });
+              }}
             >
-              회원 탈퇴
-            </button>
-            {/* (#333) 회원 탈퇴 아래 작은 글씨 */}
-            <div>
-              <VersionInfo />
+              {/* (#188) 이 기기 푸시 토큰. 없으면 빈 값이라 route handler 가 건너뛴다 */}
+              <input type="hidden" name="pushToken" defaultValue="" />
+              <Button type="submit" variant="tile" size="lg" full>
+                로그아웃
+              </Button>
+            </form>
+            <p className="text-center text-[12px] text-ink-2">
+              <Link href="/terms" className="hit inline-block underline underline-offset-2">
+                이용약관
+              </Link>
+              <span aria-hidden="true" className="mx-2">
+                |
+              </span>
+              <Link href="/privacy" className="hit inline-block underline underline-offset-2">
+                개인정보처리방침
+              </Link>
+              <span aria-hidden="true" className="mx-2">
+                |
+              </span>
+              <Link href="/support" className="hit inline-block underline underline-offset-2">
+                고객 지원
+              </Link>
+            </p>
+            <div className="mt-auto pt-4 text-center main-lg:mt-0">
+              <button
+                type="button"
+                onClick={() => setLeaving(true)}
+                className="hit rounded-sm px-3 py-2 text-[12px] font-medium text-ink-2 underline underline-offset-2 hover:text-danger"
+              >
+                회원 탈퇴
+              </button>
+              {/* (#333) 회원 탈퇴 아래 작은 글씨 */}
+              <div>
+                <VersionInfo />
+              </div>
             </div>
           </div>
         </div>
-        </div>
       )}
-    </main>
+    </div>
   );
 }
