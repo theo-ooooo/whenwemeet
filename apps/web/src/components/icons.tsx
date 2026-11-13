@@ -95,6 +95,18 @@ export function IconTodo({ active, ...p }: PieceProps) {
   );
 }
 
+/** (#189) 약속 투표: 둥근 사각 둘이 겹치고 앞 사각에 체크, 조각은 겹친 자리 (디자인규칙.md 3-2) */
+export function IconPoll({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="3" width="12" height="12" rx="3.5" />
+      <rect x="9" y="9" width="12" height="12" rx="3.5" />
+      <path d="m13.2 16.4 1.9 1.9 3.5-3.9" />
+      <rect x="9" y="9" width="4.6" height="4.6" rx="1.4" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
 /** 더 보기 ⋯ (목록 상세 머리줄 메뉴) */
 export function IconMore(p: IconProps) {
   return (

@@ -67,6 +67,10 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.eventShare.deleteMany();
   await prisma.eventImportItem.deleteMany();
   await prisma.eventImport.deleteMany();
+  await prisma.pollVote.deleteMany();
+  await prisma.pollParticipant.deleteMany();
+  await prisma.pollOption.deleteMany();
+  await prisma.poll.deleteMany();
   await prisma.eventLog.deleteMany();
   await prisma.event.deleteMany();
   await prisma.anniversary.deleteMany();

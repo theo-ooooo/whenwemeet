@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMockFile, MOCK_FILE_PREFIX, putMockFile } from "../files";
 import { mockHandle } from "../handler";
 import { FAMILY_ID, inviteMarkerOf, ME_ID, PERSONAL_ID, TEAM_ID } from "../fixtures";
@@ -252,8 +252,8 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
   });
 
   it("알림 설정: 기본 모두 켬, 바꾼 키만, 불리언 아니면 400", () => {
-    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false });
-    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false });
+    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
+    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
     expect(call("PATCH", "/me/notification-settings", {}).body.data.change).toBe(false);
     expect(call("PATCH", "/me/notification-settings", { join: "no" }).status).toBe(400);
   });
@@ -528,5 +528,48 @@ describe("목 멤버 생일 (#305)", () => {
     call("PATCH", `/groups/${TEAM_ID}/me`, { showBirthday: true });
     expect(call("PATCH", "/me/birthday", { date: null }).body.data.date).toBeNull();
     expect(list().some((b) => b.member.userId === ME_ID)).toBe(false);
+  });
+});
+
+describe("목 약속 투표 (#189, api.md 2.13)", () => {
+  // 앞 테스트가 팀을 나가거나 탈퇴했을 수 있어 처음 상태로 시작한다
+  beforeEach(() => {
+    (globalThis as unknown as { __wwmMockStore?: unknown }).__wwmMockStore = undefined;
+  });
+  type Body = { status: number; body: { data: Record<string, unknown>; error?: { code: string } } };
+  const as = (userId: number, method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
+    mockHandle({ method, path, query: new URLSearchParams(query), body, userId }) as Body;
+  const later = (days: number, h: number) => new Date(Date.now() + days * 86_400_000 + h * 3_600_000).toISOString();
+  const opt = (days: number, h: number) => ({ startsAt: later(days, h), endsAt: later(days, h + 2), allDay: false });
+
+  it("만들기 → 표 → 정하기: 일정이 생기고 새 소식은 정함 한 줄, 닫힌 뒤 409", () => {
+    const created = as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "목 투표", options: [opt(2, 0), opt(3, 0)] });
+    expect(created.status).toBe(201);
+    const poll = created.body.data as { id: number; publicCode: string; options: { id: number }[] };
+    expect(as(ME_ID, "GET", `/polls/${poll.publicCode}`).status).toBe(200);
+    const voted = as(ME_ID, "PUT", `/groups/${FAMILY_ID}/polls/${poll.id}/votes`, { optionIds: [poll.options[1].id] });
+    expect(voted.body.data.myVotes).toEqual([poll.options[1].id]);
+    const list = as(ME_ID, "GET", `/groups/${FAMILY_ID}/polls`).body.data as unknown as { id: number; voterCount: number }[];
+    expect(list.find((p) => p.id === poll.id)?.voterCount).toBe(1);
+
+    const done = as(3, "POST", `/groups/${FAMILY_ID}/polls/${poll.id}/confirm`, { optionId: poll.options[1].id });
+    expect(done.status).toBe(201);
+    const event = done.body.data.event as { title: string; publicCode: string };
+    expect(event.title).toBe("목 투표");
+    const news = as(ME_ID, "GET", `/groups/${FAMILY_ID}/news`, null, "v=2").body.data.items as { kind: string; type?: string; title?: string }[];
+    expect(news[0]).toMatchObject({ kind: "ACTIVITY", type: "POLL_CLOSED" });
+    expect(news.some((i) => i.kind === "EVENT" && i.title === "목 투표")).toBe(false);
+    expect(as(ME_ID, "PUT", `/groups/${FAMILY_ID}/polls/${poll.id}/votes`, { optionIds: [] }).body.error?.code).toBe("POLL_CLOSED");
+    expect(as(ME_ID, "DELETE", `/groups/${FAMILY_ID}/polls/${poll.id}`).status).toBe(409);
+  });
+
+  it("개인 팀 400, 후보 1개 400, 취소는 기록도 지운다", () => {
+    expect(as(ME_ID, "POST", `/groups/${PERSONAL_ID}/polls`, { title: "x", options: [opt(2, 0), opt(3, 0)] }).status).toBe(400);
+    expect(as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "x", options: [opt(2, 0)] }).status).toBe(400);
+    const poll = as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "취소할 투표", options: [opt(2, 0), opt(3, 0)] }).body.data as { id: number; publicCode: string };
+    expect(as(ME_ID, "DELETE", `/groups/${FAMILY_ID}/polls/${poll.id}`).status).toBe(200);
+    expect(as(ME_ID, "GET", `/polls/${poll.publicCode}`).status).toBe(404);
+    const news = as(3, "GET", `/groups/${FAMILY_ID}/news`, null, "v=2").body.data.items as { payload?: { title?: string } }[];
+    expect(news.some((i) => i.payload?.title === "취소할 투표")).toBe(false);
   });
 });

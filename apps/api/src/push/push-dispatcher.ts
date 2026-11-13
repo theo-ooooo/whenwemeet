@@ -3,7 +3,7 @@ import { isBirthdayOn } from '../anniversaries/birthdays.js';
 import { birthdayTargetOf } from './anniversary-planner.js';
 import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
 import { changePayload, DELETED_MEMBER_NAME, joinPayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
-import { type ClaimedDelivery, type DueNotification, PushRepository } from './push.repository.js';
+import { type ClaimedDelivery, type DueNotification, parsePollDedupeKey, PushRepository, type Recipient } from './push.repository.js';
 import { mondayOfKey, WEEKLY_CATCH_UP_MS, WeeklyPlanner } from './weekly-planner.js';
 
 /** 예약 시각이 이만큼 넘게 지난 알림은 보내지 않는다 (D-88) */
@@ -67,6 +67,10 @@ export class PushDispatcher {
         await this.expandWeekly(row, now, stats);
         continue;
       }
+      if (row.kind === 'POLL') {
+        await this.expandPoll(row, now, stats);
+        continue;
+      }
       const payload = await this.payloadFor(row, now);
       if (!payload) {
         stats.skipped += await this.push.markSkipped([row.id]);
@@ -109,6 +113,33 @@ export class PushDispatcher {
       return;
     }
     if (await this.push.dispatchTx(row.id, now, built.payload, recipients)) {
+      stats.dispatched += 1;
+      stats.deliveries += recipients.length;
+    }
+  }
+
+  /**
+   * (#189) 약속 투표 알림. 문구는 예약할 때 만들었다. 받는 사람은 지금의 투표 대상에서 고른다 (설계 약속-투표.md 6장).
+   * 열림: 대상 중 연 사람 제외, 투표가 아직 진행 중일 때만. 정함: 대상 중 정한 사람 제외, 정한 시각까지 들어와 있던 사람.
+   * 마감: 연 사람 한 명, 아직 진행 중일 때만. 투표가 지워졌거나 조건이 안 맞으면 SKIPPED
+   */
+  private async expandPoll(row: DueNotification, now: Date, stats: ExpandStats): Promise<void> {
+    const key = parsePollDedupeKey(row.dedupeKey);
+    const poll = key ? await this.push.findPollTargets(key.pollId) : null;
+    let recipients: Recipient[] | null = null;
+    if (key && poll && row.payload) {
+      const targets = poll.allMembers ? null : poll.participantIds;
+      if (key.stage === 'OPEN' && poll.status === 'OPEN') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, null);
+      if (key.stage === 'CLOSED') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, row.createdAt);
+      if (key.stage === 'DEADLINE' && poll.status === 'OPEN' && poll.creatorId !== null) {
+        recipients = await this.push.listPollRecipients(row.groupId, [poll.creatorId], null, null);
+      }
+    }
+    if (recipients === null) {
+      stats.skipped += await this.push.markSkipped([row.id]);
+      return;
+    }
+    if (await this.push.dispatchTx(row.id, now, null, recipients)) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }

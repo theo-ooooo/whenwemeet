@@ -48,7 +48,8 @@ export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" 
 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
 /** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean };
+/** (#189) poll 약속 투표(열림, 마감, 정함). 기본 켬 */
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -194,7 +195,10 @@ export type ActivityType =
   /** (#279) ICS 파일로 일정을 가져옴. payload { count } */
   | "EVENTS_IMPORTED"
   /** (#190) 참석 여부를 정하거나 바꿈. payload RsvpActivityPayload */
-  | "EVENT_RSVP";
+  | "EVENT_RSVP"
+  /** (#189) 약속 투표를 열었다 { pollId, code, title }, 시간을 정했다 (+ eventCode, startsAt, endsAt, allDay) */
+  | "POLL_CREATED"
+  | "POLL_CLOSED";
 
 /** (#190) 참석 여부 기록. occurrence 는 반복 회차만, 한 번짜리는 null */
 export type RsvpActivityPayload = {
@@ -229,11 +233,22 @@ export type ActivityNewsItem = {
   /** 기념일 3종의 대상. 삭제된 기념일이면 null */
   anniversaryId: number | null;
   /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} (#274 일정 링크 합류는 { via: "EVENT_SHARE" }) */
-  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string } & Partial<Omit<RsvpActivityPayload, "title">> & {
-      title?: string;
-    };
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string } & Partial<Omit<RsvpActivityPayload, "title">> &
+    Partial<PollActivityPayload>;
   createdAt: string;
   isNew: boolean;
+};
+
+/** (#189) 투표 기록 payload. title 은 투표 제목(정하면 일정 제목) */
+export type PollActivityPayload = {
+  pollId: number;
+  code: string;
+  title: string;
+  eventId: number;
+  eventCode: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
 };
 
 /** 새 소식 한 줄. 키는 `${kind}:${id}` (두 기록의 id 가 겹칠 수 있다) */
@@ -387,3 +402,59 @@ export type TodoItem = {
 
 /** GET /todo-lists/:code */
 export type TodoListDetail = { list: TodoList; items: TodoItem[] };
+
+/* ---------- (#189) 약속 투표 (api.md 2.13) ---------- */
+
+export type PollStatus = "OPEN" | "CLOSED";
+
+/** 후보 하나. past = 시작이 지났다 (고를 수도 정할 수도 없다). voters 는 가입순 */
+export type PollOption = { id: number; startsAt: string; endsAt: string; allDay: boolean; past: boolean; voters: Member[] };
+
+export type Poll = {
+  id: number;
+  publicCode: string;
+  groupId: number;
+  groupCode: string;
+  title: string;
+  status: PollStatus;
+  deadline: string | null;
+  /** 마감이 지났다 (진행 중만). 표는 못 하고 정하기는 된다 */
+  expired: boolean;
+  creator: Member;
+  createdAt: string;
+  closedAt: string | null;
+  /** 정해서 생긴 일정. 지워졌으면 null */
+  eventId: number | null;
+  eventCode: string | null;
+  decidedOptionId: number | null;
+  participants: { all: boolean; members: Member[] };
+  options: PollOption[];
+  myVotes: number[];
+  canVote: boolean;
+};
+
+/** 홈 "정하는 중" 카드 */
+export type PollSummary = {
+  id: number;
+  publicCode: string;
+  title: string;
+  status: PollStatus;
+  deadline: string | null;
+  expired: boolean;
+  eventId: number | null;
+  eventCode: string | null;
+  voterCount: number;
+  targetCount: number;
+  votedByMe: boolean;
+  /** 모든 후보가 지났다 ("지난 투표") */
+  allPast: boolean;
+  createdAt: string;
+  closedAt: string | null;
+};
+
+export type PollOptionInput = { startsAt: string; endsAt: string; allDay: boolean };
+
+export type PollInput = { title: string; options: PollOptionInput[]; deadline?: string | null; participants?: "ALL" | number[] };
+
+/** 정하기 응답. warning BUSY_NOW = 그 사이 대상 중 누가 그 시간에 일정이 생겼다 (정하기는 됐다) */
+export type PollConfirmResult = { poll: Poll; event: Event; warning: "BUSY_NOW" | null };

@@ -129,6 +129,23 @@ export type TodoItemRow = {
   updatedAt: string;
 };
 
+/** (#189) 약속 투표 (설계 약속-투표.md 1장). 후보와 표를 한 행에 */
+export type PollRow = {
+  id: number;
+  groupId: number;
+  title: string;
+  status: "OPEN" | "CLOSED";
+  deadline: string | null;
+  allMembers: boolean;
+  participantIds: number[];
+  creatorId: number | null;
+  eventId: number | null;
+  decidedOptionId: number | null;
+  createdAt: string;
+  closedAt: string | null;
+  options: { id: number; startsAt: string; endsAt: string; allDay: boolean; voterIds: number[] }[];
+};
+
 /** (#191) 팀 활동 기록 (설계 GroupActivity). actorName 은 기록 시점 표시 이름 스냅샷 */
 export type ActivityRow = {
   id: number;
@@ -137,7 +154,8 @@ export type ActivityRow = {
   actorId: number | null;
   actorName: string;
   anniversaryId: number | null;
-  payload: ActivityNewsItem["payload"];
+  /** (#189) POLL_CLOSED 는 숨길 일정 기록 id(eventLogId) 를 함께 둔다 (D-236) */
+  payload: ActivityNewsItem["payload"] & { eventLogId?: number };
   createdAt: string;
 };
 
@@ -160,6 +178,8 @@ export type Store = {
   /** (#190) 회차별 참석 여부, 반응. 없으면 빈 목록 */
   rsvps?: RsvpRow[];
   reactions?: ReactionRow[];
+  /** (#189) 약속 투표. 없으면 빈 목록 */
+  polls?: PollRow[];
   seq: number;
 };
 
@@ -194,6 +214,8 @@ export const mockGroupCode = (id: number) => `team${id}`.padEnd(8, "x").slice(0,
 export const mockEventCode = (id: number) => `evnt${id}`.padEnd(8, "x").slice(0, 8);
 /** (#276) 할 일 목록 공개 코드 ("todo3xxx") */
 export const mockTodoCode = (id: number) => `todo${id}`.padEnd(8, "x").slice(0, 8);
+/** (#189) 투표 공개 코드 */
+export const mockPollCode = (id: number) => `poll${id}`.padEnd(8, "x").slice(0, 8);
 
 const WEB_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:3000";
 export const inviteUrlOf = (code: string) => `${WEB_ORIGIN}/join/${code}`;
@@ -545,7 +567,40 @@ export function buildStore(): Store {
     createdAt: hoursAgo(2),
   });
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, seq: 100 };
+  // (#189) 우리 가족 팀에 진행 중 약속 투표 하나 (엄마가 열고 엄마, 아빠가 답함, 마감 내일). 홈 "정하는 중" 과 새 소식 확인용
+  const polls: PollRow[] = [
+    {
+      id: 1,
+      groupId: FAMILY_ID,
+      title: "주말 가족 외식",
+      status: "OPEN",
+      deadline: kstToIso(addDays(today, 1), "21:00"),
+      allMembers: true,
+      participantIds: [],
+      creatorId: MOM_ID,
+      eventId: null,
+      decidedOptionId: null,
+      createdAt: hoursAgo(3),
+      closedAt: null,
+      options: [
+        { id: 1, startsAt: kstToIso(addDays(today, 3), "12:00"), endsAt: kstToIso(addDays(today, 3), "14:00"), allDay: false, voterIds: [MOM_ID, DAD_ID] },
+        { id: 2, startsAt: kstToIso(addDays(today, 3), "18:00"), endsAt: kstToIso(addDays(today, 3), "20:00"), allDay: false, voterIds: [MOM_ID] },
+        { id: 3, startsAt: kstToIso(addDays(today, 4), "12:00"), endsAt: kstToIso(addDays(today, 4), "14:00"), allDay: false, voterIds: [DAD_ID] },
+      ],
+    },
+  ];
+  activities.push({
+    id: 5,
+    groupId: FAMILY_ID,
+    type: "POLL_CREATED",
+    actorId: MOM_ID,
+    actorName: "엄마",
+    anniversaryId: null,
+    payload: { pollId: 1, code: mockPollCode(1), title: "주말 가족 외식" },
+    createdAt: hoursAgo(3),
+  });
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

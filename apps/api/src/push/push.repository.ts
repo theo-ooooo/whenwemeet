@@ -26,6 +26,8 @@ export interface NotificationSettings {
   weekly: boolean;
   /** (#277) 다 같이 비는 시간 (조용한 팀 깨우기). 기본 끔 (D-204) */
   weeklyNudge: boolean;
+  /** (#189) 약속 투표. 기본 켬 */
+  poll: boolean;
 }
 
 export interface DeviceInput {
@@ -191,6 +193,42 @@ export interface DueNotification {
   payload: PushPayload | null;
 }
 
+/** (#189) 투표 알림 단계. dedupeKey 머리 PO, PC, PD */
+export type PollPushStage = 'OPEN' | 'CLOSED' | 'DEADLINE';
+const POLL_KEY_PREFIX: Record<PollPushStage, string> = { OPEN: 'PO', CLOSED: 'PC', DEADLINE: 'PD' };
+
+export function pollDedupeKey(stage: PollPushStage, pollId: number): string {
+  return `${POLL_KEY_PREFIX[stage]}:${pollId}`;
+}
+
+/** dedupeKey → 단계와 투표 번호. 모양이 틀리면 null */
+export function parsePollDedupeKey(key: string): { stage: PollPushStage; pollId: number } | null {
+  const match = /^(PO|PC|PD):([1-9]\d*)$/.exec(key);
+  if (!match) return null;
+  const stage = (Object.keys(POLL_KEY_PREFIX) as PollPushStage[]).find((name) => POLL_KEY_PREFIX[name] === match[1]) as PollPushStage;
+  return { stage, pollId: Number(match[2]) };
+}
+
+/** (#189) 마감 알림을 예약할 투표 */
+export interface DuePollDeadline {
+  id: number;
+  groupId: number;
+  groupName: string;
+  groupCode: string;
+  pollCode: string;
+  title: string;
+  deadline: Date;
+  creatorId: number | null;
+}
+
+/** (#189) 투표 알림 받는 사람 판정용 */
+export interface PollTargets {
+  status: 'OPEN' | 'CLOSED';
+  allMembers: boolean;
+  creatorId: number | null;
+  participantIds: number[];
+}
+
 export interface Recipient {
   userId: number;
   token: string;
@@ -236,6 +274,7 @@ const SETTINGS_SELECT = {
   notifyJoin: true,
   notifyWeekly: true,
   notifyWeeklyNudge: true,
+  notifyPoll: true,
 } as const;
 
 /** 받는 사람을 거르는 User 설정 컬럼 */
@@ -248,6 +287,7 @@ const KIND_SETTING: Record<PushKindName, SettingColumn> = {
   ANNIVERSARY: 'notifyAnniversary',
   JOIN: 'notifyJoin',
   WEEKLY: 'notifyWeekly',
+  POLL: 'notifyPoll',
 };
 
 const BUSY_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
@@ -263,6 +303,7 @@ function toSettings(row: Record<SettingColumn, boolean>): NotificationSettings {
     join: row.notifyJoin,
     weekly: row.notifyWeekly,
     weeklyNudge: row.notifyWeeklyNudge,
+    poll: row.notifyPoll,
   };
 }
 
@@ -318,6 +359,7 @@ export class PushRepository {
     if (patch.join !== undefined) data.notifyJoin = patch.join;
     if (patch.weekly !== undefined) data.notifyWeekly = patch.weekly;
     if (patch.weeklyNudge !== undefined) data.notifyWeeklyNudge = patch.weeklyNudge;
+    if (patch.poll !== undefined) data.notifyPoll = patch.poll;
     return toSettings(await this.prisma.user.update({ where: { id: userId }, data, select: SETTINGS_SELECT }));
   }
 
@@ -613,6 +655,92 @@ export class PushRepository {
       },
       select: { id: true },
     });
+  }
+
+  // ---------- (#189) 약속 투표 (설계 약속-투표.md 6장, D-241) ----------
+
+  /**
+   * 투표를 열거나 정한 트랜잭션 안에서. 문구를 미리 만든 채로 바로 예약한다 (가져오기 D-166 과 같은 방식).
+   * dedupeKey PO:{pollId} (열림), PC:{pollId} (정함). 받는 사람은 펼칠 때 투표 대상에서 고른다
+   */
+  async schedulePollTx(tx: Db, input: { pollId: number; groupId: number; actorId: number; stage: 'OPEN' | 'CLOSED'; payload: PushPayload }, now: Date): Promise<void> {
+    await tx.pushNotification.create({
+      data: {
+        kind: 'POLL',
+        dedupeKey: pollDedupeKey(input.stage, input.pollId),
+        groupId: input.groupId,
+        scheduledAt: now,
+        actorId: input.actorId,
+        payload: toJson(input.payload),
+      },
+      select: { id: true },
+    });
+  }
+
+  /** 마감이 지났는데 아직 마감 알림을 예약하지 않은 진행 중 투표, 마감 순 */
+  async listDuePollDeadlines(now: Date, limit: number): Promise<DuePollDeadline[]> {
+    const rows = await this.prisma.poll.findMany({
+      where: { status: 'OPEN', deadline: { lte: now }, deadlineNotifiedAt: null },
+      orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: { id: true, groupId: true, publicCode: true, title: true, deadline: true, creatorId: true, group: { select: { name: true, publicCode: true } } },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      groupId: row.groupId,
+      groupName: row.group.name,
+      groupCode: row.group.publicCode,
+      pollCode: row.publicCode,
+      title: row.title,
+      deadline: row.deadline as Date,
+      creatorId: row.creatorId,
+    }));
+  }
+
+  /**
+   * 마감 표시(deadlineNotifiedAt)를 한 번만 하고 그때만 알림을 예약한다 (dedupeKey PD:{pollId}, 예약 시각 = 마감).
+   * 마감에서 10분 넘게 지나 집었으면 펼칠 때 SKIPPED 가 된다 (D-88). 연 사람이 탈퇴했으면 표시만. 예약했으면 true
+   */
+  async schedulePollDeadline(poll: DuePollDeadline, payload: PushPayload, now: Date): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.poll.updateMany({ where: { id: poll.id, status: 'OPEN', deadlineNotifiedAt: null }, data: { deadlineNotifiedAt: now } });
+      if (count !== 1 || poll.creatorId === null) return false;
+      const created = await tx.pushNotification.createMany({
+        data: [{ kind: 'POLL', dedupeKey: pollDedupeKey('DEADLINE', poll.id), groupId: poll.groupId, scheduledAt: poll.deadline, payload: toJson(payload) }],
+        skipDuplicates: true,
+      });
+      return created.count === 1;
+    });
+  }
+
+  /** 투표 알림을 펼칠 때 받을 사람을 고르는 값. 투표가 지워졌으면 null */
+  async findPollTargets(pollId: number): Promise<PollTargets | null> {
+    const row = await this.prisma.poll.findUnique({
+      where: { id: pollId },
+      select: { status: true, allMembers: true, creatorId: true, participants: { select: { userId: true } } },
+    });
+    if (!row) return null;
+    return { status: row.status, allMembers: row.allMembers, creatorId: row.creatorId, participantIds: idsOf(row.participants) };
+  }
+
+  /**
+   * (#189) userIds 중(null 이면 팀원 전원) 지금 팀원 × 기기, notifyPoll 과 팀 알림이 켜진 것. excludeUserId 는 뺀다.
+   * joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (지난 일을 알리는 "정함", D-180)
+   */
+  async listPollRecipients(groupId: number, userIds: number[] | null, excludeUserId: number | null, joinedBy: Date | null): Promise<Recipient[]> {
+    if (userIds !== null && userIds.length === 0) return [];
+    const rows = await this.prisma.membership.findMany({
+      where: {
+        groupId,
+        notify: true,
+        user: { notifyPoll: true },
+        ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
+        ...(userIds === null ? {} : { AND: [{ userId: { in: userIds } }] }),
+        ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),
+      },
+      select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
+    });
+    return rows.flatMap((row) => row.user.pushDevices.map((device) => ({ userId: row.userId, token: device.token, platform: device.platform })));
   }
 
   // ---------- (#277) 주간 요약과 깨우기 (설계 5-9, D-203 ~ D-205) ----------

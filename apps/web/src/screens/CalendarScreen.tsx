@@ -73,6 +73,7 @@ import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
+import { PollHomeSection } from "@/components/PollHomeSection";
 import { TodoHomeSection } from "@/components/TodoHomeSection";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
@@ -1068,8 +1069,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
         </div>
         )}
 
-        {/* phone: 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
+        {/* phone: (#189) 정하는 중(투표가 있을 때만), 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
         <div className="fold:hidden">
+          <PollHomeSection groupId={groupId} enabled={!wide && group?.type === "TEAM"} titleId={`${titleId}-ppoll`} />
           {phoneUpcoming}
           {phoneAnniversaries}
           <TodoHomeSection groupId={groupId} enabled={!wide} titleId={`${titleId}-ptodo`} />

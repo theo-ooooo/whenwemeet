@@ -204,6 +204,9 @@ export class MembershipsRepository {
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
     // (#190) 그 팀 일정의 내 참석 여부, 반응도 지운다 (탈퇴는 User Cascade 로도 지워진다)
     await deleteMemberResponsesTx(db, userId, groupId);
+    // (#189) 이 팀 투표의 내 표와 대상 행. 기록 없이 지운다 (설계 약속-투표.md 3장)
+    await db.pollVote.deleteMany({ where: { userId, option: { poll: { groupId } } } });
+    await db.pollParticipant.deleteMany({ where: { userId, poll: { groupId } } });
     await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
     await this.calendarFeeds.deleteMemberTx(db, userId, groupId);
     const remaining = await db.membership.count({ where: { groupId } });

@@ -30,7 +30,9 @@
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
-| NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요" |
+| NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요". (#189) 약속 투표 대상이 아닌데 표를 보냄. message "이 투표의 대상이 아니에요" |
+| POLL_CLOSED | 409 | (#189) 정한 투표에 표, 정하기, 취소 ("이미 정해진 투표예요"), 마감 지난 투표에 표 ("투표가 끝났어요") |
+| POLL_OPTION_PAST | 400 | (#189) 시작이 지난 후보를 새로 켜거나 정함. message "이미 지난 시간이에요" |
 | NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
 | EVENT_SHARE_NOT_FOUND | 404 | (#274) 일정 공유 링크 없음, 만료, 끊김, 일정 삭제, 회차 취소, 회차 소멸 (구분하지 않는다). message "링크가 만료됐거나 끊겼어요" |
@@ -419,6 +421,7 @@ ActivityNewsItem = { kind: 'ACTIVITY', id: number,
       | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED'
       | 'EVENTS_IMPORTED'           // (#279)
       | 'EVENT_RSVP',               // (#190)
+      | 'POLL_CREATED'|'POLL_CLOSED',  // (#189)
   actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
   anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
   payload: ActivityPayload, createdAt, isNew }
@@ -428,6 +431,8 @@ ActivityPayload =
   | { from: string, to: string }                                // GROUP_RENAMED
   | { count: number }                                           // EVENTS_IMPORTED (#279)
   | { eventId, eventCode, occurrence: 'YYYY-MM-DD'|null, title, startsAt, endsAt, allDay, status: Rsvp }   // EVENT_RSVP (#190). occurrence 는 반복 회차만
+  | { pollId, code, title }                                     // POLL_CREATED (#189)
+  | { pollId, code, title, eventId, eventCode, eventLogId, startsAt, endsAt, allDay }   // POLL_CLOSED (#189). 정한 후보
   | {}                                                           // 멤버 3종
 ```
 
@@ -442,6 +447,8 @@ ActivityPayload =
 | GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
 | EVENTS_IMPORTED (#279) | `POST /groups/:id/imports` 끝 (2.9) | 넣은 일정 0개 |
 | EVENT_RSVP (#190) | `PUT .../events/:eventId/rsvp` 로 정하거나 바꿈 | 같은 값. 같은 사람이 같은 회차를 2분 안에 다시 바꾸면 새 줄 대신 그 줄을 고친다(시각도 지금으로). 취소(null)는 2분 안 줄만 지우고 새 줄은 없다 (D-227). 반응은 남기지 않는다 |
+| POLL_CREATED (#189) | `POST /groups/:id/polls` | 취소(`DELETE .../polls/:id`)하면 그 기록도 지운다 |
+| POLL_CLOSED (#189) | `POST .../polls/:id/confirm` | - . 이 확정으로 생긴 EventLog CREATED(payload `eventLogId`)는 v2 목록에서 숨기고 `unreadNewsCount` 에서도 뺀다 (D-236) |
 
 - 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
 - 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
@@ -462,6 +469,7 @@ ActivityPayload =
    (#190) 그 팀 일정의 내 참석 여부(EventRsvp), 반응(EventReaction) 삭제
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
+   (#189) 그 팀 약속 투표의 내 표(PollVote)와 대상 행(PollParticipant)도 지운다. 기록 없음
 3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
 ```
 
@@ -497,7 +505,8 @@ ActivityPayload =
 ```ts
 NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean,   // 기본 true
                          weekly: boolean,        // (#277) 주간 요약, 기본 true
-                         weeklyNudge: boolean }  // (#277) 다 같이 비는 시간(조용한 팀 깨우기), 기본 false (D-204)
+                         weeklyNudge: boolean,   // (#277) 다 같이 비는 시간(조용한 팀 깨우기), 기본 false (D-204)
+                         poll: boolean }         // (#189) 약속 투표(열림, 마감, 정함), 기본 true
 EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_BEFORE_0900'
 ```
 
@@ -637,6 +646,33 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 - 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음. 사용자에게 보이는 message 에는 "구독" 대신 "연결 주소" (D-221)
 - Sentry 는 `/ics/<토큰>` 경로를 지운다
 
+### 2.13 약속 투표 (#189, 설계 `약속-투표.md`, D-234 ~ D-241)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/polls` | 멤버 | `?status=open\|closed` (기본 open) | `{ data: PollSummary[] }`. 진행 중은 고를 후보가 남은 것 먼저, 마감 가까운 순(없음 뒤), 최근 연 순. 닫힌 것은 최근 30일 |
+| POST | `/groups/:groupId/polls` | 멤버 | `PollInput` | 201 `{ data: Poll }` + GroupActivity POLL_CREATED + 열림 알림 |
+| GET | `/polls/:code` | 멤버 | - | `{ data: Poll }`. 틀린 코드, 없는 투표, 비멤버 모두 404 |
+| PUT | `/groups/:groupId/polls/:pollId/votes` | 멤버 (대상) | `{ optionIds: number[] }` 내 "가능" 전체 (`[]` = 다 해제) | `{ data: Poll }` |
+| POST | `/groups/:groupId/polls/:pollId/confirm` | 멤버 | `{ optionId }` | 201 `{ data: { poll: Poll, event: Event, warning: 'BUSY_NOW'\|null } }` |
+| DELETE | `/groups/:groupId/polls/:pollId` | 멤버 | - | `{ data: { ok: true } }` 진행 중만 |
+
+```ts
+PollInput   = { title: string(1~50), options: { startsAt: ISO, endsAt: ISO, allDay: boolean }[] /* 2~5 */,
+                deadline?: ISO|null, participants?: 'ALL'|number[] /* 생략 = 'ALL' */ }
+Poll        = { id, publicCode, groupId, groupCode, title, status: 'OPEN'|'CLOSED', deadline: ISO|null, expired: boolean,
+                creator: Member|탈퇴자, createdAt, closedAt, eventId: number|null, eventCode: string|null, decidedOptionId: number|null,
+                participants: { all: boolean, members: Member[] },
+                options: { id, startsAt, endsAt, allDay, past: boolean, voters: Member[] }[], myVotes: number[], canVote: boolean }
+PollSummary = { id, publicCode, title, status, deadline, expired, eventId, eventCode, voterCount, targetCount, votedByMe, allPast, createdAt, closedAt }
+```
+
+- 검증 400 VALIDATION_FAILED: 개인 팀(field `groupId`), 제목, 후보 2~5개가 아님, 끝 <= 시작, 30일 초과, 지난 시작, 같은 구간 중복, 종일 후보가 KST 00:00 경계가 아님(field `options`), 지난 마감(`deadline`), 참여자 형식과 멤버(`participants`, 일정과 같은 규칙), 진행 중 10개 초과("진행 중인 투표가 너무 많아요"), 남의 후보(`optionIds`, `optionId`)
+- `expired` 는 읽을 때 계산 (`OPEN AND deadline <= now`). 마감 뒤 표는 409, 정하기는 된다 (D-235)
+- 지난 후보는 새로 켜거나 정하면 400 POLL_OPTION_PAST, 이미 켜 둔 표는 빠져도 남긴다 (D-238)
+- 정하기는 한 트랜잭션(일정 + CREATED 로그 + CLOSED + POLL_CLOSED + 정함 알림), 동시에 누르면 하나만 성공하고 나머지 409. 팀원 변경 알림 없음. 바빠진 대상이 있으면 `warning: 'BUSY_NOW'` (D-239)
+- 나가기: 그 팀 투표의 내 표와 대상 행 삭제(2.7). 탈퇴: Cascade
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -667,6 +703,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
+| 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
 
 ## 4. 개발 전용
 

@@ -69,6 +69,8 @@ export const config = {
     "/team/:path*",
     "/events",
     "/events/:path*",
+    // (#189) 약속 투표 (알림, 새 소식에서 연다)
+    "/polls/:path*",
     "/g/:path*",
     "/groups/:path*",
     "/me",
