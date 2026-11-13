@@ -1,5 +1,9 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
-import { Public } from '../auth/jwt-auth.guard.js';
+import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import type { Request } from 'express';
+import { extractBearer, Public, verifySessionClaims } from '../auth/jwt-auth.guard.js';
+import { assertFreshSession } from '../auth/link-tickets.service.js';
+import { ApiException } from '../common/errors.js';
 import { EmailCodeDto, EmailLinkDto, EmailLinkInspectDto, EmailRequestDto, EmailSignupDto } from './dto/email-login.dto.js';
 import { ClientIp, EmailLoginGuard } from './email-login.guard.js';
 import { AuthResult, EmailLoginService, LinkState } from './email-login.service.js';
@@ -12,12 +16,24 @@ import { AuthResult, EmailLoginService, LinkState } from './email-login.service.
 @UseGuards(EmailLoginGuard)
 @Controller('auth/email')
 export class EmailLoginController {
-  constructor(private readonly emailLogin: EmailLoginService) {}
+  constructor(
+    private readonly emailLogin: EmailLoginService,
+    private readonly jwt: JwtService,
+  ) {}
 
+  /**
+   * (#198) purpose LINK 는 로그인한 사용자의 이메일 연결 (D-257). 웹 서버가 X-Internal-Key 와 함께 세션을 Bearer 로 싣는다.
+   * 세션이 없거나 틀리면 401, 최근 로그인(10분)이 아니면 409 REAUTH_REQUIRED. 응답은 LOGIN 과 같다(가입 여부를 드러내지 않음)
+   */
   @Post('request')
   @HttpCode(200)
-  request(@Body() dto: EmailRequestDto, @ClientIp() clientIp: string): Promise<{ cooldownSec: number; expiresInSec: number }> {
-    return this.emailLogin.request({ email: dto.email, next: dto.next, clientIp });
+  async request(@Body() dto: EmailRequestDto, @ClientIp() clientIp: string, @Req() req: Request): Promise<{ cooldownSec: number; expiresInSec: number }> {
+    if (dto.purpose !== 'LINK') return this.emailLogin.request({ email: dto.email, next: dto.next, clientIp });
+    const token = extractBearer(req.headers.authorization);
+    const claims = token ? await verifySessionClaims(this.jwt, token) : null;
+    if (!claims) throw new ApiException('UNAUTHORIZED');
+    assertFreshSession(claims.iat);
+    return this.emailLogin.request({ email: dto.email, clientIp, linkUserId: claims.sub });
   }
 
   @Post('link/inspect')

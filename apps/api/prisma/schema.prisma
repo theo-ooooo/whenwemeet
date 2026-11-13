@@ -62,6 +62,8 @@ model User {
   files         File[]        @relation("FileOwner")
   authAccounts  AuthAccount[]
   authHandoffs  AuthHandoff[]
+  /// (#198) 내가 시작한 로그인 방법 연결의 1회용 티켓
+  authLinkTickets AuthLinkTicket[]
   memberships   Membership[]
   createdEvents Event[]       @relation("EventCreator")
   anniversaries Anniversary[] @relation("AnniversaryCreator")
@@ -218,6 +220,38 @@ model AuthHandoff {
   @@index([expiresAt])
 }
 
+/// (#198) 로그인 방법 연결: 웹 OAuth(카카오, Apple)로 받은 두 번째 로그인 결과. 세션이 아니다 (D-257).
+/// 연결을 시작한 사용자에게 묶이고 5분 1회용. 원문은 주소에만 있고 여기에는 sha256hex 만. 하루 지난 행은 발급 때 지운다
+model AuthLinkTicket {
+  id               Int          @id @default(autoincrement())
+  /// 연결을 시작한 사용자. 다른 사용자의 세션으로는 쓸 수 없다
+  userId           Int
+  /// sha256hex(티켓)
+  tokenHash        String       @unique @db.Char(64)
+  provider         AuthProvider
+  providerUserId   String       @db.VarChar(191)
+  email            String?      @db.VarChar(255)
+  rawProfile       Json?
+  /// Apple 토큰 폐기용 (D-51). Apple 만
+  providerClientId String?      @db.VarChar(191)
+  refreshToken     String?      @db.Text
+  expiresAt        DateTime
+  /// 소비한 시각. null 이 아니면 재사용 불가
+  usedAt           DateTime?
+  createdAt        DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// (#198) 이메일 메일의 쓰임. LOGIN 로그인(링크 + 코드), LINK 로그인한 사용자의 이메일 연결(코드만, D-257)
+enum EmailLoginPurpose {
+  LOGIN
+  LINK
+}
+
 /// (#245) 이메일 로그인 메일 1통 = 1행. 링크와 코드, 틀린 횟수, 횟수 제한의 근거, 처음 가입 티켓까지 담는다 (D-111)
 /// User 와 FK 없음(가입 전에도 생긴다). 탈퇴 시 같은 email 행을 지운다. 30일 뒤 삭제
 model EmailLoginChallenge {
@@ -247,6 +281,10 @@ model EmailLoginChallenge {
   /// 처음 가입 티켓 sha256hex. 닉네임 제출 때 1회 소비하고 null 로 (D-114)
   signupTokenHash   String?         @unique @db.Char(64)
   signupExpiresAt   DateTime?
+  /// (#198) LOGIN 이 아니면 로그인에 쓰지 못한다. LINK 는 userId 사용자만 연결에 쓴다 (D-257)
+  purpose           EmailLoginPurpose @default(LOGIN)
+  /// (#198) LINK 를 요청한 사용자. FK 없음(이 표는 User 와 FK 를 두지 않는다). 탈퇴, 흡수 때 같은 userId 행을 지운다
+  userId            Int?
   createdAt         DateTime        @default(now())
 
   @@index([email, createdAt])

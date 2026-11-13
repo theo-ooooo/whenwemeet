@@ -488,3 +488,15 @@ export type PollInput = { title: string; options: PollOptionInput[]; deadline?: 
 
 /** 정하기 응답. warning BUSY_NOW = 그 사이 대상 중 누가 그 시간에 일정이 생겼다 (정하기는 됐다) */
 export type PollConfirmResult = { poll: Poll; event: Event; warning: "BUSY_NOW" | null };
+
+/** (#198) 내 정보 > 로그인 방법 한 줄 (GET /me/auth-accounts) */
+export type AuthAccount = {
+  id: number;
+  provider: "KAKAO" | "APPLE" | "EMAIL" | "GOOGLE" | "NAVER" | "DEV";
+  /** 이메일은 가린 주소, 카카오 "카카오 계정", Apple "Apple ID" */
+  label: string;
+  createdAt: string;
+};
+
+/** (#198) POST /me/auth-accounts 결과 */
+export type LinkResult = { account: AuthAccount; absorbed: boolean };

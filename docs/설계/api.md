@@ -33,6 +33,11 @@
 | NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요". (#189) 약속 투표 대상이 아닌데 표를 보냄. message "이 투표의 대상이 아니에요" |
 | POLL_CLOSED | 409 | (#189) 정한 투표에 표, 정하기, 취소 ("이미 정해진 투표예요"), 마감 지난 투표에 표 ("투표가 끝났어요") |
 | EVENT_RESTORE_CONFLICT | 409 | (#375) 삭제를 되돌리려는데 그 사이 일정이 바뀌었다 ("그 사이 일정이 바뀌어서 되돌리지 못했어요", D-251) |
+| LINK_TICKET_INVALID | 400 | (#198) 로그인 방법 연결 티켓이 없음, 만료(5분), 사용됨, 다른 사용자가 시작함 (구분하지 않는다). 연결 시작 표식이 틀려도 웹 `/me/link?error=LINK_TICKET_INVALID` |
+| REAUTH_REQUIRED | 409 | (#198) 로그인 방법 연결 시작, 연결, 이메일 연결 메일 요청인데 세션 JWT `iat` 가 10분을 넘음 ("보안을 위해 다시 로그인해 주세요", D-257) |
+| PROVIDER_ALREADY_LINKED | 409 | (#198) 같은 제공자를 이미 연결함 (한 제공자당 하나) |
+| AUTH_ACCOUNT_IN_USE | 409 | (#198) 연결하려는 로그인이 다른 계정에 있고 그 계정이 비어 있지 않음 (D-257 판정) |
+| LAST_AUTH_ACCOUNT | 409 | (#198) 마지막 로그인 방법 해제 |
 | POLL_OPTION_PAST | 400 | (#189) 시작이 지난 후보를 새로 켜거나 정함. message "이미 지난 시간이에요" |
 | NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
@@ -119,7 +124,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/health` | 없음 | - | `{ data: { ok: true } }`. DB 에 `SELECT 1` 을 보내 실패하면 503 DB_UNAVAILABLE |
-| GET | `/auth/kakao` | 없음 | 쿼리 `next?` (같은 출처 상대 경로 + 쿼리, 예 `/join/ABC123?auto=1`. 규칙은 인증흐름.md 2단계, 어긋나면 `/`. 기본 `/`) | 302 → kauth 인가 페이지 |
+| GET | `/auth/kakao` | 없음 | 쿼리 `next?` (같은 출처 상대 경로 + 쿼리, 예 `/join/ABC123?auto=1`. 규칙은 인증흐름.md 2단계, 어긋나면 `/`. 기본 `/`). (#198) `mode=link&intent=` 면 로그인 방법 연결(아래 "로그인 방법") | 302 → kauth 인가 페이지 |
 | GET | `/auth/kakao/callback` | 없음 | 쿼리 `code`, `state` | 302 → `${WEB_ORIGIN}/auth/callback?token=<JWT>&next=<경로+쿼리, URL 인코딩>`. 실패 시 302 → `${WEB_ORIGIN}/login?error=<code>` |
 | POST | `/auth/kakao/native` | 없음 | `{ accessToken, codeChallenge }` | `{ data: { handoff, expiresIn } }`. 앱 전용, 앱.md 3.1 |
 | POST | `/auth/apple/native` | 없음 | `{ identityToken, authorizationCode, nonce, nickname?, codeChallenge }` | `{ data: { handoff, expiresIn } }`. iOS 앱 전용, 앱.md 3.3 |
@@ -132,7 +137,26 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
 | PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
-| DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
+| DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제. (#198) 내가 요청한 이메일 연결 메일 행도 지운다 |
+
+**로그인 방법 (#198, D-257)** — 카카오, Apple, 이메일을 한 사용자에 연결하고 해제한다. 연결은 **세션(최근 로그인, JWT `iat` 10분 이내) + 두 번째 로그인의 소유 증명** 둘 다로만 한다. 자동 병합(같은 이메일) 없음. POST 응답은 `Cache-Control: no-store`, 요청 제한 `login`
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/me/auth-accounts` | 유저 | - | `{ data: AuthAccountView[] }` 카카오, Apple, 이메일 순 |
+| POST | `/me/auth-accounts/link-start` | 유저 + 최근 로그인 | `{ provider: 'KAKAO' \| 'APPLE' }` | `{ data: { intent, expiresIn: 600 } }`. 웹 OAuth 연결 시작 표식(시작한 사용자 id 를 JWT_SECRET 로 서명, `typ: wwm-link-intent`, sub 없음이라 세션으로 쓰이지 않음, 10분). 웹 `/me/link/start` route handler 만 부른다. 409 REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, 503 미설정 |
+| POST | `/me/auth-accounts` | 유저 + 최근 로그인 | 넷 중 하나: `{ ticket }` \| `{ provider: 'KAKAO', accessToken }` \| `{ provider: 'APPLE', identityToken, authorizationCode, nonce }` \| `{ provider: 'EMAIL', email, code }` | `{ data: { account: AuthAccountView, absorbed: boolean } }`. 이미 내 것이면 200 그대로(`absorbed: false`). 400 LINK_TICKET_INVALID, EMAIL_CODE_*, 401 SOCIAL_TOKEN_INVALID, 409 REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE |
+| DELETE | `/me/auth-accounts/:id` | 유저 | - | `{ data: { ok: true } }`. 제공자 unlink(카카오 연결 끊기, Apple 토큰 폐기)를 먼저 하고 실패하면 502 KAKAO_ERROR \| APPLE_ERROR 로 DB 그대로 (탈퇴와 같은 원칙). 마지막 하나면 409 LAST_AUTH_ACCOUNT, 남의 것이나 없음은 404. 이메일이면 그 이메일 발송 기록도 지운다. 세션은 그대로 |
+
+```ts
+AuthAccountView = { id, provider: 'KAKAO' | 'APPLE' | 'EMAIL' | ..., label, createdAt }
+// label: 이메일은 가린 주소(ki***@gmail.com), 카카오 "카카오 계정", Apple "Apple ID"(이메일을 받지 않아 주소를 보일 수 없다, D-50)
+```
+- **웹 OAuth(카카오, Apple)**: 웹 `POST /me/link/start`(form, 같은 출처) → `link-start` 로 intent → 302 `/v1/auth/<kakao|apple>?mode=link&intent=&next=` (표식이 틀리면 OAuth 로 가지 않고 웹 `/me/link?error=LINK_TICKET_INVALID`). intent 는 OAuth state 에 실려 콜백에서 다시 검증한다. 콜백은 로그인하지 않고 **연결 티켓**(`AuthLinkTicket`: 32바이트 랜덤, DB 에는 sha256hex 만, 5분, 1회, 시작한 사용자 `userId` 에 묶임, Apple 은 refresh token 포함)을 만들어 302 `${WEB_ORIGIN}/me/link?ticket=&next=` (실패는 `?error=&next=`). 웹 `/me/link` route handler 가 그 기기 세션으로 `POST /me/auth-accounts { ticket }`. 티켓은 세션 사용자 = 시작한 사용자일 때만 소비된다(다른 세션은 400 이고 소비되지 않음)
+- **앱 토큰**: `/auth/kakao/native`(access_token_info 의 app_id), `/auth/apple/native`(번들 ID aud, nonce 필수, 코드 교환, sub 일치) 와 같은 검증. 셸 브리지 `linkAccount` 는 앱 후속(1.3.0)
+- **이메일**: `POST /auth/email/request { email, purpose: 'LINK' }` 를 웹 서버가 `X-Internal-Key` + 세션 Bearer 로 부른다(세션 없거나 틀림 401, 오래됨 409 REAUTH_REQUIRED). 행은 `purpose LINK, userId`, 메일은 코드만(로그인 링크 없음, 심사 계정 예외 없음). 같은 쓰임끼리만 이전 메일을 무효로 하고, LINK 코드는 `/auth/email/code`, `/auth/email/link` 로그인에 쓰이지 않는다. 확인은 `POST /me/auth-accounts { provider: 'EMAIL', email, code }` 가 그 사용자의 살아 있는 최신 LINK 행과 대조(틀린 횟수, 잠금, 만료는 로그인 코드와 같은 규칙). 이슈 초안의 `challengeId` 대신 email 로 찾는다(로그인 코드 경로와 같은 방식, id 를 밖에 내지 않음)
+- **연결 판정(한 트랜잭션)**: 내 User 행 `FOR UPDATE` → 연결하려는 `(provider, providerUserId)` 행 `FOR UPDATE` → 내 것이면 200 → 내가 같은 제공자를 가졌으면 409 PROVIDER_ALREADY_LINKED → 다른 사용자(B) 것이면 B 를 잠그고 빈 계정 판정, 아니면 409 AUTH_ACCOUNT_IN_USE → 비었으면 **흡수**: B 의 개인 팀, AuthHandoff, PushDevice, LINK 메일 행, 파일 행을 지우고 그 AuthAccount 를 나에게 옮긴 뒤 B 삭제(제공자 unlink 안 함, 파일 객체는 커밋 뒤 삭제). B 의 다른 기기 세션은 다음 요청에서 401. 없으면 새로 만든다. 동시 생성의 유일키 충돌, 교착은 한 번 다시 판정
+- **빈 계정(B)**: 연결 계정이 그 하나뿐, 멤버십은 개인 팀 하나뿐, 개인 팀에 다른 멤버, 일정, 기념일, 할 일 목록, 투표, 가져오기, 공유 링크, 새 소식 기록, 팀 활동, 삭제 보관, 구독 주소, 알림 묶음이 0, 사용자 단위로 만든 일정과 기념일, 기록, 활동, 가져오기, 일정 참여, 공유 링크, 할 일(만들기, 고치기, 완료), 구독 주소, 참석 응답, 반응, 투표(만들기, 표, 대상), 알림 설정 행, 삭제 보관, 사진 밖의 파일이 0, 생일 없음, 처음 여는 달력 LAST, 생일 알림 시점 기본(당일). 하나라도 있으면 막는다. User, Group 의 관계가 늘면 `auth-accounts.repository.spec` 의 스키마 대조 테스트가 깨진다
 
 **이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
 

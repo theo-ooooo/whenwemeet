@@ -172,6 +172,8 @@ export type Store = {
   activities?: ActivityRow[];
   /** (#188) 없으면 빈 목록 */
   pushDevices?: PushDeviceRow[];
+  /** (#198) 로그인 방법 (D-257). 없으면 첫 조회 때 나는 카카오 하나로 채운다 */
+  authAccounts?: { id: number; userId: number; provider: "KAKAO" | "APPLE" | "EMAIL"; label: string; createdAt: string }[];
   /** (#276) 없으면 빈 목록 */
   todoLists?: TodoListRow[];
   todoItems?: TodoItemRow[];

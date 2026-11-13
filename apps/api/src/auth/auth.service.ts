@@ -11,6 +11,8 @@ import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js
 export interface OAuthState {
   nonce: string;
   next: string;
+  /** (#198) 로그인 방법 연결이면 시작 표식(서명된 JWT, D-257). 콜백이 다시 검증한다 */
+  intent?: string;
 }
 
 export interface AuthUser {
@@ -37,9 +39,10 @@ export class AuthService {
   }
 
   /** nonce 는 32바이트 랜덤 hex. state 는 서명하지 않는다 (결정기록 D-08) */
-  createState(next: string): { nonce: string; state: string } {
+  createState(next: string, intent?: string): { nonce: string; state: string } {
     const nonce = randomBytes(32).toString('hex');
-    const state = Buffer.from(JSON.stringify({ nonce, next } satisfies OAuthState), 'utf8').toString('base64url');
+    const value: OAuthState = intent ? { nonce, next, intent } : { nonce, next };
+    const state = Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
     return { nonce, state };
   }
 
@@ -48,7 +51,8 @@ export class AuthService {
     try {
       const parsed = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as Partial<OAuthState>;
       if (typeof parsed.nonce !== 'string' || !parsed.nonce) return null;
-      return { nonce: parsed.nonce, next: this.sanitizeNext(parsed.next) };
+      const next = this.sanitizeNext(parsed.next);
+      return typeof parsed.intent === 'string' && parsed.intent ? { nonce: parsed.nonce, next, intent: parsed.intent } : { nonce: parsed.nonce, next };
     } catch {
       return null;
     }

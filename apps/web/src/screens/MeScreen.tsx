@@ -1,11 +1,11 @@
 "use client";
 // 내 정보 (#378, 나머지 화면 점검 4). 팀 화면 뼈대(AppShell) 안이라 위 앱 머리줄과 독이 있다.
 // 머리줄 "‹ 내 정보"(넓은 화면은 사이드바가 있어 ‹ 없음) → 프로필 칸(누르면 사진과 닉네임 시트, "바꾸기" 버튼 없음)
-// → 줄 묶음(내 생일, 처음 여는 달력, 알림) → 화면 테마 → 길찾기 지도 → 내 팀 → 로그아웃, 약관, 탈퇴
+// → 줄 묶음(내 생일, 처음 여는 달력, 알림, 로그인 방법) → 화면 테마 → 길찾기 지도 → 내 팀 → 로그아웃, 약관, 탈퇴
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCamera, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { IconBell, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameForm } from "@/components/NameSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -340,6 +340,8 @@ export function MeScreen() {
               <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
               <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
+              {/* (#198) 카카오, Apple, 이메일 연결과 해제 (D-257) */}
+              <RowLink href="/me/accounts" label="로그인 방법" icon={<IconKey size={18} />} value="" />
             </RowGroup>
             <RowGroup title={`내 팀${groups ? ` ${groups.length}개` : ""}`}>
               {groups

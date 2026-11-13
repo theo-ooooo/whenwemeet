@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375), LINK_TICKET_INVALID, REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE, LAST_AUTH_ACCOUNT 는 로그인 방법 연결 (#198, D-257) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -14,6 +14,7 @@ export const ERROR_STATUS = {
   EVENT_SHARE_ENDED: 400,
   TODO_LIMIT_REACHED: 400,
   POLL_OPTION_PAST: 400,
+  LINK_TICKET_INVALID: 400,
   UNAUTHORIZED: 401,
   SOCIAL_TOKEN_INVALID: 401,
   HANDOFF_INVALID: 401,
@@ -25,6 +26,10 @@ export const ERROR_STATUS = {
   EVENT_SHARE_NOT_FOUND: 404,
   POLL_CLOSED: 409,
   EVENT_RESTORE_CONFLICT: 409,
+  REAUTH_REQUIRED: 409,
+  PROVIDER_ALREADY_LINKED: 409,
+  AUTH_ACCOUNT_IN_USE: 409,
+  LAST_AUTH_ACCOUNT: 409,
   PAYLOAD_TOO_LARGE: 413,
   EMAIL_RATE_LIMITED: 429,
   RATE_LIMITED: 429,
@@ -59,6 +64,11 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   POLL_OPTION_PAST: '이미 지난 시간이에요',
   POLL_CLOSED: '이미 정해진 투표예요',
   EVENT_RESTORE_CONFLICT: '그 사이 일정이 바뀌어서 되돌리지 못했어요',
+  LINK_TICKET_INVALID: '연결 시간이 지났어요. 다시 시도해 주세요',
+  REAUTH_REQUIRED: '보안을 위해 다시 로그인해 주세요',
+  PROVIDER_ALREADY_LINKED: '이미 연결된 로그인 방법이에요',
+  AUTH_ACCOUNT_IN_USE: '이 로그인으로 만든 다른 계정이 있어요',
+  LAST_AUTH_ACCOUNT: '마지막 로그인 방법은 해제할 수 없어요',
   UNAUTHORIZED: '로그인이 필요해요',
   SOCIAL_TOKEN_INVALID: '로그인 정보를 확인하지 못했어요. 다시 시도해 주세요',
   HANDOFF_INVALID: '로그인이 만료됐어요. 다시 시도해 주세요',

@@ -32,6 +32,10 @@ describe('AppleAuthService', () => {
   const appAuth = { issueHandoff: vi.fn(async () => ({ handoff: 'H'.repeat(43), expiresIn: 60 })) };
   const configValues: Record<string, string> = { WEB_ORIGIN: 'http://localhost:3000', APPLE_REDIRECT_URI: APPLE_TEST_ENV.APPLE_REDIRECT_URI };
   const config = { getOrThrow: (key: string) => configValues[key] };
+  const linkTickets = {
+    verifyIntent: vi.fn(async (intent: unknown) => (intent === 'GOOD-INTENT' ? 5 : null)),
+    issue: vi.fn(async () => 'T'.repeat(43)),
+  };
   let service: AppleAuthService;
 
   beforeEach(() => {
@@ -42,7 +46,8 @@ describe('AppleAuthService', () => {
     auth.login.mockReset().mockResolvedValue({ id: 8, nickname: 'x', profileImageUrl: null, createdAt: new Date() });
     auth.signToken.mockClear();
     appAuth.issueHandoff.mockClear();
-    service = new AppleAuthService(apple as never, auth as never, appAuth as never, config as never);
+    linkTickets.issue.mockClear();
+    service = new AppleAuthService(apple as never, auth as never, appAuth as never, config as never, linkTickets as never);
   });
 
   describe('loginNative (앱.md 3.3)', () => {
@@ -171,6 +176,39 @@ describe('AppleAuthService', () => {
         'http://localhost:3000/login?error=APPLE_CANCELLED',
       );
       expect(await service.completeWeb({ state: webState, cookieNonce: 'N', error: 'invalid_request' })).toBe('http://localhost:3000/login?error=APPLE_ERROR');
+    });
+
+    describe('(#198) 연결 state(intent)', () => {
+      const linkState = stateOf({ nonce: 'N', next: '/me/accounts', intent: 'GOOD-INTENT' });
+
+      it('로그인하지 않고 시작한 사용자에게 묶인 티켓만 만들어 /me/link 로', async () => {
+        const location = await service.completeWeb({ code: 'C', state: linkState, cookieNonce: 'N' });
+        expect(location).toBe(`http://localhost:3000/me/link?ticket=${'T'.repeat(43)}&next=%2Fme%2Faccounts`);
+        expect(auth.login).not.toHaveBeenCalled();
+        expect(auth.signToken).not.toHaveBeenCalledWith(5);
+        expect(linkTickets.issue).toHaveBeenCalledWith(5, 'APPLE', expect.objectContaining({
+          providerUserId: 'sub-1',
+          credentials: { providerClientId: APPLE_TEST_ENV.APPLE_SERVICE_ID, refreshToken: 'RT' },
+        }));
+      });
+
+      it('표식이 틀리면 교환하지 않고 LINK_TICKET_INVALID, 실패와 취소는 /me/link?error=', async () => {
+        const bad = stateOf({ nonce: 'N', next: '/me/accounts', intent: 'forged' });
+        expect(await service.completeWeb({ code: 'C', state: bad, cookieNonce: 'N' })).toBe('http://localhost:3000/me/link?error=LINK_TICKET_INVALID&next=%2Fme%2Faccounts');
+        expect(apple.exchangeCode).not.toHaveBeenCalled();
+        expect(await service.completeWeb({ state: linkState, cookieNonce: 'N', error: 'user_cancelled_authorize' })).toBe(
+          'http://localhost:3000/me/link?error=APPLE_CANCELLED&next=%2Fme%2Faccounts',
+        );
+        apple.exchangeCode.mockRejectedValueOnce(new ApiException('SOCIAL_TOKEN_INVALID'));
+        expect(await service.completeWeb({ code: 'C', state: linkState, cookieNonce: 'N' })).toBe(
+          'http://localhost:3000/me/link?error=SOCIAL_TOKEN_INVALID&next=%2Fme%2Faccounts',
+        );
+      });
+
+      it('start 는 intent 를 state 에 싣고 parseState 가 돌려준다', () => {
+        const { nonce, url } = service.start('/me/accounts', 'GOOD-INTENT');
+        expect(service.parseState(new URL(url).searchParams.get('state')!)).toEqual({ nonce, next: '/me/accounts', intent: 'GOOD-INTENT' });
+      });
     });
 
     it('검증, 교환 실패는 그 코드로, 예상 밖 오류는 APPLE_ERROR 로 리다이렉트', async () => {

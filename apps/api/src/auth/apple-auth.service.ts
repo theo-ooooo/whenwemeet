@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import { AppAuthService, type HandoffIssued } from './app-auth.service.js';
 import { AuthService } from './auth.service.js';
+import { linkFailureUrl, linkTicketUrl } from './link-urls.js';
+import { LinkTicketsService } from './link-tickets.service.js';
 import { sha256hex } from './pkce.js';
 import type { ProviderProfile } from './providers/auth-provider.js';
 import { AppleProvider } from './providers/apple.provider.js';
@@ -19,6 +21,8 @@ const NICKNAME_MAX_LENGTH = 20;
 export interface AppleState {
   nonce: string;
   next: string;
+  /** (#198) 로그인 방법 연결이면 시작 표식 (D-257) */
+  intent?: string;
 }
 
 /** POST /auth/apple/callback 의 form_post 본문 중 쓰는 것 */
@@ -38,6 +42,9 @@ export interface AppleNativeInput {
   nickname?: string;
   codeChallenge: string;
 }
+
+/** (#198) 네이티브 검증만 (로그인, 연결 공용) */
+export type AppleNativeProof = Pick<AppleNativeInput, 'identityToken' | 'authorizationCode' | 'nonce'>;
 
 const HANGUL_ONLY = /^[가-힣]+$/;
 
@@ -59,6 +66,7 @@ export class AppleAuthService {
     private readonly auth: AuthService,
     private readonly appAuth: AppAuthService,
     private readonly config: ConfigService,
+    private readonly linkTickets: LinkTicketsService,
   ) {}
 
   /**
@@ -66,6 +74,16 @@ export class AppleAuthService {
    * → 코드 교환(client_id = 번들 ID) → 교환 id_token 검증과 sub 일치 → login + refresh token 저장 → handoff
    */
   async loginNative(input: AppleNativeInput): Promise<HandoffIssued> {
+    const nickname = input.nickname?.trim().slice(0, NICKNAME_MAX_LENGTH) || APPLE_DEFAULT_NICKNAME;
+    const user = await this.auth.login(this.apple.provider, await this.verifyNative(input, nickname));
+    return this.appAuth.issueHandoff(user.id, input.codeChallenge);
+  }
+
+  /**
+   * 네이티브 증명 검증 → 프로필. 로그인(loginNative)과 로그인 방법 연결(#198, POST /me/auth-accounts)이 같이 쓴다.
+   * identity token(aud = 번들 ID, nonce 필수) → 코드 교환 → 교환 id_token 의 sub 일치
+   */
+  async verifyNative(input: AppleNativeProof, nickname = APPLE_DEFAULT_NICKNAME): Promise<ProviderProfile> {
     this.apple.assertConfigured();
     const audience = this.apple.bundleId();
     const nonce = sha256hex(input.nonce);
@@ -73,20 +91,18 @@ export class AppleAuthService {
     const tokens = await this.apple.exchangeCode(input.authorizationCode, audience);
     const exchanged = await this.apple.verifyIdToken(tokens.idToken, { audience, nonce, nonceRequired: false });
     if (exchanged.sub !== sub) throw new ApiException('SOCIAL_TOKEN_INVALID');
-
-    const nickname = input.nickname?.trim().slice(0, NICKNAME_MAX_LENGTH) || APPLE_DEFAULT_NICKNAME;
-    const user = await this.auth.login(this.apple.provider, this.profile(sub, nickname, audience, tokens.refreshToken));
-    return this.appAuth.issueHandoff(user.id, input.codeChallenge);
+    return this.profile(sub, nickname, audience, tokens.refreshToken);
   }
 
   /**
    * GET /auth/apple (앱.md 3.4, 웹 전용).
    * 쿠키에 심을 nonce 와 Apple 인가 주소를 돌려준다. 설정이 없으면 503
    */
-  start(nextRaw: unknown): { nonce: string; url: string } {
+  start(nextRaw: unknown, intent?: string): { nonce: string; url: string } {
     this.apple.assertConfigured();
     const nonce = randomBytes(32).toString('hex');
-    const state: AppleState = { nonce, next: this.auth.sanitizeNext(nextRaw) };
+    const next = this.auth.sanitizeNext(nextRaw);
+    const state: AppleState = intent ? { nonce, next, intent } : { nonce, next };
     const encoded = Buffer.from(JSON.stringify(state), 'utf8').toString('base64url');
     return { nonce, url: this.apple.authorizeUrl(encoded, nonce) };
   }
@@ -96,7 +112,8 @@ export class AppleAuthService {
     try {
       const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<AppleState>;
       if (typeof parsed.nonce !== 'string' || !parsed.nonce) return null;
-      return { nonce: parsed.nonce, next: this.auth.sanitizeNext(parsed.next) };
+      const next = this.auth.sanitizeNext(parsed.next);
+      return typeof parsed.intent === 'string' && parsed.intent ? { nonce: parsed.nonce, next, intent: parsed.intent } : { nonce: parsed.nonce, next };
     } catch {
       return null;
     }
@@ -109,20 +126,30 @@ export class AppleAuthService {
   async completeWeb(input: AppleCallbackInput): Promise<string> {
     const state = this.parseState(input.state);
     if (!state || !input.cookieNonce || input.cookieNonce !== state.nonce) return this.failureUrl('OAUTH_STATE');
-    if (input.error) return this.failureUrl(input.error === 'user_cancelled_authorize' ? 'APPLE_CANCELLED' : 'APPLE_ERROR');
-    if (!input.code) return this.failureUrl('OAUTH_STATE');
+    // (#198) 연결이면 실패도 내 정보 연결 착지(/me/link)로 돌아간다
+    const fail = (code: string) => (state.intent ? linkFailureUrl(this.webOrigin(), code, state.next) : this.failureUrl(code));
+    if (input.error) return fail(input.error === 'user_cancelled_authorize' ? 'APPLE_CANCELLED' : 'APPLE_ERROR');
+    if (!input.code) return fail('OAUTH_STATE');
+    const linkUserId = state.intent ? await this.linkTickets.verifyIntent(state.intent, 'APPLE') : null;
+    if (state.intent && linkUserId === null) return fail('LINK_TICKET_INVALID');
 
     try {
       this.apple.assertConfigured();
       const clientId = this.apple.serviceId();
       const tokens = await this.apple.exchangeCode(input.code, clientId, this.config.getOrThrow<string>('APPLE_REDIRECT_URI').trim());
       const { sub } = await this.apple.verifyIdToken(tokens.idToken, { audience: clientId, nonce: state.nonce, nonceRequired: false });
-      const user = await this.auth.login(this.apple.provider, this.profile(sub, nicknameFromUserJson(input.user), clientId, tokens.refreshToken));
+      const profile = this.profile(sub, nicknameFromUserJson(input.user), clientId, tokens.refreshToken);
+      if (linkUserId !== null) {
+        // (#198) 로그인하지 않고 시작한 사용자에게 묶인 5분 1회용 연결 티켓만 만든다 (D-257)
+        const ticket = await this.linkTickets.issue(linkUserId, 'APPLE', profile);
+        return linkTicketUrl(this.webOrigin(), ticket, state.next);
+      }
+      const user = await this.auth.login(this.apple.provider, profile);
 
       const token = await this.auth.signToken(user.id);
       return `${this.webOrigin()}/auth/callback?${new URLSearchParams({ token, next: state.next }).toString()}`;
     } catch (error) {
-      return this.failureUrl(error instanceof ApiException ? error.code : 'APPLE_ERROR');
+      return fail(error instanceof ApiException ? error.code : 'APPLE_ERROR');
     }
   }
 

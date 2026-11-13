@@ -9,6 +9,8 @@ import type { Store } from "./fixtures";
 
 type Result = { status: number; body: unknown };
 type Challenge = {
+  /** (#198) LINK 는 로그인 방법 연결 코드 (로그인에 못 쓴다) */
+  purpose?: "LOGIN" | "LINK";
   email: string;
   createdAt: number;
   next: string;
@@ -98,10 +100,11 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
         retryAfterSec: Math.ceil((COOLDOWN_MS - (now - last.createdAt)) / 1000),
       });
     }
-    for (const c of st.challenges) if (c.email === email && alive(c, now)) c.invalidatedAt = now;
+    const purpose = body?.purpose === "LINK" ? "LINK" : "LOGIN";
+    for (const c of st.challenges) if (c.email === email && (c.purpose ?? "LOGIN") === purpose && alive(c, now)) c.invalidatedAt = now;
     const next = typeof body?.next === "string" && body.next.startsWith("/") ? body.next : "/";
-    st.challenges.push({ email, createdAt: now, next, attempts: 0, usedAt: null, invalidatedAt: null, signupToken: null, signupExpiresAt: 0 });
-    console.info(`[mock email] ${email} 링크 /auth/email?token=mock 코드 ${MOCK_EMAIL_CODE}`);
+    st.challenges.push({ purpose, email, createdAt: now, next, attempts: 0, usedAt: null, invalidatedAt: null, signupToken: null, signupExpiresAt: 0 });
+    console.info(purpose === "LINK" ? `[mock email] ${email} 연결 코드 ${MOCK_EMAIL_CODE}` : `[mock email] ${email} 링크 /auth/email?token=mock 코드 ${MOCK_EMAIL_CODE}`);
     return ok({ cooldownSec: 60, expiresInSec: 900 });
   }
 
@@ -127,7 +130,7 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
     const email = normalizeEmail(typeof body?.email === "string" ? body.email : "");
     const code = typeof body?.code === "string" ? body.code : "";
     if (!/^\d{6}$/.test(code)) return err(400, "VALIDATION_FAILED", "코드는 숫자 6자리예요");
-    const c = st.challenges.filter((x) => x.email === email && alive(x, now)).at(-1);
+    const c = st.challenges.filter((x) => x.email === email && (x.purpose ?? "LOGIN") === "LOGIN" && alive(x, now)).at(-1);
     if (!c) return err(400, "EMAIL_CODE_EXPIRED", "코드가 만료됐어요. 메일을 다시 받아 주세요");
     if (code !== MOCK_EMAIL_CODE) {
       c.attempts += 1;
@@ -152,4 +155,25 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
   }
 
   return err(404, "NOT_FOUND", "요청한 주소가 없어요");
+}
+
+/**
+ * (#198) 로그인 방법 연결 코드 확인 (POST /me/auth-accounts { provider: EMAIL }). 맞으면 null(성공), 아니면 오류 응답.
+ * 규칙은 로그인 코드와 같다 (000000, 5번 틀리면 잠김)
+ */
+export function consumeMockLinkCode(rawEmail: string, code: string): Result | null {
+  const email = normalizeEmail(rawEmail);
+  const now = Date.now();
+  const c = state().challenges.filter((x) => x.email === email && x.purpose === "LINK" && alive(x, now)).at(-1);
+  if (!c) return err(400, "EMAIL_CODE_EXPIRED", "코드가 만료됐어요. 메일을 다시 받아 주세요");
+  if (code !== MOCK_EMAIL_CODE) {
+    c.attempts += 1;
+    if (c.attempts >= 5) {
+      c.invalidatedAt = now;
+      return err(400, "EMAIL_CODE_LOCKED", "코드를 5번 틀렸어요. 메일을 다시 받아 주세요");
+    }
+    return err(400, "EMAIL_CODE_INVALID", "코드가 맞지 않아요", { attemptsLeft: 5 - c.attempts });
+  }
+  c.usedAt = now;
+  return null;
 }

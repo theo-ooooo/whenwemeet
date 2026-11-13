@@ -64,7 +64,12 @@ export class AvatarsService {
 
   /** 탈퇴 전에 이 사용자의 객체를 전부 지운다. 행은 탈퇴 트랜잭션이 지운다 */
   async purgeObjects(userId: number): Promise<void> {
-    for (const file of await this.files.listByOwner(userId)) await this.deleteObjectQuietly(file);
+    await this.purgeFiles(await this.files.listByOwner(userId));
+  }
+
+  /** (#198) 이미 행을 지운 파일들의 저장소 객체 삭제 (빈 계정 흡수 뒤, D-257). 실패는 로그만 */
+  async purgeFiles(files: readonly Omit<StoredObjectRef, 'id'>[]): Promise<void> {
+    for (const file of files) await this.deleteObjectQuietly(file);
   }
 
   private async store(userId: number, source: Buffer, sourceUrl: string | null): Promise<string> {
