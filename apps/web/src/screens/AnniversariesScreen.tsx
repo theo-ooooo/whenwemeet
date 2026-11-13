@@ -5,7 +5,7 @@ import { useToast } from "@/components/Toast";
 import { IconHeart, IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
 import { ReminderNote } from "@/components/ReminderPicker";
-import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, inputClass } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, captionClass, inputClass } from "@/components/ui";
 import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
 import {
@@ -212,7 +212,7 @@ export function AnniversariesScreen() {
           </Field>
           {/* 종류 (기획 3-1): 세그먼트 3개, 기본 함께한 날 세기 */}
           <div>
-            <span id={kindLabelId} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+            <span id={kindLabelId} className={captionClass}>
               종류
             </span>
             <Segmented labelledBy={kindLabelId} value={kind} options={KIND_OPTIONS} onChange={setKind} />
@@ -220,7 +220,7 @@ export function AnniversariesScreen() {
           </div>
           {/* 알림 (#269, 기획 푸시-알림.md 3-7): 당일 / 하루 전 / 일주일 전 여러 개, "없음" 은 셋을 끈다. 모두 오전 9시 */}
           <div>
-            <span id={reminderLabelId} className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+            <span id={reminderLabelId} className={captionClass}>
               알림 <span className="font-normal">(오전 9시)</span>
             </span>
             <ToggleChips

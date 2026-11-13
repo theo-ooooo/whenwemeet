@@ -7,7 +7,7 @@ import { IconBell, IconCamera, IconChevronRight, IconDevice, IconMoon, IconPlus,
 import { NameEditRow } from "@/components/NameEditRow";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { useToast } from "@/components/Toast";
-import { Avatar, Button, ErrorState, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { Avatar, Button, ErrorState, InlineError, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -112,9 +112,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
         </p>
       )}
       {photoError && (
-        <p role="alert" className="mt-3 text-[12px] text-danger">
-          {photoError}
-        </p>
+        <InlineError className="mt-3">{photoError}</InlineError>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} tabIndex={-1} aria-hidden="true" />
 
@@ -259,9 +257,7 @@ export function MeScreen() {
           autoFocus
         />
         {deleteError && (
-          <p role="alert" className="mt-2 text-[12px] text-danger">
-            {deleteError}
-          </p>
+          <InlineError className="mt-2">{deleteError}</InlineError>
         )}
         <div className="mt-auto pt-8">
           <Button

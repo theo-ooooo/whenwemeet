@@ -4,7 +4,8 @@
 // 개인 팀은 사람 표시가 없던 그대로 등록자 한 줄만 둔다 (7-2)
 import { useRouter } from "next/navigation";
 import { useEventShareSheet } from "./EventShareSheet";
-import { IconArrowRight, IconBell, IconChevronLeft, IconClose, IconShare } from "./icons";
+import { IconArrowRight, IconBell, IconChevronLeft, IconShare } from "./icons";
+import { CloseButton } from "./ui";
 import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
@@ -81,9 +82,7 @@ export function EventDetail({
             <IconShare size={18} />
           </button>
         )}
-        <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
-          <IconClose size={18} />
-        </button>
+        <CloseButton onClick={onClose} className="shrink-0" />
       </div>
       {who.personal && (
         <span className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">

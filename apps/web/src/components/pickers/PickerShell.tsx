@@ -6,7 +6,7 @@
 // - PC 팝오버는 포털을 쓰지 않는다. 빠른 추가 팝오버가 "패널 밖 pointerdown 이면 닫기" 라서 DOM 안에 있어야 한다
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconClose } from "../icons";
+import { SheetHeader } from "../ui";
 import { useLayout } from "@/lib/useLayout";
 
 const FOCUSABLE =
@@ -99,14 +99,7 @@ function BottomSheet({ onClose, trigger, title, children }: InnerProps) {
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)]" />
         {/* 시트 머리 왼쪽 끝 16 (다른 시트와 같게, #174 L9) */}
-        <div className="mb-1 flex h-10 items-center justify-between">
-          <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
-            {title}
-          </h2>
-          <button type="button" onClick={onClose} aria-label="닫기" className="hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
-            <IconClose size={18} />
-          </button>
-        </div>
+        <SheetHeader titleId={titleId} title={title} onClose={onClose} className="mb-1" />
         {children}
       </div>
     </div>,
