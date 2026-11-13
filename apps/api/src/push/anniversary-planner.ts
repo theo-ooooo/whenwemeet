@@ -77,7 +77,7 @@ export function birthdayTargetOf(dedupeKey: string): string | null {
 }
 
 /**
- * (#305, D-226) 보내는 날 `day` 09:00 의 팀원 생일 알림. 생일인 사람이 고른 시점(기본 당일)마다, 생일을 보이는 팀마다 1건.
+ * (#305, D-232) 보내는 날 `day` 09:00 의 팀원 생일 알림. 생일인 사람이 고른 시점(기본 당일)마다, 생일을 보이는 팀마다 1건.
  * 문구는 기념일과 같은 모양("지민 생일", "오늘은 지민 생일이에요"), 받는 사람은 생일인 사람을 뺀 팀원(actorId)
  */
 export function planBirthdays(rows: BirthdayPlanRow[], day: string): PlannedNotification[] {

@@ -139,7 +139,7 @@ describe('PushDispatcher', () => {
       expect(push.listRecipients).toHaveBeenNthCalledWith(2, 10, 'JOIN', 4, null, new Date('2026-11-12T07:59:00.000Z'));
     });
 
-    it('(#305) 생일 알림은 생일인 사람(actorId)을 빼고, 펼칠 때 아직 그 팀에 그 생일이 보일 때만 보낸다 (D-226)', async () => {
+    it('(#305) 생일 알림은 생일인 사람(actorId)을 빼고, 펼칠 때 아직 그 팀에 그 생일이 보일 때만 보낸다 (D-232)', async () => {
       const birthday = { title: '민지 생일', subtitle: '우리', body: '오늘은 민지 생일이에요', url: '/anniversaries?team=teamcode', expiration: 0 };
       const row = (id: number, dedupeKey: string) => due({ id, kind: 'ANNIVERSARY', eventId: null, actorId: 7, dedupeKey, payload: birthday });
       push.listDuePending.mockResolvedValue([row(1, 'B:7:10:2026-11-12'), row(2, 'B:7:10:2026-11-19:D7'), row(3, 'B:7:10:2026-11-12'), row(4, 'B:7:10:2027-02-28')]);

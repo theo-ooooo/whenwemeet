@@ -28,7 +28,7 @@ export class MeController {
     return this.me.updateStartCalendar(user.id, dto);
   }
 
-  /** (#305) 내 생일 (월, 일만. null 이면 지우기) 과 팀원에게 알리는 시점 (D-224, D-226) */
+  /** (#305) 내 생일 (월, 일만. null 이면 지우기) 과 팀원에게 알리는 시점 (D-230, D-232) */
   @Patch('birthday')
   updateBirthday(@CurrentUser() user: AuthUser, @Body() dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
     return this.me.updateBirthday(user.id, dto);

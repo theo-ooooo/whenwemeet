@@ -7,7 +7,7 @@ import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
 
 /**
- * 멤버 생일 (#305, D-224 ~ D-227): 내 정보에서 월일 저장, 팀 달력 목록, 팀별 끄기, 나가기와 탈퇴, 푸시, 구독 피드
+ * 멤버 생일 (#305, D-230 ~ D-233): 내 정보에서 월일 저장, 팀 달력 목록, 팀별 끄기, 나가기와 탈퇴, 푸시, 구독 피드
  */
 describe('멤버 생일 (e2e)', () => {
   const fake = new FakeExpo();
@@ -129,7 +129,7 @@ describe('멤버 생일 (e2e)', () => {
     });
   });
 
-  describe('푸시 (D-226)', () => {
+  describe('푸시 (D-232)', () => {
     const at = (date: string, time: string) => new Date(`${date}T${time}+09:00`);
 
     beforeEach(async () => {
@@ -183,7 +183,7 @@ describe('멤버 생일 (e2e)', () => {
     });
   });
 
-  describe('구독 피드 (D-227)', () => {
+  describe('구독 피드 (D-233)', () => {
     it('"기념일 포함" 이면 멤버 생일이 매년 종일 일정으로, 끄면 빠진다', async () => {
       await setBirthday(bob, { date: '02-29' }).expect(200);
       const feedPath = `/v1/groups/${teamId}/calendar-feed`;

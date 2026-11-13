@@ -725,7 +725,7 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
   }
 
-  // (#305) /me/birthday (api.md 2.1, D-224). date 는 'MM-DD'(2월 29일 허용) 또는 null, reminders 생략은 그대로
+  // (#305) /me/birthday (api.md 2.1, D-230). date 는 'MM-DD'(2월 29일 허용) 또는 null, reminders 생략은 그대로
   if (seg[0] === "me" && seg[1] === "birthday" && seg.length === 2 && method === "PATCH") {
     const u = s.users.find((x) => x.id === userId)!;
     const date = body?.date;

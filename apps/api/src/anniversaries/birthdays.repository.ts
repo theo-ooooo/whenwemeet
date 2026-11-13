@@ -16,12 +16,12 @@ export interface BirthdayFeedRow {
   updatedAt: Date;
 }
 
-/** 이 팀에 생일을 보이는 멤버: 생일이 있고 그 팀 멤버십의 showBirthday 가 켜짐 (D-225) */
+/** 이 팀에 생일을 보이는 멤버: 생일이 있고 그 팀 멤버십의 showBirthday 가 켜짐 (D-231) */
 const shownIn = (groupId: number) => ({ groupId, showBirthday: true, user: { birthday: { not: null } } });
 
 /**
  * (#305) 멤버 생일 읽기. 생일은 User 한 칸이라 팀 멤버십을 따라 읽기만 한다 (쓰기는 UsersRepository).
- * 멤버십이 없어지면(팀 나가기, 탈퇴) 그 팀에서 바로 빠진다 (D-224)
+ * 멤버십이 없어지면(팀 나가기, 탈퇴) 그 팀에서 바로 빠진다 (D-230)
  */
 @Injectable()
 export class BirthdaysRepository {

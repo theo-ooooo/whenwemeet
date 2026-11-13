@@ -26,7 +26,7 @@ describe('멤버 생일 (#305)', () => {
     expect(birthdayColumns(birthdayFlags(columns))).toEqual(columns);
   });
 
-  describe('푸시 예약 planBirthdays (D-226)', () => {
+  describe('푸시 예약 planBirthdays (D-232)', () => {
     const row = (overrides: Partial<BirthdayPlanRow> = {}): BirthdayPlanRow => ({
       userId: 7,
       groupId: 10,
@@ -74,7 +74,7 @@ describe('멤버 생일 (#305)', () => {
     });
   });
 
-  describe('구독 피드 birthdayEvents (D-227)', () => {
+  describe('구독 피드 birthdayEvents (D-233)', () => {
     const input = { userId: 7, name: '민지', birthday: '02-29', updatedAt: new Date('2026-10-01T00:00:00Z') };
 
     it('창 안의 해마다 종일 VEVENT 하나, 평년은 2월 28일', () => {

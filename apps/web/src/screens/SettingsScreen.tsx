@@ -338,7 +338,7 @@ function NotifySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Gr
   );
 }
 
-/* (#305) 이 팀 달력에 내 생일 보이기 (기본 켬, D-225). 누르면 바로 저장, 실패하면 되돌리고 토스트. 생일은 내 정보에서 넣는다 */
+/* (#305) 이 팀 달력에 내 생일 보이기 (기본 켬, D-231). 누르면 바로 저장, 실패하면 되돌리고 토스트. 생일은 내 정보에서 넣는다 */
 function BirthdaySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupDetail) => void }) {
   const toast = useToast();
   const { mutate, isPending } = useUpdateMembership(group.id);

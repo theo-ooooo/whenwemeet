@@ -51,7 +51,7 @@ export interface PlannedNotification {
   /** 'YYYY-MM-DD'. 반복 회차만 */
   occurrence?: string | null;
   anniversaryId?: number;
-  /** (#305) 생일 알림의 생일인 사람. 받는 사람에서 뺀다 (D-226) */
+  /** (#305) 생일 알림의 생일인 사람. 받는 사람에서 뺀다 (D-232) */
   actorId?: number;
   payload: PushPayload;
 }

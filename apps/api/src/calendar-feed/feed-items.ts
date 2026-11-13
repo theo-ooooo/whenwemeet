@@ -166,7 +166,7 @@ export interface FeedBirthdayInput {
 }
 
 /**
- * (#305, D-227) 멤버 생일: 창 안의 그날마다 종일 VEVENT "지민 생일". 2월 29일은 평년에 2월 28일 (기념일 매년과 같음).
+ * (#305, D-233) 멤버 생일: 창 안의 그날마다 종일 VEVENT "지민 생일". 2월 29일은 평년에 2월 28일 (기념일 매년과 같음).
  * UID 는 `b{userId}-{YYYYMMDD}@…` (팀이 달라도 피드가 팀마다라 겹치지 않는다)
  */
 export function birthdayEvents(birthday: FeedBirthdayInput, window: Pick<FeedWindow, 'firstDay' | 'lastDay'>): IcsEvent[] {

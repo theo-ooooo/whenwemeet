@@ -1,4 +1,4 @@
-// (#305) 멤버 생일 (설계 api.md 2.4, 결정 D-224 ~ D-227). 순수 함수 (단위 테스트 대상).
+// (#305) 멤버 생일 (설계 api.md 2.4, 결정 D-230 ~ D-233). 순수 함수 (단위 테스트 대상).
 // 서버는 'MM-DD' 만 준다. 화면은 기념일 "매년 반복" 항목으로 바꿔 달력, 일 상세, 다가오는 일정, 위젯에 같은 규칙으로 섞는다
 // (2월 29일은 평년에 2월 28일, lib/anniversary.ts sameDayInYear)
 import type { Anniversary, Birthday } from "./types";

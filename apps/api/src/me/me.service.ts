@@ -57,7 +57,7 @@ export class MeService {
   }
 
   /**
-   * PATCH /me/birthday (#305, D-224). 생일은 하나라 내가 속한 모든 팀(개인 팀 포함)에 같이 바뀐다.
+   * PATCH /me/birthday (#305, D-230). 생일은 하나라 내가 속한 모든 팀(개인 팀 포함)에 같이 바뀐다.
    * 팀마다 보일지는 PATCH /groups/:id/me showBirthday. reminders 생략은 그대로
    */
   async updateBirthday(userId: number, dto: UpdateBirthdayDto): Promise<BirthdaySettings> {

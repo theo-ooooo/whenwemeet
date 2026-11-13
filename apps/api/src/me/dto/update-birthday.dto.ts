@@ -15,8 +15,8 @@ export class BirthdayConstraint implements ValidatorConstraintInterface {
 }
 
 /**
- * PATCH /me/birthday (#305, D-224). date 는 필수 키: 'MM-DD'(2월 29일 허용) 또는 null(지우기).
- * reminders 는 팀원에게 알리는 시점. 생략하면 그대로 (처음엔 당일만, D-226)
+ * PATCH /me/birthday (#305, D-230). date 는 필수 키: 'MM-DD'(2월 29일 허용) 또는 null(지우기).
+ * reminders 는 팀원에게 알리는 시점. 생략하면 그대로 (처음엔 당일만, D-232)
  */
 export class UpdateBirthdayDto {
   @Validate(BirthdayConstraint)

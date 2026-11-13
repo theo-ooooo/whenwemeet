@@ -106,7 +106,7 @@ export class CalendarFeedService {
     if (!(await this.memberships.isMember(row.userId, row.groupId))) throw feedNotFound();
 
     const window = feedWindow(now);
-    // (#305) 멤버 생일은 "기념일 포함" 을 따른다 (D-227)
+    // (#305) 멤버 생일은 "기념일 포함" 을 따른다 (D-233)
     const [views, anniversaries, birthdays] = await Promise.all([
       this.events.listForFeed(row.groupId, window.from, window.to),
       row.includeAnniversaries ? this.anniversaries.listForFeed(row.groupId) : Promise.resolve([]),

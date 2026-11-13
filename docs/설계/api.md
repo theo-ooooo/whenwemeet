@@ -123,7 +123,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
-| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-224, D-226) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
+| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
 **이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
@@ -325,7 +325,7 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
 
-#### 멤버 생일 (#305, D-224 ~ D-227)
+#### 멤버 생일 (#305, D-230 ~ D-233)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -519,7 +519,7 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
-**생일 알림** (#305, D-226): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
+**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
 
 **들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 
@@ -632,7 +632,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 
 - (사용자, 팀) 하나에 주소 하나. 개인 팀도 된다. 토큰은 DB 에 없고 소금과 해시만 있다(D-218). 다시 조회해도 같은 주소
 - 피드 404 는 형식 오류, 없는 토큰, 재발급 전 토큰, 끈 주소, 나간 팀, 탈퇴, 지운 팀을 구분하지 않는다. 멤버십은 요청마다 확인
-- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목과 (#305, D-227) 이 팀에 보이는 멤버 생일(그해 그날 종일 VEVENT "민지 생일", UID `b{userId}-{YYYYMMDD}@whenwemeet.day`, 투명). 매핑은 설계 3장
+- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목과 (#305, D-233) 이 팀에 보이는 멤버 생일(그해 그날 종일 VEVENT "민지 생일", UID `b{userId}-{YYYYMMDD}@whenwemeet.day`, 투명). 매핑은 설계 3장
 - `ETag` = 본문 해시, `Cache-Control: private, max-age=900`. 피드 조회는 새 소식, 푸시, 활동 기록과 무관하다. 만들기, 재발급도 기록하지 않는다
 - 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음. 사용자에게 보이는 message 에는 "구독" 대신 "연결 주소" (D-221)
 - Sentry 는 `/ics/<토큰>` 경로를 지운다

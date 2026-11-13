@@ -75,7 +75,7 @@ export class PushDispatcher {
       // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
       // (#297) 지난 일을 알리는 CHANGE, JOIN 은 그 일이 생긴 시각(예약 createdAt)까지 들어와 있던 팀원에게만 (D-180)
       const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
-      // (#305) 생일 알림은 생일인 사람(actorId)에게 보내지 않는다 (D-226)
+      // (#305) 생일 알림은 생일인 사람(actorId)에게 보내지 않는다 (D-232)
       const excludesActor = reportsPast || row.kind === 'ANNIVERSARY';
       let recipients = await this.push.listRecipients(
         row.groupId,

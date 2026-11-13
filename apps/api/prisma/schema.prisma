@@ -64,9 +64,9 @@ model User {
   startCalendarMode StartCalendarMode @default(LAST)
   /// (#300) GROUP 일 때만 값. 그 팀에서 나가거나 팀이 지워지면 같은 트랜잭션에서 LAST 로 되돌린다 (D-192)
   startGroupId      Int?
-  /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-224)
+  /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-230)
   birthday          String?   @db.Char(5)
-  /// (#305) 내 생일을 팀원에게 알리는 시점. 기념일과 같이 오전 9시 KST, 기본 당일만 (D-226)
+  /// (#305) 내 생일을 팀원에게 알리는 시점. 기념일과 같이 오전 9시 KST, 기본 당일만 (D-232)
   birthdayRemindDayOf      Boolean @default(true)
   birthdayRemindDayBefore  Boolean @default(false)
   birthdayRemindWeekBefore Boolean @default(false)
@@ -261,7 +261,7 @@ model Membership {
   joinedAt    DateTime @default(now())
   /// (#188) 팀 설정 "이 팀 알림 받기". 기본 켬
   notify      Boolean  @default(true)
-  /// (#305) 팀 설정 "이 팀 달력에 내 생일 보이기". 기본 켬 (D-225)
+  /// (#305) 팀 설정 "이 팀 달력에 내 생일 보이기". 기본 켬 (D-231)
   showBirthday Boolean @default(true)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
