@@ -78,8 +78,8 @@ describe("PlaceSection", () => {
     render(<PlaceSection place={FREE} />);
     expect(screen.getByRole("region", { name: "장소" })).toBeTruthy();
     expect(screen.getByText("할머니 댁")).toBeTruthy();
-    const link = screen.getByRole("link", { name: "카카오맵으로 길찾기" });
-    expect(link.getAttribute("href")).toBe(`https://map.kakao.com/link/search/${encodeURIComponent("할머니 댁")}`);
+    const link = screen.getByRole("link", { name: "네이버 지도로 길찾기" });
+    expect(link.getAttribute("href")).toBe(`https://map.naver.com/p/search/${encodeURIComponent("할머니 댁")}`);
     expect(link.getAttribute("target")).toBe("_blank");
     expect(screen.queryByRole("button", { name: /크게 보기/ })).toBeNull();
     expect(loadKakaoMaps).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe("PlaceSection", () => {
     await act(async () => {});
     expect(calls.map[0]).toMatchObject({ draggable: false, scrollwheel: false });
     expect(calls.markers).toBe(1);
-    expect(screen.getByRole("link", { name: "카카오맵으로 길찾기" }).getAttribute("target")).toBeNull();
+    expect(screen.getByRole("link", { name: "네이버 지도로 길찾기" }).getAttribute("target")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /크게 보기/ }));
     await act(async () => {});
     const dialog = screen.getByRole("dialog", { name: "서울숲" });
@@ -112,19 +112,35 @@ describe("PlaceSection", () => {
     render(<PlaceSection place={PICKED} />);
     await act(async () => {});
     expect(screen.queryByRole("button", { name: /크게 보기/ })).toBeNull();
-    expect(screen.getByRole("link", { name: "카카오맵으로 길찾기" }).getAttribute("href")).toContain("https://map.kakao.com/link/to/");
+    expect(screen.getByRole("link", { name: "네이버 지도로 길찾기" }).getAttribute("href")).toContain("https://map.naver.com/index.nhn?menu=route");
   });
 
   it("못 찾으면(카카오 오류, 결과에서 사라짐) 사용자 글자 + ID 장소 상세 링크, 지도 없음", () => {
     resolved = { data: { place: null }, error: null };
     render(<PlaceSection place={PICKED} />);
     expect(screen.getByText("숲")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "카카오맵에서 보기" }).getAttribute("href")).toBe("https://place.map.kakao.com/8209184");
+    // 네이버 지도(기본)는 카카오 ID 를 못 쓰므로 고를 때 검색어로 찾는다
+    expect(screen.getByRole("link", { name: "네이버 지도에서 보기" }).getAttribute("href")).toBe(`https://map.naver.com/p/search/${encodeURIComponent("숲")}`);
     expect(loadKakaoMaps).not.toHaveBeenCalled();
     cleanup();
     resolved = { data: null, error: { code: "PLACE_SEARCH_FAILED" } };
     render(<PlaceSection place={PICKED} />);
-    expect(screen.getByRole("link", { name: "카카오맵에서 보기" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "네이버 지도에서 보기" })).toBeTruthy();
+  });
+
+  it("내 정보에서 카카오맵을 골랐으면 카카오맵으로 (좌표 길찾기, 못 찾으면 ID 장소 상세)", () => {
+    window.localStorage.setItem("wwm_map_app", "kakao");
+    loadKakaoMaps.mockResolvedValue(null);
+    try {
+      render(<PlaceSection place={PICKED} />);
+      expect(screen.getByRole("link", { name: "카카오맵으로 길찾기" }).getAttribute("href")).toContain("https://map.kakao.com/link/to/");
+      cleanup();
+      resolved = { data: { place: null }, error: null };
+      render(<PlaceSection place={PICKED} />);
+      expect(screen.getByRole("link", { name: "카카오맵에서 보기" }).getAttribute("href")).toBe("https://place.map.kakao.com/8209184");
+    } finally {
+      window.localStorage.removeItem("wwm_map_app");
+    }
   });
 
   it("지도 키가 없으면(로컬, 목, 공유 키만 있음) SDK 를 부르지 않는다", () => {

@@ -3,6 +3,7 @@
 // 고른 장소의 카카오 ID + 고를 때 사용자가 적은 검색어(query) 뿐. 이름, 주소, 좌표는 보일 때 다시 찾는다(usePlaceResolve).
 // 지도는 다시 찾은 좌표가 있을 때만 그린다. 내 위치(기기 위치)는 쓰지 않는다 (D-244)
 import { charCount, clampChars } from "./chars";
+import type { MapApp } from "./map-app";
 import type { Place, PlaceCandidate, PlaceInput } from "./types";
 
 /** 서버와 같은 상한 (코드포인트) */
@@ -69,11 +70,26 @@ export function mapShareUrlOf(text: string): string | null {
 }
 
 /**
- * "카카오맵" 링크 (https 웹 주소만, 앱 셸이 OS 로 넘긴다). 다시 찾은 좌표가 있으면 그곳까지 길찾기,
- * 카카오 ID 만 있으면(못 찾음) 장소 상세, 공유 링크면 그 링크, 아니면 글자로 검색
- * https://apis.map.kakao.com/web/guide/#routeurl
+ * 길찾기 링크 (https 웹 주소만, 앱 셸이 OS 로 넘긴다. 지도 앱이 깔려 있으면 OS 가 앱으로 연다).
+ * 다시 찾은 좌표가 있으면 그곳까지 길찾기, 카카오 ID 만 있으면(못 찾음) 장소 보기, 공유 링크면 그 링크, 아니면 글자로 검색.
+ * app: 내 정보의 길찾기 지도 선택 (lib/map-app.ts, 기본 네이버 지도)
+ * - 카카오맵: https://apis.map.kakao.com/web/guide/#routeurl
+ * - 네이버 지도: `map.naver.com/index.nhn?menu=route&elng&elat&etext` 는 PC 에서 지도 길찾기(도착지 채움), 모바일에서 네이버 빠른길찾기로
+ *   넘어간다 (2026-11-13 확인). 카카오 ID 는 네이버에서 쓸 수 없어 못 찾은 장소는 사용자 글자로 검색
  */
-export function directionsUrl(place: Pick<Place, "text" | "query" | "kakaoPlaceId">, resolved: Pick<PlaceCandidate, "name" | "lat" | "lng"> | null = null): string {
+export function directionsUrl(
+  place: Pick<Place, "text" | "query" | "kakaoPlaceId">,
+  resolved: Pick<PlaceCandidate, "name" | "lat" | "lng"> | null = null,
+  app: MapApp = "naver",
+): string {
+  if (app === "naver") {
+    if (resolved) {
+      const q = new URLSearchParams({ menu: "route", elng: String(resolved.lng), elat: String(resolved.lat), etext: resolved.name.trim() || "도착", pathType: "0" });
+      return `https://map.naver.com/index.nhn?${q.toString()}`;
+    }
+    const label = placeLabel(place) ?? "";
+    return mapShareUrlOf(label) ?? `https://map.naver.com/p/search/${encodeURIComponent(label.trim())}`;
+  }
   if (resolved) {
     // 이름의 쉼표는 주소 구분자라 빈칸으로
     const name = encodeURIComponent(resolved.name.replace(/,/g, " ").trim() || "도착");
