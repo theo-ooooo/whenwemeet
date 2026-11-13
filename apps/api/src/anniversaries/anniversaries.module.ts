@@ -9,5 +9,7 @@ import { AnniversariesService } from './anniversaries.service.js';
   imports: [GroupsModule, GroupActivitiesModule],
   controllers: [AnniversariesController],
   providers: [AnniversariesService, AnniversariesRepository],
+  /** (#193) 구독 피드가 기념일을 읽는다 */
+  exports: [AnniversariesRepository],
 })
 export class AnniversariesModule {}

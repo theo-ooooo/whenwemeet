@@ -90,6 +90,8 @@ model User {
   todoListsEdited  TodoList[] @relation("TodoListEditor")
   todoItemsCreated TodoItem[] @relation("TodoItemCreator")
   todoItemsDone    TodoItem[] @relation("TodoItemDoneBy")
+  /// (#193) 팀별 외부 캘린더 구독 주소
+  calendarFeeds    CalendarFeed[]
 }
 
 /// (#300) 처음 여는 달력. LAST 마지막에 본 달력(쿠키 wwm_group), PERSONAL 내 달력(개인 팀), GROUP 고정한 팀
@@ -232,6 +234,8 @@ model Group {
   startUsers        User[]       @relation("UserStartGroup")
   /// (#276) 할 일 목록
   todoLists         TodoList[]
+  /// (#193) 멤버별 외부 캘린더 구독 주소
+  calendarFeeds     CalendarFeed[]
 }
 
 /// 사용자-팀 소속. 팀별 색/표시 이름과 새 소식 기준 시각을 가진다
@@ -736,4 +740,29 @@ model TodoItem {
   creator User?    @relation("TodoItemCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
   @@index([listId, done, createdAt])
+}
+
+/// (#193) 외부 캘린더 구독 주소 (ICS 피드, 설계 캘린더-내보내기.md, D-217). (사용자, 팀) 하나에 하나.
+/// 토큰 자체는 저장하지 않는다: 토큰 = base64url(HMAC-SHA256(HKDF(JWT_SECRET, "wwm-ics-feed"), "<userId>:<groupId>:<tokenSalt>")) 43자.
+/// 조회는 tokenHash 로, 주소를 다시 보여 줄 때는 서버가 소금으로 다시 만든다. 재발급 = 소금 교체. 나가기는 행 삭제, 탈퇴, 팀 삭제는 Cascade
+model CalendarFeed {
+  id                   Int       @id @default(autoincrement())
+  userId               Int
+  groupId              Int
+  /// 16바이트 랜덤 base64url 22자. 이것만으로는 토큰을 만들 수 없다 (서버 비밀 필요)
+  tokenSalt            String    @db.Char(22)
+  /// sha256(토큰) hex. 공개 피드가 이 값으로 행을 찾는다
+  tokenHash            String    @unique @db.Char(64)
+  includeMemo          Boolean   @default(false)
+  includeAnniversaries Boolean   @default(true)
+  /// 외부 캘린더가 마지막으로 가져간 시각. 1분 단위로만 갱신
+  lastFetchedAt        DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+  @@index([groupId])
 }

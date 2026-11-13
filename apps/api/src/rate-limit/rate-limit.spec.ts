@@ -6,7 +6,7 @@ import { RateLimitedException } from '../common/errors.js';
 import { HttpExceptionFilter } from '../common/http-exception.filter.js';
 import { clientIpOf, INTERNAL_IP } from './client-ip.js';
 import { RateLimit, SkipRateLimit } from './rate-limit.decorator.js';
-import { bucketsFor, RateLimitGuard, RateLimitSettings } from './rate-limit.guard.js';
+import { bucketsFor, pathTokenOf, RateLimitGuard, RateLimitSettings } from './rate-limit.guard.js';
 import { DEFAULT_IP_RULE, DEFAULT_USER_RULE, RATE_LIMIT_POLICIES } from './rate-limit.policies.js';
 import { RateLimitStore } from './rate-limit.store.js';
 
@@ -115,7 +115,28 @@ describe('bucketsFor (한도 고르기)', () => {
       icsImport: [{ scope: 'user', limit: 10, windowSec: 3600 }],
       eventSharePreview: [{ scope: 'ip', limit: 30, windowSec: 60 }],
       eventShareCreate: [{ scope: 'user', limit: 30, windowSec: 3600 }],
+      icsFeed: [
+        { scope: 'token', limit: 10, windowSec: 60 },
+        { scope: 'ip', limit: 60, windowSec: 60 },
+      ],
     });
+  });
+
+  it('(#193) 구독 피드는 기본 + 주소(경로 토큰) + IP. 토큰이 없으면 주소 한도는 건너뛴다', () => {
+    expect(bucketsFor({ ...anon, token: 'tok' }, { policy: 'icsFeed' })).toEqual([
+      { key: 'default:ip:1.2.3.4', limit: 600, windowSec: 60 },
+      { key: 'icsFeed:token:tok', limit: 10, windowSec: 60 },
+      { key: 'icsFeed:ip:1.2.3.4', limit: 60, windowSec: 60 },
+    ]);
+    expect(bucketsFor(anon, { policy: 'icsFeed' }).map((b) => b.key)).toEqual(['default:ip:1.2.3.4', 'icsFeed:ip:1.2.3.4']);
+  });
+
+  it('(#193) pathTokenOf: 문자열 `:token` 만, 64자까지', () => {
+    expect(pathTokenOf({ params: { token: 'abc' } } as never)).toBe('abc');
+    expect(pathTokenOf({ params: { token: 'x'.repeat(100) } } as never)).toBe('x'.repeat(64));
+    expect(pathTokenOf({ params: {} } as never)).toBeNull();
+    expect(pathTokenOf({ params: { token: '' } } as never)).toBeNull();
+    expect(pathTokenOf({} as never)).toBeNull();
   });
 
   it('초대 합류는 기본 + 사용자 + IP', () => {

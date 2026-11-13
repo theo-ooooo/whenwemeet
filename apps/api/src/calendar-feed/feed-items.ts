@@ -1,0 +1,153 @@
+/**
+ * (#193) 팀 일정, 기념일 → ICS VEVENT 매핑 (설계 캘린더-내보내기.md 3장, D-217 ~ D-219). 모두 순수 함수.
+ * 반복은 RRULE 대신 회차마다 VEVENT 하나 (우리 말일 보정, 기준 날짜, "이 일정만" 예외를 그대로 옮기려고)
+ */
+import { anniversaryItemsOn, type AnniversaryKind } from '../push/anniversary-items.js';
+import { addDays, dateToDay, DAY_MS, kstDate, kstMidnight } from '../events/recurrence.js';
+import type { IcsEvent, IcsTime } from './ics.js';
+
+/** 피드 창: 오늘(KST) 기준 과거 60일 ~ 미래 400일 (Q7) */
+export const FEED_PAST_DAYS = 60;
+export const FEED_FUTURE_DAYS = 400;
+export const UID_DOMAIN = 'whenwemeet.day';
+/** SEQUENCE 기준 시각. updatedAt 의 초를 그대로 쓰면 2038년에 32비트 정수를 넘는다 (이 기준이면 2088년까지) */
+const SEQUENCE_EPOCH_MS = Date.UTC(2020, 0, 1);
+
+export interface FeedWindow {
+  /** 첫날, 마지막 날 (KST, 양끝 포함) */
+  firstDay: string;
+  lastDay: string;
+  /** 일정 조회 [from, to) */
+  from: Date;
+  to: Date;
+}
+
+export function feedWindow(now: Date): FeedWindow {
+  const today = kstDate(now);
+  const firstDay = addDays(today, -FEED_PAST_DAYS);
+  const lastDay = addDays(today, FEED_FUTURE_DAYS);
+  return { firstDay, lastDay, from: kstMidnight(firstDay), to: kstMidnight(addDays(lastDay, 1)) };
+}
+
+/** 피드가 쓰는 일정 한 건 (EventView 의 일부. 반복이면 회차 하나) */
+export interface FeedEventInput {
+  id: number;
+  publicCode: string;
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  allDay: boolean;
+  memo: string | null;
+  updatedAt: Date;
+  repeat: string | null;
+  occurrence: string | null;
+  participants: { all: boolean; members: { displayName: string }[] };
+}
+
+export interface FeedOptions {
+  includeMemo: boolean;
+  /** 웹 주소 (`https://whenwemeet.day`) */
+  webOrigin: string;
+  /** 팀 공개 코드 (`?team=`) */
+  groupCode: string;
+}
+
+export function sequenceOf(updatedAt: Date): number {
+  return Math.max(0, Math.floor((updatedAt.getTime() - SEQUENCE_EPOCH_MS) / 1000));
+}
+
+/**
+ * 종일 일정의 [시작 날짜, 끝 날짜) (KST). 저장값은 그날 KST 00:00 ~ 다음 날 00:00 이지만 서버가 자정을 검증하지 않으므로
+ * 끝은 "끝 순간 바로 앞의 날짜 + 1일" 로 구하고, 시작 다음 날보다 앞서지 않게 한다
+ */
+export function allDayDates(startsAt: Date, endsAt: Date): { start: string; end: string } {
+  const start = kstDate(startsAt);
+  const lastDay = kstDate(new Date(endsAt.getTime() - 1));
+  const end = addDays(dateToDay(lastDay) < dateToDay(start) ? start : lastDay, 1);
+  return { start, end };
+}
+
+/** 회차는 `e{id}-{YYYYMMDD}@…` (원래 날짜라 "이 일정만" 으로 옮겨도 같다), 한 번짜리는 `e{id}@…` */
+export function eventUid(id: number, occurrence: string | null): string {
+  return occurrence ? `e${id}-${occurrence.replace(/-/g, '')}@${UID_DOMAIN}` : `e${id}@${UID_DOMAIN}`;
+}
+
+/** 설명: 첫 줄 "참여: 민지, 지훈" (Q5, 이름만), 메모는 켰을 때만 빈 줄 하나 띄우고 */
+export function eventDescription(event: FeedEventInput, includeMemo: boolean): string | null {
+  const lines: string[] = [];
+  if (event.participants.all) lines.push('참여: 모두');
+  else if (event.participants.members.length > 0) lines.push(`참여: ${event.participants.members.map((m) => m.displayName).join(', ')}`);
+  const memo = includeMemo ? event.memo?.trim() : '';
+  if (memo) {
+    if (lines.length > 0) lines.push('');
+    lines.push(memo);
+  }
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
+/** 그 일정(회차)의 웹 상세 주소 (#311, D-198) */
+export function eventUrl(event: FeedEventInput, options: Pick<FeedOptions, 'webOrigin' | 'groupCode'>): string {
+  const params = new URLSearchParams({ team: options.groupCode });
+  if (event.repeat && event.occurrence) params.set('occurrence', event.occurrence);
+  return `${options.webOrigin}/events/${event.publicCode}?${params.toString()}`;
+}
+
+export function eventToIcs(event: FeedEventInput, options: FeedOptions): IcsEvent {
+  let start: IcsTime;
+  let end: IcsTime;
+  if (event.allDay) {
+    const dates = allDayDates(event.startsAt, event.endsAt);
+    start = { allDay: true, date: dates.start };
+    end = { allDay: true, date: dates.end };
+  } else {
+    start = { allDay: false, at: event.startsAt };
+    end = { allDay: false, at: event.endsAt };
+  }
+  return {
+    uid: eventUid(event.id, event.repeat ? event.occurrence : null),
+    dtstamp: event.updatedAt,
+    lastModified: event.updatedAt,
+    sequence: sequenceOf(event.updatedAt),
+    start,
+    end,
+    summary: event.title,
+    description: eventDescription(event, options.includeMemo),
+    url: eventUrl(event, options),
+  };
+}
+
+export interface FeedAnniversaryInput {
+  id: number;
+  name: string;
+  /** 'YYYY-MM-DD' */
+  date: string;
+  kind: AnniversaryKind;
+  /** 마지막 개정 시각 */
+  updatedAt: Date;
+}
+
+/**
+ * (Q3) 기념일: 원래 날짜와 자동 항목(N일, N주년, 매년)을 창 안에서 종일 VEVENT 로. 하루에 항목이 여럿이면 우선순위 첫 항목 하나
+ * (웹 달력, 푸시와 같은 규칙, D-92). 제목은 "이름 300일", 원래 날짜와 매년은 이름만
+ */
+export function anniversaryEvents(anniversary: FeedAnniversaryInput, window: Pick<FeedWindow, 'firstDay' | 'lastDay'>): IcsEvent[] {
+  const out: IcsEvent[] = [];
+  const first = Math.max(dateToDay(window.firstDay), dateToDay(anniversary.date));
+  const last = dateToDay(window.lastDay);
+  for (let day = first; day <= last; day += 1) {
+    const date = new Date(day * DAY_MS).toISOString().slice(0, 10);
+    const [item] = anniversaryItemsOn(anniversary, date);
+    if (!item) continue;
+    out.push({
+      uid: `a${anniversary.id}-${date.replace(/-/g, '')}@${UID_DOMAIN}`,
+      dtstamp: anniversary.updatedAt,
+      lastModified: anniversary.updatedAt,
+      sequence: sequenceOf(anniversary.updatedAt),
+      start: { allDay: true, date },
+      end: { allDay: true, date: addDays(date, 1) },
+      summary: item.label ? `${anniversary.name} ${item.label}` : anniversary.name,
+      transparent: true,
+    });
+  }
+  return out;
+}
