@@ -508,6 +508,8 @@ describe("목 참석 여부와 반응 (#190)", () => {
     const one = (date: string) => call("GET", `/groups/${FAMILY_ID}/events/${id}`, null, `occurrence=${date}`).body.data as unknown as Detail;
     expect(one("2027-03-10").rsvp.mine).toBe("NOT_GOING");
     expect(one("2027-03-17").rsvp.mine).toBeNull();
+  });
+});
 
 describe("목 멤버 생일 (#305)", () => {
   it("PATCH /me/birthday 검증과 저장, GET /me, 팀 목록, 팀별 끄기", () => {
