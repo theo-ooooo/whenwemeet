@@ -25,6 +25,7 @@ export function membershipRow(overrides: Partial<{
   lastSeenAt: Date;
   joinedAt: Date;
   notify: boolean;
+  showBirthday: boolean;
   user: { nickname: string; profileImageUrl: string | null };
 }> = {}) {
   return {
@@ -36,6 +37,7 @@ export function membershipRow(overrides: Partial<{
     lastSeenAt: new Date('2026-11-01T00:00:00.000Z'),
     joinedAt: new Date('2026-11-01T00:00:00.000Z'),
     notify: true,
+    showBirthday: true,
     user: USER_ROW,
     ...overrides,
   };

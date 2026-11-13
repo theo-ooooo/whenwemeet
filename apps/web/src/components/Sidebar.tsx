@@ -6,7 +6,7 @@
 // 접힌 아이콘은 마우스를 올리거나 키보드로 포커스하면 오른쪽에 이름 툴팁. 아래 묶음(다가오는 일정, 기념일)은 접힌 동안 받지 않는다
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { useAnniversaries, useEvents } from "@/hooks";
+import { useAnniversaryItems, useEvents } from "@/hooks";
 import { occurrenceTitle } from "@/lib/anniversary";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, formatDateKo, formatEventTime, kstToIso, todayKey } from "@/lib/date";
@@ -177,7 +177,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
 function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
-  const annQ = useAnniversaries(groupId ?? 0, { enabled });
+  const annQ = useAnniversaryItems(groupId ?? 0, { enabled });
   const meId = group?.me.userId ?? null;
   const personal = group?.type === "PERSONAL";
 

@@ -26,7 +26,7 @@ import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/compon
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog, Skeleton } from "@/components/ui";
-import { messageOf, useAnniversaries, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
+import { messageOf, useAnniversaryItems, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
 import {
   dateParam,
   dayStepUrl,
@@ -243,7 +243,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const weekQ = useEvents(groupId, weekQueryOf(today), { enabled: wide });
   const loadWeek = weekQ.refetch;
   // 기념일은 못 받아도 빈 목록으로 본다 (D-day 줄만 안내로 바뀜)
-  const anniversariesQ = useAnniversaries(groupId);
+  const anniversariesQ = useAnniversaryItems(groupId);
   const { data: anniversaryData, error: anniversaryError } = anniversariesQ;
   const anniversaries = useMemo(
     () => anniversaryData ?? (anniversaryError ? [] : null),

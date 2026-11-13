@@ -7,6 +7,7 @@ import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { ChangeLogSnapshot, Platform, PushKindName, PushPayload } from './push-copy.js';
 import type { EventReminder } from './remind-at.js';
 import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-reminders.js';
+import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
 
 /** 사용자당 기기 상한 (D-83) */
 export const MAX_DEVICES_PER_USER = 10;
@@ -50,6 +51,8 @@ export interface PlannedNotification {
   /** 'YYYY-MM-DD'. 반복 회차만 */
   occurrence?: string | null;
   anniversaryId?: number;
+  /** (#305) 생일 알림의 생일인 사람. 받는 사람에서 뺀다 (D-232) */
+  actorId?: number;
   payload: PushPayload;
 }
 
@@ -120,6 +123,18 @@ export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   date: string;
   kind: AnniversaryKind;
   updatedAt: Date;
+}
+
+/** (#305) 팀원 생일 알림 재료. 생일을 보이는 TEAM 팀 멤버십 하나에 한 행 */
+export interface BirthdayPlanRow extends AnniversaryReminderFlags {
+  userId: number;
+  groupId: number;
+  groupName: string;
+  groupCode: string;
+  /** 그 팀 표시 이름 ?? 닉네임 */
+  name: string;
+  /** 'MM-DD' */
+  birthday: string;
 }
 
 /** (#277) 주간 알림 판정용 팀 */
@@ -456,6 +471,45 @@ export class PushRepository {
     return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, date: dbToDate(date) }));
   }
 
+  /**
+   * (#305) 생일 알림 재료: 생일이 있고 알림 시점이 하나라도 켜진 사용자의, 생일을 보이는 TEAM 팀 멤버십.
+   * 개인 팀은 받을 사람(나 말고 다른 팀원)이 없어 읽지 않는다
+   */
+  async listBirthdays(): Promise<BirthdayPlanRow[]> {
+    const rows = await this.prisma.membership.findMany({
+      where: {
+        showBirthday: true,
+        group: { type: 'TEAM' },
+        user: { birthday: { not: null }, OR: [{ birthdayRemindDayOf: true }, { birthdayRemindDayBefore: true }, { birthdayRemindWeekBefore: true }] },
+      },
+      select: {
+        userId: true,
+        groupId: true,
+        displayName: true,
+        group: { select: { name: true, publicCode: true } },
+        user: { select: { nickname: true, birthday: true, birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true } },
+      },
+      orderBy: { id: 'asc' },
+    });
+    return rows.map(({ group, user, ...row }) => ({
+      userId: row.userId,
+      groupId: row.groupId,
+      groupName: group.name,
+      groupCode: group.publicCode,
+      name: row.displayName ?? user.nickname,
+      birthday: user.birthday!,
+      remindDayOf: user.birthdayRemindDayOf,
+      remindDayBefore: user.birthdayRemindDayBefore,
+      remindWeekBefore: user.birthdayRemindWeekBefore,
+    }));
+  }
+
+  /** (#305) 펼칠 때 다시 본다: 그 팀에 생일을 보이는 멤버면 지금 생일 'MM-DD', 나갔거나 껐거나 지웠으면 null */
+  async findShownBirthday(groupId: number, userId: number): Promise<string | null> {
+    const row = await this.prisma.membership.findFirst({ where: { groupId, userId, showBirthday: true }, select: { user: { select: { birthday: true } } } });
+    return row?.user.birthday ?? null;
+  }
+
   /** dedupeKey 가 이미 있으면 건너뛴다 (D-89). 새로 만든 수 */
   async createNotifications(rows: (PlannedNotification | PlannedWeekly)[]): Promise<number> {
     if (rows.length === 0) return 0;
@@ -471,6 +525,7 @@ export class PushRepository {
               eventId: row.eventId ?? null,
               occurrence: row.occurrence ? dateToDb(row.occurrence) : null,
               anniversaryId: row.anniversaryId ?? null,
+              actorId: row.actorId ?? null,
               payload: toJson(row.payload),
             }),
       })),
@@ -642,10 +697,20 @@ export class PushRepository {
     return row !== null;
   }
 
-  /** 팀의 기념일 (알림 시점 설정과 무관, #277) */
+  /** 팀의 기념일 (알림 시점 설정과 무관, #277). (#305) 이 팀에 보이는 멤버 생일을 "지민 생일" 매년 기념일로 뒤에 붙인다 */
   async listGroupAnniversaries(groupId: number): Promise<(AnniversaryLike & { name: string })[]> {
-    const rows = await this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } });
-    return rows.map((row) => ({ ...row, date: dbToDate(row.date) }));
+    const [rows, birthdays] = await Promise.all([
+      this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } }),
+      this.prisma.membership.findMany({
+        where: { groupId, showBirthday: true, user: { birthday: { not: null } } },
+        select: { displayName: true, user: { select: { nickname: true, birthday: true } } },
+        orderBy: { joinedAt: 'asc' },
+      }),
+    ]);
+    return [
+      ...rows.map((row) => ({ ...row, date: dbToDate(row.date) })),
+      ...birthdays.map((row) => ({ ...birthdayAnniversary(row.user.birthday!), name: birthdayTitle(row.displayName ?? row.user.nickname) })),
+    ];
   }
 
   /**

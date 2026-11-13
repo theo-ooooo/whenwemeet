@@ -118,11 +118,12 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
-| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar) |
+| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings) |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
+| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제 |
 
 **이메일 로그인 (#245)** — 규칙 전체는 `이메일-로그인.md` 4장. 모두 인증 없음, **웹 서버 전용**: 헤더 `X-Internal-Key` 가 `INTERNAL_API_KEY` 와 같아야 하고(다르거나 없으면 403 FORBIDDEN, 키가 비어 있으면 개발에서만 통과), 그때만 `X-Client-IP` 를 IP 횟수 제한에 쓴다(없으면 `"unknown"`). 스위치 `EMAIL_LOGIN_ENABLED !== '1'` 이면 전부 503 EMAIL_NOT_CONFIGURED. 응답은 오류 포함 `Cache-Control: no-store`. `client` 는 `"web"`(기본) 또는 `"app"`, `"app"` 으로 로그인되면 `User.lastAppLoginAt = now` (D-97)
@@ -163,13 +164,13 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. (#274) 그 팀의 일정 공유 링크도 모두 끊는다. PERSONAL 이면 GROUP_NOT_INVITABLE |
 | GET | `/invites/:code?by=` | 선택 | `by?`(보낸 사람 표식) | `{ data: InvitePreview }`. 로그인 전 미리보기. 토큰이 없거나 틀리거나 만료돼도 401 이 아니라 익명으로 답한다 (#196, D-157, D-158) |
 | POST | `/groups/join` | 유저 | `{ code }` | `{ data: GroupDetail }`. 이미 멤버면 그대로 200 (멱등). 코드 없으면 INVITE_NOT_FOUND |
-| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify? }` | `{ data: Member & { notify } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400) |
+| PATCH | `/groups/:groupId/me` | 멤버 | `{ color?, displayName?, notify?, showBirthday? }` | `{ data: Member & { notify, showBirthday } }`. displayName 에 `null` 을 보내면 닉네임으로 되돌림. `notify` 는 이 팀 알림 받기 (#188, 불리언 아니면 400). `showBirthday` 는 이 팀 달력에 내 생일 보이기 (#305, 기본 true, 불리언 아니면 400) |
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
 GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, publicCode, memberCount, me: { color, displayName }, unreadNewsCount }   // publicCode: (#311) 주소용 공개 코드
 GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, publicCode, createdAt,
-                 members: Member[], me: Member & { notify: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기". 다른 멤버 값은 싣지 않는다
+                 members: Member[], me: Member & { notify: boolean; showBirthday: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
 InvitePreview = { groupName, memberCount,
                   inviter: { nickname: string } | null,   // (#196) by 가 이 팀 현재 멤버의 표식과 맞을 때만. 팀 표시 이름, 사진 없음
@@ -323,6 +324,22 @@ AnniversaryReminder = 'DAY_OF' | 'DAY_BEFORE' | 'WEEK_BEFORE'   // (#269) 당일
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
+
+#### 멤버 생일 (#305, D-230 ~ D-233)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/groups/:groupId/birthdays` | 멤버 | - | `{ data: Birthday[] }` 가입순. 생일이 있고 그 팀 `showBirthday` 가 켜진 멤버(나 포함, 개인 팀이면 나만) |
+
+```ts
+Birthday = { member: Member, date: 'MM-DD' }   // member 는 팀 표시 이름 ?? 닉네임, 색
+BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   // GET /me, PATCH /me/birthday
+```
+
+- 저장은 `User.birthday`(CHAR 5) 하나. Anniversary 행을 팀마다 만들지 않고 화면, 알림, 피드가 계산한다. 쓰기는 `PATCH /me/birthday` 와 `PATCH /groups/:id/me { showBirthday }` 뿐
+- 표시: 기념일 "매년 반복" 과 같은 규칙, 이름 "{표시 이름} 생일". 2월 29일은 평년에 2월 28일. 웹은 기념일 모양(음수 id, `kind: 'YEARLY'`, 기준 해 2000)으로 바꿔 달력 칸, 일 상세, 다가오는 일정, 사이드바, 위젯에 섞는다(`lib/birthday.ts`). 기념일 화면에서는 고칠 수 없는 줄(내 것은 내 정보 링크)
+- 팀을 나가거나 탈퇴하면 멤버십이 없어져 그 팀에서 바로 빠진다. 새 소식(#191)에는 남기지 않는다
+- 알림: 2.8 "생일 알림". 피드: 2.12 `includeAnniversaries` 를 따른다
 
 기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
 
@@ -502,6 +519,8 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 
 **일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
+**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
+
 **들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 
 **발송** (서버 내부, 엔드포인트 없음): `PUSH_ENABLED=1` 이면 API 프로세스 안 30초 틱이 `SchedulerLease` 임대를 얻은 프로세스에서만 일정 알림, 기념일(당일, 하루 전, 일주일 전), 팀원 변경(2분 묶음), 합류 알림을 예약하고 Expo 로 보낸다. 규칙은 `푸시-알림.md` 5, 6장, 운영은 `docs/운영/푸시.md`
@@ -613,7 +632,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 
 - (사용자, 팀) 하나에 주소 하나. 개인 팀도 된다. 토큰은 DB 에 없고 소금과 해시만 있다(D-218). 다시 조회해도 같은 주소
 - 피드 404 는 형식 오류, 없는 토큰, 재발급 전 토큰, 끈 주소, 나간 팀, 탈퇴, 지운 팀을 구분하지 않는다. 멤버십은 요청마다 확인
-- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목. 매핑은 설계 3장
+- 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목과 (#305, D-233) 이 팀에 보이는 멤버 생일(그해 그날 종일 VEVENT "민지 생일", UID `b{userId}-{YYYYMMDD}@whenwemeet.day`, 투명). 매핑은 설계 3장
 - `ETag` = 본문 해시, `Cache-Control: private, max-age=900`. 피드 조회는 새 소식, 푸시, 활동 기록과 무관하다. 만들기, 재발급도 기록하지 않는다
 - 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음. 사용자에게 보이는 message 에는 "구독" 대신 "연결 주소" (D-221)
 - Sentry 는 `/ics/<토큰>` 경로를 지운다
@@ -627,6 +646,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 | 앱 로그인 (카카오, 애플), 웹 애플 로그인 | `/auth/kakao/native`, `/auth/apple/native`, `/auth/apple`, `/auth/apple/callback`, `/auth/handoff` (앱.md) |
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 처음 여는 달력 (#300) | `GET /me` 의 `startCalendar`, `PATCH /me/start-calendar` |
+| 멤버 생일 (#305) | `GET /me` 의 `birthday`, `PATCH /me/birthday`, `GET /groups/:id/birthdays`, `PATCH /groups/:id/me { showBirthday }` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
 | 초대 링크 + 6자리 코드, 재발급 | `GroupDetail.inviteCode/inviteUrl`, `POST /groups/:id/invite-code`, `GET /invites/:code`, `POST /groups/join` |
 | 팀 전환 | `GET /groups` |

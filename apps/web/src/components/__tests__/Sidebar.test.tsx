@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GroupDetail } from "@/lib/types";
 
 const useEvents = vi.fn((...args: unknown[]) => ({ args, data: [], error: null, refetch: vi.fn() }));
-const useAnniversaries = vi.fn((...args: unknown[]) => ({ args, data: [], error: null, refetch: vi.fn() }));
-vi.mock("@/hooks", () => ({ useEvents: (...a: unknown[]) => useEvents(...a), useAnniversaries: (...a: unknown[]) => useAnniversaries(...a) }));
+const useAnniversaryItems = vi.fn((...args: unknown[]) => ({ args, data: [], error: null, refetch: vi.fn() }));
+vi.mock("@/hooks", () => ({ useEvents: (...a: unknown[]) => useEvents(...a), useAnniversaryItems: (...a: unknown[]) => useAnniversaryItems(...a) }));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 
 const { Sidebar } = await import("../Sidebar");
@@ -132,6 +132,6 @@ describe("접힌 72 레일", () => {
   it("접힌 동안 다가오는 일정, 기념일을 받지 않는다", () => {
     setup({ collapsed: true });
     expect(useEvents).not.toHaveBeenCalled();
-    expect(useAnniversaries).not.toHaveBeenCalled();
+    expect(useAnniversaryItems).not.toHaveBeenCalled(); // (#305) 기념일 + 멤버 생일
   });
 });

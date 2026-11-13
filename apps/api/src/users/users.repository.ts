@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { BirthdayReminderColumns } from '../anniversaries/birthdays.js';
 import type { AuthProvider, LinkedAccount, ProviderCredentials, RawProfile } from '../auth/providers/auth-provider.js';
 import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../files/file-url.builder.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
@@ -27,6 +28,14 @@ function toUserSummary(record: UserRecord, urls: FileUrlBuilder): UserSummary {
 }
 
 /** (#300) 처음 여는 달력 (D-191). LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 */
+const BIRTHDAY_SELECT = { birthday: true, birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true } as const;
+
+/** (#305) User 의 생일 칸 */
+export interface BirthdayRow extends BirthdayReminderColumns {
+  /** 'MM-DD'. 없으면 null */
+  birthday: string | null;
+}
+
 export const START_CALENDAR_MODES = ['LAST', 'PERSONAL', 'GROUP'] as const;
 export type StartCalendarMode = (typeof START_CALENDAR_MODES)[number];
 
@@ -93,6 +102,16 @@ export class UsersRepository {
       select: { startCalendarMode: true, startGroupId: true },
     });
     return { mode: row.startCalendarMode, groupId: row.startGroupId };
+  }
+
+  /** (#305) 내 생일과 팀원에게 알리는 시점. 사용자가 없으면 null */
+  async findBirthday(id: number): Promise<BirthdayRow | null> {
+    return this.prisma.user.findUnique({ where: { id }, select: BIRTHDAY_SELECT });
+  }
+
+  /** (#305) 내 생일 저장. birthday null 이면 지운다 (알림 칸은 그대로 두어 다시 넣을 때 이어 쓴다) */
+  async updateBirthday(id: number, data: Partial<BirthdayRow>): Promise<BirthdayRow> {
+    return this.prisma.user.update({ where: { id }, data, select: BIRTHDAY_SELECT });
   }
 
   /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */

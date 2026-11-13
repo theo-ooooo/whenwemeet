@@ -510,3 +510,23 @@ describe("목 참석 여부와 반응 (#190)", () => {
     expect(one("2027-03-17").rsvp.mine).toBeNull();
   });
 });
+
+describe("목 멤버 생일 (#305)", () => {
+  it("PATCH /me/birthday 검증과 저장, GET /me, 팀 목록, 팀별 끄기", () => {
+    const list = () => call("GET", `/groups/${TEAM_ID}/birthdays`).body.data as unknown as { member: { userId: number }; date: string }[];
+    expect(call("PATCH", "/me/birthday", { date: "02-30" }).status).toBe(400);
+    expect(call("PATCH", "/me/birthday", { date: "03-05", reminders: ["NOW"] }).status).toBe(400);
+    expect(call("PATCH", "/me/birthday", { date: "02-29", reminders: ["DAY_BEFORE", "DAY_OF"] }).body.data).toEqual({ date: "02-29", reminders: ["DAY_OF", "DAY_BEFORE"] });
+    expect(call("GET", "/me").body.data.birthday).toEqual({ date: "02-29", reminders: ["DAY_OF", "DAY_BEFORE"] });
+    expect(list().find((b) => b.member.userId === ME_ID)?.date).toBe("02-29");
+    expect(call("GET", `/groups/${PERSONAL_ID}/birthdays`).body.data).toHaveLength(1);
+
+    expect(call("PATCH", `/groups/${TEAM_ID}/me`, { showBirthday: "no" }).status).toBe(400);
+    expect(call("PATCH", `/groups/${TEAM_ID}/me`, { showBirthday: false }).body.data.showBirthday).toBe(false);
+    expect(list().some((b) => b.member.userId === ME_ID)).toBe(false);
+    expect((call("GET", `/groups/${TEAM_ID}`).body.data.me as { showBirthday: boolean }).showBirthday).toBe(false);
+    call("PATCH", `/groups/${TEAM_ID}/me`, { showBirthday: true });
+    expect(call("PATCH", "/me/birthday", { date: null }).body.data.date).toBeNull();
+    expect(list().some((b) => b.member.userId === ME_ID)).toBe(false);
+  });
+});

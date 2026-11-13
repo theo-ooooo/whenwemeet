@@ -1,12 +1,13 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { IconHeart, IconPlus } from "@/components/icons";
+import { IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { DatePicker } from "@/components/pickers";
 import { ReminderNote } from "@/components/ReminderPicker";
 import { Button, EmptyState, ErrorState, Field, MemberDot, Segmented, Sheet, SkeletonList, ToggleChips, captionClass, inputClass } from "@/components/ui";
-import { messageOf, useAnniversaries, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
+import { messageOf, useAnniversaries, useBirthdays, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
 import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
 import {
   DEFAULT_REMINDERS,
@@ -17,13 +18,15 @@ import {
   sameReminders,
   toggleReminder,
 } from "@/lib/anniversary-reminder";
+import { formatBirthday, withBirthdays } from "@/lib/birthday";
 import { formatDateKo, todayKey } from "@/lib/date";
+import { ME_BIRTHDAY_PATH, TEAM_PATH } from "@/lib/routes";
 import type { Anniversary, AnniversaryInput, AnniversaryKind, AnniversaryReminder } from "@/lib/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; item: Anniversary } | null;
 
 export function AnniversariesScreen() {
-  const { groupId } = useGroupContext();
+  const { groupId, group } = useGroupContext();
   const toast = useToast();
   const today = todayKey();
   const listQ = useAnniversaries(groupId);
@@ -42,8 +45,20 @@ export function AnniversariesScreen() {
   // (#269) 알림 시점. 기념일에 하나, 팀 공통 (기획 푸시-알림.md 3-7)
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
   const reminderLabelId = useId();
+  // (#305) 멤버 생일은 같은 목록에 섞되 고치지 않는다 (내 생일은 내 정보에서). 못 받으면 기념일만
+  const birthdaysQ = useBirthdays(groupId);
+  const birthdays = birthdaysQ.data;
+  const merged = useMemo(() => withBirthdays(items, birthdays, groupId), [items, birthdays, groupId]);
   // 다음 항목 날짜순, 다음이 없는 것(지난 '그날만')은 맨 아래 (기획 4장)
-  const sorted = useMemo(() => (items ? sortByNext(items, today) : null), [items, today]);
+  const sorted = useMemo(() => (merged ? sortByNext(merged, today) : null), [merged, today]);
+  const myId = group?.me.userId ?? null;
+  // (#305) 내 생일이 이 팀 목록에 없으면 한 줄 안내: 이 팀에서 껐으면 팀 설정, 아니면(아직 안 넣음) 내 정보
+  const birthdayHint =
+    birthdays === null || !group || birthdays.some((b) => b.member.userId === myId)
+      ? null
+      : group.me.showBirthday === false
+        ? { text: "이 팀 달력에는 내 생일을 보이지 않게 해 두었어요", href: TEAM_PATH, action: "팀 설정" }
+        : { text: "내 생일을 넣으면 팀 달력에 매년 보여요", href: ME_BIRTHDAY_PATH, action: "내 생일 넣기" };
   const saving = create.isPending || update.isPending;
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -134,7 +149,7 @@ export function AnniversariesScreen() {
       <div className="mt-1.5 flex items-center justify-between gap-3">
         <div>
           <h1 className="t-title">기념일</h1>
-          <p className="t-sub mt-0.5">날짜를 등록하면 100일, 1주년, 매년 생일이 달력에 표시돼요</p>
+          <p className="t-sub mt-0.5">날짜를 등록하면 100일, 1주년이 달력에 표시돼요. 멤버 생일은 자동으로 보여요</p>
         </div>
         <span className="hidden shrink-0 fold:block">
           <Button size="sm" onClick={() => open({ mode: "new" })}>
@@ -159,8 +174,16 @@ export function AnniversariesScreen() {
             {sorted.map((a, i) => {
               // 오른쪽 값은 모두 '다음 날까지' (D-n, 오늘), 누적 일수와 다음 라벨은 보조 줄 (#173)
               const row = listValue(a, today);
+              const liClass = `main-lg:rounded-xl main-lg:bg-paper main-lg:px-4 main-lg:py-2 ${i === 0 ? "" : "border-t border-line main-lg:border-t-0"}`;
+              if (a.birthdayOf !== undefined) {
+                return (
+                  <li key={a.id} className={liClass}>
+                    <BirthdayRow item={a} mine={a.birthdayOf === myId} value={row.value} tone={row.tone} />
+                  </li>
+                );
+              }
               return (
-                <li key={a.id} className={`main-lg:rounded-xl main-lg:bg-paper main-lg:px-4 main-lg:py-2 ${i === 0 ? "" : "border-t border-line main-lg:border-t-0"}`}>
+                <li key={a.id} className={liClass}>
                   <button
                     type="button"
                     onClick={() => open({ mode: "edit", item: a })}
@@ -186,6 +209,14 @@ export function AnniversariesScreen() {
               );
             })}
           </ul>
+        )}
+        {birthdayHint && sorted !== null && (
+          <p className="t-sub mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 px-1">
+            <span>{birthdayHint.text}</span>
+            <Link href={birthdayHint.href} className="hit font-bold text-acc-ink">
+              {birthdayHint.action}
+            </Link>
+          </p>
         )}
       </div>
 
@@ -243,5 +274,34 @@ export function AnniversariesScreen() {
         </form>
       </Sheet>
     </div>
+  );
+}
+
+/**
+ * (#305) 멤버 생일 한 줄. 기념일처럼 고치지 않는다: 내 생일은 내 정보로 가는 링크, 다른 사람 생일은 그냥 줄.
+ * 날짜는 연도 없이 "매년 3월 5일"
+ */
+function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boolean; value: string; tone: "today" | "ahead" | "past" }) {
+  const date = formatBirthday(item.date.slice(5));
+  const body = (
+    <>
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[15px] font-semibold leading-5">{item.name}</b>
+        <span className="flex items-center gap-1.5 text-[12px] leading-4 text-ink-2">
+          <MemberDot color={item.creator.color} size={6} />
+          {mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}
+        </span>
+      </span>
+      <span className={`shrink-0 text-[15px] font-bold tabular-nums ${tone === "today" ? "text-acc-ink" : "text-ink"}`}>{value}</span>
+      {mine && <IconChevronRight size={14} className="-mr-1 shrink-0 text-ink-2" />}
+    </>
+  );
+  const cls = "flex min-h-11 w-full items-center gap-3 py-2 text-left main-lg:h-full";
+  return mine ? (
+    <Link href={ME_BIRTHDAY_PATH} className={cls} aria-label={`${item.name}, 매년 ${date}, ${value}. 내 정보에서 바꾸기`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }

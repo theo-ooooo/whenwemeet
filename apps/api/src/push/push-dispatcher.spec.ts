@@ -139,6 +139,25 @@ describe('PushDispatcher', () => {
       expect(push.listRecipients).toHaveBeenNthCalledWith(2, 10, 'JOIN', 4, null, new Date('2026-11-12T07:59:00.000Z'));
     });
 
+    it('(#305) 생일 알림은 생일인 사람(actorId)을 빼고, 펼칠 때 아직 그 팀에 그 생일이 보일 때만 보낸다 (D-232)', async () => {
+      const birthday = { title: '민지 생일', subtitle: '우리', body: '오늘은 민지 생일이에요', url: '/anniversaries?team=teamcode', expiration: 0 };
+      const row = (id: number, dedupeKey: string) => due({ id, kind: 'ANNIVERSARY', eventId: null, actorId: 7, dedupeKey, payload: birthday });
+      push.listDuePending.mockResolvedValue([row(1, 'B:7:10:2026-11-12'), row(2, 'B:7:10:2026-11-19:D7'), row(3, 'B:7:10:2026-11-12'), row(4, 'B:7:10:2027-02-28')]);
+      push.findShownBirthday
+        .mockResolvedValueOnce('11-12') // 그대로
+        .mockResolvedValueOnce('11-12') // 일주일 전 예약인데 생일을 바꿨다
+        .mockResolvedValueOnce(null) // 나갔거나 이 팀에 안 보이게 했다
+        .mockResolvedValueOnce('02-29'); // 평년 2월 28일
+      push.listRecipients.mockResolvedValue([{ userId: 2, token: 'a', platform: 'IOS' }]);
+      const stats = await dispatcher.expandDue(NOW);
+      expect(push.findShownBirthday).toHaveBeenCalledWith(10, 7);
+      expect(push.markSkipped).toHaveBeenCalledWith([2]);
+      expect(push.markSkipped).toHaveBeenCalledWith([3]);
+      expect(push.listRecipients).toHaveBeenCalledTimes(2);
+      expect(push.listRecipients).toHaveBeenCalledWith(10, 'ANNIVERSARY', 7, null, null);
+      expect(stats.dispatched).toBe(2);
+    });
+
     it('팀이 없거나 로그가 없으면 SKIPPED', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 5, kind: 'CHANGE', payload: null, eventLogId: 1, actorId: 1, changeAction: 'CREATED' })]);
       push.findGroupRef.mockResolvedValue({ name: '우리', publicCode: 'teamcode' });
