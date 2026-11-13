@@ -30,6 +30,7 @@
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
+| NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요" |
 | NOT_FOUND | 404 | 팀/일정/기념일/할 일 목록, 항목 없음 (다른 팀 자원을 가리키는 ID 포함) |
 | INVITE_NOT_FOUND | 404 | 초대 코드 없음 |
 | EVENT_SHARE_NOT_FOUND | 404 | (#274) 일정 공유 링크 없음, 만료, 끊김, 일정 삭제, 회차 취소, 회차 소멸 (구분하지 않는다). message "링크가 만료됐거나 끊겼어요" |
@@ -201,6 +202,8 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/events/:code` | 유저 | 쿼리 `occurrence?` | (#311) 일정 공개 코드로 단건 조회. 응답은 위와 같다. 코드 모양이 틀리거나 없거나 **그 팀 멤버가 아니면 모두 404 NOT_FOUND** (코드의 존재를 드러내지 않는다, D-197). 웹 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다 |
 | PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
+| PUT | `/groups/:groupId/events/:eventId/rsvp` | 멤버 (그 회차 참여자) | 쿼리 `occurrence` (반복은 필수), `{ status: Rsvp \| null }` (null = 응답 취소) | (#190) `{ data: Event['rsvp'] }` + GroupActivity EVENT_RSVP (2.6) |
+| PUT | `/groups/:groupId/events/:eventId/reaction` | 멤버 | 쿼리 `occurrence` (반복은 필수), `{ reaction: Reaction \| null }` | (#190) `{ data: Event['reactions'] }`. 새 소식 없음 |
 
 ```ts
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
@@ -218,7 +221,25 @@ Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, c
                participants: { all: boolean, members: Member[] },    // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
                color: string|null }                                  // (#343) 일정 색. null = 자동(화면은 참여자 색). 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
+// (#190) 목록, 단건, 생성, 수정 공통 (그 회차의 집계)
+Event += { rsvp: { going, notGoing, maybe, pending, mine: Rsvp|null },        // pending = 참여자 중 아직 응답 안 한 사람 수
+           reactions: { LIKE, EXCITED, ACK, mine: Reaction|null } }           // 지금 팀원의 반응만 센다
+// (#190) 단건 GET 만
+EventDetail += { rsvpMembers: { member: Member, status: Rsvp|null, respondedAt: ISO|null, stale: boolean }[],  // 참여자 가입순. stale = 응답한 뒤 그 회차 시작/끝이 바뀜 (D-226)
+                 reactionMembers: { member: Member, reaction: Reaction }[] }                                  // 반응한 지금 팀원, 가입순
+Rsvp = 'GOING'|'NOT_GOING'|'MAYBE'
+Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요, 확인했어요
 ```
+
+- (#190) 참석 여부와 반응 (설계 `참석-여부.md`, D-224 ~ D-228)
+  - 회차 단위: 반복은 `(eventId, 원래 회차 날짜)`, 한 번짜리는 `(eventId, 시작 KST 날짜)`. 반복에서 `occurrence` 가 없으면 400 VALIDATION_FAILED `field: 'occurrence'`, 회차가 아니거나 취소된 회차면 404 NOT_FOUND (단건 GET 과 같은 규칙). 한 번짜리는 `occurrence` 를 무시
+  - rsvp 는 그 일정의 참여자만 (모두면 지금 팀원 전원). 아니면 403 NOT_PARTICIPANT. 확인은 쓰기 트랜잭션 안에서 멤버십과 일정 행을 `FOR SHARE` 로 읽어 한다. reaction 은 팀원 누구나
+  - 본문 형식 오류(빠짐, 다른 값, 다른 필드)는 400 VALIDATION_FAILED. 경로에 사람이 없어 남의 응답은 바꿀 수 없다
+  - 같은 값이면 저장, 기록 모두 없다 (#62). 지난 회차도 응답할 수 있다
+  - 목록 집계는 창 안 회차 날짜 범위로 응답, 반응을 한 번씩 더 읽는다 (PK `(eventId, occurrence, userId)`)
+  - 정리: 참여자에서 빠지면 그 사람 응답 삭제(반응은 남김), 팀 나가기는 그 팀 일정의 내 응답, 반응 삭제, 탈퇴는 Cascade. "이 일정만" 삭제는 그 회차 응답, 반응 삭제. "이후 모두" 로 나누면 그 회차 이후를 새 원본으로 옮기고, 시작 날짜나 주기가 바뀌면 지운다. 첫 회차 "이후 모두" 는 회차 날짜(시작 날짜, 주기, 기준 날짜)가 바뀌면 전부 지운다. 한 번짜리 날짜를 옮기면 회차 날짜를 따라 옮긴다 (D-225)
+  - 시각이 바뀌어도 응답은 지우지 않는다. `stale` 로 알린다 (D-226)
+  - 일정 알림(REMINDER)은 그 회차에 불참으로 답한 사람에게 보내지 않는다 (D-228)
 
 - (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙
   - 응답 `participants` 는 목록, 단건, 생성/수정 모두 같은 모양. `members` 는 지금 멤버만(나가면 행이 지워진다), 순서는 `Membership.joinedAt`. `creator` 는 그대로 ("○○님이 추가")
@@ -379,7 +400,8 @@ EventNewsItem    = { kind: 'EVENT' } & NewsItem          // 일정 항목 모양
 ActivityNewsItem = { kind: 'ACTIVITY', id: number,
   type: 'ANNIVERSARY_CREATED'|'ANNIVERSARY_UPDATED'|'ANNIVERSARY_DELETED'
       | 'MEMBER_JOINED'|'MEMBER_LEFT'|'MEMBER_DELETED'|'GROUP_RENAMED'
-      | 'EVENTS_IMPORTED',          // (#279)
+      | 'EVENTS_IMPORTED'           // (#279)
+      | 'EVENT_RSVP',               // (#190)
   actor: Member,                 // D-152: 지금 멤버 / 나간 사람은 스냅샷 이름 + 회색 / 탈퇴는 MEMBER_DELETED 만 스냅샷 이름
   anniversaryId: number|null,    // 기념일 3종의 대상. 기념일이 지워지면 null
   payload: ActivityPayload, createdAt, isNew }
@@ -388,6 +410,7 @@ ActivityPayload =
       changed?: ('name'|'date'|'kind')[], before?: { name?, date?, kind? } }   // 수정만: 바뀐 필드와 그 이전 값
   | { from: string, to: string }                                // GROUP_RENAMED
   | { count: number }                                           // EVENTS_IMPORTED (#279)
+  | { eventId, eventCode, occurrence: 'YYYY-MM-DD'|null, title, startsAt, endsAt, allDay, status: Rsvp }   // EVENT_RSVP (#190). occurrence 는 반복 회차만
   | {}                                                           // 멤버 3종
 ```
 
@@ -401,6 +424,7 @@ ActivityPayload =
 | MEMBER_DELETED | `DELETE /me` 의 TEAM 멤버십마다 (2.7) | 마지막 멤버라 팀이 지워짐 |
 | GROUP_RENAMED | `PATCH /groups/:id` | 같은 이름 |
 | EVENTS_IMPORTED (#279) | `POST /groups/:id/imports` 끝 (2.9) | 넣은 일정 0개 |
+| EVENT_RSVP (#190) | `PUT .../events/:eventId/rsvp` 로 정하거나 바꿈 | 같은 값. 같은 사람이 같은 회차를 2분 안에 다시 바꾸면 새 줄 대신 그 줄을 고친다(시각도 지금으로). 취소(null)는 2분 안 줄만 지우고 새 줄은 없다 (D-227). 반응은 남기지 않는다 |
 
 - 조회: 두 테이블에서 각각 `actorId != 요청자` (null 포함), 최근 30일, 최신 50건을 읽어 합친 뒤 `createdAt` 내림차순 50건. 같은 시각이면 일정 먼저, 같은 종류는 id 내림차순 (D-151)
 - 웹 키는 `${kind}:${id}` (두 테이블 id 가 겹친다). 웹은 모르는 `kind`, `type` 을 거른다 (뒤의 #190, #189 종류)
@@ -418,6 +442,7 @@ ActivityPayload =
    (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
    (#300) 내가 이 팀을 처음 여는 달력으로 고정했으면(User.startGroupId = 이 팀) LAST 로 되돌린다 (D-192)
    (#193) 내 이 팀 구독 주소(CalendarFeed)를 지운다 (D-217)
+   (#190) 그 팀 일정의 내 참석 여부(EventRsvp), 반응(EventReaction) 삭제
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -437,6 +462,7 @@ ActivityPayload =
    c. (#245) 내 EMAIL 계정 이메일의 EmailLoginChallenge 전부 삭제 (이메일 계정은 1단계 unlink 할 일 없음)
    d. User 삭제 → 남은 Event.creatorId / Anniversary.creatorId / EventLog.actorId / GroupActivity.actorId 는 FK SetNull → "탈퇴한 멤버"
       (#248) 남은 EventParticipant 행은 User Cascade 로 삭제
+      (#190) 남은 EventRsvp, EventReaction 행도 User Cascade 로 삭제
 3. 웹은 응답을 받으면 쿠키를 지우고 /login 으로
 ```
 
