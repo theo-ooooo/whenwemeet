@@ -43,6 +43,8 @@ export interface FeedEventInput {
   repeat: string | null;
   occurrence: string | null;
   participants: { all: boolean; members: { displayName: string }[] };
+  /** (#199) 장소. 없으면 null (생략 가능: 장소 이전 입력) */
+  place?: { name: string; address: string | null; lat: number | null; lng: number | null } | null;
 }
 
 export interface FeedOptions {
@@ -88,6 +90,14 @@ export function eventDescription(event: FeedEventInput, includeMemo: boolean, in
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
+/**
+ * (#199) LOCATION 글자: "이름, 주소" (주소가 이름과 같거나 없으면 이름만). 메모와 달리 피드 옵션과 무관하게 싣는다 (D-248)
+ */
+export function eventLocation(place: FeedEventInput['place']): string | null {
+  if (!place) return null;
+  return place.address && place.address !== place.name ? `${place.name}, ${place.address}` : place.name;
+}
+
 /** 그 일정(회차)의 웹 상세 주소 (#311, D-198) */
 export function eventUrl(event: FeedEventInput, options: Pick<FeedOptions, 'webOrigin' | 'groupCode'>): string {
   const params = new URLSearchParams({ team: options.groupCode });
@@ -116,6 +126,8 @@ export function eventToIcs(event: FeedEventInput, options: FeedOptions): IcsEven
     summary: event.title,
     description: eventDescription(event, options.includeMemo, options.includeParticipants),
     url: eventUrl(event, options),
+    location: eventLocation(event.place),
+    geo: event.place && event.place.lat !== null && event.place.lng !== null ? { lat: event.place.lat, lng: event.place.lng } : null,
   };
 }
 

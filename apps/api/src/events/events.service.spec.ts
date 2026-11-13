@@ -30,6 +30,7 @@ const ROW = {
   allMembers: true,
   participantIds: [] as number[],
   color: null,
+  place: null,
 };
 
 describe('assertEventRange / parseRange', () => {
@@ -103,7 +104,7 @@ describe('EventsService', () => {
     const created = await service.create(1, 10, { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe(100);
     expect(events.createWithLogTx).toHaveBeenCalledWith(
-      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null },
+      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, place: null },
       1,
     );
   });
@@ -118,7 +119,7 @@ describe('EventsService', () => {
     expect(updated.title).toBe('변경');
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       expect.objectContaining({ id: 100 }),
-      { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모', reminder: 'NONE', remindAt: null },
+      { title: '변경', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: '메모', reminder: 'NONE', remindAt: null, place: null },
       1,
     );
 
@@ -153,7 +154,7 @@ describe('EventsService', () => {
     await service.update(1, 10, 100, { memo: '' });
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       expect.objectContaining({ id: 100 }),
-      { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null },
+      { title: ROW.title, startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, reminder: 'NONE', remindAt: null, place: null },
       1,
     );
   });
@@ -193,7 +194,7 @@ describe('EventsService', () => {
     expect(updated.startsAt).toEqual(new Date('2026-12-01T11:00:00.000Z'));
     expect(events.updateWithLogTx).toHaveBeenCalledWith(
       expect.objectContaining({ id: 100 }),
-      { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date) },
+      { title: '회의', startsAt: new Date('2026-12-01T11:00:00.000Z'), endsAt: ROW.endsAt, allDay: true, memo: '원래 메모', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), place: null },
       1,
     );
   });

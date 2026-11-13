@@ -315,6 +315,15 @@ model Event {
   /// (#343) 일정 색. 멤버 색 키 8개(common/member.ts MEMBER_COLORS) 중 하나. null 이면 자동(참여자 색) (D-215).
   /// 반복 일정은 원본 단위 (회차 예외 없음)
   color         String?       @db.Char(7)
+  /// (#199) 장소 이름. 직접 적은 글자 또는 카카오 장소 검색에서 고른 상호. null 이면 장소 없음 (D-242)
+  placeName     String?       @db.VarChar(100)
+  /// (#199) 고른 장소의 주소 (도로명, 없으면 지번). 직접 적은 장소는 null
+  placeAddress  String?       @db.VarChar(200)
+  /// (#199) 고른 장소의 좌표 (WGS84). 둘 다 있거나 둘 다 null. 지도 표시용
+  placeLat      Float?
+  placeLng      Float?
+  /// (#199) 카카오 장소 ID. 상세 링크 `https://place.map.kakao.com/<id>` 를 여기서 만든다 (주소는 저장하지 않는다)
+  placeKakaoId  String?       @db.VarChar(20)
 
   group        Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator      User?              @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
@@ -357,6 +366,13 @@ model EventException {
   reminder      EventReminder?
   /// (#188) 이 회차의 시각이나 알림을 바꾼 시각. null 이면 원본 값
   reminderSetAt DateTime?
+  /// (#199) 이 회차의 장소. placeName 이 null 이면 원본 장소, '' 면 이 회차만 장소 없음 (메모와 같은 규칙, D-65).
+  /// 값이 있으면 아래 네 값과 함께 원본 장소 전체를 대신한다
+  placeName     String?   @db.VarChar(100)
+  placeAddress  String?   @db.VarChar(200)
+  placeLat      Float?
+  placeLng      Float?
+  placeKakaoId  String?   @db.VarChar(20)
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

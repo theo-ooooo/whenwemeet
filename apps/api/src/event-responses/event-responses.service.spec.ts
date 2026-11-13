@@ -34,6 +34,7 @@ const ONCE: EventRow = {
   allMembers: false,
   participantIds: [1, 2],
   color: null,
+  place: null,
 };
 /** 매주 수요일 2026-11-11 시작 */
 const SERIES: EventRow = { ...ONCE, id: 200, publicCode: 'srescode', title: '주간 모임', repeat: 'WEEKLY', startsAt: kst('2026-11-11T19:00:00'), endsAt: kst('2026-11-11T21:00:00'), allMembers: true, participantIds: [] };
@@ -103,7 +104,7 @@ describe('EventResponsesService (#190)', () => {
   it('취소된 회차("이 일정만" 삭제)는 404', async () => {
     events.findInGroup.mockResolvedValue(SERIES);
     events.listExceptions.mockResolvedValue([
-      { occurrence: '2026-11-18', cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null, reminder: null, reminderSetAt: null },
+      { occurrence: '2026-11-18', cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null, reminder: null, reminderSetAt: null, place: null },
     ]);
     await expect(service.setRsvp(1, 10, 200, '2026-11-18', 'GOING')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

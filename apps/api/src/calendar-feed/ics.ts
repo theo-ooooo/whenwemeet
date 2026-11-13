@@ -25,6 +25,10 @@ export interface IcsEvent {
   summary: string;
   description?: string | null;
   url?: string | null;
+  /** (#199) 장소 글자 (LOCATION, 3.8.1.7) */
+  location?: string | null;
+  /** (#199) 장소 좌표 (GEO, 3.8.1.6). 위도;경도 소수 6자리 */
+  geo?: { lat: number; lng: number } | null;
   /** true 면 바쁨으로 세지 않는다 (기념일) */
   transparent?: boolean;
 }
@@ -106,6 +110,8 @@ function eventLines(event: IcsEvent): string[] {
   ];
   if (event.description) lines.push(`DESCRIPTION:${escapeText(event.description)}`);
   if (event.url) lines.push(`URL:${event.url}`);
+  if (event.location) lines.push(`LOCATION:${escapeText(event.location)}`);
+  if (event.geo) lines.push(`GEO:${event.geo.lat.toFixed(6)};${event.geo.lng.toFixed(6)}`);
   lines.push(`LAST-MODIFIED:${formatUtc(event.lastModified)}`, `SEQUENCE:${event.sequence}`);
   if (event.transparent) lines.push('TRANSP:TRANSPARENT');
   lines.push('END:VEVENT');

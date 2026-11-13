@@ -4,6 +4,7 @@ import {
   allDayDates,
   anniversaryEvents,
   eventDescription,
+  eventLocation,
   eventToIcs,
   eventUid,
   eventUrl,
@@ -103,6 +104,30 @@ describe('ics 텍스트 규칙 (RFC 5545 3.1, 3.3.11)', () => {
 
   it('formatUtc: 초 아래는 버린다', () => {
     expect(formatUtc(new Date('2026-11-22T09:05:07.999Z'))).toBe('20261122T090507Z');
+  });
+});
+
+describe('(#199) 장소 → LOCATION, GEO (D-248)', () => {
+  const place = { name: '카페; 온화, 성수점', address: '서울 성동구 연무장길 12', lat: 37.5428, lng: 127.0565 };
+
+  it('"이름, 주소" 를 이스케이프해 싣고 좌표는 소수 6자리 GEO. 메모 옵션과 무관', () => {
+    const lines = unfold(calendar([eventToIcs(event({ place }), OPTIONS)]));
+    expect(lines).toContain('LOCATION:카페\\; 온화\\, 성수점\\, 서울 성동구 연무장길 12');
+    expect(lines).toContain('GEO:37.542800;127.056500');
+    const parsed = new ICAL.Event(new ICAL.Component(ICAL.parse(calendar([eventToIcs(event({ place }), OPTIONS)]))).getFirstSubcomponent('vevent')!);
+    expect(parsed.location).toBe('카페; 온화, 성수점, 서울 성동구 연무장길 12');
+  });
+
+  it('주소가 없거나 이름과 같으면 이름만, 좌표가 없으면 GEO 없음, 장소가 없으면 둘 다 없음', () => {
+    expect(eventLocation({ ...place, address: null })).toBe(place.name);
+    expect(eventLocation({ ...place, address: place.name })).toBe(place.name);
+    expect(eventLocation(null)).toBeNull();
+    expect(eventLocation(undefined)).toBeNull();
+    const free = unfold(calendar([eventToIcs(event({ place: { name: '집', address: null, lat: null, lng: null } }), OPTIONS)]));
+    expect(free).toContain('LOCATION:집');
+    expect(free.some((l) => l.startsWith('GEO'))).toBe(false);
+    const none = unfold(calendar([eventToIcs(event(), OPTIONS)]));
+    expect(none.some((l) => l.startsWith('LOCATION') || l.startsWith('GEO'))).toBe(false);
   });
 });
 
