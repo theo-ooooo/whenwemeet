@@ -60,9 +60,15 @@ export function storeLiveFromEnv(v: string | undefined): StoreLive {
 
 export function planAppOpen(ua: string | null | undefined, storeLive: StoreLive): AppOpenPlan {
   const b = detectBrowser(ua);
-  // 데스크톱과 앱 셸 안은 늘 웹. 그 OS 앱이 스토어에 공개(APP_STORE_LIVE)되기 전에는 묻지 않는다(없는 앱을 권하지 않게).
+  // 데스크톱과 앱 셸 안은 늘 웹. 그 OS 앱이 스토어에 공개(APP_STORE_LIVE)되기 전에는 묻지 않는다(없는 앱을 권하지 않게). 예외는 아래 Android 카카오톡
   // 모바일 브라우저(카카오톡 인앱 포함)에서는 "앱으로 이용하기 / 웹으로 이용하기" 시트를 한 번 띄운다 (2026-11-11 사용자 결정, D-72)
-  if (b.inApp || !b.os || !storeLive[b.os]) return { show: false };
+  if (b.inApp || !b.os) return { show: false };
+  if (!storeLive[b.os]) {
+    // (2026-11-13) Android 카카오톡 인앱 브라우저는 앱 링크를 타지 않아, Play 공개 전 비공개 테스트로 앱을 깐 사람도 늘 웹에 남았다.
+    // intent 는 앱이 없으면 웹(app=0)으로 돌아오기만 하므로 스토어 없이도 묻는다. 시트 문구는 "없으면 웹에서 계속"
+    if (b.os === "android" && b.kakao) return { show: true, os: "android", kakao: true, auto: true, storeUrl: null };
+    return { show: false };
+  }
   return {
     show: true,
     os: b.os,
