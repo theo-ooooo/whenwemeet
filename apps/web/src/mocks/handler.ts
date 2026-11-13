@@ -1343,9 +1343,45 @@ export function mockHandle(ctx: Ctx): MockResult {
       }
     }
 
+    // (#375) 일정 삭제 되돌리기 POST /groups/:id/event-deletions/:deletionId/restore (D-251). 팀원 누구나, 7일 안
+    if (rest[0] === "event-deletions" && rest.length === 3 && rest[2] === "restore" && method === "POST") {
+      const deletionId = parseId(rest[1]);
+      if (deletionId === null) return err(400, "VALIDATION_FAILED", "deletionId 은(는) 양의 정수여야 해요");
+      const d = (s.deletions ?? []).find((x) => x.id === deletionId && x.groupId === groupId);
+      if (!d || Date.now() - Date.parse(d.createdAt) > 7 * DAY_MS) return err(404, "NOT_FOUND", "되돌릴 수 있는 기간이 지났어요");
+      s.events = [...s.events.filter((x) => x.id !== d.eventId), d.event];
+      const same = (a: { eventId: number; occurrence: string; userId: number }, b: typeof a) => a.eventId === b.eventId && a.occurrence === b.occurrence && a.userId === b.userId;
+      const members = new Set(s.memberships.filter((m) => m.groupId === groupId).map((m) => m.userId));
+      s.rsvps = [...(s.rsvps ?? []), ...d.rsvps.filter((r) => members.has(r.userId) && !(s.rsvps ?? []).some((x) => same(x, r)))];
+      s.reactions = [...(s.reactions ?? []), ...d.reactions.filter((r) => members.has(r.userId) && !(s.reactions ?? []).some((x) => same(x, r)))];
+      for (const l of s.logs) if (d.logIds.includes(l.id)) l.eventId = d.eventId;
+      s.logs = s.logs.filter((l) => l.id !== d.logId);
+      s.deletions = (s.deletions ?? []).filter((x) => x.id !== d.id);
+      return ok({ ok: true, eventId: d.eventId, occurrence: null });
+    }
+
     if (rest[0] === "events") {
-      const log = (e: { title: string; startsAt: string; endsAt: string; allDay: boolean }, extra: Pick<EventLogRow, "action" | "eventId" | "repeat" | "scope" | "occurrence">) =>
-        s.logs.push({ id: nextId(), groupId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, actorId: userId, createdAt: nowIso(), ...extra });
+      const log = (e: { title: string; startsAt: string; endsAt: string; allDay: boolean }, extra: Pick<EventLogRow, "action" | "eventId" | "repeat" | "scope" | "occurrence">) => {
+        const id = nextId();
+        s.logs.push({ id, groupId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, actorId: userId, createdAt: nowIso(), ...extra });
+        return id;
+      };
+      // (#375) 지우기 직전 모습을 보관하고 삭제 응답의 deletionId 를 돌려준다 (D-251)
+      const keep = (before: EventRow, logId: number) => {
+        const id = nextId();
+        (s.deletions ??= []).push({
+          id,
+          groupId,
+          eventId: before.id,
+          createdAt: nowIso(),
+          logId,
+          event: before,
+          rsvps: (s.rsvps ?? []).filter((r) => r.eventId === before.id).map((r) => ({ ...r })),
+          reactions: (s.reactions ?? []).filter((r) => r.eventId === before.id).map((r) => ({ ...r })),
+          logIds: s.logs.filter((l) => l.eventId === before.id).map((l) => l.id),
+        });
+        return id;
+      };
 
       if (rest.length === 1 && method === "GET") {
         const from = Date.parse(query.get("from") ?? "");
@@ -1459,9 +1495,13 @@ export function mockHandle(ctx: Ctx): MockResult {
           return ok(eventOut(s, e));
         }
         if (method === "DELETE") {
+          const before = structuredClone(e);
           s.events = s.events.filter((x) => x.id !== e.id);
-          log(e, { action: "DELETED", eventId: null, repeat: null, scope: null, occurrence: null });
-          return ok({ ok: true });
+          s.rsvps = (s.rsvps ?? []).filter((r) => r.eventId !== e.id);
+          s.reactions = (s.reactions ?? []).filter((r) => r.eventId !== e.id);
+          const deletionId = keep(before, log(e, { action: "DELETED", eventId: null, repeat: null, scope: null, occurrence: null }));
+          for (const l of s.logs) if (l.eventId === e.id) l.eventId = null;
+          return ok({ ok: true, deletionId });
         }
       }
 
@@ -1584,19 +1624,30 @@ export function mockHandle(ctx: Ctx): MockResult {
       }
       if (method === "DELETE") {
         const snap = { title: values.title, startsAt: values.startsAt, endsAt: values.endsAt, allDay: values.allDay };
+        const before = structuredClone(series) as EventRow;
+        let logId: number;
+        const dropResponses = (match: (occurrence: string) => boolean) => {
+          s.rsvps = (s.rsvps ?? []).filter((r) => !(r.eventId === series.id && match(r.occurrence)));
+          s.reactions = (s.reactions ?? []).filter((r) => !(r.eventId === series.id && match(r.occurrence)));
+        };
         if (scope === "this") {
           series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
           series.exceptions.push({ occurrence: date, cancelled: true });
-          log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+          logId = log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+          dropResponses((o) => o === date);
         } else if (date === first) {
           s.events = s.events.filter((x) => x.id !== series.id);
-          log(snap, { action: "DELETED", eventId: null, repeat: series.repeat, scope: logScope, occurrence: date });
+          logId = log(snap, { action: "DELETED", eventId: null, repeat: series.repeat, scope: logScope, occurrence: date });
+          dropResponses(() => true);
         } else {
           series.repeatUntil = addDays(date, -1);
           series.exceptions = series.exceptions.filter((x) => x.occurrence < date);
-          log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+          logId = log(snap, { action: "DELETED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
+          dropResponses((o) => o >= date);
         }
-        return ok({ ok: true });
+        const deletionId = keep(before, logId);
+        if (date === first && scope !== "this") for (const l of s.logs) if (l.eventId === series.id) l.eventId = null;
+        return ok({ ok: true, deletionId });
       }
     }
 

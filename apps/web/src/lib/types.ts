@@ -54,6 +54,11 @@ export type NotificationSettings = { reminder: boolean; change: boolean; anniver
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
 
+/** (#375) 일정 삭제 응답. deletionId 로 7일 안에 되돌릴 수 있다 (D-251) */
+export type EventDeleteResult = { ok: true; deletionId: number };
+/** (#375) 되돌리기 응답. occurrence 는 반복 회차 삭제를 되돌렸을 때 그 날짜 */
+export type EventRestoreResult = { ok: true; eventId: number; occurrence: string | null };
+
 export type EventInput = {
   title: string;
   startsAt: string;

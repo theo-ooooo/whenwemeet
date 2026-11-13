@@ -182,7 +182,25 @@ export type Store = {
   reactions?: ReactionRow[];
   /** (#189) 약속 투표. 없으면 빈 목록 */
   polls?: PollRow[];
+  /** (#375) 되돌릴 수 있게 보관한 일정 삭제. 없으면 빈 목록 */
+  deletions?: DeletionRow[];
   seq: number;
+};
+
+/**
+ * (#375) 목 삭제 보관 (D-251). 지우기 직전 일정 행(반복이면 예외 포함) 통째와 그 일정의 응답, 반응.
+ * 되돌리면 행을 그대로 바꿔 넣는다. logIds 는 행째 지울 때 끊긴 기록
+ */
+export type DeletionRow = {
+  id: number;
+  groupId: number;
+  eventId: number;
+  createdAt: string;
+  logId: number;
+  event: EventRow;
+  rsvps: RsvpRow[];
+  reactions: ReactionRow[];
+  logIds: number[];
 };
 
 /** (#190) 참석 여부 한 줄. occurrence 는 반복 회차 날짜, 한 번짜리는 시작 KST 날짜 */
