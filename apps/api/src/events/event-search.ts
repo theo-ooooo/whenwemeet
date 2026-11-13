@@ -70,7 +70,9 @@ export function representativeOccurrence(
 ): Occurrence | null {
   const window = SEARCH_WINDOW_DAYS * DAY_MS;
   const usable = (occurrence: Occurrence) => !skip.has(occurrence.occurrence);
-  const next = expand(rule, exceptions, now, new Date(now.getTime() + window)).find(
+  // 아직 시작 전인 반복(첫 회차가 400일 넘게 뒤)도 찾게 창은 지금과 첫 회차 중 늦은 쪽에서 연다
+  const from = Math.max(now.getTime(), rule.startsAt.getTime());
+  const next = expand(rule, exceptions, new Date(from), new Date(from + window)).find(
     (occurrence) => occurrence.endsAt.getTime() > now.getTime() && usable(occurrence),
   );
   if (next) return next;

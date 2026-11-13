@@ -38,7 +38,7 @@ export function PlaceSection({ place }: { place: Place | null | undefined }) {
           aria-haspopup="dialog"
           className="group relative mt-2.5 block h-36 w-full overflow-hidden rounded-sm border border-line"
         >
-          <PlaceMap lat={place.lat as number} lng={place.lng as number} label={`${place.name} 위치 지도`} className="absolute inset-0" onFail={onFail} />
+          <PlaceMap lat={place.lat as number} lng={place.lng as number} label={`${place.name} 위치 지도`} className="size-full" onFail={onFail} />
           {/* 미리보기 지도는 끌리지 않는다. 누르면 크게 */}
           <span className="absolute bottom-2 right-2 flex h-8 items-center gap-1 rounded-full bg-paper/95 px-2.5 text-[12px] font-semibold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
             <IconExpand size={14} />
@@ -52,14 +52,14 @@ export function PlaceSection({ place }: { place: Place | null | undefined }) {
   );
 }
 
-/** "카카오맵으로 길찾기" 보조 버튼 (면 --hover, 13.5/700). 앱 셸은 target 없이(셸이 OS 로), 브라우저는 새 탭 */
+/** "카카오맵으로 길찾기" 보조 버튼 (면 --paper + 1px --line, 13.5/700. --hover 는 라이트에서 칸 바탕과 같아 버튼이 안 보인다). 앱 셸은 target 없이(셸이 OS 로), 브라우저는 새 탭 */
 function DirectionsLink({ place, className = "" }: { place: Place; className?: string }) {
   const inApp = useInApp();
   return (
     <a
       href={directionsUrl(place)}
       {...(inApp ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-      className={`flex h-10 w-full items-center justify-center rounded-md bg-hover text-[13.5px] font-bold text-ink hover:brightness-95 ${className}`}
+      className={`flex h-10 w-full items-center justify-center rounded-md border border-line bg-paper text-[13.5px] font-bold text-ink hover:brightness-95 ${className}`}
     >
       카카오맵으로 길찾기
     </a>

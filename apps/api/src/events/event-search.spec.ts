@@ -73,6 +73,11 @@ describe('representativeOccurrence', () => {
     expect(representativeOccurrence(one, [{ occurrence: '2023-01-04', cancelled: true }], now)).toBeNull();
   });
 
+  it('첫 회차가 400일 넘게 뒤인 반복도 첫 회차', () => {
+    const later: SeriesRule = { ...weekly, startsAt: kst('2030-01-02T07:00:00'), endsAt: kst('2030-01-02T08:00:00') };
+    expect(representativeOccurrence(later, [], now)?.occurrence).toBe('2030-01-02');
+  });
+
   it('매년 반복은 400일 창 안에서 다음 회차', () => {
     const yearly: SeriesRule = { startsAt: kst('2020-02-01T00:00:00'), endsAt: kst('2020-02-02T00:00:00'), allDay: true, repeat: 'YEARLY', repeatUntil: null };
     expect(representativeOccurrence(yearly, [], now)?.occurrence).toBe('2027-02-01');
