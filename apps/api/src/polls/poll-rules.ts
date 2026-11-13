@@ -1,4 +1,4 @@
-// (#189) 약속 투표의 순수 규칙 (설계 약속-투표.md, D-224 ~ D-228). Prisma 를 import 하지 않는다 (단위 테스트 대상)
+// (#189) 약속 투표의 순수 규칙 (설계 약속-투표.md, D-234 ~ D-241). Prisma 를 import 하지 않는다 (단위 테스트 대상)
 import { ApiException } from '../common/errors.js';
 import type { Member, MemberResolver } from '../common/member.js';
 import { KST_OFFSET_MS } from '../events/recurrence.js';
@@ -61,7 +61,7 @@ export function checkDeadline(deadline: Date | null, now: Date): void {
 /** 후보가 지났는가 (시작 시각이 지나면 고를 수도 정할 수도 없다) */
 export const isPastOption = (option: { startsAt: Date }, now: Date): boolean => option.startsAt.getTime() <= now.getTime();
 
-/** 마감이 지났는가 (진행 중 투표만. 읽을 때 계산, D-225) */
+/** 마감이 지났는가 (진행 중 투표만. 읽을 때 계산, D-235) */
 export const isExpired = (poll: { status: 'OPEN' | 'CLOSED'; deadline: Date | null }, now: Date): boolean =>
   poll.status === 'OPEN' && poll.deadline !== null && poll.deadline.getTime() <= now.getTime();
 

@@ -84,7 +84,7 @@ export class GroupActivitiesRepository {
 
   /**
    * (#189) `after` 이후 남이 정한 투표 수 (내 활동 제외, 탈퇴자 포함). 정하기는 POLL_CLOSED 와 숨겨지는 CREATED 로그를 한 번에 남겨
-   * 안 읽은 수에서 하나를 빼는 데 쓴다 (D-226)
+   * 안 읽은 수에서 하나를 빼는 데 쓴다 (D-236)
    */
   countUnseenPollClosedByOthers(groupId: number, after: Date, userId: number): Promise<number> {
     return this.prisma.groupActivity.count({

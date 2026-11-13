@@ -129,7 +129,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     }
     // (#277) 창이 아니라 "이번 주 처리 여부" 로 판단한다 (월요일 09:00 ~ 12:00 KST, D-203)
     const weekly = await this.weeklyPlanner.plan(now);
-    // (#189) 마감이 지난 투표 (창이 아니라 표시 열로 한 번만, D-227)
+    // (#189) 마감이 지난 투표 (창이 아니라 표시 열로 한 번만, D-241)
     const polls = await this.pollPlanner.plan(now);
 
     const expand = await this.dispatcher.expandDue(now);

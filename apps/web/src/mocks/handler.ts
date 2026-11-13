@@ -390,7 +390,7 @@ function unread(s: Store, groupId: number, userId: number) {
   // (#191) 일정 기록 + 팀 활동 기록
   const byOthers = (r: { groupId: number; actorId: number | null; createdAt: string }) =>
     r.groupId === groupId && r.actorId !== userId && r.createdAt > seen;
-  // (#189) 투표로 정한 일정 기록은 숨기므로 POLL_CLOSED 수만큼 뺀다 (D-226)
+  // (#189) 투표로 정한 일정 기록은 숨기므로 POLL_CLOSED 수만큼 뺀다 (D-236)
   const closed = (s.activities ?? []).filter((a) => a.type === "POLL_CLOSED" && byOthers(a)).length;
   return s.logs.filter(byOthers).length + (s.activities ?? []).filter(byOthers).length - closed;
 }
@@ -1656,7 +1656,7 @@ export function mockHandle(ctx: Ctx): MockResult {
               isNew: a.createdAt > seen,
             };
           });
-        // (#189) 투표로 정해 생긴 일정 기록은 POLL_CLOSED 한 줄로 보인다 (D-226)
+        // (#189) 투표로 정해 생긴 일정 기록은 POLL_CLOSED 한 줄로 보인다 (D-236)
         const hidden = new Set(activities.flatMap((a) => (a.type === "POLL_CLOSED" && typeof a.payload?.eventLogId === "number" ? [a.payload.eventLogId] : [])));
         const merged = [...items.filter((i) => !hidden.has(i.id)).map((i) => ({ kind: "EVENT" as const, ...i })), ...activities]
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (a.kind === b.kind ? 0 : a.kind === "EVENT" ? -1 : 1))

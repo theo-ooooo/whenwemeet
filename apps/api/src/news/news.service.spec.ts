@@ -106,7 +106,7 @@ describe('NewsService', () => {
     expect(items[1]).toMatchObject({ kind: 'EVENT', action: 'UPDATED', title: 't' });
   });
 
-  it('(#189) list v2: 투표로 정해 생긴 일정 CREATED 로그는 POLL_CLOSED 한 줄로 숨긴다 (D-226). v1 은 그대로', async () => {
+  it('(#189) list v2: 투표로 정해 생긴 일정 CREATED 로그는 POLL_CLOSED 한 줄로 숨긴다 (D-236). v1 은 그대로', async () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ joinedAt: new Date('2026-09-01T00:00:00.000Z') }));
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     eventLogs.listRecentByOthers.mockResolvedValue([eventLog(301, '2026-11-07T00:00:00.000Z'), eventLog(302, '2026-11-04T00:00:00.000Z')]);

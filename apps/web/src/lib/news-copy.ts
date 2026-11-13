@@ -114,7 +114,7 @@ export function activityPhrase(item: Pick<ActivityNewsItem, "type" | "payload">)
     case "EVENT_RSVP":
       // (#190) "{이름}님이 '저녁 약속'에 참석으로 답했어요"
       return `${quoted(p.title ?? "")}에 ${p.status ? RSVP_LABEL[p.status] : "응답"}으로 답했어요`;
-    // (#189) 투표를 열었다 / 시간을 정했다. 정해서 생긴 일정 추가 줄은 서버가 숨긴다 (D-226)
+    // (#189) 투표를 열었다 / 시간을 정했다. 정해서 생긴 일정 추가 줄은 서버가 숨긴다 (D-236)
     case "POLL_CREATED":
     case "POLL_CLOSED":
       return pollActivityPhrase(item.type, p);

@@ -413,7 +413,7 @@ export class EventsRepository {
 
   /**
    * (#189) 호출자의 트랜잭션 안에서 일정 생성 + CREATED 로그 (참여자 검사 포함). 팀원 변경 알림은 만들지 않는다.
-   * 약속 투표 정하기가 쓴다 (알림은 투표 문구 1건, D-226)
+   * 약속 투표 정하기가 쓴다 (알림은 투표 문구 1건, D-236)
    */
   async createWithLogInTx(tx: Db, data: EventCreateInput, actorId: number): Promise<{ row: EventRow; logId: number }> {
     const { row, log } = await this.insertWithLogTx(tx, data, actorId);

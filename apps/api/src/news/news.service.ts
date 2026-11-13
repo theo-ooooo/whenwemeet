@@ -152,7 +152,7 @@ export class NewsService {
       createdAt: row.createdAt,
       isNew: isNew(row.createdAt),
     }));
-    // (#189) 투표로 정한 일정의 CREATED 로그는 POLL_CLOSED 한 줄로 보인다 (D-226, Q4)
+    // (#189) 투표로 정한 일정의 CREATED 로그는 POLL_CLOSED 한 줄로 보인다 (D-236, Q4)
     const hidden = pollEventLogIds(activityRows);
     const events: EventNewsItem[] = items.filter((item) => !hidden.has(item.id)).map((item) => ({ kind: 'EVENT', ...item }));
     return { items: mergeNews(events, activities), lastSeenAt: me.lastSeenAt };

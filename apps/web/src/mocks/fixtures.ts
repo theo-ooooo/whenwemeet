@@ -154,7 +154,7 @@ export type ActivityRow = {
   actorId: number | null;
   actorName: string;
   anniversaryId: number | null;
-  /** (#189) POLL_CLOSED 는 숨길 일정 기록 id(eventLogId) 를 함께 둔다 (D-226) */
+  /** (#189) POLL_CLOSED 는 숨길 일정 기록 id(eventLogId) 를 함께 둔다 (D-236) */
   payload: ActivityNewsItem["payload"] & { eventLogId?: number };
   createdAt: string;
 };

@@ -15,7 +15,7 @@ export type GroupActivityType =
   | 'EVENTS_IMPORTED'
   /** (#190) 참석 여부를 정하거나 바꿈 (D-227) */
   | 'EVENT_RSVP'
-  /** (#189) 약속 투표를 열었다, 시간을 정했다 (D-226) */
+  /** (#189) 약속 투표를 열었다, 시간을 정했다 (D-236) */
   | 'POLL_CREATED'
   | 'POLL_CLOSED';
 
@@ -57,7 +57,7 @@ export interface PollCreatedPayload {
   title: string;
 }
 
-/** (#189) 시간을 정했다. eventLogId 는 이 확정으로 생긴 CREATED 로그 (새 소식에서 숨긴다, D-226) */
+/** (#189) 시간을 정했다. eventLogId 는 이 확정으로 생긴 CREATED 로그 (새 소식에서 숨긴다, D-236) */
 export interface PollClosedPayload extends PollCreatedPayload {
   eventId: number;
   eventCode: string;
@@ -79,7 +79,7 @@ export type ActivityPayload =
   | PollClosedPayload
   | Record<string, never>;
 
-/** (#189) POLL_CLOSED 기록들이 가리키는 EventLog id (새 소식에서 숨길 확정 일정 기록, D-226) */
+/** (#189) POLL_CLOSED 기록들이 가리키는 EventLog id (새 소식에서 숨길 확정 일정 기록, D-236) */
 export function pollEventLogIds(rows: readonly { type: GroupActivityType; payload: unknown }[]): Set<number> {
   const ids = new Set<number>();
   for (const row of rows) {

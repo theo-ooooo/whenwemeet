@@ -145,7 +145,7 @@ export class PollsRepository {
 
   /**
    * 정하기 (설계 4장). OPEN → CLOSED 를 조건부로 바꾸고(동시에 누르면 하나만, 나머지 null) 같은 트랜잭션에서
-   * 일정 + CREATED 로그, 투표의 eventId, POLL_CLOSED 기록, 정함 알림. 팀원 변경 알림은 만들지 않는다 (D-226)
+   * 일정 + CREATED 로그, 투표의 eventId, POLL_CLOSED 기록, 정함 알림. 팀원 변경 알림은 만들지 않는다 (D-236)
    */
   async confirmTx(input: PollConfirmInput): Promise<EventRow | null> {
     return this.prisma.$transaction(async (tx) => {

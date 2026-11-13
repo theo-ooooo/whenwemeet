@@ -311,7 +311,7 @@ export function pollDeadlinePayload(target: PollTarget, now: Date): PushPayload 
   };
 }
 
-/** (#189) 정함. 그 확정으로 생긴 일정의 팀원 변경 알림 대신 이 1건 (D-226). 누르면 그 일정 */
+/** (#189) 정함. 그 확정으로 생긴 일정의 팀원 변경 알림 대신 이 1건 (D-236). 누르면 그 일정 */
 export function pollClosedPayload(
   target: PollTarget & { actorName: string; eventCode: string; option: { startsAt: Date; allDay: boolean } },
   now: Date,

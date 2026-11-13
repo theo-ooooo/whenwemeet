@@ -129,7 +129,7 @@ describe('GroupsService', () => {
     expect(activities.countUnseenByOthers).toHaveBeenCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
   });
 
-  it('(#189) list: 투표로 정한 수만큼 뺀다 (숨긴 CREATED 로그, D-226)', async () => {
+  it('(#189) list: 투표로 정한 수만큼 뺀다 (숨긴 CREATED 로그, D-236)', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
       { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
     ]);

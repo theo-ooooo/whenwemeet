@@ -528,7 +528,7 @@ enum GroupActivityType {
   /// (#189) 약속 투표를 열었다. payload { pollId, code, title }
   POLL_CREATED
   /// (#189) 약속 투표에서 시간을 정했다. payload { pollId, code, title, eventId, eventCode, eventLogId, startsAt, endsAt, allDay }.
-  /// 그 확정으로 생긴 EventLog CREATED(eventLogId) 는 새 소식에서 숨긴다 (D-226)
+  /// 그 확정으로 생긴 EventLog CREATED(eventLogId) 는 새 소식에서 숨긴다 (D-236)
   POLL_CLOSED
 }
 
@@ -669,7 +669,7 @@ enum PushKind {
   JOIN
   /// (#277) 주간 요약과 조용한 팀 깨우기. payload.variant = 'SUMMARY' | 'NUDGE' (D-203)
   WEEKLY
-  /// (#189) 약속 투표: 열림(PO:), 정함(PC:), 마감(PD:). 문구는 예약할 때 만든다 (D-227)
+  /// (#189) 약속 투표: 열림(PO:), 정함(PC:), 마감(PD:). 문구는 예약할 때 만든다 (D-241)
   POLL
 }
 
@@ -849,13 +849,13 @@ model CalendarFeed {
   @@index([groupId])
 }
 
-/// (#189) 약속 투표 상태. 마감(expired)은 읽을 때 deadline 으로 계산한다 (D-225)
+/// (#189) 약속 투표 상태. 마감(expired)은 읽을 때 deadline 으로 계산한다 (D-235)
 enum PollStatus {
   OPEN
   CLOSED
 }
 
-/// (#189) 약속 투표 (설계 약속-투표.md, D-224 ~ D-228). 빈 시간 결과에서 고른 후보 2~5개 중 하나를 정하면 그대로 일정이 된다
+/// (#189) 약속 투표 (설계 약속-투표.md, D-234 ~ D-241). 빈 시간 결과에서 고른 후보 2~5개 중 하나를 정하면 그대로 일정이 된다
 model Poll {
   id                 Int        @id @default(autoincrement())
   groupId            Int
