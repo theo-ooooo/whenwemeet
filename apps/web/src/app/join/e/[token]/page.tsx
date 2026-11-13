@@ -8,7 +8,7 @@ import { JoinLoginActions } from "@/components/JoinLoginActions";
 import { OpenInApp } from "@/components/OpenInApp";
 import { Button } from "@/components/ui";
 import { parseAppUserAgent } from "@/lib/app-bridge";
-import { planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
+import { NO_APP_PARAM, NO_APP_VALUE, planAppOpen, storeLiveFromEnv } from "@/lib/app-open";
 import { JOIN_AUTO_FRESH_SEC, JOIN_AUTO_PARAM, SESSION_COOKIE, webAppleEnabled } from "@/lib/auth";
 import { memberColor } from "@/lib/colors";
 import { webEmailEnabled } from "@/lib/email-route";
@@ -79,18 +79,35 @@ export default async function EventSharePage({
   const { token: raw } = await params;
   const sp = await searchParams;
   const { token, data, error } = await loadShare(raw);
+  const ua = (await headers()).get("user-agent");
+  // 모바일 브라우저(앱 셸 밖)면 "앱에서 열기". 경로 /join/e/<token> 은 기존 앱 링크(/join)가 덮는다
+  const appOpen = planAppOpen(ua, storeLiveFromEnv(process.env.APP_STORE_LIVE));
   // 이미 멤버면 화면 없이 그 일정이 열린 달력으로 (D-184). 페이지를 여는 것만으로 합류하지 않는다 (D-41)
-  if (data?.viewer.member) redirect(eventShareLandingHref(data.viewer));
+  // (2026-11-13) 모바일 브라우저면 먼저 앱으로 열지 묻는다. 웹을 고르거나 앱이 없으면(app=0) 그때 달력으로
+  if (data?.viewer.member) {
+    const landing = eventShareLandingHref(data.viewer);
+    if (!appOpen.show || sp[NO_APP_PARAM] === NO_APP_VALUE) redirect(landing);
+    return (
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+        <Symbol size={32} />
+        <h1 className="mt-auto break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]">이미 함께하는 팀이에요</h1>
+        <p className="mt-2 text-[15px] leading-[22px] text-soft">일정이 열린 달력으로 이동해요</p>
+        <Link href={landing} className="mt-8 block">
+          <Button size="lg" full tabIndex={-1}>
+            달력 보기
+          </Button>
+        </Link>
+        <OpenInApp plan={appOpen} webHref={landing} />
+      </main>
+    );
+  }
 
   const session = (await cookies()).get(SESSION_COOKIE)?.value;
   const loggedIn = Boolean(session);
   // 이 링크에서 막 로그인하고 돌아온 경우(`?auto=1` + 방금 발급된 세션)만 확인 없이 합류 (초대와 같은 D-41)
   const autoJoin = loggedIn && sp[JOIN_AUTO_PARAM] === "1" && isFreshSession(session, JOIN_AUTO_FRESH_SEC);
-  const ua = (await headers()).get("user-agent");
   const appUa = parseAppUserAgent(ua);
   const appleEnabled = webAppleEnabled(process.env.APPLE_LOGIN_ENABLED, appUa?.os);
-  // 모바일 브라우저(앱 셸 밖)면 "앱에서 열기". 경로 /join/e/<token> 은 기존 앱 링크(/join)가 덮는다
-  const appOpen = planAppOpen(ua, storeLiveFromEnv(process.env.APP_STORE_LIVE));
   const sharer = data?.sharer ? clampTeamName(data.sharer.displayName, INVITER_NAME_MAX) : null;
   const repeat = data ? eventShareRepeatLabel(data.event.repeat) : null;
 
