@@ -292,6 +292,18 @@ export function IconPalette({ active, ...p }: PieceProps) {
   );
 }
 
+/** (#378) 생일: 둥근 사각 케이크 + 크림 물결 + 초 하나. 조각은 초의 불꽃(작은 둥근 사각). 기념일 목록에서 생일 줄 표시 */
+export function IconCake({ active, ...p }: PieceProps) {
+  return (
+    <Svg {...p}>
+      <rect x="4" y="11" width="16" height="9.5" rx="3.5" />
+      <path d="M4 15c2.7 1.4 5.3 1.4 8 0s5.3-1.4 8 0" />
+      <path d="M12 11V7.6" />
+      <rect data-piece x="10.6" y="3" width="2.8" height="3.6" rx="1.3" fill={pieceFill(active)} stroke="none" />
+    </Svg>
+  );
+}
+
 /** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양). 카카오 공유 버튼 안 (#195, #274) */
 export function KakaoSymbol() {
   return (

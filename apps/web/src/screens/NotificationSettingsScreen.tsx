@@ -3,32 +3,31 @@
 //   맨 위 "이 기기": 푸시 지원 앱이면 권한 상태(받는 중 + [설정 열기] / 등록하지 못함 + [다시 시도] / [알림 받기] / 꺼져 있어요 + [설정 열기]), 웹과 1.0.x 앱은 안내 한 줄
 //   토글 6개: 계정 단위라 다른 기기에도 적용. 누르면 바로 저장, 실패하면 되돌리고 토스트
 //   (#277) 맨 아래 "주간 요약"(기본 켬), "다 같이 비는 시간"(조용한 팀 깨우기, 기본 끔 D-204)
-import { useRouter } from "next/navigation";
+//   (#378) 팀 화면 뼈대(AppShell) 안이라 다른 화면과 같은 앱 머리줄이 있다. 머리줄 "‹ 알림", 토글은 설정 줄(ToggleRow) + 설명 한 줄.
+//   "알림은 앱에서 받을 수 있어요" 는 웹 브라우저에서만 (usePushNote: 앱이면 null 또는 업데이트 안내)
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePushNote } from "@/components/ReminderPicker";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { useToast } from "@/components/Toast";
-import { Button, ErrorState, Skeleton, Toggle } from "@/components/ui";
+import { Button, ErrorState, RowGroup, Skeleton, ToggleRow } from "@/components/ui";
 import { messageOf, useNotificationSettings, useUpdateNotificationSettings } from "@/hooks";
 import { appSupportsPush, openAppSettings, requestPushStatus, type PushStatus } from "@/lib/app-bridge";
 import { canAskPermission, recordPrompt } from "@/lib/push";
 import { usePushRegistrar, usePushSync } from "@/lib/usePushSync";
 import type { NotificationSettings } from "@/lib/types";
 
+// 설명은 한 줄 (디자인규칙.md 8-0 4). 넘치면 말줄임, 전체는 읽기 이름에
 const KINDS: { key: keyof NotificationSettings; label: string; description: string }[] = [
   { key: "reminder", label: "일정 알림", description: "일정에 고른 시각에 알려 드려요" },
-  { key: "change", label: "팀원 변경", description: "팀원이 일정을 추가, 수정, 삭제하면 알려 드려요" },
+  { key: "change", label: "팀원 변경", description: "팀원이 일정을 바꾸면 알려 드려요" },
   // (#269, D-148) 기념일마다 고른 시점(당일, 하루 전, 일주일 전) 전체의 사람별 스위치
-  { key: "anniversary", label: "기념일", description: "기념일마다 고른 날 아침 9시에 알려 드려요" },
-  { key: "join", label: "새 멤버 합류", description: "초대한 사람이 팀에 들어오면 알려 드려요" },
+  { key: "anniversary", label: "기념일", description: "고른 날 아침 9시에 알려 드려요" },
+  { key: "join", label: "새 멤버 합류", description: "초대한 사람이 들어오면 알려 드려요" },
   // (#189) 투표가 열리면 대상에게, 마감되면 연 사람에게, 시간을 정하면 대상에게
-  { key: "poll", label: "약속 투표", description: "팀원이 시간을 물어보거나 정하면, 내가 연 투표가 끝나면 알려 드려요" },
+  { key: "poll", label: "약속 투표", description: "투표가 열리거나 정해지면 알려 드려요" },
   // (#277, D-203) 숫자와 사실만. 권유형 문구를 쓰지 않는다 (D-204)
-  { key: "weekly", label: "주간 요약", description: "월요일 아침 9시에 그 주 팀 일정을 알려 드려요" },
-  {
-    key: "weeklyNudge",
-    label: "다 같이 비는 시간",
-    description: "팀에 2주 넘게 일정이 없으면 월요일 아침 9시에 이번 주 다 같이 비는 시간을 알려 드려요",
-  },
+  { key: "weekly", label: "주간 요약", description: "월요일 아침 9시에 그 주 일정을 알려 드려요" },
+  { key: "weeklyNudge", label: "다 같이 비는 시간", description: "2주 넘게 일정이 없으면 월요일에 알려 드려요" },
 ];
 
 const noop = () => () => {};
@@ -107,7 +106,7 @@ function DeviceRow() {
   }
 
   return (
-    <section className="mt-3 rounded-xl bg-paper px-3.5 py-1">
+    <section className="rounded-xl bg-paper px-3.5 py-1">
       <div className="flex min-h-12 items-center gap-3 py-1">
         <span className="shrink-0 text-[14px] font-semibold">이 기기</span>
         <span className="ml-auto flex min-w-0 items-center justify-end">{body}</span>
@@ -123,7 +122,6 @@ function DeviceRow() {
 }
 
 export function NotificationSettingsScreen() {
-  const router = useRouter();
   const toast = useToast();
   const settingsQ = useNotificationSettings();
   const { mutate } = useUpdateNotificationSettings();
@@ -149,59 +147,41 @@ export function NotificationSettingsScreen() {
     toast.show(messageOf(r.error, "알림 설정을 바꾸지 못했어요. 다시 시도해 주세요"));
   }
 
-  // (#318) 내 정보와 같은 넓은 짜임: fold 이상 본문 폭, lg 는 2단(왼쪽 이 기기, 오른쪽 받을 알림)
+  // 본문 폭 main-lg(≥696): 2단(왼쪽 이 기기, 오른쪽 받을 알림)
   return (
-    <main className="flex min-h-dvh w-full flex-col px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] fold:px-8 fold:pt-7">
-      <div className="mt-2 flex h-10 items-center justify-between fold:mt-0">
-        <h1 className="t-title">알림</h1>
-        <button type="button" onClick={() => router.back()} className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95">
-          뒤로
-        </button>
-      </div>
+    <div>
+      <ScreenHeader title="알림" fallbackHref="/me" backLabel="내 정보로" />
 
-      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-3 lg:pt-3 lg:[&>*>*:first-child]:mt-0">
-      <div>
-      {supported ? (
-        <DeviceRow />
-      ) : (
-        note && (
-          <section className="mt-3 rounded-xl bg-paper px-3.5 py-3">
-            <p className="text-[14px] leading-5 text-soft">{note}</p>
-          </section>
-        )
-      )}
-
-      </div>
-      <div>
-      {settingsQ.error && !settings ? (
-        <div className="mt-2">
-          <ErrorState message={messageOf(settingsQ.error, "알림 설정을 불러오지 못했어요")} onRetry={settingsQ.refetch} />
+      <div className="mt-3 space-y-5 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
+        <div>
+          {supported ? (
+            <DeviceRow />
+          ) : (
+            note && <p className="rounded-xl bg-paper px-3.5 py-3 text-[14px] leading-5 text-soft">{note}</p>
+          )}
         </div>
-      ) : (
-        <section className="mt-2 rounded-xl bg-paper px-3.5 py-1.5" aria-busy={!settings || undefined}>
-          <h2 className="pt-1.5 text-[13px] font-bold leading-5">받을 알림</h2>
-          <ul className="divide-y divide-line">
-            {KINDS.map((k) => (
-              <li key={k.key} className="py-1">
-                {settings ? (
-                  <Toggle checked={settings[k.key]} onChange={(v) => void toggle(k.key, v)} label={k.label} description={k.description} />
+        {settingsQ.error && !settings ? (
+          <ErrorState message={messageOf(settingsQ.error, "알림 설정을 불러오지 못했어요")} onRetry={settingsQ.refetch} />
+        ) : (
+          <div aria-busy={!settings || undefined}>
+            <RowGroup title="받을 알림" hint="내 계정의 모든 기기에 적용돼요. 팀별로는 팀 설정에서 꺼요">
+              {KINDS.map((k) =>
+                settings ? (
+                  <ToggleRow key={k.key} checked={settings[k.key]} onChange={(v) => void toggle(k.key, v)} label={k.label} description={k.description} />
                 ) : (
-                  <div className="flex min-h-11 items-center justify-between py-1">
+                  <div key={k.key} className="flex min-h-11 items-center justify-between py-1">
                     <span>
                       <Skeleton className="h-4 w-20" />
                       <Skeleton className="mt-1.5 h-3 w-44" />
                     </span>
                     <Skeleton className="h-6 w-10 rounded-full" />
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <p className="t-sub mt-2 px-1">이 설정은 내 계정의 모든 기기에 적용돼요. 팀별로 끄려면 팀 설정에서 바꿔 주세요</p>
+                ),
+              )}
+            </RowGroup>
+          </div>
+        )}
       </div>
-      </div>
-    </main>
+    </div>
   );
 }

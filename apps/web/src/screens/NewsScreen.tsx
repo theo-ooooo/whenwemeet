@@ -1,33 +1,48 @@
 "use client";
+// 새 소식 (#378, 나머지 화면 점검 5). 머리줄 "‹ 새 소식"(넓은 화면은 사이드바 메뉴라 ‹ 없음).
+// 줄마다 왼쪽 작은 칸에 종류 아이콘(일정, 기념일, 팀, 투표, 참석), "오늘, 어제, 이번 주, 이전" 으로 묶고 "3시간 전" 은 작게.
+// 안 읽은 소식은 진하게, 읽은 소식은 흐리게. 누를 수 있는 줄은 오른쪽 › 로 알린다(일정, 기념일, 투표, 팀 설정으로)
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useGroupContext } from "@/components/AppShell";
-import { IconBell, IconCalendar, IconHeart, IconPoll, IconTeam } from "@/components/icons";
-import { EmptyState, ErrorState, MemberDot, SkeletonList } from "@/components/ui";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { IconBell, IconCalendar, IconCheck, IconChevronRight, IconHeart, IconPoll, IconTeam } from "@/components/icons";
+import { EmptyState, ErrorState, RowGroup, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNewsSeen, useNews } from "@/hooks";
 import { formatEventTime, formatRelative, todayKey } from "@/lib/date";
 import {
   activityHref,
   activityPhrase,
   activitySubline,
+  groupNewsByDay,
   isActivity,
   knownNewsItems,
   newsDateLabel,
   newsHref,
   newsKey,
+  newsKindOf,
   newsPhrase,
+  type NewsKind,
 } from "@/lib/news-copy";
-import type { ActivityNewsItem, NewsItem } from "@/lib/types";
+import { CALENDAR_PATH } from "@/lib/routes";
+import type { ActivityNewsItem, NewsEntry, NewsItem } from "@/lib/types";
+
+const KIND_ICON: Record<NewsKind, (p: { size: number }) => React.ReactNode> = {
+  event: (p) => <IconCalendar {...p} />,
+  anniversary: (p) => <IconHeart {...p} />,
+  team: (p) => <IconTeam {...p} />,
+  poll: (p) => <IconPoll {...p} />,
+  rsvp: (p) => <IconCheck {...p} />,
+};
 
 export function NewsScreen() {
-  const router = useRouter();
   const { groupId, clearUnread } = useGroupContext();
   const newsQ = useNews(groupId);
   const news = newsQ.data;
   const items = news ? knownNewsItems(news.items) : [];
   const error = newsQ.error ? messageOf(newsQ.error, "새 소식을 불러오지 못했어요") : null;
   const load = newsQ.refetch;
+  const today = todayKey();
 
   // 목록을 받은 뒤에만 seen (순서 고정: GET → POST). 실패해도 조용히 넘어간다
   const { mutate: markSeen } = useMarkNewsSeen(groupId);
@@ -39,17 +54,8 @@ export function NewsScreen() {
   }, [news, markSeen, clearUnread]);
 
   return (
-    <div className="pt-1">
-      <div className="flex h-10 items-center justify-between">
-        <h1 className="t-title">새 소식</h1>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="hit h-8 rounded-sm bg-paper px-3 text-[13px] font-bold hover:brightness-95 fold:hidden"
-        >
-          뒤로
-        </button>
-      </div>
+    <div>
+      <ScreenHeader title="새 소식" fallbackHref={CALENDAR_PATH} back="phone" />
 
       <div className="mt-3">
         {error ? (
@@ -61,87 +67,79 @@ export function NewsScreen() {
             팀원이 일정을 바꾸면 여기에 모여요
           </EmptyState>
         ) : (
-          <ul className="rounded-xl bg-paper px-1.5 py-1.5">
-            {/* 일정 기록과 팀 활동 기록(#191)을 한 목록에. 모르는 종류는 knownNewsItems 가 거른다 */}
-            {items.map((item) => {
-              const href = isActivity(item) ? activityHref(item) : newsHref(item);
-              const body = (
-                <>
-                  {/* 새 항목은 행 왼쪽 6px 점 하나로 (#174 L14). 배지 글자 반복 대신 */}
-                  <i aria-hidden="true" className={`mt-[7px] -mr-1 block size-1.5 shrink-0 rounded-full ${item.isNew ? "bg-pri" : ""}`} />
-                  {item.isNew && <span className="sr-only">새 소식,</span>}
-                  {isActivity(item) ? <ActivityText item={item} /> : <EventText item={item} />}
-                  <span className="shrink-0 text-right text-[12px] leading-4 text-ink-2">
-                    {formatRelative(item.createdAt)}
-                  </span>
-                </>
-              );
-              const cls = `flex min-h-11 w-full items-start gap-2.5 rounded-sm px-2 py-2.5 text-left ${href ? "hover:bg-hover" : ""}`;
-              return (
-                <li key={newsKey(item)}>
-                  {href ? (
-                    <Link href={href} className={cls}>
-                      {body}
-                    </Link>
-                  ) : (
-                    <div className={cls}>{body}</div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          // 일정 기록과 팀 활동 기록(#191)을 한 목록에. 모르는 종류는 knownNewsItems 가 거른다
+          <div className="space-y-5">
+            {groupNewsByDay(items, today).map((g) => (
+              <RowGroup key={g.day} title={g.day}>
+                <ul>
+                  {g.items.map((item, i) => (
+                    <li key={newsKey(item)} className={i === 0 ? "" : "border-t border-line"}>
+                      <NewsRow item={item} today={today} />
+                    </li>
+                  ))}
+                </ul>
+              </RowGroup>
+            ))}
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-/** 일정 줄: 멤버 점 + "{이름}님이 '{제목}' {문구}" + 날짜 시각 줄 */
-function EventText({ item }: { item: NewsItem }) {
-  return (
+/** 한 줄: [종류 아이콘 칸 28] 문장 + 작은 줄(날짜 시각, "3시간 전") [›] */
+function NewsRow({ item, today }: { item: NewsEntry; today: string }) {
+  const href = isActivity(item) ? activityHref(item) : newsHref(item);
+  const unread = item.isNew;
+  const kind = newsKindOf(item);
+  const sub = isActivity(item) ? activitySubline(item, today) : `${newsDateLabel(item.startsAt, today)} ${formatEventTime(item.startsAt, item.endsAt, item.allDay)}`;
+  const when = formatRelative(item.createdAt);
+  const body = (
     <>
-      <MemberDot color={item.actor.color} size={8} className="mt-1.5" />
+      <span
+        aria-hidden="true"
+        className={`mt-px grid size-7 shrink-0 place-items-center rounded-[8px] bg-surface ${unread ? "text-ink" : "text-ink-2"}`}
+      >
+        {KIND_ICON[kind]({ size: 16 })}
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[14px] leading-5">
-          <span className="font-semibold">{item.actor.displayName}</span>님이{" "}
-          <span className={`font-semibold ${item.action === "DELETED" ? "line-through text-ink-2" : ""}`}>
-            &lsquo;{item.title}&rsquo;
-          </span>{" "}
-          {newsPhrase(item)}
+        {unread && <span className="sr-only">새 소식,</span>}
+        <span className={`block text-[14px] leading-5 ${unread ? "font-medium text-ink" : "text-soft"}`}>
+          {isActivity(item) ? <ActivityText item={item} unread={unread} /> : <EventText item={item} unread={unread} />}
         </span>
-        <span className="mt-0.5 block text-[12px] leading-4 text-ink-2 tabular-nums">
-          {newsDateLabel(item.startsAt, todayKey())} {formatEventTime(item.startsAt, item.endsAt, item.allDay)}
+        <span className={`mt-0.5 block text-[12px] leading-4 tabular-nums ${unread ? "text-ink-2" : "text-ink-2 opacity-80"}`}>
+          {sub ? `${sub}, ${when}` : when}
         </span>
       </span>
+      {href && <IconChevronRight size={16} className="-mr-1 shrink-0 self-center text-ink-2 group-hover:text-ink" />}
+    </>
+  );
+  const cls = "flex min-h-14 w-full items-start gap-3 py-3 text-left";
+  return href ? (
+    <Link href={href} className={`${cls} group rounded-sm`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
+  );
+}
+
+/** 일정 줄 문장: "{이름}님이 '{제목}' {문구}". 지운 일정의 제목은 줄을 긋는다 */
+function EventText({ item, unread }: { item: NewsItem; unread: boolean }) {
+  const strong = unread ? "font-bold" : "font-semibold";
+  return (
+    <>
+      <span className={strong}>{item.actor.displayName}</span>님이{" "}
+      <span className={`${strong} ${item.action === "DELETED" ? "line-through" : ""}`}>&lsquo;{item.title}&rsquo;</span> {newsPhrase(item)}
     </>
   );
 }
 
-/**
- * (#191) 팀 활동 줄: 멤버 점 + 종류 아이콘 18(기념일 하트, 멤버와 팀 이름은 팀, 디자인규칙 3장 "목록 줄 18")
- * + "{이름}님이 {문구}". 기념일만 둘째 줄에 "11월 22일, 함께한 날 세기" (일정 줄의 날짜 시각 자리)
- */
-function ActivityText({ item }: { item: ActivityNewsItem }) {
-  const sub = activitySubline(item, todayKey());
-  const Icon = item.type.startsWith("ANNIVERSARY_")
-    ? IconHeart
-    : item.type === "EVENTS_IMPORTED" || item.type === "EVENT_RSVP"
-      ? IconCalendar
-      : item.type.startsWith("POLL_")
-        ? IconPoll
-        : IconTeam;
+/** (#191) 팀 활동 줄 문장: "{이름}님이 {문구}" */
+function ActivityText({ item, unread }: { item: ActivityNewsItem; unread: boolean }) {
   return (
     <>
-      <MemberDot color={item.actor.color} size={8} className="mt-1.5" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-start gap-1.5 text-[14px] leading-5">
-          <Icon size={18} className="mt-px shrink-0 text-ink-2" />
-          <span className="min-w-0">
-            <span className="font-semibold">{item.actor.displayName}</span>님이 {activityPhrase(item)}
-          </span>
-        </span>
-        {sub && <span className="mt-0.5 block pl-[24px] text-[12px] leading-4 text-ink-2 tabular-nums">{sub}</span>}
-      </span>
+      <span className={unread ? "font-bold" : "font-semibold"}>{item.actor.displayName}</span>님이 {activityPhrase(item)}
     </>
   );
 }

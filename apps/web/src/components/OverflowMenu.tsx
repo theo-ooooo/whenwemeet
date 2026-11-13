@@ -5,6 +5,7 @@
 // - 바깥을 누르면 닫는다
 // - destructive 항목(지우기, 나가기)은 `--danger` 글자. 고르면 바로 실행하지 않고 확인 창(ConfirmDialog, 빨간 확인 버튼)을 먼저 띄운다.
 //   onSelect 가 Promise 를 돌려주면 끝날 때까지 확인 버튼이 도는 상태로 기다렸다 닫는다. 일정 삭제의 되돌리기(#375)는 부르는 쪽 몫
+//   부르는 쪽이 자기 확인 창을 띄우는 경우(일정 삭제: 반복이면 범위 시트, 아니면 시트 밖 확인 창)는 confirm: "caller" 로 메뉴만 닫고 onSelect
 import { useEffect, useId, useRef, useState } from "react";
 import { IconMore } from "./icons";
 import { ConfirmDialog } from "./ui";
@@ -27,8 +28,11 @@ export type OverflowMenuItem =
   | (ItemBase & { destructive?: false; confirm?: undefined })
   | (ItemBase & {
       destructive: true;
-      /** 확인 창 문구. 지우기처럼 되돌리기 어려운 항목은 반드시 준다 */
-      confirm: Confirm;
+      /**
+       * 확인 창 문구. 지우기처럼 되돌리기 어려운 항목은 반드시 준다.
+       * "caller" 는 onSelect 가 스스로 확인 창(또는 범위 시트)을 띄운다는 뜻이다. 메뉴는 확인 없이 닫기만 한다
+       */
+      confirm: Confirm | "caller";
     });
 
 const ENABLED_ITEM = '[role="menuitem"]:not([disabled])';
@@ -77,7 +81,7 @@ export function OverflowMenu({ label, items, disabled = false }: Props) {
 
   const choose = (item: OverflowMenuItem) => {
     if (item.disabled) return;
-    if (item.destructive) {
+    if (item.destructive && item.confirm !== "caller") {
       // 메뉴는 닫고 확인 창. 확인 창이 닫히면 ⋯ 로 포커스를 돌린다
       setOpen(false);
       setPending(item);
@@ -87,6 +91,7 @@ export function OverflowMenu({ label, items, disabled = false }: Props) {
     void item.onSelect();
   };
 
+  const pendingConfirm = pending?.confirm && pending.confirm !== "caller" ? pending.confirm : null;
   const confirmPending = async () => {
     if (!pending) return;
     setBusy(true);
@@ -175,9 +180,9 @@ export function OverflowMenu({ label, items, disabled = false }: Props) {
       )}
       <ConfirmDialog
         open={pending !== null}
-        title={pending?.confirm?.title ?? ""}
-        body={pending?.confirm?.body}
-        confirmLabel={pending?.confirm?.confirmLabel ?? ""}
+        title={pendingConfirm?.title ?? ""}
+        body={pendingConfirm?.body}
+        confirmLabel={pendingConfirm?.confirmLabel ?? ""}
         danger
         loading={busy}
         onConfirm={() => void confirmPending()}
