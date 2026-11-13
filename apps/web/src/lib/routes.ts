@@ -20,7 +20,8 @@ export function parsePublicCode(raw: string | string[] | null | undefined): stri
 }
 
 /** 팀 안 화면 (주소 첫 조각). settings → team, import → team/import 로 이름이 바뀌었다 */
-export const SCREENS = ["calendar", "upcoming", "free", "anniversaries", "todos", "news", "team", "events"] as const;
+/** (#199) search = 일정 검색 `/search?q=&scope=all` (메뉴 칩 없음) */
+export const SCREENS = ["calendar", "upcoming", "free", "anniversaries", "todos", "news", "team", "events", "search"] as const;
 export type Screen = (typeof SCREENS)[number];
 
 export const CALENDAR_PATH = "/calendar";
@@ -35,6 +36,8 @@ export const TEAM_PATH = "/team";
 export const ME_BIRTHDAY_PATH = "/me#birthday";
 export const IMPORT_PATH = "/team/import";
 export const NEW_EVENT_PATH = "/events/new";
+/** (#199) 일정 검색. 주소 만들기는 lib/event-search.ts searchHref */
+export const SEARCH_PATH = "/search";
 
 const qs = (q: URLSearchParams | Record<string, string | null | undefined>): string => {
   const params = q instanceof URLSearchParams ? q : new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
@@ -146,6 +149,8 @@ export function routeInfo(pathname: string): RouteInfo {
 export function activeTab(pathname: string): "calendar" | "upcoming" | "free" | "anniversaries" | "todos" | "news" | "team" | null {
   const { screen } = routeInfo(pathname);
   if (screen === "events") return "calendar";
+  // (#199) 검색은 어느 메뉴에도 속하지 않는다
+  if (screen === "search") return null;
   return screen;
 }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useGroupContext } from "@/components/AppShell";
 import { EventColorPicker } from "@/components/EventColorPicker";
 import { ParticipantSheet, ParticipantValue } from "@/components/Participants";
+import { PlaceField } from "@/components/PlaceField";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
 import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
 import { useToast } from "@/components/Toast";
@@ -433,6 +434,16 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
                 </div>
               )}
 
+              {/* (#199) 장소: 메모 위. 검색해서 고르면 지도, 직접 적으면 글자만 */}
+              <div className="rounded-xl bg-paper px-3.5 py-3">
+                <PlaceField
+                  place={draft.place}
+                  onType={(value) => dispatch({ type: "placeText", value })}
+                  onPick={(value) => dispatch({ type: "placePick", value })}
+                  onClear={() => dispatch({ type: "placeClear" })}
+                />
+              </div>
+
               <div className="rounded-xl bg-paper px-3.5 py-3">
                 <Field label="메모" hint={memoHint(draft)}>
                   {(id, describedBy) => (
@@ -442,7 +453,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
                       rows={4}
                       aria-describedby={describedBy}
                       className={`${inputClass} max-h-[50dvh] min-h-[96px] resize-none overflow-y-auto`}
-                      placeholder="장소, 준비물, 링크 등"
+                      placeholder="준비물, 링크 등"
                       value={memo}
                       onChange={(e) => dispatch({ type: "memo", value: e.target.value })}
                     />

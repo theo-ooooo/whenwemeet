@@ -6,6 +6,9 @@ import type { EventReminder, Repeat } from "@/lib/types";
 const DAY_MS = 86_400_000;
 const MARGIN_DAYS = 31;
 
+/** (#199) 저장된 장소. 예외에서 name '' 은 이 회차만 장소 없음 */
+export type MockPlace = { name: string; address: string | null; lat: number | null; lng: number | null; kakaoPlaceId: string | null };
+
 export type MockException = {
   occurrence: string;
   cancelled: boolean;
@@ -16,6 +19,8 @@ export type MockException = {
   memo?: string | null;
   /** (#188) 이 회차의 알림. null/없음 이면 원본 값 */
   reminder?: EventReminder | null;
+  /** (#199) 이 회차의 장소. null/없음 이면 원본 값 */
+  place?: MockPlace | null;
 };
 
 export type MockSeries = {
@@ -36,6 +41,7 @@ export type MockOccurrence = {
   title?: string;
   memo?: string;
   reminder?: EventReminder;
+  place?: MockPlace;
 };
 
 /** k 번째 회차의 원래 날짜 (첫 회차 d0 의 연월에서 k, 날짜는 기준 anchor 의 일/월일, 없는 날은 말일) */
@@ -98,6 +104,7 @@ export function applyException(o: MockOccurrence, x: MockException | undefined):
   if (x.title != null) r.title = x.title;
   if (x.memo != null) r.memo = x.memo;
   if (x.reminder != null) r.reminder = x.reminder;
+  if (x.place != null) r.place = x.place;
   return r;
 }
 

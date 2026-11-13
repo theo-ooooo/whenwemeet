@@ -22,6 +22,8 @@ export { useTodoListEditor, isPendingItem } from "./useTodoListEditor";
 export { useEventDraft } from "./useEventDraft";
 export { useCalendarFeed } from "./useCalendarFeed";
 export { usePolls, usePoll } from "./usePolls";
+export { usePlaceSearch } from "./usePlaceSearch";
+export { useEventSearch } from "./useEventSearch";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";

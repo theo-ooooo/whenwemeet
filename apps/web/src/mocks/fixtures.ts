@@ -25,7 +25,7 @@ import type {
   StartCalendar,
 } from "@/lib/types";
 import { MEMBER_COLORS } from "@/lib/types";
-import type { MockException } from "./recurrence";
+import type { MockException, MockPlace } from "./recurrence";
 
 export type UserRow = {
   id: number;
@@ -85,6 +85,8 @@ export type EventRow = {
   /** (#248) allMembers 가 false 일 때 참여자 userId. 비면 "참여자 없음" */
   participantIds?: number[];  /** (#343) 일정 색 (MEMBER_COLORS 키). 없거나 null 이면 자동 (D-215) */
   color?: string | null;
+  /** (#199) 장소. 없거나 null 이면 없음 */
+  place?: MockPlace | null;
 };
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
 export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string };
@@ -300,9 +302,13 @@ export function buildStore(): Store {
 
   // 팀 일정 6개 (이번 달) + 개인 일정 2개 (빈 시간 계산에만 영향)
   const events: EventRow[] = [
-    ev(1, TEAM_ID, "저녁 약속", d(3), "19:00", d(3), "21:00", OTHER_ID, false, "성수동, 예약 완료"),
+    // (#199) 장소: 고른 장소(지도), 직접 적은 장소(글자만)
+    {
+      ...ev(1, TEAM_ID, "저녁 약속", d(3), "19:00", d(3), "21:00", OTHER_ID, false, "예약 완료, 4명.\n메뉴 미리 보기: https://place.map.kakao.com/27531028"),
+      place: { name: "카페 온화 성수점", address: "서울 성동구 연무장길 12", lat: 37.5428, lng: 127.0565, kakaoPlaceId: "27531028" },
+    },
     ev(2, TEAM_ID, "치과", d(7), "10:30", d(7), "11:30", ME_ID),
-    ev(3, TEAM_ID, "영화", today, "19:30", today, "22:00", ME_ID, false, "CGV 용산 아이맥스. 7시에 4번 출구에서 보자, 팝콘은 내가 살게."),
+    { ...ev(3, TEAM_ID, "영화", today, "19:30", today, "22:00", ME_ID, false, "아이맥스. 7시에 4번 출구에서 보자, 팝콘은 내가 살게."), place: { name: "CGV 용산아이파크몰", address: null, lat: null, lng: null, kakaoPlaceId: null } },
     ev(7, TEAM_ID, "원고 마감", today, "00:00", addDays(today, 1), "00:00", OTHER_ID, true),
     ev(4, TEAM_ID, "부모님 댁", addDays(today, 1), "00:00", addDays(today, 2), "00:00", ME_ID, true),
     ev(5, TEAM_ID, "요가", addDays(today, 3), "07:00", addDays(today, 3), "08:00", OTHER_ID),

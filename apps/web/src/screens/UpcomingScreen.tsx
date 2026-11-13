@@ -275,10 +275,10 @@ function DayGroups({
 // 올림 표시는 카드 면(--tile)에 글자색(--ink)을 5% 섞는다 (라이트는 살짝 어둡게, 다크는 살짝 밝게).
 // --hover 는 라이트에서 바탕(--bg)과 같은 색이라 카드 안 줄에 쓰면 그 줄만 카드 밖으로 빠진 것처럼 보인다 (#223 리뷰)
 // lg(≥1024) 넓은 줄은 제목 왼쪽, 시각과 등록자는 오른쪽 끝 한 줄로 (#244). 그 아래는 두 줄
-const metaCls = "min-w-0 flex-1 self-center main-lg:flex main-lg:items-center main-lg:gap-4";
-const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-[color-mix(in_srgb,var(--tile),var(--ink)_5%)]";
+export const metaCls = "min-w-0 flex-1 self-center main-lg:flex main-lg:items-center main-lg:gap-4";
+export const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-[color-mix(in_srgb,var(--tile),var(--ink)_5%)]";
 
-function Row({ divider, children }: { divider: boolean; children: React.ReactNode }) {
+export function Row({ divider, children }: { divider: boolean; children: React.ReactNode }) {
   return (
     <li className="relative">
       {children}

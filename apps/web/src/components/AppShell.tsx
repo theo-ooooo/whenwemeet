@@ -13,7 +13,7 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
 import { forgetGroup, readGroupCookie, rememberGroup } from "@/lib/group-cookie";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, newEventHref, parsePublicCode, pollCodeOf, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, parsePublicCode, pollCodeOf, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
 import { trackInputModality } from "@/lib/input-modality";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import type { GroupDetail, GroupSummary } from "@/lib/types";
@@ -21,7 +21,7 @@ import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconBell, IconChevronDown, IconPlus } from "./icons";
+import { IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
 import { DockTabs } from "./PhoneDock";
 import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
@@ -299,6 +299,12 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
                 <Skeleton className="h-5 w-20" />
               )}
             </button>
+            {/* (#199) 일정 검색. 새 소식 종 왼쪽 */}
+            <Link href={SEARCH_PATH} aria-label="일정 검색" className="group grid size-11 place-items-center text-ink">
+              <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
+                <IconSearch size={22} />
+              </span>
+            </Link>
             <Link
               href={NEWS_PATH}
               aria-label={unread > 0 ? `새 소식 ${unread}개` : "새 소식"}
