@@ -27,7 +27,7 @@ const respond = (status: number, body: unknown) => vi.fn().mockResolvedValue(new
 
 describe('toCandidate', () => {
   it('도로명 주소 우선, 분류는 마지막 조각, 좌표는 숫자', () => {
-    expect(toCandidate(DOC)).toEqual({ kakaoPlaceId: '8209184', name: '서울숲', address: '서울 성동구 뚝섬로 273', lat: 37.5444, lng: 127.0374, category: '공원' });
+    expect(toCandidate(DOC)).toEqual({ provider: 'kakao', kakaoPlaceId: '8209184', naverKey: null, name: '서울숲', address: '서울 성동구 뚝섬로 273', lat: 37.5444, lng: 127.0374, category: '공원' });
     expect(toCandidate({ ...DOC, road_address_name: '' })?.address).toBe('서울 성동구 성수동1가 678-1');
     expect(toCandidate({ ...DOC, road_address_name: '', address_name: '', category_name: '' })).toMatchObject({ address: null, category: null });
   });

@@ -1,5 +1,5 @@
 "use client";
-// 길찾기 지도 앱 선택 훅 (lib/map-app.ts). 다른 탭에서 바꿔도 따른다. 서버 렌더와 첫 하이드레이션은 기본값(네이버 지도)
+// 지도 선택 훅 (lib/map-app.ts). 다른 탭에서 바꿔도 따른다. 서버 렌더와 첫 하이드레이션은 기본값(네이버 지도)
 import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_MAP_APP, MAP_APP_KEY, readMapApp, writeMapApp, type MapApp } from "./map-app";
 

@@ -1,7 +1,7 @@
 "use client";
 // 내 정보 (#378, 나머지 화면 점검 4). 팀 화면 뼈대(AppShell) 안이라 위 앱 머리줄과 독이 있다.
 // 머리줄 "‹ 내 정보"(넓은 화면은 사이드바가 있어 ‹ 없음) → 프로필 칸(누르면 사진과 닉네임 시트, "바꾸기" 버튼 없음)
-// → 줄 묶음(내 생일, 처음 여는 달력, 알림, 로그인 방법) → 화면 테마 → 길찾기 지도 → 내 팀 → 로그아웃, 약관, 탈퇴
+// → 줄 묶음(내 생일, 처음 여는 달력, 알림, 로그인 방법) → 화면 테마 → 지도 → 내 팀 → 로그아웃, 약관, 탈퇴
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
@@ -181,18 +181,18 @@ const MAP_APPS: { value: MapApp; label: string }[] = [
   { value: "kakao", label: MAP_APP_NAMES.kakao },
 ];
 
-/** 길찾기 지도 선택 (네이버 지도 기본 / 카카오맵). 장소의 길찾기 버튼이 여는 곳. 이 브라우저에만 저장된다 (lib/map-app.ts) */
+/** 지도 선택 (네이버 지도 기본 / 카카오맵). 장소 검색, 일정 상세의 지도, 길찾기가 모두 이 지도를 쓴다 (D-259). 이 브라우저에만 저장된다 (lib/map-app.ts) */
 function MapAppPicker() {
   const [app, setApp] = useMapApp();
   return (
     <section className="rounded-xl bg-paper px-3.5 py-3.5">
       <h2 id="map-app-label" className="text-[13px] font-bold leading-5">
-        길찾기 지도
+        지도
       </h2>
       <div className="mt-2">
         <Segmented labelledBy="map-app-label" value={app} options={MAP_APPS} onChange={setApp} />
       </div>
-      <p className="mt-2 text-[12px] text-ink-2">일정 장소의 길찾기 버튼이 이 지도로 열려요</p>
+      <p className="mt-2 text-[12px] text-ink-2">장소 검색, 지도, 길찾기를 이 지도로 해요</p>
     </section>
   );
 }

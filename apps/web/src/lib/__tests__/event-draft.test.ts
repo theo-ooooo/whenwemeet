@@ -390,17 +390,17 @@ describe("일정 폼 본문", () => {
 
 describe("(#199) 장소", () => {
   const place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
-  const cand = { kakaoPlaceId: "8209184", name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
+  const cand = { provider: "kakao" as const, kakaoPlaceId: "8209184", naverKey: null, name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
 
   it("불러오기, 복제 모두 장소를 채운다. 없으면 빈 값", () => {
-    expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲" } });
-    expect(draftFromEvent(loaded({ place }), true).place.picked?.kakaoPlaceId).toBe("8209184");
+    expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ text: "", picked: { provider: "kakao", id: "8209184", query: "숲" } });
+    expect(draftFromEvent(loaded({ place }), true).place.picked?.id).toBe("8209184");
     expect(draftFromEvent(loaded(), false).place).toEqual({ text: "", picked: null });
   });
 
   it("적기, 고르기(그때 검색어), 지우기", () => {
     const d = run(range(), "range", { type: "placeText", value: "숲" }, { type: "placePick", value: cand, query: "숲" });
-    expect(d.place).toEqual({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲", name: "서울숲", address: cand.address } });
+    expect(d.place).toEqual({ text: "", picked: { provider: "kakao", id: "8209184", query: "숲", name: "서울숲", address: cand.address } });
     expect(run(d, "range", { type: "placeClear" }).place).toEqual({ text: "", picked: null });
   });
 
