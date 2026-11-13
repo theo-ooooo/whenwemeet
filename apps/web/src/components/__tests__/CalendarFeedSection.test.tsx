@@ -58,10 +58,10 @@ describe("CalendarFeedSection (#193)", () => {
   it("꺼짐: 설명(팀원 누구나 구독 가능 고지)과 만들기 버튼. 누르면 고지 시트를 먼저 보이고, 만들기에서 PUT {}", async () => {
     save.mockResolvedValue(ok(FEED));
     render(<CalendarFeedSection groupId={1} personal={false} />);
-    expect(screen.getByText(/팀원 누구나 자기 캘린더로 구독할 수 있어요/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "구독 주소 만들기" }));
+    expect(screen.getByText(/고치는 건 언제볼까에서 해요/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "연결 주소 만들기" }));
     expect(save).not.toHaveBeenCalled();
-    const sheet = screen.getByRole("dialog", { name: "구독 주소를 만들까요?" });
+    const sheet = screen.getByRole("dialog", { name: "연결 주소를 만들까요?" });
     expect(sheet.textContent).toContain("제목, 시간, 참여자 이름을 볼 수 있어요");
     expect(sheet.textContent).toContain("메모는 나가지 않아요");
     expect(sheet.textContent).toContain("몇 시간 걸릴 수 있어요");
@@ -77,25 +77,25 @@ describe("CalendarFeedSection (#193)", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<CalendarFeedSection groupId={1} personal={false} />);
-    expect(screen.queryByRole("link", { name: "애플 캘린더에 추가" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "아이폰 캘린더에 추가" })).toBeNull();
     const google = screen.getByRole("link", { name: "구글 캘린더에 추가" });
     expect(google.getAttribute("href")).toBe(FEED.googleAddUrl);
     expect(google.getAttribute("target")).toBe("_blank");
-    expect(screen.queryByText("구글 캘린더는 컴퓨터에서 열어야 추가돼요")).toBeNull();
+    expect(screen.queryByText("구글 캘린더는 컴퓨터에서 다른 캘린더 + > URL로 추가에 붙여 넣으세요")).toBeNull();
     expect(screen.getByText("아직 가져가지 않았어요")).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "주소 복사" }));
     });
     expect(writeText).toHaveBeenCalledWith(FEED.httpsUrl);
-    expect(show).toHaveBeenCalledWith("구독 주소를 복사했어요");
+    expect(show).toHaveBeenCalledWith("연결 주소를 복사했어요");
   });
 
   it("켜짐(iPhone): 애플 캘린더는 webcal 링크, 구글은 컴퓨터 안내", () => {
     setUa("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1");
     data = FEED;
     render(<CalendarFeedSection groupId={1} personal={false} />);
-    expect(screen.getByRole("link", { name: "애플 캘린더에 추가" }).getAttribute("href")).toBe(FEED.webcalUrl);
-    expect(screen.getByText("구글 캘린더는 컴퓨터에서 열어야 추가돼요")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "아이폰 캘린더에 추가" }).getAttribute("href")).toBe(FEED.webcalUrl);
+    expect(screen.getByText("구글 캘린더는 컴퓨터에서 다른 캘린더 + > URL로 추가에 붙여 넣으세요")).toBeTruthy();
   });
 
   it("메모 포함은 켤 때 확인 한 번 뒤 PUT, 기념일은 바로 PUT", async () => {
@@ -133,30 +133,30 @@ describe("CalendarFeedSection (#193)", () => {
     render(<CalendarFeedSection groupId={1} personal={false} />);
     expect(screen.getByText("마지막으로 가져간 시간: 3시간 전")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "주소 다시 만들기" }));
-    expect(screen.getByRole("alertdialog", { name: "주소를 다시 만들까요?" }).textContent).toContain("더 이상 바뀌지 않아요");
+    expect(screen.getByRole("alertdialog", { name: "주소를 다시 만들까요?" }).textContent).toContain("지금 주소는 바로 끊겨요");
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "다시 만들기" }));
     });
     expect(rotate).toHaveBeenCalled();
     expect(setData).toHaveBeenLastCalledWith(next);
-    expect(show).toHaveBeenCalledWith("새 구독 주소를 만들었어요");
+    expect(show).toHaveBeenCalledWith("새 연결 주소를 만들었어요");
   });
 
   it("끄기: 확인 뒤 DELETE, 꺼진 상태로", async () => {
     data = FEED;
     remove.mockResolvedValue(ok({ ok: true }));
     render(<CalendarFeedSection groupId={1} personal={false} />);
-    fireEvent.click(screen.getByRole("button", { name: "끄기" }));
+    fireEvent.click(screen.getByRole("button", { name: "연결 끊기" }));
     await act(async () => {
-      fireEvent.click(screen.getAllByRole("button", { name: "끄기" }).at(-1)!);
+      fireEvent.click(screen.getAllByRole("button", { name: "연결 끊기" }).at(-1)!);
     });
     expect(remove).toHaveBeenCalled();
     expect(setData).toHaveBeenLastCalledWith(null);
-    expect(show).toHaveBeenCalledWith("구독 주소를 껐어요");
+    expect(show).toHaveBeenCalledWith("연결을 끊었어요");
   });
 
   it("개인 달력은 '내 일정' 문구", () => {
     render(<CalendarFeedSection groupId={1} personal />);
-    expect(screen.getByText("구글, 애플 캘린더에서 내 일정을 볼 수 있어요")).toBeTruthy();
+    expect(screen.getByText("구글 캘린더, 아이폰 캘린더에 내 일정이 보여요. 보기만 되고, 고치는 건 언제볼까에서 해요")).toBeTruthy();
   });
 });
