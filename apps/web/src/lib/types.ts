@@ -218,6 +218,21 @@ export type InvitePreview = {
   groupCode: string | null;
 };
 
+/**
+ * (#193) 내 외부 캘린더 구독 주소 (api.md 2.12). 팀마다 사람마다 하나.
+ * httpsUrl 은 복사용, webcalUrl 은 애플 캘린더 구독 창, googleAddUrl 은 구글 캘린더 "URL로 추가" (컴퓨터 웹에서만)
+ */
+export type CalendarFeed = {
+  httpsUrl: string;
+  webcalUrl: string;
+  googleAddUrl: string;
+  includeMemo: boolean;
+  includeAnniversaries: boolean;
+  createdAt: string;
+  /** 외부 캘린더가 마지막으로 가져간 시각 (1분 단위). 아직 없으면 null */
+  lastFetchedAt: string | null;
+};
+
 /** (#274) 보내는 쪽 일정 링크 (api.md 2.10). url = `${WEB_ORIGIN}/join/e/${token}` */
 export type EventShareLink = { token: string; url: string; expiresAt: string };
 

@@ -442,3 +442,23 @@ describe("(#196) 목 초대 미리보기의 초대한 사람, 이미 멤버", ()
     expect(preview(code, null, ME_ID).body.data).toMatchObject({ inviter: null, isMember: true, groupId: TEAM_ID });
   });
 });
+
+describe("(#193) 목 구독 주소", () => {
+  it("없으면 null → PUT 으로 만들고, 설정만 바꾸면 주소 유지, 다시 만들기는 새 주소, 끄면 null", () => {
+    const base = `/groups/${TEAM_ID}/calendar-feed`;
+    expect(call("GET", base).body.data).toBeNull();
+    expect(call("POST", `${base}/rotate`).status).toBe(404);
+    const created = call("PUT", base, {}).body.data;
+    expect(created).toMatchObject({ includeMemo: false, includeAnniversaries: true, lastFetchedAt: null });
+    expect(String(created.httpsUrl)).toMatch(/^https:\/\/api\.whenwemeet\.day\/v1\/ics\/[A-Za-z0-9_-]{43}\.ics$/);
+    expect(created.webcalUrl).toBe(String(created.httpsUrl).replace("https:", "webcal:"));
+    const changed = call("PUT", base, { includeMemo: true }).body.data;
+    expect(changed.httpsUrl).toBe(created.httpsUrl);
+    expect(changed.includeMemo).toBe(true);
+    expect(call("PUT", base, { includeMemo: "yes" }).status).toBe(400);
+    const rotated = call("POST", `${base}/rotate`).body.data;
+    expect(rotated.httpsUrl).not.toBe(created.httpsUrl);
+    expect(call("DELETE", base).body.data).toEqual({ ok: true });
+    expect(call("GET", base).body.data).toBeNull();
+  });
+});

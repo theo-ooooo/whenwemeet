@@ -145,7 +145,20 @@ export type Store = {
   /** (#276) 없으면 빈 목록 */
   todoLists?: TodoListRow[];
   todoItems?: TodoItemRow[];
+  /** (#193) 구독 주소. 없으면 빈 목록 */
+  calendarFeeds?: CalendarFeedRow[];
   seq: number;
+};
+
+/** (#193) 목 구독 주소 한 줄. 토큰은 목이라 그대로 둔다 (실제 API 는 해시만) */
+export type CalendarFeedRow = {
+  userId: number;
+  groupId: number;
+  token: string;
+  includeMemo: boolean;
+  includeAnniversaries: boolean;
+  createdAt: string;
+  lastFetchedAt: string | null;
 };
 
 export const ME_ID = 1;
