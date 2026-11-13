@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
     // (#333) 내 정보 맨 아래 버전 한 줄. 웹 버전은 package.json(release PR 이 올린다), 커밋은 Vercel 빌드에만 있다
     NEXT_PUBLIC_WEB_VERSION: pkg.version,
     NEXT_PUBLIC_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA || "",
+    // (#203) 서비스 워커 캐시 이름(/sw.js?v=). 빌드마다 달라야 새 배포에서 옛 캐시를 지운다 (D-256)
+    NEXT_PUBLIC_SW_VERSION: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || `${pkg.version}-${Date.now().toString(36)}`,
   },
   agentRules: false,
   experimental: {
@@ -33,7 +35,16 @@ const nextConfig: NextConfig = {
   },
   // (#274) 일정 공유 링크 화면은 토큰이 밖 링크의 Referer 로 새지 않게 (D-186)
   async headers() {
-    return [{ source: "/join/e/:token", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] }];
+    // (#203) 서비스 워커와 규칙 파일은 늘 새로 확인한다 (D-256). 루트 scope 라 Service-Worker-Allowed 는 필요 없다
+    const swHeaders = [
+      { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+      { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+    ];
+    return [
+      { source: "/join/e/:token", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
+      { source: "/sw.js", headers: swHeaders },
+      { source: "/sw-rules.js", headers: swHeaders },
+    ];
   },
   // 모든 화면이 사용자별(쿠키) 데이터라 캐시 컴포넌트는 쓰지 않는다
   turbopack: {
