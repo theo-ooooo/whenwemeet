@@ -6,7 +6,7 @@ import { parseId } from "@/lib/id";
 import { REPEAT_PERIOD_DAYS, REPEATS } from "@/lib/recurrence";
 import { PUSH_TOKEN_RE } from "@/lib/app-bridge";
 import { reminderError } from "@/lib/reminder";
-import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Repeat } from "@/lib/types";
+import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Reaction, type Repeat, type Rsvp } from "@/lib/types";
 import {
   buildStore,
   inviteMarkerOf,
@@ -260,6 +260,97 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     participants: participantsOut(s, e),
     color: e.color ?? null,
   };
+}
+
+/* ---------- (#190) 참석 여부와 반응 ---------- */
+
+type EventOut = ReturnType<typeof eventOut>;
+const RSVPS: readonly Rsvp[] = ["GOING", "NOT_GOING", "MAYBE"];
+const REACTIONS: readonly Reaction[] = ["LIKE", "EXCITED", "ACK"];
+
+/** 응답이 붙는 회차 날짜. 한 번짜리는 시작 KST 날짜 */
+const responseKey = (out: Pick<EventOut, "occurrence" | "startsAt">) => out.occurrence ?? dateKeyOf(out.startsAt);
+
+/** 참여자 집계 (API summarizeRsvp 와 같은 규칙: 지금 참여자만 센다) */
+function rsvpSummary(s: Store, out: EventOut, userId: number) {
+  const ids = new Set(out.participants.members.map((m) => m.userId));
+  const rows = (s.rsvps ?? []).filter((r) => r.eventId === out.id && r.occurrence === responseKey(out) && ids.has(r.userId));
+  const count = (v: Rsvp) => rows.filter((r) => r.status === v).length;
+  return { going: count("GOING"), notGoing: count("NOT_GOING"), maybe: count("MAYBE"), pending: ids.size - rows.length, mine: rows.find((r) => r.userId === userId)?.status ?? null };
+}
+
+function reactionSummary(s: Store, out: EventOut, userId: number) {
+  const ids = new Set(memberIdsOf(s, out.groupId));
+  const rows = (s.reactions ?? []).filter((r) => r.eventId === out.id && r.occurrence === responseKey(out) && ids.has(r.userId));
+  const count = (k: Reaction) => rows.filter((r) => r.kind === k).length;
+  return { LIKE: count("LIKE"), EXCITED: count("EXCITED"), ACK: count("ACK"), mine: rows.find((r) => r.userId === userId)?.kind ?? null };
+}
+
+/** 목록, 단건 공통 집계를 붙인다 */
+function withResponses(s: Store, out: EventOut, userId: number) {
+  return { ...out, rsvp: rsvpSummary(s, out, userId), reactions: reactionSummary(s, out, userId) };
+}
+
+/** 단건만: 참여자별 응답(가입순, stale), 반응한 사람 */
+function withResponseMembers(s: Store, out: EventOut, userId: number) {
+  const key = responseKey(out);
+  const rsvps = (s.rsvps ?? []).filter((r) => r.eventId === out.id && r.occurrence === key);
+  const reactions = (s.reactions ?? []).filter((r) => r.eventId === out.id && r.occurrence === key);
+  return {
+    ...withResponses(s, out, userId),
+    rsvpMembers: out.participants.members.map((member) => {
+      const row = rsvps.find((r) => r.userId === member.userId);
+      return row
+        ? { member, status: row.status, respondedAt: row.updatedAt, stale: row.seenStartsAt !== out.startsAt || row.seenEndsAt !== out.endsAt }
+        : { member, status: null, respondedAt: null, stale: false };
+    }),
+    reactionMembers: memberIdsOf(s, out.groupId).flatMap((id) => {
+      const row = reactions.find((r) => r.userId === id);
+      return row ? [{ member: memberOf(s, out.groupId, id), reaction: row.kind }] : [];
+    }),
+  };
+}
+
+/** PUT rsvp, reaction (api.md 2.3 참석 여부). out 은 그 회차 */
+function responseRoute(s: Store, out: EventOut, userId: number, kind: string, body: Record<string, unknown> | null): MockResult {
+  const key = responseKey(out);
+  if (kind === "rsvp") {
+    const status = (body ?? {}).status;
+    if (status !== null && !RSVPS.includes(status as Rsvp)) {
+      const message = "status 는 GOING, NOT_GOING, MAYBE 또는 null 이어야 해요";
+      return { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "status", message }]) };
+    }
+    if (!out.participants.members.some((m) => m.userId === userId)) return err(403, "NOT_PARTICIPANT", "이 일정의 참여자만 응답할 수 있어요");
+    const rows = (s.rsvps ??= []);
+    const at = rows.findIndex((r) => r.eventId === out.id && r.occurrence === key && r.userId === userId);
+    const current = at >= 0 ? rows[at].status : null;
+    if (current !== status) {
+      if (at >= 0) rows.splice(at, 1);
+      if (status !== null) rows.push({ eventId: out.id, occurrence: key, userId, status: status as Rsvp, seenStartsAt: out.startsAt, seenEndsAt: out.endsAt, updatedAt: nowIso() });
+      // 새 소식: 2분 안 같은 회차는 그 줄을 고치고, 취소는 그 줄만 지운다 (D-227)
+      const acts = (s.activities ??= []);
+      const since = new Date(Date.now() - 2 * 60_000).toISOString();
+      const same = acts.find((a) => a.type === "EVENT_RSVP" && a.actorId === userId && a.createdAt >= since && a.payload.eventId === out.id && (a.payload.occurrence ?? null) === out.occurrence);
+      if (status === null) {
+        if (same) s.activities = acts.filter((a) => a !== same);
+      } else {
+        const payload = { eventId: out.id, eventCode: out.publicCode, occurrence: out.occurrence, title: out.title, startsAt: out.startsAt, endsAt: out.endsAt, allDay: out.allDay, status: status as Rsvp };
+        if (same) Object.assign(same, { payload, createdAt: nowIso() });
+        else acts.push({ id: nextId(), groupId: out.groupId, type: "EVENT_RSVP", actorId: userId, actorName: memberOf(s, out.groupId, userId).displayName, anniversaryId: null, payload, createdAt: nowIso() });
+      }
+    }
+    return ok(rsvpSummary(s, out, userId));
+  }
+  const reaction = (body ?? {}).reaction;
+  if (reaction !== null && !REACTIONS.includes(reaction as Reaction)) {
+    const message = "reaction 은 LIKE, EXCITED, ACK 또는 null 이어야 해요";
+    return { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "reaction", message }]) };
+  }
+  const rows = (s.reactions ??= []);
+  const at = rows.findIndex((r) => r.eventId === out.id && r.occurrence === key && r.userId === userId);
+  if (at >= 0) rows.splice(at, 1);
+  if (reaction !== null) rows.push({ eventId: out.id, occurrence: key, userId, kind: reaction as Reaction });
+  return ok(reactionSummary(s, out, userId));
 }
 
 type RepeatRow = EventRow & { repeat: Repeat };
@@ -930,7 +1021,8 @@ export function mockHandle(ctx: Ctx): MockResult {
                 ? [eventOut(s, e)]
                 : [],
           )
-          .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id - b.id || (a.occurrence ?? "").localeCompare(b.occurrence ?? ""));
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id - b.id || (a.occurrence ?? "").localeCompare(b.occurrence ?? ""))
+          .map((out) => withResponses(s, out, userId));
         return ok(list);
       }
       if (rest.length === 1 && method === "POST") {
@@ -980,7 +1072,8 @@ export function mockHandle(ctx: Ctx): MockResult {
 
       // 한 번짜리 (예전 그대로. occurrence, scope 는 무시)
       if (!e.repeat) {
-        if (method === "GET") return ok({ ...eventOut(s, e), hasLaterExceptions: false });
+        if (method === "GET") return ok({ ...withResponseMembers(s, eventOut(s, e), userId), hasLaterExceptions: false });
+        if (method === "PUT" && (rest[2] === "rsvp" || rest[2] === "reaction")) return responseRoute(s, eventOut(s, e), userId, rest[2], body);
         if (method === "PATCH") {
           const input = (body ?? {}) as Partial<EventRow>;
           const repeat = repeatOf(input.repeat);
@@ -1030,7 +1123,14 @@ export function mockHandle(ctx: Ctx): MockResult {
         const date = query.get("occurrence") || first;
         const o = occurrenceOf(series, date);
         if (!o) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
-        return ok({ ...eventOut(s, series, o), hasLaterExceptions: series.exceptions.some((x) => x.occurrence > date) });
+        return ok({ ...withResponseMembers(s, eventOut(s, series, o), userId), hasLaterExceptions: series.exceptions.some((x) => x.occurrence > date) });
+      }
+      if (method === "PUT" && (rest[2] === "rsvp" || rest[2] === "reaction")) {
+        const date = query.get("occurrence") ?? "";
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return err(400, "VALIDATION_FAILED", "반복 일정은 회차 날짜(occurrence)를 함께 보내야 해요");
+        const o = occurrenceOf(series, date);
+        if (!o) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
+        return responseRoute(s, eventOut(s, series, o), userId, rest[2], body);
       }
       const scope = query.get("scope");
       if (scope !== "this" && scope !== "following") return err(400, "VALIDATION_FAILED", "scope 는 this 또는 following 이어야 해요");

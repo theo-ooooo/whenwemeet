@@ -1,4 +1,5 @@
 // (#191) 팀 활동 기록의 순수 규칙. Prisma 를 import 하지 않는다 (단위 테스트 대상)
+import type { RsvpActivityPayload } from '../event-responses/responses.js';
 import type { AnniversaryKind } from '../generated/prisma/enums.js';
 
 /** 새 소식의 일정 밖 기록 종류 (schema.prisma GroupActivityType 과 같다) */
@@ -11,7 +12,9 @@ export type GroupActivityType =
   | 'MEMBER_DELETED'
   | 'GROUP_RENAMED'
   /** (#279) ICS 파일로 일정을 가져옴 (D-166) */
-  | 'EVENTS_IMPORTED';
+  | 'EVENTS_IMPORTED'
+  /** (#190) 참석 여부를 정하거나 바꿈 (D-227) */
+  | 'EVENT_RSVP';
 
 export type AnniversaryField = 'name' | 'date' | 'kind';
 
@@ -44,7 +47,13 @@ export interface MemberJoinedPayload {
 }
 
 /** 멤버 3종은 빈 객체 (DB 에는 null). 일정 링크 합류만 MemberJoinedPayload */
-export type ActivityPayload = AnniversaryPayload | GroupRenamedPayload | EventsImportedPayload | MemberJoinedPayload | Record<string, never>;
+export type ActivityPayload =
+  | AnniversaryPayload
+  | GroupRenamedPayload
+  | EventsImportedPayload
+  | MemberJoinedPayload
+  | RsvpActivityPayload
+  | Record<string, never>;
 
 /** 기록할 사람. name 은 그 순간의 표시 이름 (팀 표시 이름 ?? 닉네임) 스냅샷 (D-152) */
 export interface ActivityActor {

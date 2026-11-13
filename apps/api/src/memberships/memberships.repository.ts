@@ -4,6 +4,7 @@ import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { CalendarFeedsRepository } from '../calendar-feed/calendar-feeds.repository.js';
+import { deleteMemberResponsesTx } from '../event-responses/event-responses.repository.js';
 import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { PushRepository } from '../push/push.repository.js';
@@ -187,6 +188,7 @@ export class MembershipsRepository {
    * (#274) 그 사람이 이 팀에서 만든 일정 공유 링크는 끊는다 (D-183). 팀이 지워지면 Cascade 로 같이 사라진다
    * (#300) 그 사람이 이 팀을 처음 여는 달력으로 고정했으면 LAST 로 되돌린다. 팀이 지워지면 이 팀을 고정한 사람 전부 (D-192)
    * (#193) 그 사람의 이 팀 구독 주소를 지운다 (즉시 404, D-217). 팀이 지워지면 Cascade
+   * (#190) 그 팀 일정의 그 사람 참석 여부, 반응을 지운다 (다시 들어와도 복구하지 않는다)
    */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
     const removed = await db.membership.delete({
@@ -196,6 +198,8 @@ export class MembershipsRepository {
     const { userId } = removed;
     await db.user.updateMany({ where: { id: userId, startGroupId: groupId }, data: START_CALENDAR_RESET });
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
+    // (#190) 그 팀 일정의 내 참석 여부, 반응도 지운다 (탈퇴는 User Cascade 로도 지워진다)
+    await deleteMemberResponsesTx(db, userId, groupId);
     await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
     await this.calendarFeeds.deleteMemberTx(db, userId, groupId);
     const remaining = await db.membership.count({ where: { groupId } });

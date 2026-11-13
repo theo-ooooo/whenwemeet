@@ -49,6 +49,8 @@ type Props = {
   onPickDay: (date: DateKey) => void;
   onSaved: (ev: Event) => void;
   onDelete: () => void;
+  /** (#190) 일정 상세에서 참석 여부를 바꿨을 때 */
+  onResponded?: () => void;
   /** (#192) 빠른 추가의 처음 시작 시각 'HH:mm' (주 보기 빈 칸). 없으면 폼 기본값 */
   addStart?: string | null;
 };
@@ -96,6 +98,7 @@ export function DayPanel(props: Props) {
             onBack={props.onBack}
             onClose={props.onClose}
             onDelete={props.onDelete}
+            onResponded={props.onResponded}
           />
         ) : (
           <div aria-busy="true" className="space-y-2.5 py-2">

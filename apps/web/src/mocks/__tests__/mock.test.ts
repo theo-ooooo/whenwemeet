@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { getMockFile, MOCK_FILE_PREFIX, putMockFile } from "../files";
 import { mockHandle } from "../handler";
 import { FAMILY_ID, inviteMarkerOf, ME_ID, PERSONAL_ID, TEAM_ID } from "../fixtures";
@@ -460,5 +460,53 @@ describe("(#193) 목 구독 주소", () => {
     expect(rotated.httpsUrl).not.toBe(created.httpsUrl);
     expect(call("DELETE", base).body.data).toEqual({ ok: true });
     expect(call("GET", base).body.data).toBeNull();
+  });
+});
+
+describe("목 참석 여부와 반응 (#190)", () => {
+  // 앞 테스트가 팀을 나가거나 일정을 바꿨을 수 있어 새 보관소로 시작한다
+  beforeAll(() => {
+    (globalThis as unknown as { __wwmMockStore?: unknown }).__wwmMockStore = undefined;
+  });
+  type Detail = { rsvp: { mine: string | null; going: number }; reactions: { mine: string | null }; rsvpMembers: { member: { userId: number }; status: string | null }[] };
+  const detail = (id: number) => call("GET", `/groups/${FAMILY_ID}/events/${id}`).body.data as unknown as Detail;
+
+  it("참여자는 정하고 바꾸고 취소한다. 참여자가 아니면 403 NOT_PARTICIPANT, 형식 오류는 400", () => {
+    const r = call("PUT", `/groups/${FAMILY_ID}/events/21/rsvp`, { status: "GOING" });
+    expect(r.status).toBe(200);
+    expect(r.body.data).toMatchObject({ mine: "GOING", going: 2 });
+    expect(detail(21).rsvpMembers.find((x) => x.member.userId === ME_ID)?.status).toBe("GOING");
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/21/rsvp`, { status: null }).body.data).toMatchObject({ mine: null });
+    // 할머니 댁(27) 은 내가 참여자가 아니다
+    const denied = mockHandle({ method: "PUT", path: `/groups/${FAMILY_ID}/events/27/rsvp`, query: new URLSearchParams(), body: { status: "GOING" }, userId: ME_ID });
+    expect(denied.status).toBe(403);
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/21/rsvp`, { status: "YES" }).status).toBe(400);
+  });
+
+  it("반응은 팀원 누구나, null 은 취소. 목록에는 집계만", () => {
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/27/reaction`, { reaction: "ACK" }).body.data).toMatchObject({ ACK: 1, mine: "ACK" });
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/27/reaction`, { reaction: null }).body.data).toMatchObject({ ACK: 0, mine: null });
+    const from = new Date(Date.now() - 86_400_000).toISOString();
+    const to = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    const list = call("GET", `/groups/${FAMILY_ID}/events`, null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body.data as unknown as Record<string, unknown>[];
+    expect(list.every((e) => "rsvp" in e && "reactions" in e && !("rsvpMembers" in e))).toBe(true);
+  });
+
+  it("반복 회차는 occurrence 필수, 회차마다 따로", () => {
+    const created = call("POST", `/groups/${FAMILY_ID}/events`, {
+      title: "주간 모임",
+      startsAt: "2027-03-03T19:00:00+09:00",
+      endsAt: "2027-03-03T21:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+      participants: "ALL",
+    });
+    const id = created.body.data.id as number;
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/${id}/rsvp`, { status: "GOING" }).status).toBe(400);
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/${id}/rsvp`, { status: "GOING" }, "occurrence=2027-03-04").status).toBe(404);
+    expect(call("PUT", `/groups/${FAMILY_ID}/events/${id}/rsvp`, { status: "NOT_GOING" }, "occurrence=2027-03-10").status).toBe(200);
+    const one = (date: string) => call("GET", `/groups/${FAMILY_ID}/events/${id}`, null, `occurrence=${date}`).body.data as unknown as Detail;
+    expect(one("2027-03-10").rsvp.mine).toBe("NOT_GOING");
+    expect(one("2027-03-17").rsvp.mine).toBeNull();
   });
 });

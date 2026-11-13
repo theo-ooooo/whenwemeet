@@ -73,13 +73,15 @@ export class PushDispatcher {
       // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
       // (#297) 지난 일을 알리는 CHANGE, JOIN 은 그 일이 생긴 시각(예약 createdAt)까지 들어와 있던 팀원에게만 (D-180)
       const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
-      const recipients = await this.push.listRecipients(
+      let recipients = await this.push.listRecipients(
         row.groupId,
         row.kind,
         reportsPast ? row.actorId : null,
         row.kind === 'REMINDER' ? row.eventId : null,
         reportsPast ? row.createdAt : null,
       );
+      // (#190) 그 회차에 불참으로 답한 사람에게는 일정 알림을 보내지 않는다 (Q3, D-228)
+      if (row.kind === 'REMINDER' && row.eventId !== null) recipients = await this.push.withoutNotGoing(recipients, row.eventId, row.occurrence);
       if (await this.push.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
         stats.dispatched += 1;
         stats.deliveries += recipients.length;

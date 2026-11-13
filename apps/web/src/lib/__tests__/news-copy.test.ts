@@ -103,6 +103,26 @@ describe("팀 활동 줄 (#191)", () => {
     expect(activityHref({ type: "MEMBER_DELETED" })).toBeNull();
   });
 
+  it("(#190) 참석 여부: 문구, 그 일정(회차) 상세로 이동, 둘째 줄은 일정 날짜와 시각", () => {
+    const payload = {
+      eventId: 5,
+      eventCode: "evntcode",
+      occurrence: null,
+      title: "저녁 약속",
+      startsAt: "2026-11-20T10:00:00.000Z",
+      endsAt: "2026-11-20T12:00:00.000Z",
+      allDay: false,
+      status: "GOING" as const,
+    };
+    expect(activityPhrase({ type: "EVENT_RSVP", payload })).toBe("'저녁 약속'에 참석으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "NOT_GOING" } })).toBe("'저녁 약속'에 불참으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "MAYBE" } })).toBe("'저녁 약속'에 미정으로 답했어요");
+    expect(activityHref({ type: "EVENT_RSVP", payload })).toBe("/events/evntcode");
+    expect(activityHref({ type: "EVENT_RSVP", payload: { ...payload, occurrence: "2026-11-20" } })).toBe("/events/evntcode?occurrence=2026-11-20");
+    expect(activitySubline({ type: "EVENT_RSVP", payload }, "2026-11-11")).toBe("11월 20일 (금) 19:00~21:00");
+    expect(knownNewsItems([{ kind: "ACTIVITY", id: 1, type: "EVENT_RSVP", actor: { userId: 1, displayName: "a", color: "#000000", profileImageUrl: null }, anniversaryId: null, payload, createdAt: "", isNew: false }])).toHaveLength(1);
+  });
+
   it("activitySubline: 기념일만 날짜와 종류, 다른 해는 연도", () => {
     expect(activitySubline(ann("ANNIVERSARY_CREATED"), "2026-11-11")).toBe("11월 22일, 함께한 날 세기");
     expect(activitySubline(ann("ANNIVERSARY_DELETED", { name: "생일", date: "2000-05-05", kind: "YEARLY" }), "2026-11-11")).toBe("2000년 5월 5일, 매년 반복");
@@ -114,7 +134,7 @@ describe("팀 활동 줄 (#191)", () => {
     const event = { id: 1, action: "CREATED", eventId: 7 } as NewsItem;
     const eventV2 = { ...event, kind: "EVENT" } as NewsItem;
     const activity = { kind: "ACTIVITY", id: 1, type: "MEMBER_JOINED", payload: {} } as unknown as ActivityNewsItem;
-    const future = { kind: "ACTIVITY", id: 2, type: "EVENT_RSVP", payload: {} } as unknown as ActivityNewsItem;
+    const future = { kind: "ACTIVITY", id: 2, type: "POLL_CREATED", payload: {} } as unknown as ActivityNewsItem;
     const unknownKind = { kind: "POLL", id: 3 } as unknown as NewsItem;
     expect(knownNewsItems([event, eventV2, activity, future, unknownKind])).toEqual([event, eventV2, activity]);
     expect([event, eventV2, activity].map(newsKey)).toEqual(["EVENT:1", "EVENT:1", "ACTIVITY:1"]);

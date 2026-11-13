@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
+import { type ExceptionRule, kstDate, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './coalesce.js';
@@ -168,6 +168,8 @@ export interface DueNotification {
   /** (#297) 예약을 만든 시각. CHANGE 묶음은 첫 변경, JOIN 은 합류, 가져오기는 가져오기를 마친 시각 */
   createdAt: Date;
   eventId: number | null;
+  /** (#190) REMINDER 반복 회차 날짜 'YYYY-MM-DD'. 한 번짜리, 다른 종류는 null */
+  occurrence: string | null;
   eventLogId: number | null;
   actorId: number | null;
   changeAction: ChangeAction | null;
@@ -716,13 +718,14 @@ export class PushRepository {
         scheduledAt: true,
         createdAt: true,
         eventId: true,
+        occurrence: true,
         eventLogId: true,
         actorId: true,
         changeAction: true,
         payload: true,
       },
     });
-    return rows.map((row) => ({ ...row, payload: asPayload(row.payload) }));
+    return rows.map((row) => ({ ...row, occurrence: row.occurrence === null ? null : dbToDate(row.occurrence), payload: asPayload(row.payload) }));
   }
 
   /** PENDING 인 것만 SKIPPED (D-88) */
@@ -813,6 +816,27 @@ export class PushRepository {
       select: { userId: true, user: { select: { pushDevices: { select: { token: true, platform: true } } } } },
     });
     return rows.flatMap((row) => row.user.pushDevices.map((device) => ({ userId: row.userId, token: device.token, platform: device.platform })));
+  }
+
+  /**
+   * (#190) 일정 알림에서 그 회차에 불참으로 답한 사람을 뺀다 (Q3, D-228). 한 번짜리는 회차 = 시작 KST 날짜.
+   * 미정, 응답 안 함은 그대로 받는다. 일정이 없으면 그대로 돌려준다 (받는 사람 계산이 이미 0명)
+   */
+  async withoutNotGoing(recipients: Recipient[], eventId: number, occurrence: string | null): Promise<Recipient[]> {
+    if (recipients.length === 0) return recipients;
+    let date = occurrence;
+    if (date === null) {
+      const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { startsAt: true } });
+      if (!event) return recipients;
+      date = kstDate(event.startsAt);
+    }
+    const rows = await this.prisma.eventRsvp.findMany({
+      where: { eventId, occurrence: dateToDb(date), status: 'NOT_GOING', userId: { in: [...new Set(recipients.map((r) => r.userId))] } },
+      select: { userId: true },
+    });
+    if (rows.length === 0) return recipients;
+    const out = new Set(rows.map((row) => row.userId));
+    return recipients.filter((recipient) => !out.has(recipient.userId));
   }
 
   /**

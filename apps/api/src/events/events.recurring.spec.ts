@@ -5,6 +5,7 @@ import { membershipRow, mockRepository, RepositoryMock } from '../testing/reposi
 import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
 import { assertRepeatRule, EventsService, inheritedUntil } from './events.service.js';
 import { expand, kstDate, type Repeat } from './recurrence.js';
+import { emptyResponses } from '../testing/responses-mock.js';
 
 /** 반복 일정 (#187, 설계 4장) 서비스 단위 테스트. Repository 는 목 */
 
@@ -58,7 +59,7 @@ describe('EventsService 반복 일정', () => {
     events = mockRepository(EventsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships);
+    service = new EventsService(events as never, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listInRange.mockResolvedValue([]);
@@ -615,7 +616,7 @@ describe('EventsService 반복 일정 참여자', () => {
     events = mockRepository(EventsRepository);
     const membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships);
+    service = new EventsService(events as never, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listExceptions.mockResolvedValue([]);

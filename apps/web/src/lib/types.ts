@@ -92,13 +92,35 @@ export type Event = Omit<EventInput, "repeat" | "repeatUntil" | "reminder" | "pa
   /** (#248) all 이면 members 는 그 팀 지금 멤버 전원, 아니면 참여자 (0 = 참여자 없음). 가입순. 반복 회차는 원본 값.
    *  옛 API 는 없음 → lib/participants participantsOf 가 등록자로 대신한다 */
   participants?: { all: boolean; members: Member[] };
+  /** (#190) 그 회차의 참석 여부 집계. 옛 API 는 없음 → 응답 줄을 그리지 않는다 */
+  rsvp?: RsvpSummary;
+  /** (#190) 그 회차의 반응 집계. 옛 API 는 없음 */
+  reactions?: ReactionSummary;
 };
+
+/** (#190) 참석 여부. 응답 안 함은 null */
+export type Rsvp = "GOING" | "NOT_GOING" | "MAYBE";
+/** (#190) 짧은 반응. 화면 글자: 좋아요, 기대돼요, 확인했어요 */
+export type Reaction = "LIKE" | "EXCITED" | "ACK";
+
+/** (#190) pending = 참여자 중 아직 응답하지 않은 사람 수 */
+export type RsvpSummary = { going: number; notGoing: number; maybe: number; pending: number; mine: Rsvp | null };
+export type ReactionSummary = Record<Reaction, number> & { mine: Reaction | null };
+
+/** (#190) 단건의 사람별 응답 (참여자 가입순). stale = 응답한 뒤 그 회차 시각이 바뀜 */
+export type RsvpMember = { member: Member; status: Rsvp | null; respondedAt: string | null; stale: boolean };
+export type ReactionMember = { member: Member; reaction: Reaction };
 
 /** PATCH 본문. "이후 모두" 에서 날짜를 그대로 두면 startsAt, endsAt 을 빼고 보낸다 (QA3-M3) */
 export type EventPatchInput = Omit<EventInput, "startsAt" | "endsAt"> & Partial<Pick<EventInput, "startsAt" | "endsAt">>;
 
 /** 단건 GET 응답. 이 회차보다 뒤에 "이 일정만" 예외가 있는지 */
-export type EventDetailData = Event & { hasLaterExceptions: boolean };
+export type EventDetailData = Event & {
+  hasLaterExceptions: boolean;
+  /** (#190) 단건에만. 옛 API 는 없음 */
+  rsvpMembers?: RsvpMember[];
+  reactionMembers?: ReactionMember[];
+};
 
 /** 기념일 종류 (api.md 2.4, D-62): 함께한 날 세기(기본) / 매년 반복 / 그날만 */
 export type AnniversaryKind = "COUNT_UP" | "YEARLY" | "ONCE";
@@ -160,7 +182,21 @@ export type ActivityType =
   | "MEMBER_DELETED"
   | "GROUP_RENAMED"
   /** (#279) ICS 파일로 일정을 가져옴. payload { count } */
-  | "EVENTS_IMPORTED";
+  | "EVENTS_IMPORTED"
+  /** (#190) 참석 여부를 정하거나 바꿈. payload RsvpActivityPayload */
+  | "EVENT_RSVP";
+
+/** (#190) 참석 여부 기록. occurrence 는 반복 회차만, 한 번짜리는 null */
+export type RsvpActivityPayload = {
+  eventId: number;
+  eventCode: string;
+  occurrence: string | null;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  status: Rsvp;
+};
 
 export type AnniversaryField = "name" | "date" | "kind";
 
@@ -183,7 +219,9 @@ export type ActivityNewsItem = {
   /** 기념일 3종의 대상. 삭제된 기념일이면 null */
   anniversaryId: number | null;
   /** 기념일 3종 AnniversaryActivityPayload, 팀 이름 { from, to }, 가져오기 { count }, 멤버 3종 {} (#274 일정 링크 합류는 { via: "EVENT_SHARE" }) */
-  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string };
+  payload: Partial<AnniversaryActivityPayload> & { from?: string; to?: string; count?: number; via?: string } & Partial<Omit<RsvpActivityPayload, "title">> & {
+      title?: string;
+    };
   createdAt: string;
   isNew: boolean;
 };
