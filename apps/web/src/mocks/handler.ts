@@ -6,7 +6,9 @@ import { parseId } from "@/lib/id";
 import { REPEAT_PERIOD_DAYS, REPEATS } from "@/lib/recurrence";
 import { PUSH_TOKEN_RE } from "@/lib/app-bridge";
 import { reminderError } from "@/lib/reminder";
-import { MEMBER_COLORS, type EventReminder, type NotificationSettings, type Reaction, type Repeat, type Rsvp } from "@/lib/types";
+import { normalizeReminders } from "@/lib/anniversary-reminder";
+import { parseBirthday } from "@/lib/birthday";
+import { MEMBER_COLORS, type AnniversaryReminder, type EventReminder, type NotificationSettings, type Reaction, type Repeat, type Rsvp } from "@/lib/types";
 import {
   buildStore,
   inviteMarkerOf,
@@ -141,9 +143,14 @@ function calendarFeedRoute(
 }
 
 /** 나 자신의 멤버 정보. (#188) notify 는 내 행에만 싣는다 (7-2) */
+/** (#305) GET /me, PATCH /me/birthday 의 birthday */
+function birthdayOf(u: { birthday?: string | null; birthdayReminders?: AnniversaryReminder[] }) {
+  return { date: u.birthday ?? null, reminders: u.birthdayReminders ?? ["DAY_OF"] };
+}
+
 function myMember(s: Store, groupId: number, userId: number) {
   const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
-  return { ...memberOf(s, groupId, userId), notify: ms?.notify ?? true };
+  return { ...memberOf(s, groupId, userId), notify: ms?.notify ?? true, showBirthday: ms?.showBirthday ?? true };
 }
 
 /* ---------- (#188) 알림 (푸시-알림.md 4-1, 7-1) ---------- */
@@ -701,7 +708,7 @@ export function mockHandle(ctx: Ctx): MockResult {
   if (seg[0] === "me" && seg.length === 1) {
     const u = s.users.find((x) => x.id === userId)!;
     if (method === "GET") {
-      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, startCalendar: u.startCalendar ?? START_LAST });
+      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, startCalendar: u.startCalendar ?? START_LAST, birthday: birthdayOf(u) });
     }
     if (method === "PATCH") {
       const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
@@ -716,6 +723,25 @@ export function mockHandle(ctx: Ctx): MockResult {
       g.__wwmMockStore = buildStore();
       return ok({ ok: true });
     }
+  }
+
+  // (#305) /me/birthday (api.md 2.1, D-224). date 는 'MM-DD'(2월 29일 허용) 또는 null, reminders 생략은 그대로
+  if (seg[0] === "me" && seg[1] === "birthday" && seg.length === 2 && method === "PATCH") {
+    const u = s.users.find((x) => x.id === userId)!;
+    const date = body?.date;
+    const message = "생일은 MM-DD 형식의 실제 날짜여야 해요";
+    if (date !== null && parseBirthday(typeof date === "string" ? date : null) === null) {
+      return { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "date", message }]) };
+    }
+    if (body && "reminders" in body) {
+      const list = body.reminders;
+      if (!Array.isArray(list) || list.some((r) => !["DAY_OF", "DAY_BEFORE", "WEEK_BEFORE"].includes(r as string)) || new Set(list).size !== list.length) {
+        return err(400, "VALIDATION_FAILED", "알림은 DAY_OF, DAY_BEFORE, WEEK_BEFORE 중에서 골라야 해요");
+      }
+      u.birthdayReminders = normalizeReminders(list as AnniversaryReminder[]);
+    }
+    u.birthday = date as string | null;
+    return ok(birthdayOf(u));
   }
 
   // (#300) /me/start-calendar (api.md 2.1, D-191). 짝이 틀리면 400, 내 팀이 아니면 403, 개인 팀은 PERSONAL 로 (400)
@@ -971,6 +997,11 @@ export function mockHandle(ctx: Ctx): MockResult {
         if (body && "notify" in body) {
           if (typeof body.notify !== "boolean") return err(400, "VALIDATION_FAILED", "notify 는 참/거짓이어야 해요");
           ms.notify = body.notify;
+        }
+        // (#305) 이 팀 달력에 내 생일 보이기
+        if (body && "showBirthday" in body) {
+          if (typeof body.showBirthday !== "boolean") return err(400, "VALIDATION_FAILED", "showBirthday 는 true/false 여야 해요");
+          ms.showBirthday = body.showBirthday;
         }
         return ok(myMember(s, groupId, userId));
       }
@@ -1241,6 +1272,16 @@ export function mockHandle(ctx: Ctx): MockResult {
         }
         return ok({ ok: true });
       }
+    }
+
+    // (#305) 이 팀 달력에 보이는 멤버 생일 (가입순). 생일이 있고 그 팀 showBirthday 가 켜진 멤버만
+    if (rest[0] === "birthdays" && rest.length === 1 && method === "GET") {
+      const rows = s.memberships
+        .filter((m) => m.groupId === groupId && m.showBirthday !== false)
+        .map((m) => ({ m, u: s.users.find((x) => x.id === m.userId) }))
+        .filter((r) => r.u?.birthday)
+        .sort((a, b) => a.m.joinedAt.localeCompare(b.m.joinedAt));
+      return ok(rows.map((r) => ({ member: memberOf(s, groupId, r.m.userId), date: r.u!.birthday! })));
     }
 
     if (rest[0] === "anniversaries") {

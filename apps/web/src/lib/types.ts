@@ -10,6 +10,8 @@ export type Member = {
   joinedAt?: string;
   /** (#188) "이 팀 알림 받기". GroupDetail.me 와 PATCH /groups/:id/me 응답에만 (다른 멤버는 싣지 않는다) */
   notify?: boolean;
+  /** (#305) "이 팀 달력에 내 생일 보이기". notify 와 같이 내 것에만 */
+  showBirthday?: boolean;
 };
 
 export type GroupSummary = {
@@ -138,7 +140,15 @@ export type Anniversary = {
   reminders?: AnniversaryReminder[];
   creator: Member;
   createdAt: string;
+  /** (#305) 멤버 생일을 기념일 모양으로 바꾼 항목이면 그 사람 userId (lib/birthday.ts). 서버 기념일에는 없다 */
+  birthdayOf?: number;
 };
+
+/** (#305) GET /groups/:id/birthdays 한 줄. date 는 'MM-DD' (연도 없음) */
+export type Birthday = { member: Member; date: string };
+
+/** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null, reminders 는 팀원에게 알리는 시점 */
+export type BirthdaySettings = { date: string | null; reminders: AnniversaryReminder[] };
 
 export type AnniversaryInput = { name: string; date: string; kind?: AnniversaryKind; reminders?: AnniversaryReminder[] };
 
@@ -242,6 +252,8 @@ export type Me = {
   createdAt: string;
   /** (#300) GET /me 에만 있다. PATCH /me 응답에는 없어 화면이 앞 값을 이어 쓴다 */
   startCalendar?: StartCalendar;
+  /** (#305) GET /me 에만 있다 (PATCH /me 응답에는 없어 앞 값을 이어 쓴다) */
+  birthday?: BirthdaySettings;
 };
 
 export type InvitePreview = {

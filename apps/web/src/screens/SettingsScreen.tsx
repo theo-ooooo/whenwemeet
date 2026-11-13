@@ -58,6 +58,8 @@ export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
             <MeSection group={group} onSaved={setGroup} />
             {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
             {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
+            {/* (#305) 이 팀 달력에 내 생일 보이기. 옛 API(showBirthday 없음)에서는 줄을 두지 않는다 */}
+            {group.me.showBirthday !== undefined && <BirthdaySection group={group} onSaved={setGroup} />}
             {/* (#193) 외부 캘린더 구독 주소. 개인 달력에도 같은 칸 */}
             <CalendarFeedSection key={group.id} groupId={group.id} personal={group.type === "PERSONAL"} />
             <ImportSection personal={group.type === "PERSONAL"} />
@@ -332,6 +334,38 @@ function NotifySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: Gr
   return (
     <section className="rounded-xl bg-paper px-3.5 py-2">
       <Toggle checked={on} onChange={(v) => void change(v)} label="이 팀 알림 받기" description="끄면 이 팀의 알림이 모두 오지 않아요" />
+    </section>
+  );
+}
+
+/* (#305) 이 팀 달력에 내 생일 보이기 (기본 켬, D-225). 누르면 바로 저장, 실패하면 되돌리고 토스트. 생일은 내 정보에서 넣는다 */
+function BirthdaySection({ group, onSaved }: { group: GroupDetail; onSaved: (g: GroupDetail) => void }) {
+  const toast = useToast();
+  const { mutate, isPending } = useUpdateMembership(group.id);
+  const on = group.me.showBirthday !== false;
+  const personal = group.type === "PERSONAL";
+
+  async function change(next: boolean) {
+    if (isPending) return;
+    const before = group;
+    onSaved({ ...group, me: { ...group.me, showBirthday: next } });
+    const r = await mutate({ showBirthday: next });
+    if (!r.ok) {
+      onSaved(before);
+      toast.show(messageOf(r.error, "생일 보이기를 바꾸지 못했어요. 다시 시도해 주세요"));
+      return;
+    }
+    onSaved({ ...before, me: { ...before.me, ...r.data } });
+  }
+
+  return (
+    <section className="rounded-xl bg-paper px-3.5 py-2">
+      <Toggle
+        checked={on}
+        onChange={(v) => void change(v)}
+        label={personal ? "내 달력에 내 생일 보이기" : "이 팀 달력에 내 생일 보이기"}
+        description={personal ? "생일은 내 정보에서 넣을 수 있어요" : "끄면 이 팀 멤버에게 내 생일이 보이지 않아요. 생일은 내 정보에서 넣어요"}
+      />
     </section>
   );
 }

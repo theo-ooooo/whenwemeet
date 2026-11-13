@@ -30,6 +30,8 @@ export const ANNIVERSARIES_PATH = "/anniversaries";
 export const TODOS_PATH = "/todos";
 export const NEWS_PATH = "/news";
 export const TEAM_PATH = "/team";
+/** (#305) 내 정보의 "내 생일" 칸 */
+export const ME_BIRTHDAY_PATH = "/me#birthday";
 export const IMPORT_PATH = "/team/import";
 export const NEW_EVENT_PATH = "/events/new";
 

@@ -10,7 +10,7 @@ import { useState } from "react";
 import { IconChevronLeft, IconHeart, IconPlus } from "@/components/icons";
 import { useWho } from "@/components/Participants";
 import { ErrorState, Skeleton } from "@/components/ui";
-import { messageOf, useAnniversaries, useEvents } from "@/hooks";
+import { messageOf, useAnniversaryItems, useEvents } from "@/hooks";
 import { occurrenceTitle } from "@/lib/anniversary";
 import { useGroupContext } from "@/components/AppShell";
 import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventHref, newEventHref } from "@/lib/routes";
@@ -41,7 +41,7 @@ export function UpcomingScreen() {
   const [count, setCount] = useState(1);
   // 거슬러 받은 지난 창 수. 0 = 지난 일정 안 봄
   const [pastCount, setPastCount] = useState(0);
-  const annQ = useAnniversaries(groupId);
+  const annQ = useAnniversaryItems(groupId);
   // 기념일은 못 받아도 일정만 보여 준다
   const anniversaries = annQ.data ?? (annQ.error ? [] : null);
   const newHref = newEventHref({ start: kstToIso(today, "10:00"), end: kstToIso(today, "11:00") });

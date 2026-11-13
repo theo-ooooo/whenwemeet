@@ -36,6 +36,10 @@ export type UserRow = {
   notify?: NotificationSettings;
   /** (#300) 처음 여는 달력. 없으면 LAST */
   startCalendar?: StartCalendar;
+  /** (#305) 내 생일 'MM-DD'. 없으면 null */
+  birthday?: string | null;
+  /** (#305) 팀원에게 알리는 시점. 없으면 당일만 */
+  birthdayReminders?: AnniversaryReminder[];
 };
 export type GroupRow = {
   id: number;
@@ -53,6 +57,8 @@ export type MembershipRow = {
   lastSeenAt: string | null;
   /** (#188) 이 팀 알림 받기. 없으면 켬 */
   notify?: boolean;
+  /** (#305) 이 팀 달력에 내 생일 보이기. 없으면 켬 */
+  showBirthday?: boolean;
 };
 export type EventRow = {
   id: number;
@@ -217,7 +223,8 @@ export function buildStore(): Store {
 
   const users: UserRow[] = [
     { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40) },
-    { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38) },
+    // (#305) 하늘은 9일 뒤가 생일 (기념일 화면, 달력에 "하늘 생일")
+    { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38), birthday: addDays(today, 9).slice(5) },
     { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
     { id: DAD_ID, nickname: "아빠", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
   ];
