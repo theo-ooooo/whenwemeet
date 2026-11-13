@@ -8,6 +8,7 @@ import { PlaceField } from "@/components/PlaceField";
 import { RepeatSheet, ScopeSheet } from "@/components/RecurrenceSheets";
 import { ReminderNote, ReminderSheet } from "@/components/ReminderPicker";
 import { useToast } from "@/components/Toast";
+import { useEventDeleteToast } from "@/components/useEventDeleteToast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
 import { Button, ConfirmDialog, Field, InlineError, MemberDot, RowButton, Segmented, Skeleton, Toggle, captionClass, inputClass, titleInputClass } from "@/components/ui";
@@ -88,6 +89,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true });
   const update = useUpdateEvent(groupId, { keepPendingAfterSuccess: true });
   const remove = useDeleteEvent(groupId, { keepPendingAfterSuccess: true });
+  const deletedToast = useEventDeleteToast(groupId);
   const saving = create.isPending || update.isPending;
   const deleting = remove.isPending;
 
@@ -251,7 +253,8 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
     closeScope();
     if (r.ok) {
       setDone(true);
-      toast.show("일정을 삭제했어요");
+      // (#375) 7초 안 되돌리기. 달력으로 옮긴 뒤 되돌려도 달력이 다시 받는다 (D-251)
+      deletedToast(r.data.deletionId);
       router.replace(calendarHref({ date: startDate }));
       return;
     }

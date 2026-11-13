@@ -25,6 +25,7 @@ import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/compon
 import { StartGuide } from "@/components/StartGuide";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
+import { useEventDeleteToast } from "@/components/useEventDeleteToast";
 import { ConfirmDialog, Skeleton } from "@/components/ui";
 import { messageOf, useAnniversaryItems, useDeleteEvent, useEvents, useFreeSlots } from "@/hooks";
 import {
@@ -112,7 +113,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const toast = useToast();
   const layout = useLayout();
   const wide = layout !== "phone";
-  const { groupId, group, groups, eventsChanged } = useGroupContext();
+  const { groupId, group, groups, eventsChanged, restoredVersion } = useGroupContext();
   const together = togetherHintOf(group, groups);
   const who = useWho();
   const today = todayKey();
@@ -302,6 +303,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     // 사이드바 "다가오는 일정" 도 다시 받게
     eventsChanged();
   }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, weekFreeOn, loadWeekFree, eventsChanged]);
+
+  // (#375) 지운 일정을 되돌리면(이 화면 또는 일정 화면의 토스트) 다시 받는다. 처음 한 번은 훅이 이미 받는다
+  const lastRestored = useRef(restoredVersion);
+  useEffect(() => {
+    if (lastRestored.current === restoredVersion) return;
+    lastRestored.current = restoredVersion;
+    reload();
+  }, [restoredVersion, reload]);
 
   // (#190) 참석 여부만 바뀌면 빈 시간은 그대로라(D-137) 일정 목록만 다시 받는다
   const reloadEvents = useCallback(() => {
@@ -580,6 +589,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   }
 
   const remove = useDeleteEvent(groupId);
+  const deletedToast = useEventDeleteToast(groupId);
   // 반복 일정 삭제는 범위 시트 (#187). 고른 범위의 요청 중 표시
   const [scopeOpen, setScopeOpen] = useState(false);
   const [scopePending, setScopePending] = useState<EventScope | null>(null);
@@ -605,7 +615,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       toast.show(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
       return;
     }
-    toast.show("일정을 삭제했어요");
+    // (#375) 7초 안 되돌리기 (D-251)
+    deletedToast(r.data.deletionId);
     back();
     reload();
   }

@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { DELETION_RETENTION_MS } from '../event-deletions/deletion-snapshot.js';
+import { EventDeletionsRepository } from '../event-deletions/event-deletions.repository.js';
 import { reportError } from '../monitoring/sentry.js';
 import { kstDate, KST_OFFSET_MS, DAY_MS } from '../events/recurrence.js';
 import { AnniversaryPlanner } from './anniversary-planner.js';
@@ -46,6 +48,8 @@ export interface TickResult {
   send?: SendStats;
   receipts?: number;
   cleaned?: number | null;
+  /** (#375) 하루 청소에서 지운 일정 삭제 보관 수 (D-251) */
+  purgedDeletions?: number | null;
 }
 
 /**
@@ -69,6 +73,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     private readonly weeklyPlanner: WeeklyPlanner,
     private readonly dispatcher: PushDispatcher,
     private readonly pollPlanner: PollPlanner,
+    private readonly deletions: EventDeletionsRepository,
   ) {}
 
   get enabled(): boolean {
@@ -137,15 +142,18 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     const receipts = await this.dispatcher.checkReceipts(now);
 
     let cleaned: number | null = null;
+    let purgedDeletions: number | null = null;
     const day = dailyDue(now, lease.dailyDoneOn);
     if (day) {
       cleaned = await this.push.deleteNotificationsCreatedBefore(new Date(now.getTime() - RETENTION_MS));
+      // (#375) 되돌리기 보관 7일 (D-251)
+      purgedDeletions = await this.deletions.purgeCreatedBefore(new Date(now.getTime() - DELETION_RETENTION_MS));
       await this.push.setDailyDone(this.holder, day);
     }
 
-    const result: TickResult = { ran: true, planned, weekly, polls, expand, send, receipts, cleaned };
+    const result: TickResult = { ran: true, planned, weekly, polls, expand, send, receipts, cleaned, purgedDeletions };
     const busy = planned + weekly + polls + expand.dispatched + expand.cancelled + expand.skipped + send.sent + Object.keys(send.failed).length + send.requeued + receipts > 0;
-    const line = `push.tick ${JSON.stringify({ planned, weekly, polls, ...expand, sent: send.sent, failed: send.failed, requeued: send.requeued, receipts, cleaned })}`;
+    const line = `push.tick ${JSON.stringify({ planned, weekly, polls, ...expand, sent: send.sent, failed: send.failed, requeued: send.requeued, receipts, cleaned, purgedDeletions })}`;
     if (busy) this.logger.log(line);
     else this.logger.debug(line);
     return result;

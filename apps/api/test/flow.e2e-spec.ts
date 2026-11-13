@@ -464,7 +464,8 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('일정 삭제는 DELETED 스냅샷을 남기고 eventId 는 null 이 된다', async () => {
     const res = await api(app).delete(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(200);
-    expect(res.body).toEqual({ status: 200, data: { ok: true }, message: 'OK' });
+    // (#375) 되돌리기 보관 번호 (D-251)
+    expect(res.body).toEqual({ status: 200, data: { ok: true, deletionId: expect.any(Number) }, message: 'OK' });
     await api(app).get(`/v1/groups/${groupId}/events/${eventId}`).set(auth(alice)).expect(404);
 
     const news = await api(app).get(`/v1/groups/${groupId}/news`).set(auth(bob)).expect(200);
