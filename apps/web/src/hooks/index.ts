@@ -21,6 +21,7 @@ export { useTodoLists, useTodoList, useRefetchOnVisible } from "./useTodos";
 export { useTodoListEditor, isPendingItem } from "./useTodoListEditor";
 export { useEventDraft } from "./useEventDraft";
 export { useCalendarFeed } from "./useCalendarFeed";
+export { usePolls, usePoll } from "./usePolls";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
@@ -39,6 +40,7 @@ export { useCreateAnniversary } from "./useCreateAnniversary";
 export { useUpdateAnniversary } from "./useUpdateAnniversary";
 export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
+export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";

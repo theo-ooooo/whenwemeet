@@ -6,7 +6,14 @@ import type { GroupDetail } from "@/lib/types";
 
 const useEvents = vi.fn((...args: unknown[]) => ({ args, data: [], error: null, refetch: vi.fn() }));
 const useAnniversaryItems = vi.fn((...args: unknown[]) => ({ args, data: [], error: null, refetch: vi.fn() }));
-vi.mock("@/hooks", () => ({ useEvents: (...a: unknown[]) => useEvents(...a), useAnniversaryItems: (...a: unknown[]) => useAnniversaryItems(...a) }));
+// (#189) 진행 중 투표 한 줄은 기본 없음
+const usePolls = vi.fn((...args: unknown[]) => ({ args, data: [] as unknown[], error: null, refetch: vi.fn() }));
+vi.mock("@/hooks", () => ({
+  useEvents: (...a: unknown[]) => useEvents(...a),
+  useAnniversaryItems: (...a: unknown[]) => useAnniversaryItems(...a),
+  usePolls: (...a: unknown[]) => usePolls(...a),
+  useRefetchOnVisible: () => {},
+}));
 vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
 
 const { Sidebar } = await import("../Sidebar");
@@ -61,6 +68,27 @@ describe("(#276) 할 일 메뉴", () => {
     expect(names.indexOf("할 일")).toBe(names.indexOf("기념일") + 1);
     const current = within(nav).getByRole("link", { current: "page" });
     expect(current.getAttribute("href")).toBe("/todos");
+  });
+});
+
+describe("(#189) 정하는 중 한 줄", () => {
+  it("진행 중 투표가 있으면 다가오는 일정 위에 가장 급한 투표 + 나머지 수, 없으면 그리지 않는다", () => {
+    usePolls.mockReturnValueOnce({
+      args: [],
+      data: [
+        { id: 1, publicCode: "poll1xxx", title: "저녁 약속", status: "OPEN", deadline: null, expired: false, eventId: null, eventCode: null, voterCount: 1, targetCount: 2, votedByMe: false, allPast: false, createdAt: "", closedAt: null },
+        { id: 2, publicCode: "poll2xxx", title: "여행", status: "OPEN", deadline: null, expired: false, eventId: null, eventCode: null, voterCount: 0, targetCount: 2, votedByMe: false, allPast: false, createdAt: "", closedAt: null },
+      ],
+      error: null,
+      refetch: vi.fn(),
+    });
+    setup();
+    const link = screen.getByRole("link", { name: /^정하는 중: 저녁 약속/ });
+    expect(link.getAttribute("href")).toBe("/polls/poll1xxx");
+    expect(link.getAttribute("aria-label")).toContain("외 1개");
+    cleanup();
+    setup();
+    expect(screen.queryByRole("link", { name: /^정하는 중/ })).toBeNull();
   });
 });
 
