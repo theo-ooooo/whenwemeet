@@ -16,10 +16,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { DayDock } from "@/components/DayDock";
-import { DayAddButton, DayFreeRow, DayPanel, type FreeHint } from "@/components/DayPanel";
+import { DayAddButton, DayPanel } from "@/components/DayPanel";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
+import { EventList, EventRow } from "@/components/EventRow";
 import { DotCluster, useWho } from "@/components/Participants";
 import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { StartGuide } from "@/components/StartGuide";
@@ -93,6 +94,10 @@ type Props = {
 const newEventLink = (start: string, end: string) => newEventHref({ start, end });
 
 const nowMs = () => Date.now();
+/** (#378 B) 폰 홈 "다가오는 일정" 줄 수 */
+const HOME_UPCOMING = 3;
+/** 홈 다가오는 일정 줄의 날짜 글자: "오늘", "내일", "11월 17일 (화)" */
+const upcomingDateText = (k: DateKey, today: DateKey) => (k === today ? "오늘" : k === addDays(today, 1) ? "내일" : formatDateKo(k));
 
 /** 일정 상세를 여는 데 필요한 것. 반복 회차는 회차 날짜까지 (#187). 주소에는 공개 코드가 실린다 (#311) */
 type EventRef = { publicCode: string; occurrence: DateKey | null };
@@ -252,34 +257,32 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   );
 
   const memberCount = group?.members.length ?? 0;
+  const members = useMemo(() => group?.members ?? [], [group]);
 
-  // 오늘 모두 비는 시간 (첫 구간). phone 일 상세의 오늘 요약, 넓은 화면 요약 카드
-  const todayFreeQ = useFreeSlots(groupId, {
-    from: kstToIso(today),
-    to: kstToIso(addDays(today, 1)),
-    dayStart: "09:00",
-    dayEnd: "23:00",
-    minMinutes: 60,
-    includeAllDay: false,
-  });
-  const todayFree = todayFreeQ.data ? (upcomingSlots(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
-
-  // 날짜 상세의 비는 시간 한 줄: 멤버 2명 이상(phone 일 상세는 혼자여도 "비는 시간"), 오늘 이후만. 하루 1회, 오늘은 위 값을 다시 쓴다 (5-2)
-  const surfaceDate = visible ? openDate : null;
-  const minFreeMembers = wide ? 2 : 1;
-  const dayFreeEnabled = surfaceDate !== null && memberCount >= minFreeMembers && surfaceDate > today;
-  const dayFreeQ = useFreeSlots(
+  // 오늘 모두 비는 시간 (첫 구간). 넓은 화면 요약 카드 (#378 B: 폰 일 상세는 하루 막대가 대신한다)
+  const todayFreeQ = useFreeSlots(
     groupId,
     {
-      from: kstToIso(surfaceDate ?? today),
-      to: kstToIso(addDays(surfaceDate ?? today, 1)),
+      from: kstToIso(today),
+      to: kstToIso(addDays(today, 1)),
       dayStart: "09:00",
       dayEnd: "23:00",
       minMinutes: 60,
       includeAllDay: false,
     },
-    { enabled: dayFreeEnabled },
+    { enabled: wide },
   );
+  const todayFree = todayFreeQ.data ? (upcomingSlots(todayFreeQ.data.slots, 60)[0] ?? null) : undefined;
+
+  // (#378 B) 날짜 상세(폰 일 상세, 넓은 화면 패널)의 비는 시간은 하루 막대(DayBar)가 그날 일정으로 그린다 (따로 받지 않는다)
+  const surfaceDate = visible ? openDate : null;
+  // 지금 (ms): 지난 일정 흐리게, 하루 막대와 목록의 "지금". 날짜 상세가 떠 있는 동안 1분마다
+  const [now, setNow] = useState(nowMs);
+  useEffect(() => {
+    if (!surfaceDate) return;
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [surfaceDate]);
   // (#192) 주 보기 "빈 시간" 겹쳐 보기 (Q2, 기본 꺼짐). 그 주 7일, 하루 전체, 30분 이상 (api.md 2.5 31일 한도 안)
   const [showFree, setShowFree] = useState(false);
   const weekFreeOn = week && showFree;
@@ -291,18 +294,16 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const loadWeekFree = weekFreeQ.refetch;
   // 일정을 추가, 수정, 삭제한 뒤: 일정에서 나오는 값을 모두 다시 받는다 (월 그리드, 다가오는 일정, 이번 주, 비는 시간 QA3-M4)
   const loadTodayFree = todayFreeQ.refetch;
-  const loadDayFree = dayFreeQ.refetch;
   const reload = useCallback(() => {
     void loadEvents();
     void loadUpcoming();
     if (wide) void loadWeek();
-    void loadTodayFree();
+    if (wide) void loadTodayFree();
     // refetch 는 enabled 를 보지 않으므로 켜져 있을 때만
-    if (dayFreeEnabled) void loadDayFree();
     if (weekFreeOn) void loadWeekFree();
     // 사이드바 "다가오는 일정" 도 다시 받게
     eventsChanged();
-  }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, weekFreeOn, loadWeekFree, eventsChanged]);
+  }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, weekFreeOn, loadWeekFree, eventsChanged]);
 
   // (#375) 지운 일정을 되돌리면(이 화면 또는 일정 화면의 토스트) 다시 받는다. 처음 한 번은 훅이 이미 받는다
   const lastRestored = useRef(restoredVersion);
@@ -319,16 +320,6 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     if (wide) void loadWeek();
     eventsChanged();
   }, [loadEvents, loadUpcoming, loadWeek, wide, eventsChanged]);
-
-  const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
-  let freeHint: FreeHint = null;
-  if (surfaceDate && memberCount >= minFreeMembers && surfaceDate >= today) {
-    if (surfaceDate === today) {
-      if (!todayFreeQ.error) freeHint = { label: dayFreeLabel, slot: todayFree === undefined ? "loading" : todayFree };
-    } else if (!dayFreeQ.error) {
-      freeHint = { label: dayFreeLabel, slot: dayFreeQ.isLoading || !dayFreeQ.data ? "loading" : (upcomingSlots(dayFreeQ.data.slots, 60)[0] ?? null) };
-    }
-  }
 
   const byDay = useMemo(() => groupByDay(events ?? []), [events]);
   // 주마다 여러 날 일정 막대 레인 (#202). 넓은 화면은 칸 높이별(칩 2줄 tall, 3줄 taller) 로 자리를 맞춰 둔다
@@ -562,6 +553,13 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     setAddStart(time);
     openDay(date, undefined, true);
   }
+  /** (#378 B) 하루 막대의 빈 구간: 그 시각으로 빠른 추가. 그날 날짜 단계 위면 한 칸 더 (닫고 다시 열지 않는다) */
+  function addAt(date: DateKey, ms: number) {
+    if (urlStep.open && urlStep.step === "day" && openDate === date) {
+      setAddStart(timeOf(new Date(ms).toISOString()));
+      forward({ step: "add", date });
+    } else addAtSlot(date, timeOf(new Date(ms).toISOString()));
+  }
 
   function onCell(key: DateKey) {
     // (#331) 넓은 화면: 패널이 열려 있으면 내용만 그날로 (같은 날이면 일정 상세에서 그날 목록으로 돌아온다)
@@ -657,8 +655,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     </p>
   );
 
-  // "다가오는 일정" 카드 148×108: 날짜(12/600, 오늘이면 --today-ink "오늘") + 멤버 점 8 / 제목 16/700 두 줄 / 시각 12 --mute.
-  // 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 다가오는 일정 목록 화면 (#222, D-68 의 "오늘 일 상세" 를 대신한다)
+  // (#378 B) "다가오는 일정": 공통 일정 줄(EventRow) 3개를 세로로 (가로 카드였을 때 기념일, 할 일 카드와 생김새가 같아 구역이 안 갈렸다).
+  // 시각 앞에 날짜("오늘", "내일", "11월 17일 (화)"). 누르면 그날 일 상세 → 일정 상세. "전체보기" 는 다가오는 일정 목록 화면 (#222)
   const phoneUpcoming = (
     <section aria-labelledby={`${titleId}-pup`} className="mt-[22px]">
       {sectionHead(
@@ -677,7 +675,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </button>,
         )
       ) : upcomingList === null ? (
-        cardSkeletons("h-[108px]")
+        <div className="space-y-px overflow-hidden rounded-xl" aria-busy="true" aria-label="불러오는 중">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-[60px] rounded-none" />
+          ))}
+        </div>
       ) : upcomingList.length === 0 ? (
         emptyLine(
           "한 달 동안 잡힌 일정이 없어요.",
@@ -686,40 +688,26 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </Link>,
         )
       ) : (
-        <ul className={rail}>
-          {upcomingList.map((ev) => {
+        <EventList>
+          {upcomingList.slice(0, HOME_UPCOMING).map((ev) => {
+            // 이미 시작해 진행 중인 일정은 오늘 줄로
             const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
-            const isToday = k === today;
             return (
-              <li key={eventKey(ev)} className="shrink-0 snap-start">
-                <button
-                  type="button"
-                  onClick={() => openDay(k, ev)}
-                  aria-label={withWho(
-                    `${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`,
-                    ev,
-                    who,
-                  )}
-                  className="flex h-[108px] w-[148px] flex-col rounded-xl bg-paper px-3.5 py-3 text-left hover:bg-hover"
-                >
-                  <span aria-hidden="true" className="flex h-4 w-full items-center">
-                    <small className={`text-[12px] font-semibold leading-4 ${isToday ? "text-today-ink" : "text-ink-2"}`}>
-                      {isToday ? "오늘" : formatDateKo(k)}
-                    </small>
-                    {/* 참여자 점 최대 3 (간격 3) + 넘치면 "+". 참여자 없음은 회색 점 1 (#248 7-2) */}
-                    <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
-                  </span>
-                  <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
-                    {ev.title}
-                  </b>
-                  <span aria-hidden="true" className="mt-auto truncate text-[12px] leading-4 text-ink-2">
-                    {formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}
-                  </span>
-                </button>
-              </li>
+              <EventRow
+                key={eventKey(ev)}
+                event={ev}
+                who={who}
+                day={k}
+                dateText={upcomingDateText(k, today)}
+                onClick={(e) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  openDay(k, ev);
+                }}
+              />
             );
           })}
-        </ul>
+        </EventList>
       )}
     </section>
   );
@@ -792,15 +780,16 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       onDelete={askDelete}
       onResponded={reloadEvents}
       addStart={addStart}
+      members={members}
+      now={now}
+      onAddAt={(ms) => addAt(surfaceDate, ms)}
     />
   ) : null;
-  // 날짜 단계만 비는 시간 줄과 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다
+  // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다.
+  // (#378 B) 예전 비는 시간 줄은 패널 위 하루 막대가 대신한다
   const dayFooter =
     surfaceDate && (!urlStep.open || urlStep.step === "day") ? (
-      <>
-        {freeHint && <DayFreeRow free={freeHint} newEventHref={newEventLink} />}
-        <DayAddButton onAdd={() => addPlain(surfaceDate)} />
-      </>
+      <DayAddButton onAdd={() => addPlain(surfaceDate)} />
     ) : null;
 
   /* ---------- 넓은 화면 요약 카드 (디자인규칙.md 2-2, 5: 3열 × 84, 라벨 13 --mute / 값 20/700) ---------- */
@@ -893,14 +882,15 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           eventsError={eventsError}
           onRetry={reload}
           anniversaries={anniversariesOn(anniversaries, surfaceDate)}
-          free={freeHint}
+          members={members}
+          now={now}
           stripRef={stripRef}
           onPickDay={changeDay}
           onMonth={close}
           backLabel={week ? "주 보기" : "월 보기"}
           onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
           onAdd={() => addPlain(surfaceDate)}
-          newEventHref={newEventLink}
+          onAddAt={(ms) => addAt(surfaceDate, ms)}
         />
       )}
       {/* 왼쪽: 월 헤더 + 달력. (#331) 이 칸도 컨테이너 main 이라 안쪽 main-* 변형(좁은 제목줄, 요약 카드 3열/세로)은

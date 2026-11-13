@@ -4,6 +4,7 @@
 // 결과는 "다가오는 일정"(시작 순) 다음 "지난 일정"(최근 순). 줄: 날짜, 시각, 반복 표시, 제목(일치 부분 강조), 장소나 메모 한 줄,
 // 모든 팀이면 팀 이름. 누르면 기존 일정 상세(`/events/<코드>`, 다른 팀 일정이면 그 팀으로)
 // (#378) 머리줄은 하위 화면 공통 ScreenHeader("‹ 일정 검색"), 결과 줄은 일정 줄 EventRow (디자인규칙.md 8장)
+// (#378 B) 검색어가 없을 때는 바로 누를 수 있게 이 팀의 다가오는 일정 3개 (검색어는 저장하지 않으니 최근 검색 대신)
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
@@ -12,9 +13,10 @@ import { IconSearch } from "@/components/icons";
 import { useWho } from "@/components/Participants";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { EmptyState, ErrorState, Segmented, Skeleton, inputClass } from "@/components/ui";
-import { messageOf, useEventSearch } from "@/hooks";
+import { messageOf, useEventSearch, useEvents } from "@/hooks";
 import { clampChars } from "@/lib/chars";
-import { todayKey } from "@/lib/date";
+import { addDays, kstToIso, todayKey } from "@/lib/date";
+import { upcomingEvents } from "@/lib/day-detail";
 import { highlight, repeatTag, SEARCH_MAX, searchDateText, searchHref, searchPreview } from "@/lib/event-search";
 import { eventKey } from "@/lib/recurrence";
 import { CALENDAR_PATH } from "@/lib/routes";
@@ -92,7 +94,10 @@ export function SearchScreen() {
 
       <div className="mt-4 main-lg:max-w-[720px]" aria-live="polite">
         {!query ? (
-          <p className="px-1 text-[13px] leading-5 text-ink-2">일정 제목, 메모, 장소에 든 말로 찾아요. 검색어는 저장하지 않아요</p>
+          <>
+            <p className="px-1 text-[13px] leading-5 text-ink-2">일정 제목, 메모, 장소에 든 말로 찾아요. 검색어는 저장하지 않아요</p>
+            <UpcomingQuick groupId={groupId} today={today} />
+          </>
         ) : q.error && !q.data ? (
           <ErrorState message={messageOf(q.error, "일정을 찾지 못했어요. 잠시 후 다시 시도해 주세요")} onRetry={() => void q.refetch()} />
         ) : q.data === null ? (
@@ -110,6 +115,26 @@ export function SearchScreen() {
         )}
       </div>
     </div>
+  );
+}
+
+/** 검색어가 없을 때: 이 팀의 다가오는 일정 3개 (오늘부터 한 달 안). 못 받거나 없으면 아무것도 그리지 않는다 */
+function UpcomingQuick({ groupId, today }: { groupId: number; today: string }) {
+  const who = useWho();
+  const [now] = useState(Date.now);
+  const q = useEvents(groupId, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) });
+  const list = q.data ? upcomingEvents(q.data, now, 3) : null;
+  if (list === null) return q.error ? null : <Skeleton className="mt-6 h-[180px] rounded-xl" />;
+  if (list.length === 0) return null;
+  return (
+    <section aria-label="다가오는 일정" className="mt-6">
+      <h2 className="mb-2 text-[13px] font-bold leading-[18px] text-ink-2">다가오는 일정</h2>
+      <EventList>
+        {list.map((ev) => (
+          <EventRow key={eventKey(ev)} event={ev} who={who} dateText={searchDateText(ev.startsAt, today)} now={now} />
+        ))}
+      </EventList>
+    </section>
   );
 }
 

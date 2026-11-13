@@ -1,3 +1,4 @@
+import { eventRowTime } from "../event-row";
 import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
 import {
@@ -8,7 +9,6 @@ import {
   pastWindow,
   monthBreak,
   upcomingDayOf,
-  upcomingTimeText,
   upcomingWindow,
   windowRangeText,
 } from "../upcoming";
@@ -91,27 +91,28 @@ describe("KST 경계", () => {
   });
 });
 
+// (#378 B) 줄의 시각 글자는 공통 일정 줄(EventRow)의 eventRowTime 을 묶인 날 기준으로 쓴다
 describe("여러 날 일정", () => {
   it("시작한 날 하나에만 두고 시각 글자에 끝 날짜", () => {
     const e = ev(at("2026-11-12", "22:00"), at("2026-11-14", "02:00"));
     const days = groupUpcoming([e], [], W0, TODAY, NOW);
     expect(days.map((d) => d.date)).toEqual(["2026-11-12"]);
-    expect(upcomingTimeText(e, "2026-11-12")).toBe("22:00~11월 14일 02:00");
+    expect(eventRowTime(e, "2026-11-12")).toBe("오후 10:00 ~ 11월 14일 오전 2:00");
   });
   it("자정을 넘기는 짧은 일정도 끝 날짜를 쓴다", () => {
     const e = ev(at("2026-11-12", "23:00"), at("2026-11-13", "01:00"));
-    expect(upcomingTimeText(e, "2026-11-12")).toBe("23:00~11월 13일 01:00");
+    expect(eventRowTime(e, "2026-11-12")).toBe("오후 11:00 ~ 11월 13일 오전 1:00");
   });
   it("자정에 딱 끝나면 같은 날로 본다", () => {
     const e = ev(at("2026-11-12", "22:00"), at("2026-11-13", "00:00"));
     expect(lastDayOf(e)).toBe("2026-11-12");
-    expect(upcomingTimeText(e, "2026-11-12")).toBe("22:00~00:00");
+    expect(eventRowTime(e, "2026-11-12")).toBe("오후 10:00 ~ 오전 12:00");
   });
   it("여러 날 종일은 '종일, ~마지막 날'", () => {
     const e = allDay("2026-11-12", "2026-11-15");
     expect(lastDayOf(e)).toBe("2026-11-14");
-    expect(upcomingTimeText(e, "2026-11-12")).toBe("종일, ~11월 14일");
-    expect(upcomingTimeText(allDay("2026-11-12", "2026-11-13"), "2026-11-12")).toBe("종일");
+    expect(eventRowTime(e, "2026-11-12")).toBe("종일 ~11월 14일");
+    expect(eventRowTime(allDay("2026-11-12", "2026-11-13"), "2026-11-12")).toBe("종일");
   });
   it("이미 시작해 진행 중이면 오늘에, 끝만 적는다", () => {
     const e = ev(at("2026-11-10", "20:00"), at(TODAY, "18:00"));
@@ -119,10 +120,10 @@ describe("여러 날 일정", () => {
     const days = groupUpcoming([e, f], [], W0, TODAY, NOW);
     expect(days).toHaveLength(1);
     expect(days[0].date).toBe(TODAY);
-    expect(upcomingTimeText(e, TODAY)).toBe("~18:00");
-    expect(upcomingTimeText(f, TODAY)).toBe("종일, ~11월 13일");
+    expect(eventRowTime(e, TODAY)).toBe("~ 오후 6:00");
+    expect(eventRowTime(f, TODAY)).toBe("종일 ~11월 13일");
     const g = ev(at("2026-11-10", "20:00"), at("2026-11-12", "02:00"));
-    expect(upcomingTimeText(g, TODAY)).toBe("~11월 12일 02:00");
+    expect(eventRowTime(g, TODAY)).toBe("종일 ~11월 12일");
   });
   it("두 창에 걸쳐 와도 한 창에만 (시작한 날 기준)", () => {
     const e = ev(at("2026-12-10", "20:00"), at("2026-12-12", "10:00"));

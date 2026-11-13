@@ -2,29 +2,27 @@
 // 날짜 상세 내용. 넓은 화면 오른쪽 패널(DayDock, #331) 과 폰 일정 상세, 빠른 추가 바텀 시트(DaySheet) 가 같이 쓴다.
 // 단계: 날짜(머리 "11월 14일 토요일" + ‹ 13 [14] 15 ›, 그날 기념일, 일정) → 빠른 추가(QuickAddForm) / 일정 상세(EventDetail)
 // 날짜 단계는 넓은 화면에서만 그린다 (폰은 일 상세 화면 DayView, #212).
-// 비는 시간 줄과 "이 날 일정 추가" 는 목록과 같이 스크롤되면 바쁜 날 잘리므로 표면의 고정 바닥 바에 둔다: DayFreeRow, DayAddButton (#175)
+// (#378 B) 날짜 단계는 폰 일 상세(C안)와 같은 하루 막대(DayBar, 카드 없이)와 일정 줄(DayEventList → EventRow)을 쓴다.
+// 비는 시간은 하루 막대가 보여 준다. "이 날 일정 추가" 는 목록과 같이 스크롤되면 바쁜 날 잘리므로 표면의 고정 바닥 바에 둔다: DayAddButton (#175)
 // 단계 전환은 같은 표면 안에서 내용만 바꾼다. 주소(?day, &add, /events/<코드>) 는 CalendarScreen 이 맡는다
 import Link from "next/link";
 import { ANNIVERSARIES_PATH } from "@/lib/routes";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { DayBar } from "./DayBar";
+import { DayEventList } from "./DayEvents";
 import { EventDetail } from "./EventDetail";
-import { IconArrowRight, IconCalendar, IconChevronLeft, IconChevronRight, IconClock, IconHeart, IconPlus } from "./icons";
-import { DotCluster, useWho } from "./Participants";
+import { IconCalendar, IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "./icons";
 import { QuickAddForm } from "./QuickAdd";
 import { CloseButton, EmptyState, ErrorState, Skeleton } from "./ui";
+import { busyByMember, dayWindow } from "@/lib/day-bar";
 import { dayBadge } from "@/lib/day-detail";
 import { panelDays, panelTitle } from "@/lib/day-panel";
-import { timeColumn } from "@/lib/day-view";
-import { dowOf, formatDateKo, formatEventTime, parseKey, timeOf, WEEKDAYS, type DateKey } from "@/lib/date";
+import { dowOf, formatDateKo, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 import { lastInputWasKeyboard } from "@/lib/input-modality";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
-import type { Event } from "@/lib/types";
+import type { Event, Member } from "@/lib/types";
 import { eventKey } from "@/lib/recurrence";
-import { withWho } from "@/lib/participants";
-
-/** 비는 시간 한 줄. null 이면 줄을 숨긴다 (멤버 1명, 지난 날, 계산 실패) */
-export type FreeHint = { label: string; slot: { startsAt: string; endsAt: string } | null | "loading" } | null;
 
 export type DayPanelStep = "day" | "event" | "add";
 
@@ -53,6 +51,12 @@ type Props = {
   onResponded?: () => void;
   /** (#192) 빠른 추가의 처음 시작 시각 'HH:mm' (주 보기 빈 칸). 없으면 폼 기본값 */
   addStart?: string | null;
+  /** (#378 B) 팀 멤버 (하루 막대의 멤버별 바쁜 시간) */
+  members?: Member[];
+  /** 지금 (ms). 지난 일정 흐리게, 오늘이면 "지금" 선과 줄. 없으면 하루 막대와 흐림 없이 */
+  now?: number;
+  /** 하루 막대의 빈 구간을 눌렀을 때: 그 시각(ms)으로 빠른 추가 */
+  onAddAt?: (start: number) => void;
 };
 
 /** "10일 화요일" */
@@ -117,8 +121,8 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay }: Props) {
-  const who = useWho();
+function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay, members, now, onAddAt }: Props) {
+  const bar = useMemo(() => (events && members ? busyByMember(events, members, dayWindow(date)) : null), [events, members, date]);
   const holiday = holidayOf(date);
   const [prev, , next] = panelDays(date);
   const empty = events !== null && !eventsError && events.length === 0 && anniversaries.length === 0;
@@ -187,7 +191,20 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         </ul>
       )}
 
-      {/* 그날 일정: 왼쪽 시각 열(라벨 11, 시각 15/700, 일 상세와 같은 timeColumn) + 참여자 색 점 + 제목 / 시간, 참여자 */}
+      {/* (#378 B) 하루 막대 (폰 일 상세와 같은 것, 패널 흰 면 위라 카드 없이). 빈 구간을 누르면 그 시각으로 빠른 추가 */}
+      {bar && now !== undefined && !eventsError && (
+        <DayBar
+          bare
+          className="mb-1 mt-2"
+          date={date}
+          members={bar}
+          title={date === today ? "오늘 하루" : "이날 하루"}
+          now={date === today ? now : undefined}
+          onSelect={onAddAt}
+        />
+      )}
+
+      {/* 그날 일정: 공통 일정 줄 (EventRow). 패널 흰 면 위라 줄 막대가 제목 선에 맞게 안쪽 여백만큼 내민다 */}
       {eventsError ? (
         <div className="mt-1">
           <ErrorState message={eventsError} onRetry={onRetry} />
@@ -196,7 +213,7 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         <div className="mt-1 space-y-2 py-1" aria-busy="true" aria-label="불러오는 중">
           {[0, 1].map((i) => (
             <div key={i} className="flex min-h-12 items-center gap-2.5">
-              <Skeleton className="h-8 w-10" />
+              <Skeleton className="h-8 w-1" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-1/2" />
                 <Skeleton className="h-3 w-1/4" />
@@ -205,34 +222,15 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
           ))}
         </div>
       ) : events.length > 0 ? (
-        <ul className="mt-1">
-          {events.map((ev) => {
-            const col = timeColumn(ev, date);
-            return (
-              <li key={eventKey(ev)}>
-                <button
-                  type="button"
-                  onClick={() => onOpenEvent(ev)}
-                  aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
-                  className="-mx-1.5 flex min-h-12 w-[calc(100%+12px)] items-start gap-2.5 rounded-sm px-1.5 py-1.5 text-left hover:bg-hover"
-                >
-                  <span aria-hidden="true" className="flex w-11 shrink-0 flex-col">
-                    <small className="text-[11px] leading-4 text-ink-2">{col.label}</small>
-                    {col.value && <b className="text-[15px] font-bold leading-5 tracking-[-0.02em]">{col.value}</b>}
-                  </span>
-                  <span aria-hidden="true" className="min-w-0 flex-1">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <DotCluster event={ev} size={6} />
-                      <b className="min-w-0 truncate text-[15px] font-semibold leading-5">{ev.title}</b>
-                    </span>
-                    {/* 등록자 대신 참여자 (#248 D-140). 개인 팀은 사람 표시 없음 */}
-                    <span className="block truncate text-[12px] leading-4 text-ink-2">{withWho(formatEventTime(ev.startsAt, ev.endsAt, ev.allDay), ev, who)}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <DayEventList
+          className="-mx-3.5 mt-1 rounded-none!"
+          events={events}
+          date={date}
+          today={today}
+          now={now ?? 0}
+          onOpen={onOpenEvent}
+          label={`${formatDateKo(date)} 일정`}
+        />
       ) : null}
 
       {/* 빈 날: 공통 빈 상태(원 40, 제목 14/600, 보조 12) 와 같은 모양 (#174 L5) */}
@@ -240,37 +238,6 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         <EmptyState className="py-5" icon={<IconCalendar size={20} />} title="아직 일정이 없어요">
           이 날 함께할 일을 바로 적어 보세요
         </EmptyState>
-      )}
-    </div>
-  );
-}
-
-/** 이날 모두 비는 시간 한 줄 + "만들기 →" (#331). 패널 바닥 바에 "이 날 일정 추가" 위로 둔다 (#175: 바쁜 날에도 보이게) */
-export function DayFreeRow({ free, newEventHref }: { free: NonNullable<FreeHint>; newEventHref: (start: string, end: string) => string }) {
-  const slot = free.slot;
-  return (
-    <div className="flex h-9 items-center gap-2 text-[13px]">
-      <IconClock size={16} className="shrink-0 text-acc-ink" />
-      <span className="shrink-0">{free.label}</span>
-      {slot === "loading" ? (
-        <Skeleton className="h-3.5 w-24" />
-      ) : slot ? (
-        <>
-          <b className="font-bold text-acc-ink">
-            {timeOf(slot.startsAt)}~{timeOf(slot.endsAt)}
-          </b>
-          <span className="flex-1" />
-          <Link
-            href={newEventHref(slot.startsAt, slot.endsAt)}
-            aria-label={`${free.label} ${timeOf(slot.startsAt)}부터 ${timeOf(slot.endsAt)}까지 일정 만들기`}
-            className="hit flex h-8 shrink-0 items-center gap-0.5 font-bold text-btn hover:underline underline-offset-2"
-          >
-            만들기
-            <IconArrowRight size={14} />
-          </Link>
-        </>
-      ) : (
-        <span className="text-ink-2">없어요</span>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
-// 폰 일 상세 (디자인규칙.md 2-3, #212) 의 날짜 계산과 시각 열 표기. React 를 import 하지 않는다 (단위 테스트 대상)
-import { addDays, dateKeyOf, dowOf, kstToIso, timeOf, type DateKey } from "./date";
+// 폰 일 상세 (디자인규칙.md 2-3, #212, #378 C안) 의 날짜 계산과 "지금" 줄 자리. React 를 import 하지 않는다 (단위 테스트 대상)
+import { addDays, dowOf, type DateKey } from "./date";
 import { nextOccurrence, sortByNext, type Occurrence } from "./anniversary";
 import type { Anniversary, Event } from "./types";
 
@@ -21,21 +21,14 @@ export function meridiem(hhmm: string): { label: "오전" | "오후"; value: str
 }
 
 /**
- * 일정 목록 왼쪽 48px 시각 열 (라벨 11 + 값 16/700).
- * - 종일 일정, 그날을 통째로 덮는 여러 날 일정: "하루 종일" (값 없음)
- * - 그날 시작: 시작 시각 "오전 10:00"
- * - 전날부터 이어져 그날 끝남: 끝 시각 "~3:00" (라벨은 끝 시각의 오전/오후)
+ * (#378) 일 상세 목록(C안)에서 "지금" 줄을 넣을 자리 (그 번호의 일정 앞). 목록은 groupByDay 순서(종일 → 시간 일정 시작 순).
+ * 아직 시작하지 않은 첫 시간 일정 앞에 둔다. 앞에 시간 일정이 하나도 없으면(종일뿐, 또는 다 앞으로의 일정) 줄을 넣지 않는다(null).
+ * 모두 지났으면 맨 끝
  */
-export function timeColumn(ev: Pick<Event, "startsAt" | "endsAt" | "allDay">, date: DateKey): { label: string; value: string | null } {
-  if (ev.allDay) return { label: "하루 종일", value: null };
-  const dayStart = Date.parse(kstToIso(date));
-  const dayEnd = Date.parse(kstToIso(addDays(date, 1)));
-  const s = Date.parse(ev.startsAt);
-  const e = Date.parse(ev.endsAt);
-  if (s >= dayStart && dateKeyOf(ev.startsAt) === date) return meridiem(timeOf(ev.startsAt));
-  if (e >= dayEnd) return { label: "하루 종일", value: null };
-  const end = meridiem(timeOf(ev.endsAt));
-  return { label: end.label, value: `~${end.value}` };
+export function nowLineIndex(events: readonly Pick<Event, "startsAt" | "allDay">[], now: number): number | null {
+  const next = events.findIndex((e) => !e.allDay && Date.parse(e.startsAt) > now);
+  const at = next === -1 ? events.length : next;
+  return events.slice(0, at).some((e) => !e.allDay) ? at : null;
 }
 
 /** 홈 "기념일" 구역 카드: 기념일마다 다음 항목 하나(오늘 포함), 가까운 순 최대 limit 개. 다음이 없는 지난 '그날만' 은 뺀다 */
