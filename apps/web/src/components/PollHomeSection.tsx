@@ -2,6 +2,7 @@
 // (#189) 진행 중 약속 투표 입구 (설계 약속-투표.md 5-2, Q5).
 //   PollHomeSection: 폰 홈 "다가오는 일정" 위 구역 "정하는 중". 가로 카드 148(제목 15/600 두 줄 / 응답 수 12 --mute / 마감 12 --acc-ink).
 //   PollSideLine:    넓은 화면 사이드바 "다가오는 일정" 묶음 위 한 줄 (가장 급한 투표 + 나머지 수).
+//                    폰 홈 달력 위에도 같은 한 줄을 카드로 둔다. 아래 "정하는 중" 구역은 달력 밑이라 스크롤해야 보였다
 // 투표가 있을 때만 그린다. 빈 구역 규칙(디자인규칙.md 5장)의 예외: 상시 기능이 아니라 없을 때는 자리도 두지 않는다
 import Link from "next/link";
 import { useEffect, useRef } from "react";
@@ -61,7 +62,20 @@ export function PollHomeSection({ groupId, enabled, titleId }: { groupId: number
   );
 }
 
-export function PollSideLine({ groupId, enabled, refreshKey }: { groupId: number; enabled: boolean; refreshKey: unknown }) {
+const SIDE_LINE = "mb-2 flex h-12 shrink-0 items-center gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover";
+
+export function PollSideLine({
+  groupId,
+  enabled,
+  refreshKey,
+  className = SIDE_LINE,
+}: {
+  groupId: number;
+  enabled: boolean;
+  refreshKey: unknown;
+  /** 바깥 모양. 기본은 사이드바 한 줄, 폰 홈은 카드 */
+  className?: string;
+}) {
   const q = usePolls(groupId, { enabled });
   useRefetchOnVisible(q.refetch, enabled);
   // 화면을 옮기면(투표를 열거나 정한 뒤 포함) 다시 받는다. 처음 한 번은 훅이 이미 받는다
@@ -81,7 +95,7 @@ export function PollSideLine({ groupId, enabled, refreshKey }: { groupId: number
     <Link
       href={pollHref(first)}
       aria-label={`정하는 중: ${first.title}, ${sub}${more > 0 ? `, 외 ${more}개` : ""}`}
-      className="mb-2 flex h-12 shrink-0 items-center gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
+      className={className}
     >
       <IconPoll size={18} className="shrink-0 text-acc-ink" />
       <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
