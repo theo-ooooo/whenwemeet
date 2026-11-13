@@ -8,9 +8,13 @@ import { deriveKey } from '../email-login/email-crypto.js';
 import { EventsService } from '../events/events.service.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { type CalendarFeedRow, CalendarFeedsRepository, type CalendarFeedSettings } from './calendar-feeds.repository.js';
-import { anniversaryEvents, birthdayEvents, eventToIcs, feedWindow } from './feed-items.js';
+import { anniversaryEvents, birthdayEvents, eventToIcs, feedWindow, placeKey, type ResolvedPlace } from './feed-items.js';
+import { PlacesService } from '../places/places.service.js';
 import { FEED_TOKEN_KEY_INFO, feedToken, feedTokenHash, lookupHash, newFeedSalt, tokenMatches } from './feed-token.js';
 import { buildIcs, type IcsEvent } from './ics.js';
+
+/** (#199) 피드 하나에서 다시 찾는 장소 수 상한 */
+export const FEED_PLACE_RESOLVE_MAX = 30;
 
 /** 설정 화면에 주는 내 구독 주소 (api.md 2.12) */
 export interface CalendarFeedView {
@@ -68,6 +72,7 @@ export class CalendarFeedService {
     private readonly anniversaries: AnniversariesRepository,
     private readonly birthdays: BirthdaysRepository,
     private readonly config: ConfigService,
+    private readonly places: PlacesService,
   ) {}
 
   async get(userId: number, groupId: number): Promise<CalendarFeedView | null> {
@@ -97,6 +102,22 @@ export class CalendarFeedService {
     return { ok: true };
   }
 
+  /**
+   * (#199) 고른 장소를 지금 다시 찾는다 (D-248). 저장하지 않고 PlacesService 의 5분 메모리 캐시만.
+   * 피드 하나에 서로 다른 (ID, 검색어) 30개까지만 (카카오 쿼터 보호). 못 찾거나 카카오 오류면 그 일정은 사용자 글자로
+   */
+  private async resolvePlaces(views: { place: { kakaoPlaceId: string | null; query: string | null } | null }[]): Promise<Map<string, ResolvedPlace | null>> {
+    const keys = new Map<string, { id: string; q: string }>();
+    for (const view of views) {
+      const p = view.place;
+      if (p?.kakaoPlaceId && p.query && !keys.has(placeKey(p)) && keys.size < FEED_PLACE_RESOLVE_MAX) keys.set(placeKey(p), { id: p.kakaoPlaceId, q: p.query });
+    }
+    const entries = await Promise.all(
+      [...keys].map(async ([key, { id, q }]) => [key, await this.places.resolveQuietly(id, q)] as const),
+    );
+    return new Map(entries);
+  }
+
   /** 공개 피드. 형식이 틀리거나, 없거나, 다시 만든 토큰과 다르거나, 그 팀 멤버가 아니면 모두 같은 404 */
   async feed(token: string, ifNoneMatch: string | undefined, now: Date = new Date()): Promise<FeedResult> {
     const hash = lookupHash(token);
@@ -118,8 +139,9 @@ export class CalendarFeedService {
       webOrigin: this.webOrigin(),
       groupCode: row.group.publicCode,
     };
+    const resolved = await this.resolvePlaces(views);
     const items: IcsEvent[] = [
-      ...views.map((view) => eventToIcs(view, options)),
+      ...views.map((view) => eventToIcs(view, options, view.place?.kakaoPlaceId ? (resolved.get(placeKey(view.place)) ?? null) : null)),
       ...anniversaries.flatMap((a) => anniversaryEvents(a, window)),
       ...birthdays.flatMap((b) => birthdayEvents(b, window)),
     ];

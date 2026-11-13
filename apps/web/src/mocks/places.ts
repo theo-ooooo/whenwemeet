@@ -18,53 +18,53 @@ export function fakePlaceSearch(query: string): PlaceCandidate[] {
   return [{ kakaoPlaceId: "99999999", name: `${query.slice(0, 90)} 본점`, address: "서울 중구 세종대로 110", lat: 37.5663, lng: 126.9779, category: null }];
 }
 
-const KEYS = new Set(["name", "address", "lat", "lng", "kakaoPlaceId"]);
+const KEYS = new Set(["text", "query", "kakaoPlaceId"]);
 const len = (s: string) => Array.from(s).length;
-const coord = (v: unknown, limit: number) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= limit;
+const filled = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 
-/** 본문 place 검사. 맞으면 null, 틀리면 문구 */
+/** 본문 place 검사 (API place.ts 와 같은 문구). 맞으면 null, 틀리면 문구 */
 export function placeProblem(v: unknown): string | null {
   if (v === undefined || v === null) return null;
   if (typeof v !== "object" || Array.isArray(v)) return "장소 형식이 올바르지 않아요";
   const o = v as Record<string, unknown>;
   if (Object.keys(o).some((k) => !KEYS.has(k))) return "장소에 알 수 없는 값이 있어요";
-  if (typeof o.name !== "string" || !o.name.trim()) return "장소 이름을 입력해 주세요";
-  if (len(o.name.trim()) > 100) return "장소는 100자 이하여야 해요";
-  if (o.address != null && (typeof o.address !== "string" || len(o.address.trim()) > 200)) return "장소 주소는 200자 이하여야 해요";
-  if ((o.lat == null) !== (o.lng == null)) return "장소 좌표는 위도와 경도를 함께 보내야 해요";
-  if (o.lat != null && (!coord(o.lat, 90) || !coord(o.lng, 180))) return "장소 좌표가 올바르지 않아요";
-  if (o.kakaoPlaceId != null && (typeof o.kakaoPlaceId !== "string" || !/^\d{1,20}$/.test(o.kakaoPlaceId))) return "카카오 장소 ID 가 올바르지 않아요";
-  return null;
+  for (const k of ["text", "query"]) {
+    if (o[k] == null) continue;
+    if (typeof o[k] !== "string") return "장소는 문자열이어야 해요";
+    if (len((o[k] as string).trim()) > 100) return "장소는 100자 이하여야 해요";
+  }
+  if (o.kakaoPlaceId != null) {
+    if (typeof o.kakaoPlaceId !== "string" || !/^\d{1,20}$/.test(o.kakaoPlaceId)) return "카카오 장소 ID 가 올바르지 않아요";
+    return filled(o.query) ? null : "고른 장소는 검색어(query)와 함께 보내야 해요";
+  }
+  return filled(o.text) ? null : "장소 이름을 입력해 주세요";
 }
 
 /** 검사를 통과한 본문 → 저장 값. undefined = 그대로, null = 지우기 */
 export function placeValue(v: unknown): MockPlace | null | undefined {
   if (v === undefined || v === null) return v as undefined | null;
   const o = v as Record<string, unknown>;
-  const address = typeof o.address === "string" ? o.address.trim() : "";
-  const coords = typeof o.lat === "number" && typeof o.lng === "number";
-  return {
-    name: String(o.name).trim(),
-    address: address || null,
-    lat: coords ? (o.lat as number) : null,
-    lng: coords ? (o.lng as number) : null,
-    kakaoPlaceId: typeof o.kakaoPlaceId === "string" ? o.kakaoPlaceId : null,
-  };
+  const t = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
+  const kakaoPlaceId = typeof o.kakaoPlaceId === "string" ? o.kakaoPlaceId : null;
+  return { text: t(o.text), query: kakaoPlaceId ? t(o.query) : null, kakaoPlaceId };
 }
 
-/** 같은 장소인지. null 과 이름 '' 은 같은 "없음" */
+const empty = (p: MockPlace | null | undefined) => !p || (!p.text && !p.query && !p.kakaoPlaceId);
+
+/** 같은 장소인지. null 과 "이 회차만 없음"(text '') 은 같은 "없음" */
 export function samePlace(a: MockPlace | null | undefined, b: MockPlace | null | undefined): boolean {
-  const x = a && a.name ? a : null;
-  const y = b && b.name ? b : null;
-  if (!x || !y) return x === y;
-  return x.name === y.name && x.address === y.address && x.lat === y.lat && x.lng === y.lng && x.kakaoPlaceId === y.kakaoPlaceId;
+  if (empty(a) || empty(b)) return empty(a) === empty(b);
+  return a!.text === b!.text && a!.query === b!.query && a!.kakaoPlaceId === b!.kakaoPlaceId;
 }
 
 /** 응답 모양 */
 export function placeOut(p: MockPlace | null | undefined) {
-  if (!p || !p.name) return null;
-  return { ...p, url: p.kakaoPlaceId ? `https://place.map.kakao.com/${p.kakaoPlaceId}` : null };
+  if (empty(p)) return null;
+  return { ...p!, url: p!.kakaoPlaceId ? `https://place.map.kakao.com/${p!.kakaoPlaceId}` : null };
 }
+
+/** "이 회차만 장소 없음" */
+export const CLEARED: MockPlace = { text: "", query: null, kakaoPlaceId: null };
 
 /** 대소문자 무시 포함 (검색 일치 필드) */
 export function contains(v: string | null | undefined, q: string): boolean {

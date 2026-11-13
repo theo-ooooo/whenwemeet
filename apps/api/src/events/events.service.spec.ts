@@ -176,7 +176,7 @@ describe('EventsService', () => {
   });
 
   it('isUnchanged: 필드 하나라도 다르면 false (알림 포함, #188)', () => {
-    const base = { title: 't', startsAt: new Date(0), endsAt: new Date(1000), allDay: false, memo: null, reminder: 'NONE' as const };
+    const base = { title: 't', startsAt: new Date(0), endsAt: new Date(1000), allDay: false, memo: null, reminder: 'NONE' as const, place: null };
     expect(isUnchanged(base, { ...base, startsAt: new Date(0) })).toBe(true);
     expect(isUnchanged(base, { ...base, title: 'u' })).toBe(false);
     expect(isUnchanged(base, { ...base, startsAt: new Date(1) })).toBe(false);

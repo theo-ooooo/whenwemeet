@@ -11,5 +11,6 @@ import { PlacesService } from './places.service.js';
     PlacesService,
     { provide: PLACE_SEARCH_PROVIDER, inject: [ConfigService], useFactory: (config: ConfigService) => createPlaceSearchProvider(config) },
   ],
+  exports: [PlacesService],
 })
 export class PlacesModule {}

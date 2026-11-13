@@ -48,7 +48,7 @@ describe('KakaoLocalPlaceProvider', () => {
     const [input, init] = fetchFn.mock.calls[0];
     const url = new URL(urlOf(input));
     expect(`${url.origin}${url.pathname}`).toBe(KAKAO_KEYWORD_URL);
-    expect(Object.fromEntries(url.searchParams)).toEqual({ query: '서울 숲&', size: '10' });
+    expect(Object.fromEntries(url.searchParams)).toEqual({ query: '서울 숲&', size: '15' });
     expect(init.headers).toEqual({ Authorization: 'KakaoAK rest-key' });
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });

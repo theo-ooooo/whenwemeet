@@ -49,12 +49,12 @@ export function containsText(value: string | null | undefined, q: string): boole
   return Boolean(value) && (value as string).toLocaleLowerCase('ko').includes(q.toLocaleLowerCase('ko'));
 }
 
-/** 회차 값에서 검색어가 들어 있는 필드. 장소는 이름 또는 주소 */
+/** 회차 값에서 검색어가 들어 있는 필드. 장소는 사용자 글자(직접 적은 것, 고를 때 검색어)만 */
 export function matchedFields(values: { title: string; memo: string | null; place: PlaceValue | null }, q: string): MatchedField[] {
   const fields: MatchedField[] = [];
   if (containsText(values.title, q)) fields.push('title');
   if (containsText(values.memo, q)) fields.push('memo');
-  if (values.place && (containsText(values.place.name, q) || containsText(values.place.address, q))) fields.push('place');
+  if (values.place && (containsText(values.place.text, q) || containsText(values.place.query, q))) fields.push('place');
   return fields;
 }
 

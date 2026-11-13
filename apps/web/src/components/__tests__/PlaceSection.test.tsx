@@ -5,15 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Place } from "@/lib/types";
 
 let inApp = false;
+let resolved: { data: { place: unknown } | null; error: unknown } = { data: null, error: null };
+const resolveCalls = vi.fn();
 const loadKakaoMaps = vi.fn<() => Promise<unknown>>();
 vi.mock("@/lib/useInApp", () => ({ useInApp: () => inApp }));
-vi.mock("@/lib/kakao-map", () => ({ loadKakaoMaps: () => loadKakaoMaps() }));
+vi.mock("@/lib/kakao-map", () => ({ loadKakaoMaps: () => loadKakaoMaps(), kakaoMapJsKey: () => process.env.NEXT_PUBLIC_KAKAO_MAP_JS_KEY || null }));
+vi.mock("@/hooks", () => ({
+  usePlaceResolve: (p: { kakaoPlaceId: string | null } | null) => {
+    resolveCalls(p);
+    return p?.kakaoPlaceId ? resolved : { data: null, error: null };
+  },
+}));
 
 const { PlaceSection } = await import("../PlaceSection");
 const { MemoSection } = await import("../MemoSection");
 
-const PICKED: Place = { name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
-const FREE: Place = { name: "할머니 댁", address: null, lat: null, lng: null, kakaoPlaceId: null, url: null };
+const PICKED: Place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
+const FREE: Place = { text: "할머니 댁", query: null, kakaoPlaceId: null, url: null };
+const LIVE = { kakaoPlaceId: "8209184", name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
 
 /** 가짜 카카오 지도 SDK */
 function fakeMaps() {
@@ -45,7 +54,8 @@ function fakeMaps() {
 
 beforeEach(() => {
   inApp = false;
-  vi.stubEnv("NEXT_PUBLIC_KAKAO_JS_KEY", "js-key");
+  resolved = { data: { place: LIVE }, error: null };
+  vi.stubEnv("NEXT_PUBLIC_KAKAO_MAP_JS_KEY", "map-key");
   globalThis.ResizeObserver ??= class {
     observe() {}
     disconnect() {}
@@ -75,11 +85,13 @@ describe("PlaceSection", () => {
     expect(loadKakaoMaps).not.toHaveBeenCalled();
   });
 
-  it("고른 장소: 주소, 작은 지도(끌기 끔) + 핀. 누르면 크게 보기 창(끌기, 확대 단추), Esc 로 닫는다. 앱 셸은 target 없음", async () => {
+  it("고른 장소: 저장된 ID + 검색어로 다시 찾은 이름, 주소, 작은 지도(끌기 끔) + 핀. 누르면 크게 보기 창(끌기, 확대 단추), Esc 로 닫는다. 앱 셸은 target 없음", async () => {
     inApp = true;
     const { calls, maps } = fakeMaps();
     loadKakaoMaps.mockResolvedValue(maps);
     render(<PlaceSection place={PICKED} />);
+    expect(resolveCalls).toHaveBeenLastCalledWith(PICKED);
+    expect(screen.getByText("서울숲")).toBeTruthy();
     expect(screen.getByText("서울 성동구 뚝섬로 273")).toBeTruthy();
     await act(async () => {});
     expect(calls.map[0]).toMatchObject({ draggable: false, scrollwheel: false });
@@ -103,8 +115,21 @@ describe("PlaceSection", () => {
     expect(screen.getByRole("link", { name: "카카오맵으로 길찾기" }).getAttribute("href")).toContain("https://map.kakao.com/link/to/");
   });
 
-  it("키가 없으면(로컬, 목) SDK 를 부르지 않는다", () => {
-    vi.stubEnv("NEXT_PUBLIC_KAKAO_JS_KEY", "");
+  it("못 찾으면(카카오 오류, 결과에서 사라짐) 사용자 글자 + ID 장소 상세 링크, 지도 없음", () => {
+    resolved = { data: { place: null }, error: null };
+    render(<PlaceSection place={PICKED} />);
+    expect(screen.getByText("숲")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "카카오맵에서 보기" }).getAttribute("href")).toBe("https://place.map.kakao.com/8209184");
+    expect(loadKakaoMaps).not.toHaveBeenCalled();
+    cleanup();
+    resolved = { data: null, error: { code: "PLACE_SEARCH_FAILED" } };
+    render(<PlaceSection place={PICKED} />);
+    expect(screen.getByRole("link", { name: "카카오맵에서 보기" })).toBeTruthy();
+  });
+
+  it("지도 키가 없으면(로컬, 목, 공유 키만 있음) SDK 를 부르지 않는다", () => {
+    vi.stubEnv("NEXT_PUBLIC_KAKAO_MAP_JS_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_KAKAO_JS_KEY", "share-key");
     render(<PlaceSection place={PICKED} />);
     expect(loadKakaoMaps).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /크게 보기/ })).toBeNull();

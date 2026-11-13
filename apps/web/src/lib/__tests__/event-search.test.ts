@@ -38,8 +38,8 @@ describe("event-search", () => {
     const long = `${"가".repeat(30)} 스케일링 예약`;
     expect(searchPreview(item({ memo: long }, ["memo"]), "스케일링")).toEqual({ kind: "memo", text: `…${"가".repeat(17)} 스케일링 예약` });
     expect(searchPreview(item({ memo: "짧은\n메모" }, ["memo"]), "메모")).toEqual({ kind: "memo", text: "짧은 메모" });
-    const place = { name: "서울숲", address: "서울 성동구", lat: null, lng: null, kakaoPlaceId: null, url: null };
-    expect(searchPreview(item({ place, memo: "x" }), "치과")).toEqual({ kind: "place", text: "서울숲, 서울 성동구" });
+    const place = { text: null, query: "서울숲", kakaoPlaceId: "8209184", url: null };
+    expect(searchPreview(item({ place, memo: "x" }), "치과")).toEqual({ kind: "place", text: "서울숲" });
     expect(searchPreview(item({ memo: "메모만" }), "치과")).toEqual({ kind: "memo", text: "메모만" });
     expect(searchPreview(item(), "치과")).toBeNull();
   });

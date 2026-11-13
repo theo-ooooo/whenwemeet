@@ -7,8 +7,8 @@ export type FetchFn = typeof fetch;
 
 /** 카카오 로컬 키워드 검색 (https://developers.kakao.com/docs/latest/ko/local/dev-guide#search-by-keyword) */
 export const KAKAO_KEYWORD_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
-/** 한 번에 받는 후보 수 (카카오 최대 15) */
-export const PLACE_RESULT_SIZE = 10;
+/** 한 번에 받는 후보 수 (카카오 최대 15). 다시 찾을 때(resolve) 같은 검색어로 같은 목록이 오게 한 값으로 고정 */
+export const PLACE_RESULT_SIZE = 15;
 /** 카카오 요청 제한 시간. 재시도 없음 */
 export const PLACE_SEARCH_TIMEOUT_MS = 5_000;
 

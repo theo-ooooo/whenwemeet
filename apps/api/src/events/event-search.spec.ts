@@ -40,12 +40,14 @@ describe('likePattern, containsText, matchedFields', () => {
     expect(likePattern('a_b!')).toBe('%a!_b!!%');
   });
 
-  it('대소문자 무시, 장소는 이름 또는 주소', () => {
+  it('대소문자 무시, 장소는 사용자 글자(직접 적은 것, 고를 때 검색어)만', () => {
     expect(containsText('Cafe ONHWA', 'onhwa')).toBe(true);
     expect(containsText(null, 'a')).toBe(false);
-    const place = { name: '서울숲', address: '서울 성동구 뚝섬로', lat: null, lng: null, kakaoPlaceId: null };
-    expect(matchedFields({ title: '산책', memo: '서울숲에서', place }, '서울숲')).toEqual(['memo', 'place']);
-    expect(matchedFields({ title: '산책', memo: null, place }, '뚝섬')).toEqual(['place']);
+    const free = { text: '서울숲 입구', query: null, kakaoPlaceId: null };
+    const picked = { text: null, query: '뚝섬 공원', kakaoPlaceId: '8209184' };
+    expect(matchedFields({ title: '산책', memo: '서울숲에서', place: free }, '서울숲')).toEqual(['memo', 'place']);
+    expect(matchedFields({ title: '산책', memo: null, place: picked }, '뚝섬')).toEqual(['place']);
+    expect(matchedFields({ title: '산책', memo: null, place: picked }, '8209184')).toEqual([]);
     expect(matchedFields({ title: '산책', memo: null, place: null }, '숲')).toEqual([]);
   });
 });

@@ -1,9 +1,10 @@
 "use client";
-// (#199) 일정 폼의 "장소" 칸. 적는 대로 장소 검색(우리 API → 카카오 로컬) 후보를 아래에 띄우고, 고르면 이름, 주소, 좌표, 카카오 장소 ID 가
-// 초안에 붙는다(상세에서 지도). 고르지 않고 적은 글자 그대로도 저장된다(지도 없음). 내 위치는 쓰지 않는다 (D-244).
+// (#199) 일정 폼의 "장소" 칸. 적는 대로 장소 검색(우리 API → 카카오 로컬) 후보를 아래에 띄우고, 고르면 카카오 장소 ID 와
+// 그때 적은 검색어만 초안에 붙는다(카카오 이름, 주소, 좌표는 저장하지 않는다, D-242). 고른 장소는 입력칸 대신 카드로 보이고
+// (이름, 주소는 고른 순간 값 또는 다시 찾은 값), ✕ 로 풀면 다시 적는다. 고르지 않고 적은 글자 그대로도 저장된다(지도 없음). 내 위치는 쓰지 않는다 (D-244).
 // 검색이 안 되면(키 없음 503, 카카오 오류) 후보 없이 직접 입력만 남는다. 검색어는 저장하지 않는다
 import { useId, useRef, useState } from "react";
-import { usePlaceSearch } from "@/hooks";
+import { usePlaceResolve, usePlaceSearch } from "@/hooks";
 import { placeHint, type DraftPlace } from "@/lib/place";
 import type { PlaceCandidate } from "@/lib/types";
 import { IconClose, IconPin } from "./icons";
@@ -20,7 +21,8 @@ export function PlaceField({
 }: {
   place: DraftPlace;
   onType: (value: string) => void;
-  onPick: (c: PlaceCandidate) => void;
+  /** query: 고를 때 입력칸에 적혀 있던 사용자 검색어 */
+  onPick: (c: PlaceCandidate, query: string) => void;
   onClear: () => void;
 }) {
   const id = useId();
@@ -29,7 +31,7 @@ export function PlaceField({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const typed = place.name.trim();
+  const typed = place.text.trim();
   // 고른 뒤에는 다시 찾지 않는다 (이름을 고치면 picked 가 풀리고 다시 찾는다)
   const q = usePlaceSearch(typed, open && place.picked === null);
   const options = (q.data?.items ?? []).slice(0, MAX_OPTIONS);
@@ -37,7 +39,7 @@ export function PlaceField({
   const unavailable = q.error !== null;
 
   const pick = (c: PlaceCandidate) => {
-    onPick(c);
+    onPick(c, place.text);
     setOpen(false);
     setActive(-1);
   };
@@ -69,8 +71,18 @@ export function PlaceField({
         <label htmlFor={id} className={captionClass}>
           장소
         </label>
-        <span className="text-[12px] leading-4 text-ink-2">{placeHint(place)}</span>
+        {!place.picked && <span className="text-[12px] leading-4 text-ink-2">{placeHint(place)}</span>}
       </div>
+      {place.picked ? (
+        <PickedCard
+          id={id}
+          picked={place.picked}
+          onClear={() => {
+            onClear();
+            setTimeout(() => inputRef.current?.focus(), 0);
+          }}
+        />
+      ) : (
       <div className="relative">
         <input
           ref={inputRef}
@@ -84,9 +96,9 @@ export function PlaceField({
           aria-describedby={hintId}
           autoComplete="off"
           enterKeyHint="done"
-          className={`${inputClass} ${place.name ? "pr-11" : ""}`}
+          className={`${inputClass} ${place.text ? "pr-11" : ""}`}
           placeholder="장소 이름이나 주소로 찾기"
-          value={place.name}
+          value={place.text}
           onChange={(e) => {
             onType(e.target.value);
             setOpen(true);
@@ -97,7 +109,7 @@ export function PlaceField({
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
         />
-        {place.name && (
+        {place.text && (
           <button
             type="button"
             aria-label="장소 지우기"
@@ -111,6 +123,7 @@ export function PlaceField({
           </button>
         )}
       </div>
+      )}
 
       {showList && (
         <div className="mt-1.5 overflow-hidden rounded-sm border border-line bg-paper">
@@ -152,16 +165,32 @@ export function PlaceField({
 
       <p id={hintId} className="t-sub mt-1.5 flex items-center gap-1">
         {place.picked ? (
-          <>
-            <IconPin size={14} active className="shrink-0" />
-            <span className="min-w-0 truncate">{place.picked.address ? `${place.picked.address}, 지도에 표시돼요` : "지도에 표시돼요"}</span>
-          </>
+          "카카오 장소로 저장돼요. 일정을 열 때마다 카카오에서 이름과 지도를 다시 받아요"
         ) : typed ? (
           "목록에서 고르면 지도에 표시돼요. 고르지 않으면 적은 이름 그대로 저장돼요"
         ) : (
           "카페, 식당 이름이나 주소로 찾아 보세요"
         )}
       </p>
+    </div>
+  );
+}
+
+/** 고른 장소 카드: 핀 + 이름(고른 순간 값, 불러온 일정이면 다시 찾은 값, 그것도 없으면 검색어) + 주소 + ✕ */
+function PickedCard({ id, picked, onClear }: { id: string; picked: NonNullable<DraftPlace["picked"]>; onClear: () => void }) {
+  const r = usePlaceResolve(picked.name ? null : picked);
+  const name = picked.name ?? r.data?.place?.name ?? picked.query;
+  const address = picked.name ? picked.address : (r.data?.place?.address ?? null);
+  return (
+    <div id={id} tabIndex={-1} className="flex min-h-11 items-center gap-2.5 rounded-sm bg-surface py-2 pl-3.5 pr-1.5">
+      <IconPin size={18} active className="shrink-0 text-ink-2" />
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-[14px] font-semibold leading-5">{name}</b>
+        {address && <span className="block truncate text-[12px] leading-4 text-ink-2">{address}</span>}
+      </span>
+      <button type="button" aria-label="고른 장소 풀기" onClick={onClear} className="hit grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+        <IconClose size={16} />
+      </button>
     </div>
   );
 }

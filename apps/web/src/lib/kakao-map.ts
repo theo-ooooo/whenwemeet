@@ -1,8 +1,12 @@
 // (#199) 카카오 지도 JS SDK 지연 로더. 지도가 필요한 화면(일정 상세의 장소 칸)이 처음 그려질 때만 스크립트를 붙인다.
-// 키는 카카오 공유와 같은 공개 JavaScript 키(NEXT_PUBLIC_KAKAO_JS_KEY). 카카오 개발자 콘솔에서 [카카오맵] 사용 설정과
-// [JavaScript SDK 도메인] 에 웹 주소를 등록해야 지도가 뜬다 (docs/운영/장소-검색.md). 키가 없거나, 받지 못하거나,
+// 키는 지도 전용 카카오 앱(무료 쿼터가 있는 앱)의 공개 JavaScript 키 NEXT_PUBLIC_KAKAO_MAP_JS_KEY. 로그인, 공유 앱 키(NEXT_PUBLIC_KAKAO_JS_KEY)와 다르다.
+// 그 앱의 [카카오맵] 사용 설정과 JavaScript 키 도메인에 웹 주소를 등록해야 지도가 뜬다 (docs/운영/카카오-개발자센터.md). 키가 없거나, 받지 못하거나,
 // 8초 안에 준비되지 않으면 null: 화면은 장소 글자와 길찾기 버튼만 남긴다 (D-244)
-import { kakaoJsKey } from "./kakao-share";
+
+/** 빌드 때 박히는 지도 전용 공개 JS 키. 없으면(프리뷰, 목) 지도를 그리지 않는다 */
+export function kakaoMapJsKey(): string | null {
+  return process.env.NEXT_PUBLIC_KAKAO_MAP_JS_KEY?.trim() || null;
+}
 
 export const KAKAO_MAP_SDK_BASE = "https://dapi.kakao.com/v2/maps/sdk.js";
 const SDK_TIMEOUT_MS = 8_000;
@@ -40,7 +44,7 @@ let loading: Promise<KakaoMaps | null> | null = null;
 /** SDK 를 받아 `kakao.maps.load` 까지 마친 객체. 실패하면 null 이고 다음 호출에 다시 시도한다 */
 export function loadKakaoMaps(): Promise<KakaoMaps | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
-  const key = kakaoJsKey();
+  const key = kakaoMapJsKey();
   if (!key) return Promise.resolve(null);
   const ready = currentMaps();
   if (ready) return Promise.resolve(ready);

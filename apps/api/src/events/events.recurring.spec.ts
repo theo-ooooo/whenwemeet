@@ -250,19 +250,19 @@ describe('EventsService 반복 일정', () => {
       expect(view.memo).toBe('');
     });
 
-    it('(#199) 장소: 원본과 다르면 예외에 장소 전체, 지우면 이름 "" (그 회차만 없음), 원본과 같으면 null', async () => {
-      const cafe = { name: '카페', address: '서울', lat: 37.5, lng: 127, kakaoPlaceId: '1' };
+    it('(#199) 장소: 원본과 다르면 예외에 장소 전체, 지우면 CLEARED_PLACE (그 회차만 없음), 원본과 같으면 null', async () => {
+      const cafe = { text: null, query: '온화', kakaoPlaceId: '1' };
       events.findInGroup.mockResolvedValue({ ...SERIES, place: cafe });
-      const moved = await service.update(1, 10, 200, { place: { name: '서울숲' } }, q);
-      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toMatchObject({ place: { name: '서울숲', address: null, lat: null, lng: null, kakaoPlaceId: null } });
-      expect(moved.place).toMatchObject({ name: '서울숲', url: null });
+      const moved = await service.update(1, 10, 200, { place: { text: '서울숲' } }, q);
+      expect(events.saveExceptionWithLogTx.mock.calls[0][2]).toMatchObject({ place: { text: '서울숲', query: null, kakaoPlaceId: null } });
+      expect(moved.place).toMatchObject({ text: '서울숲', url: null });
       const cleared = await service.update(1, 10, 200, { place: null }, q);
-      expect(events.saveExceptionWithLogTx.mock.calls[1][2]).toMatchObject({ place: { name: '' } });
+      expect(events.saveExceptionWithLogTx.mock.calls[1][2]).toMatchObject({ place: { text: '', query: null, kakaoPlaceId: null } });
       expect(cleared.place).toBeNull();
-      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', place: { name: '', address: null, lat: null, lng: null, kakaoPlaceId: null } })]);
-      const back = await service.update(1, 10, 200, { place: cafe }, q);
+      events.listExceptions.mockResolvedValue([exception({ occurrence: '2026-11-25', place: { text: '', query: null, kakaoPlaceId: null } })]);
+      const back = await service.update(1, 10, 200, { place: { query: '온화', kakaoPlaceId: '1' } }, q);
       expect(events.saveExceptionWithLogTx.mock.calls[2][2]).toBeNull();
-      expect(back.place).toMatchObject({ name: '카페', url: 'https://place.map.kakao.com/1' });
+      expect(back.place).toMatchObject({ query: '온화', url: 'https://place.map.kakao.com/1' });
     });
 
     it('기존 예외에 덮어 쓴다 (현재 값 = 예외 반영 값)', async () => {

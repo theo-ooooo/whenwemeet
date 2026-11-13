@@ -389,27 +389,26 @@ describe("일정 폼 본문", () => {
 });
 
 describe("(#199) 장소", () => {
-  const place = { name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
-  const cand = { kakaoPlaceId: "8209184", name: "서울숲", address: place.address, lat: place.lat, lng: place.lng, category: "공원" };
+  const place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
+  const cand = { kakaoPlaceId: "8209184", name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
 
   it("불러오기, 복제 모두 장소를 채운다. 없으면 빈 값", () => {
-    expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ name: "서울숲", picked: { kakaoPlaceId: "8209184" } });
-    expect(draftFromEvent(loaded({ place }), true).place.name).toBe("서울숲");
-    expect(draftFromEvent(loaded(), false).place).toEqual({ name: "", picked: null });
+    expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲" } });
+    expect(draftFromEvent(loaded({ place }), true).place.picked?.kakaoPlaceId).toBe("8209184");
+    expect(draftFromEvent(loaded(), false).place).toEqual({ text: "", picked: null });
   });
 
-  it("적기, 고르기, 지우기. 고른 이름을 고치면 직접 적은 장소", () => {
-    const d = run(range(), "range", { type: "placePick", value: cand });
-    expect(d.place.picked?.lat).toBe(37.5444);
-    expect(run(d, "range", { type: "placeText", value: "서울숲 정문" }).place).toEqual({ name: "서울숲 정문", picked: null });
-    expect(run(d, "range", { type: "placeClear" }).place).toEqual({ name: "", picked: null });
+  it("적기, 고르기(그때 검색어), 지우기", () => {
+    const d = run(range(), "range", { type: "placeText", value: "숲" }, { type: "placePick", value: cand, query: "숲" });
+    expect(d.place).toEqual({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲", name: "서울숲", address: cand.address } });
+    expect(run(d, "range", { type: "placeClear" }).place).toEqual({ text: "", picked: null });
   });
 
-  it("본문: 새 일정은 비면 생략, 수정은 비면 null. 고른 장소는 좌표까지. 빠른 추가는 장소 없음", () => {
+  it("본문: 새 일정은 비면 생략, 수정은 비면 null. 고른 장소는 ID 와 검색어만. 빠른 추가는 장소 없음", () => {
     expect(eventInput(range(), null)).not.toHaveProperty("place");
     expect(eventInput(range(), { reminder: "NONE" })?.place).toBeNull();
-    expect(eventInput(run(range(), "range", { type: "placeText", value: " 할머니 댁 " }), null)?.place).toEqual({ name: "할머니 댁" });
-    expect(eventInput(run(range(), "range", { type: "placePick", value: cand }), null)?.place).toMatchObject({ kakaoPlaceId: "8209184", lat: 37.5444 });
+    expect(eventInput(run(range(), "range", { type: "placeText", value: " 할머니 댁 " }), null)?.place).toEqual({ text: "할머니 댁" });
+    expect(eventInput(run(range(), "range", { type: "placePick", value: cand, query: "숲" }), null)?.place).toEqual({ kakaoPlaceId: "8209184", query: "숲" });
     expect(quickInput(day())).not.toHaveProperty("place");
   });
 
@@ -423,6 +422,6 @@ describe("(#199) 장소", () => {
     const d = run(draftFromEvent(loaded({ repeat: "WEEKLY", occurrence: "2026-11-14", place }), false), "range", { type: "placeText", value: "을지로" });
     const input = eventInput(d, { reminder: "NONE" })!;
     const body = eventBody({ draft: d, input, scope: "this", series: { startsAt: input.startsAt, endsAt: input.endsAt, repeat: "WEEKLY", repeatUntil: null }, editing: true, personal: false, showParticipants: true, currentPick: null, initialPick: null, initialColor: null });
-    expect(body.place).toEqual({ name: "을지로" });
+    expect(body.place).toEqual({ text: "을지로" });
   });
 });

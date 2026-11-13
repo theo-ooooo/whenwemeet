@@ -46,7 +46,7 @@ export interface ExceptionRule {
   memo?: string | null;
   /** (#188) 이 회차의 알림. null 이면 원본 값 (펼치기 규칙과 무관, 그대로 전달만) */
   reminder?: EventReminderValue | null;
-  /** (#199) 이 회차의 장소. null 이면 원본 값, 이름 '' 이면 이 회차만 장소 없음 (펼치기 규칙과 무관, 그대로 전달만) */
+  /** (#199) 이 회차의 장소. null 이면 원본 값, CLEARED_PLACE(text '') 면 이 회차만 장소 없음 (펼치기 규칙과 무관, 그대로 전달만) */
   place?: PlaceValue | null;
 }
 
@@ -64,7 +64,7 @@ export interface Occurrence {
   memo?: string;
   /** (#188) 예외로 바꾼 알림. 없으면 원본 값을 쓴다 */
   reminder?: EventReminderValue;
-  /** (#199) 예외로 바꾼 장소 (이름 '' 은 이 회차만 없음). 없으면 원본 값을 쓴다 */
+  /** (#199) 예외로 바꾼 장소 (CLEARED_PLACE 는 이 회차만 없음). 없으면 원본 값을 쓴다 */
   place?: PlaceValue;
   /** 예외가 적용된 회차인지 */
   exception: boolean;

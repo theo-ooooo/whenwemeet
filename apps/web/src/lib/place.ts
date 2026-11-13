@@ -1,91 +1,87 @@
 // (#199) 일정 장소: 초안 값, 보낼 본문, 길찾기 주소, 메모 링크. React 를 import 하지 않는다 (단위 테스트 대상).
-// 장소는 직접 적은 이름 하나이거나, 장소 검색(카카오 로컬, 우리 API 프록시)에서 고른 값(이름 + 주소 + 좌표 + 카카오 장소 ID)이다.
-// 지도는 좌표가 있을 때만 그린다. 내 위치(기기 위치)는 쓰지 않는다 (D-244)
+// 카카오 정책(D-242): 카카오가 준 이름, 주소, 좌표는 저장하지 않는다. 저장은 직접 적은 글자(text) 또는
+// 고른 장소의 카카오 ID + 고를 때 사용자가 적은 검색어(query) 뿐. 이름, 주소, 좌표는 보일 때 다시 찾는다(usePlaceResolve).
+// 지도는 다시 찾은 좌표가 있을 때만 그린다. 내 위치(기기 위치)는 쓰지 않는다 (D-244)
 import { charCount, clampChars } from "./chars";
 import type { Place, PlaceCandidate, PlaceInput } from "./types";
 
 /** 서버와 같은 상한 (코드포인트) */
 export const PLACE_MAX = 100;
 
-/** 고른 장소의 나머지 값. 이름을 고치면 버린다 (다른 곳이 되므로) */
-export type PickedPlace = { address: string | null; lat: number; lng: number; kakaoPlaceId: string; category?: string | null };
+/**
+ * 고른 장소. 보내는 것은 kakaoPlaceId 와 query 뿐. name, address 는 고른 그 자리에서 보여 주려고 들고 있는 값(보내지 않음),
+ * 불러온 일정이면 null 이고 화면이 다시 찾는다
+ */
+export type PickedPlace = { kakaoPlaceId: string; query: string; name: string | null; address: string | null };
 
-/** 초안의 장소. name 이 비면 장소 없음 */
-export type DraftPlace = { name: string; picked: PickedPlace | null };
+/** 초안의 장소. picked 가 없으면 text 가 직접 적은 장소 (비면 장소 없음) */
+export type DraftPlace = { text: string; picked: PickedPlace | null };
 
-export const NO_PLACE: DraftPlace = { name: "", picked: null };
+export const NO_PLACE: DraftPlace = { text: "", picked: null };
 
-/** 불러온 일정의 장소 → 초안. 좌표와 카카오 ID 가 다 있으면 고른 장소로 본다 */
+/** 불러온 일정의 장소 → 초안 */
 export function draftPlaceOf(place: Place | null | undefined): DraftPlace {
   if (!place) return NO_PLACE;
-  const picked = place.lat !== null && place.lng !== null && place.kakaoPlaceId ? { address: place.address, lat: place.lat, lng: place.lng, kakaoPlaceId: place.kakaoPlaceId } : null;
-  return { name: place.name, picked };
+  if (place.kakaoPlaceId && place.query) return { text: "", picked: { kakaoPlaceId: place.kakaoPlaceId, query: place.query, name: null, address: null } };
+  return { text: place.text ?? place.query ?? "", picked: null };
 }
 
-/** 검색 후보를 고른다 */
-export function pickPlace(c: PlaceCandidate): DraftPlace {
-  return { name: clampChars(c.name, PLACE_MAX), picked: { address: c.address, lat: c.lat, lng: c.lng, kakaoPlaceId: c.kakaoPlaceId, category: c.category } };
+/** 검색 후보를 고른다. query 는 그때 입력칸에 적혀 있던 사용자 검색어 */
+export function pickPlace(c: PlaceCandidate, query: string): DraftPlace {
+  return { text: "", picked: { kakaoPlaceId: c.kakaoPlaceId, query: clampChars(query.trim(), PLACE_MAX), name: c.name, address: c.address } };
 }
 
-/** 입력칸에 적는다. 고른 장소의 이름과 달라지면 고른 값을 버리고 직접 적은 장소가 된다 */
-export function typePlace(d: DraftPlace, value: string): DraftPlace {
-  const name = clampChars(value, PLACE_MAX);
-  return { name, picked: d.picked && name === d.name ? d.picked : null };
+/** 입력칸에 적는다 (직접 적은 장소) */
+export function typePlace(value: string): DraftPlace {
+  return { text: clampChars(value, PLACE_MAX), picked: null };
 }
 
 /** 이탈 확인용 요약. 앞뒤 공백은 보지 않는다 */
 export function placeSnapshot(d: DraftPlace): string {
-  const name = d.name.trim();
-  return name ? JSON.stringify([name, d.picked?.kakaoPlaceId ?? null, d.picked?.lat ?? null, d.picked?.lng ?? null]) : "";
+  if (d.picked) return JSON.stringify([d.picked.kakaoPlaceId, d.picked.query]);
+  return d.text.trim();
 }
 
 /** 보낼 place. 비었으면 새 일정은 생략, 수정은 null(지우기) */
 export function placeBody(d: DraftPlace, editing: boolean): PlaceInput | null | undefined {
-  const name = d.name.trim();
-  if (!name) return editing ? null : undefined;
-  if (!d.picked) return { name };
-  return { name, address: d.picked.address, lat: d.picked.lat, lng: d.picked.lng, kakaoPlaceId: d.picked.kakaoPlaceId };
+  if (d.picked) return { kakaoPlaceId: d.picked.kakaoPlaceId, query: d.picked.query };
+  const text = d.text.trim();
+  if (!text) return editing ? null : undefined;
+  return { text };
 }
 
 /** 글자 수 표시 "12/100" */
 export function placeHint(d: DraftPlace): string {
-  return `${charCount(d.name)}/${PLACE_MAX}`;
+  return `${charCount(d.text)}/${PLACE_MAX}`;
 }
 
-/** 지도를 그릴 수 있는지 (좌표가 있어야) */
-export function hasCoords(place: Pick<Place, "lat" | "lng"> | null | undefined): place is Place & { lat: number; lng: number } {
-  return Boolean(place) && typeof place!.lat === "number" && typeof place!.lng === "number";
+/** 사용자 글자: 직접 적은 것, 없으면 고를 때 검색어 */
+export function placeLabel(place: Pick<Place, "text" | "query"> | null | undefined): string | null {
+  return place?.text || place?.query || null;
 }
 
 /** 지도 앱 공유 링크를 장소 칸에 붙여 넣은 경우. 그 주소를 그대로 연다 */
 const MAP_SHARE = /^https:\/\/(kko\.to|naver\.me|map\.kakao\.com|place\.map\.kakao\.com|map\.naver\.com|m\.place\.naver\.com|maps\.app\.goo\.gl)\/\S*$/i;
 
-export function mapShareUrlOf(name: string): string | null {
-  const t = name.trim();
+export function mapShareUrlOf(text: string): string | null {
+  const t = text.trim();
   return MAP_SHARE.test(t) ? t : null;
 }
 
 /**
- * "카카오맵으로 길찾기" 주소 (https 웹 주소만, 앱 셸이 OS 로 넘긴다). 좌표가 있으면 그곳까지 길찾기,
- * 카카오 ID 만 있으면 장소 상세, 공유 링크면 그 링크, 아니면 이름으로 검색
+ * "카카오맵" 링크 (https 웹 주소만, 앱 셸이 OS 로 넘긴다). 다시 찾은 좌표가 있으면 그곳까지 길찾기,
+ * 카카오 ID 만 있으면(못 찾음) 장소 상세, 공유 링크면 그 링크, 아니면 글자로 검색
  * https://apis.map.kakao.com/web/guide/#routeurl
  */
-export function directionsUrl(place: Pick<Place, "name" | "lat" | "lng" | "kakaoPlaceId">): string {
-  const shared = mapShareUrlOf(place.name);
-  if (shared) return shared;
-  if (hasCoords(place)) {
+export function directionsUrl(place: Pick<Place, "text" | "query" | "kakaoPlaceId">, resolved: Pick<PlaceCandidate, "name" | "lat" | "lng"> | null = null): string {
+  if (resolved) {
     // 이름의 쉼표는 주소 구분자라 빈칸으로
-    const name = encodeURIComponent(place.name.replace(/,/g, " ").trim() || "도착");
-    return `https://map.kakao.com/link/to/${name},${place.lat},${place.lng}`;
+    const name = encodeURIComponent(resolved.name.replace(/,/g, " ").trim() || "도착");
+    return `https://map.kakao.com/link/to/${name},${resolved.lat},${resolved.lng}`;
   }
   if (place.kakaoPlaceId) return `https://place.map.kakao.com/${place.kakaoPlaceId}`;
-  return `https://map.kakao.com/link/search/${encodeURIComponent(place.name.trim())}`;
-}
-
-/** 검색 결과 줄의 장소 한 줄 "이름 · 주소" 대신 "이름, 주소" (가운데 점 금지) */
-export function placeLine(place: Pick<Place, "name" | "address"> | null | undefined): string | null {
-  if (!place) return null;
-  return place.address && place.address !== place.name ? `${place.name}, ${place.address}` : place.name;
+  const label = placeLabel(place) ?? "";
+  return mapShareUrlOf(label) ?? `https://map.kakao.com/link/search/${encodeURIComponent(label.trim())}`;
 }
 
 /* ---------- 메모 링크 ---------- */

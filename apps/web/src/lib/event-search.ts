@@ -1,7 +1,7 @@
 // (#199) 일정 검색 화면의 순수 함수: 주소, 강조 조각, 미리보기 한 줄, 날짜 글자. React 를 import 하지 않는다 (단위 테스트 대상).
 // 검색어는 주소(`/search?q=`)에만 두고 어디에도 저장하지 않는다 (스토어 "검색 기록: 수집 안 함")
 import { formatDateKo, formatEventTime, dateKeyOf, parseKey, type DateKey } from "./date";
-import { placeLine } from "./place";
+import { placeLabel } from "./place";
 import { REPEAT_NAME } from "./recurrence";
 import { SEARCH_PATH } from "./routes";
 import type { EventSearchItem } from "./types";
@@ -48,7 +48,8 @@ function memoSnippet(memo: string, q: string, around = 18): string {
 /** 결과 줄 아래 한 줄: 메모가 맞았으면 메모의 그 부분, 장소가 맞았으면 장소, 아니면 장소, 메모 첫 줄 순. 없으면 null */
 export function searchPreview(item: EventSearchItem, q: string): { kind: "memo" | "place"; text: string } | null {
   const { event: ev, matched } = item;
-  const place = placeLine(ev.place);
+  // 장소는 사용자 글자만 (카카오 이름은 저장하지 않아 검색 결과에 없다)
+  const place = placeLabel(ev.place);
   if (matched.includes("memo") && ev.memo) return { kind: "memo", text: memoSnippet(ev.memo, q) };
   if (place) return { kind: "place", text: place };
   if (ev.memo) return { kind: "memo", text: ev.memo.replace(/\s+/g, " ").trim() };

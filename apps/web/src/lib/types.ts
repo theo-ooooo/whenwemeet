@@ -76,11 +76,14 @@ export type EventInput = {
   place?: PlaceInput | null;
 };
 
-/** (#199) 보내는 장소. 이름만 있으면 직접 적은 장소(지도 없음), 나머지는 장소 검색에서 고른 값 */
-export type PlaceInput = { name: string; address?: string | null; lat?: number | null; lng?: number | null; kakaoPlaceId?: string | null };
+/**
+ * (#199) 보내는 장소 (D-242). 카카오 정책상 카카오가 준 이름, 주소, 좌표는 보내지도 저장하지도 않는다.
+ * 직접 적은 장소는 text, 검색에서 고른 장소는 kakaoPlaceId + query(고를 때 사용자가 적은 검색어)
+ */
+export type PlaceInput = { text?: string | null; query?: string | null; kakaoPlaceId?: string | null };
 
-/** (#199) 받는 장소. url 은 카카오 장소 ID 가 있을 때 카카오맵 장소 상세 */
-export type Place = { name: string; address: string | null; lat: number | null; lng: number | null; kakaoPlaceId: string | null; url: string | null };
+/** (#199) 받는 장소. 이름, 주소, 좌표는 보일 때 GET /places/resolve 로 다시 찾는다. url 은 카카오 ID 가 있을 때 카카오맵 장소 상세 */
+export type Place = { text: string | null; query: string | null; kakaoPlaceId: string | null; url: string | null };
 
 /** (#199) GET /places/search 후보 하나 */
 export type PlaceCandidate = { kakaoPlaceId: string; name: string; address: string | null; lat: number; lng: number; category: string | null };

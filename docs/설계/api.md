@@ -73,6 +73,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 일정 링크 만들기 `POST /groups/:id/events/:eventId/share` (#274) | 사용자 | 30 / 1시간 |
 | 구독 피드 `GET /ics/:token.ics` (#193) | 주소(경로 토큰) **그리고** IP | 주소 10 / 1분, IP 60 / 1분. 넘으면 본문 없는 429 + `Retry-After` |
 | 장소 검색 `GET /places/search` (#199) | 사용자 | 60 / 1분 |
+| 장소 다시 찾기 `GET /places/resolve` (#199) | 사용자 | 120 / 1분 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
@@ -106,7 +107,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
 | `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
-| `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 카카오 REST API 키(값은 `KAKAO_CLIENT_ID` 와 같은 REST 키). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록 |
+| `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록 |
 | `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -316,18 +317,22 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
 
 #### 장소 (#199, D-242 ~ D-244)
 
+카카오 정책상 **카카오가 준 이름, 주소, 좌표는 저장하지 않는다**. 저장은 사용자 입력과 카카오 장소 ID 뿐이다.
+
 ```ts
-PlaceInput = { name: string(1~100, 앞뒤 공백 자름), address?: string(≤200)|null,
-               lat?: number(-90~90)|null, lng?: number(-180~180)|null,   // 둘 다 있거나 둘 다 없음
-               kakaoPlaceId?: string(숫자 1~20자)|null }                  // 다른 키는 400
-Place = { name, address: string|null, lat: number|null, lng: number|null, kakaoPlaceId: string|null,
-          url: string|null }   // url = 'https://place.map.kakao.com/<kakaoPlaceId>' (ID 가 있을 때만, 서버가 만든다)
+PlaceInput = { text?: string(≤100)|null,          // 고르지 않고 적은 장소 글자 (사용자 입력)
+               query?: string(≤100)|null,         // 고를 때 사용자가 적은 검색어. kakaoPlaceId 가 있으면 필수
+               kakaoPlaceId?: string(숫자 1~20자)|null }  // 다른 키(name, address, lat, lng ...)는 400
+               // kakaoPlaceId 가 없으면 text 필수. 앞뒤 공백 자름
+Place = { text: string|null, query: string|null, kakaoPlaceId: string|null,
+          url: string|null }   // url = 'https://place.map.kakao.com/<kakaoPlaceId>' (서버가 만든다)
 ```
 
-- `EventInput.place?: PlaceInput | null`. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, `null` = 지우기. 이름만 있으면 직접 적은 장소(지도 없음)
-- 응답 `Event.place: Place | null` (반복 회차는 예외 반영). 같은 장소면 저장하지 않는 규칙(#62)에 장소도 들어간다
-- 일정 기록(EventLog), 푸시 문구, 공유 링크 미리보기에는 넣지 않는다
-- 구독 피드(2.12)는 `LOCATION: 이름, 주소`(주소가 없거나 이름과 같으면 이름만), 좌표가 있으면 `GEO:위도;경도`. 메모 토글과 무관 (D-248)
+- DB 열: `placeId`, `placeQuery`, `placeText` (Event, EventException)
+- `EventInput.place?: PlaceInput | null`. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, `null` = 지우기
+- 이름, 주소, 좌표는 **보일 때마다 다시 찾는다**: `GET /places/resolve?id=<kakaoPlaceId>&q=<query>` (2.14) 가 그 검색어로 다시 검색해 ID 가 같은 결과를 준다. 서버는 5분 메모리 캐시, 웹은 탭 메모리만. 못 찾거나 카카오가 안 되면 화면은 사용자 글자(`text`, 없으면 `query`) + `url`(장소 상세), 지도 없음
+- 같은 장소면 저장하지 않는 규칙(#62)에 장소도 들어간다. 일정 기록(EventLog), 푸시 문구, 공유 링크 미리보기에는 넣지 않는다
+- 구독 피드(2.12)는 피드를 만들 때 다시 찾아 `LOCATION: 이름, 주소` + `GEO:위도;경도`, 못 찾으면 `LOCATION: 사용자 글자`, GEO 없음. 피드 하나에 서로 다른 장소 30개까지만 다시 찾는다. 메모 토글과 무관 (D-248)
 
 #### 일정 검색 `GET /events/search` (#199, D-245, D-246)
 
@@ -342,13 +347,13 @@ Place = { name, address: string|null, lat: number|null, lng: number|null, kakaoP
 SearchResult = {
   items: Array<{ event: Event,                       // 목록 응답과 같은 모양(응답 집계 rsvp, reactions 는 없음). 반복이면 회차 하나
                  group: { id, name, publicCode },
-                 matched: Array<'title'|'memo'|'place'>, // 장소는 이름 또는 주소
+                 matched: Array<'title'|'memo'|'place'>, // 장소는 사용자 글자(text, query)
                  upcoming: boolean }>,                // 끝이 지금보다 뒤
   hasMore: boolean,                                   // limit 를 넘는 결과가 더 있다 (페이지 넘김 없음)
 }
 ```
 
-- 찾는 곳: 제목, 메모, 장소 이름, 장소 주소. `LIKE '%q%' ESCAPE '!'` (`!`, `%`, `_` 는 글자 그대로), 열 콜레이션이라 대소문자 무시. 인덱스 추가 없음
+- 찾는 곳: 제목, 메모, 장소의 사용자 글자(`placeText`, `placeQuery`). 카카오 이름, 주소는 저장하지 않으므로 찾지 않는다. `LIKE '%q%' ESCAPE '!'` (`!`, `%`, `_` 는 글자 그대로), 열 콜레이션이라 대소문자 무시. 인덱스 추가 없음
 - 권한: 첫 단계에서 내 멤버십으로 팀 목록을 정하고 그 팀 일정만 찾는다 (다른 팀 일정의 존재를 드러내지 않는다)
 - 반복: 원본 값이 맞으면 한 줄, 회차는 **끝이 지금 뒤인 첫 회차**, 없으면 마지막 회차 (D-246). "이 일정만" 예외의 제목, 메모, 장소가 맞으면 그 회차를 따로 한 줄(그 회차는 원본 줄의 대표로 쓰지 않는다). 취소된 회차는 빠진다
 - 정렬: 다가오는 일정 먼저 시작 오름차순, 그다음 지난 일정 시작 내림차순, 같으면 `id`, 회차 날짜
@@ -724,16 +729,17 @@ PollSummary = { id, publicCode, title, status, deadline, expired, eventId, event
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/places/search` | 유저 | 쿼리 `q` (앞뒤 공백 자르고 1~50자) | `{ data: { items: PlaceCandidate[] } }` |
+| GET | `/places/resolve` | 유저 | 쿼리 `id` (카카오 장소 ID), `q` (저장된 검색어, 1~100자) | `{ data: { place: PlaceCandidate \| null } }` 그 검색어로 다시 찾아 ID 가 같은 결과. 없으면 null |
 
 ```ts
 PlaceCandidate = { kakaoPlaceId: string, name: string, address: string|null,   // 도로명, 없으면 지번
                    lat: number, lng: number, category: string|null }             // 카카오 분류 마지막 조각 ("카페")
 ```
 
-- 우리 API 가 카카오 로컬 키워드 검색(`GET https://dapi.kakao.com/v2/local/search/keyword.json?query=&size=10`, `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)을 대신 부른다. REST 키는 서버에만 둔다. 검색어 말고 사용자 정보는 보내지 않고, 검색어와 결과는 저장하지도 로그에 남기지도 않는다
+- 우리 API 가 카카오 로컬 키워드 검색(`GET https://dapi.kakao.com/v2/local/search/keyword.json?query=&size=15`, `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)을 대신 부른다. REST 키는 서버에만 둔다(로그인과 다른 지도 전용 카카오 앱 키). 검색어 말고 사용자 정보는 보내지 않는다. 결과는 DB 에 저장하지 않고 검색어별 5분 메모리 캐시(최대 500개)만, 로그에 검색어를 남기지 않는다
 - 공급자: `KAKAO_REST_API_KEY` 가 있으면 카카오, 없으면 운영은 503 `PLACE_SEARCH_NOT_CONFIGURED`(웹은 직접 입력만), 로컬과 테스트는 가짜 목록. `PLACE_SEARCH_FAKE=1` 이면 늘 가짜
 - 카카오 실패(연결, 5초 시간 초과, 4xx/5xx, 형식)는 502 `PLACE_SEARCH_FAILED`. 재시도 없음
-- 요청 제한: 사용자당 분당 60회 (`placeSearch`)
+- 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`)
 
 ## 3. 기획 기능 → API 추적
 

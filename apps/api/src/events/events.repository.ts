@@ -39,7 +39,7 @@ export const EVENT_SELECT = {
   participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
   /** (#343) 일정 색. null 이면 자동 (D-215) */
   color: true,
-  /** (#199) 장소 열 다섯 개 (D-242) */
+  /** (#199) 장소 열 세 개: 카카오 ID, 고를 때 검색어, 직접 적은 글자 (D-242) */
   ...PLACE_SELECT,
 } as const;
 
@@ -57,7 +57,7 @@ export const EVENT_EXCEPTION_SELECT = {
   memo: true,
   reminder: true,
   reminderSetAt: true,
-  /** (#199) 이 회차의 장소. placeName null 이면 원본 값 */
+  /** (#199) 이 회차의 장소. 셋 다 null 이면 원본 값 */
   ...PLACE_SELECT,
 } as const;
 
@@ -109,7 +109,7 @@ export type EventExceptionRow = ExceptionRule & {
   memo: string | null;
   reminder: EventReminderValue | null;
   reminderSetAt: Date | null;
-  /** (#199) null 이면 원본 장소, 이름 '' 이면 이 회차만 장소 없음 */
+  /** (#199) null 이면 원본 장소, CLEARED_PLACE(text '') 면 이 회차만 장소 없음 */
   place: PlaceValue | null;
 };
 
@@ -131,10 +131,10 @@ export function dbToDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function toEventRow({ participants, placeName, placeAddress, placeLat, placeLng, placeKakaoId, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
+function toEventRow({ participants, placeId, placeQuery, placeText, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
   return {
     ...record,
-    place: placeFromColumns({ placeName, placeAddress, placeLat, placeLng, placeKakaoId }),
+    place: placeFromColumns({ placeId, placeQuery, placeText }),
     repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
     repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
@@ -152,11 +152,11 @@ function participantSetOf(record: { allMembers: boolean; participants: { userId:
   return { allMembers: record.allMembers, ids: record.allMembers ? [] : participantIdsOf(record.participants) };
 }
 
-function toExceptionRow({ placeName, placeAddress, placeLat, placeLng, placeKakaoId, ...record }: ExceptionRecord): EventExceptionRow {
+function toExceptionRow({ placeId, placeQuery, placeText, ...record }: ExceptionRecord): EventExceptionRow {
   return {
     ...record,
     occurrence: dbToDate(record.occurrence),
-    place: exceptionPlaceFromColumns({ placeName, placeAddress, placeLat, placeLng, placeKakaoId }),
+    place: exceptionPlaceFromColumns({ placeId, placeQuery, placeText }),
   };
 }
 
@@ -238,7 +238,7 @@ export interface ExceptionFields {
   memo: string | null;
   /** (#188) 원본 알림과 다를 때만 값 */
   reminder: EventReminderValue | null;
-  /** (#199) 원본 장소와 다를 때만 값. 이 회차만 지우면 이름 '' (CLEARED_PLACE) */
+  /** (#199) 원본 장소와 다를 때만 값. 이 회차만 지우면 CLEARED_PLACE (text '') */
   place: PlaceValue | null;
 }
 
@@ -363,7 +363,7 @@ export class EventsRepository {
   }
 
   /**
-   * (#199) 검색: 한 번짜리 일정 중 제목, 메모, 장소 이름, 장소 주소에 pattern(LIKE, 이스케이프 '!')이 맞는 것.
+   * (#199) 검색: 한 번짜리 일정 중 제목, 메모, 장소 글자(직접 적은 것, 고를 때 검색어)에 pattern(LIKE, 이스케이프 '!')이 맞는 것.
    * upcoming 은 끝이 now 뒤(시작 오름차순), past 는 그 밖(시작 내림차순). 각각 take 개까지 (D-245)
    */
   async searchOnce(groupIds: number[], pattern: string, now: Date, take: number): Promise<{ upcoming: EventRow[]; past: EventRow[] }> {
@@ -577,7 +577,7 @@ export class EventsRepository {
   ): Promise<void> {
     const where = { eventId_occurrence: { eventId: event.id, occurrence: dateToDb(occurrence) } };
     const setAt = reminderSetAt ? { reminderSetAt } : {};
-    // (#199) 장소는 열 다섯 개로. null 이면 모두 null(원본 장소), 이 회차만 지우면 이름 ''
+    // (#199) 장소는 열 세 개로. null 이면 모두 null(원본 장소), 이 회차만 지우면 placeText ''
     const data = fields && (({ place, ...rest }) => ({ ...rest, ...placeColumns(place) }))(fields);
     await this.prisma.$transaction(async (tx) => {
       if (data) {
@@ -681,12 +681,12 @@ export class EventsRepository {
 }
 
 /**
- * (#199) 검색 조건: 제목, 메모, 장소 이름, 장소 주소 중 하나가 pattern 과 LIKE (이스케이프 문자 '!').
+ * (#199) 검색 조건: 제목, 메모, 장소 글자(placeText), 장소 검색어(placeQuery) 중 하나가. 카카오가 준 이름, 주소는 저장하지 않으므로 찾지 않는다 (D-245). pattern 과 LIKE (이스케이프 문자 '!').
  * 열의 콜레이션(utf8mb4_0900_ai_ci)이라 대소문자를 가리지 않는다. prefix 는 테이블 별칭 ('' 또는 'x.')
  */
 function matchSql(prefix: '' | 'x.', pattern: string): Prisma.Sql {
   const col = (name: string) => Prisma.raw(`${prefix}${name}`);
-  return Prisma.sql`(${col('title')} LIKE ${pattern} ESCAPE '!' OR ${col('memo')} LIKE ${pattern} ESCAPE '!' OR ${col('placeName')} LIKE ${pattern} ESCAPE '!' OR ${col('placeAddress')} LIKE ${pattern} ESCAPE '!')`;
+  return Prisma.sql`(${col('title')} LIKE ${pattern} ESCAPE '!' OR ${col('memo')} LIKE ${pattern} ESCAPE '!' OR ${col('placeText')} LIKE ${pattern} ESCAPE '!' OR ${col('placeQuery')} LIKE ${pattern} ESCAPE '!')`;
 }
 
 /** (#199) 검색어 → LIKE 패턴. '!', '%', '_' 는 '!' 로 이스케이프해 글자 그대로 찾는다 */

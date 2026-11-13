@@ -43,8 +43,8 @@ export interface FeedEventInput {
   repeat: string | null;
   occurrence: string | null;
   participants: { all: boolean; members: { displayName: string }[] };
-  /** (#199) 장소. 없으면 null (생략 가능: 장소 이전 입력) */
-  place?: { name: string; address: string | null; lat: number | null; lng: number | null } | null;
+  /** (#199) 저장된 장소 (사용자 글자와 카카오 ID). 없으면 null (생략 가능: 장소 이전 입력) */
+  place?: { text: string | null; query: string | null; kakaoPlaceId: string | null } | null;
 }
 
 export interface FeedOptions {
@@ -90,13 +90,25 @@ export function eventDescription(event: FeedEventInput, includeMemo: boolean, in
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
-/**
- * (#199) LOCATION 글자: "이름, 주소" (주소가 이름과 같거나 없으면 이름만). 메모와 달리 피드 옵션과 무관하게 싣는다 (D-248)
- */
-export function eventLocation(place: FeedEventInput['place']): string | null {
-  if (!place) return null;
-  return place.address && place.address !== place.name ? `${place.name}, ${place.address}` : place.name;
+/** (#199) 피드를 만들 때 카카오에서 다시 찾은 장소 (저장하지 않는다) */
+export interface ResolvedPlace {
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
 }
+
+/**
+ * (#199) LOCATION 글자 (D-248). 다시 찾았으면 "이름, 주소"(주소가 없거나 이름과 같으면 이름만), 아니면 사용자 글자(직접 적은 것, 고를 때 검색어).
+ * 메모와 달리 피드 옵션과 무관하게 싣는다
+ */
+export function eventLocation(place: FeedEventInput['place'], resolved: ResolvedPlace | null = null): string | null {
+  if (resolved) return resolved.address && resolved.address !== resolved.name ? `${resolved.name}, ${resolved.address}` : resolved.name;
+  return place?.text || place?.query || null;
+}
+
+/** (#199) 다시 찾기 캐시 키 */
+export const placeKey = (place: { kakaoPlaceId: string | null; query: string | null }) => `${place.kakaoPlaceId}|${place.query}`;
 
 /** 그 일정(회차)의 웹 상세 주소 (#311, D-198) */
 export function eventUrl(event: FeedEventInput, options: Pick<FeedOptions, 'webOrigin' | 'groupCode'>): string {
@@ -105,7 +117,8 @@ export function eventUrl(event: FeedEventInput, options: Pick<FeedOptions, 'webO
   return `${options.webOrigin}/events/${event.publicCode}?${params.toString()}`;
 }
 
-export function eventToIcs(event: FeedEventInput, options: FeedOptions): IcsEvent {
+/** resolved: (#199) 그 일정 장소를 피드를 만들 때 다시 찾은 값. 없으면 LOCATION 은 사용자 글자, GEO 없음 */
+export function eventToIcs(event: FeedEventInput, options: FeedOptions, resolved: ResolvedPlace | null = null): IcsEvent {
   let start: IcsTime;
   let end: IcsTime;
   if (event.allDay) {
@@ -126,8 +139,8 @@ export function eventToIcs(event: FeedEventInput, options: FeedOptions): IcsEven
     summary: event.title,
     description: eventDescription(event, options.includeMemo, options.includeParticipants),
     url: eventUrl(event, options),
-    location: eventLocation(event.place),
-    geo: event.place && event.place.lat !== null && event.place.lng !== null ? { lat: event.place.lat, lng: event.place.lng } : null,
+    location: eventLocation(event.place, resolved),
+    geo: resolved ? { lat: resolved.lat, lng: resolved.lng } : null,
   };
 }
 

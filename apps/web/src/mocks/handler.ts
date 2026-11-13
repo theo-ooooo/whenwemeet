@@ -21,7 +21,7 @@ import {
   type Store, mockEventCode, mockGroupCode, mockPollCode, mockTodoCode, type PollRow, type TodoItemRow, type TodoListRow } from "./fixtures";
 import { mockEmailLogin } from "./email-login";
 import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence, type MockPlace } from "./recurrence";
-import { contains, fakePlaceSearch, placeOut, placeProblem, placeValue, samePlace } from "./places";
+import { CLEARED, contains, fakePlaceSearch, placeOut, placeProblem, placeValue, samePlace } from "./places";
 
 export type MockResult = { status: number; body: unknown };
 
@@ -403,7 +403,7 @@ function eventSearch(s: Store, userId: number, query: URLSearchParams): MockResu
     const out: ("title" | "memo" | "place")[] = [];
     if (contains(v.title, q)) out.push("title");
     if (contains(v.memo, q)) out.push("memo");
-    if (v.place && (contains(v.place.name, q) || contains(v.place.address, q))) out.push("place");
+    if (v.place && (contains(v.place.text, q) || contains(v.place.query, q))) out.push("place");
     return out;
   };
   const items: { event: EventOut; matched: ("title" | "memo" | "place")[] }[] = [];
@@ -1167,12 +1167,20 @@ export function mockHandle(ctx: Ctx): MockResult {
     return ok(groupDetail(s, grp.id, userId));
   }
 
-  // (#199) 일정 검색, 장소 검색 (events/:code 보다 먼저)
+  // (#199) 일정 검색, 장소 검색, 다시 찾기 (events/:code 보다 먼저)
   if (seg[0] === "events" && seg[1] === "search" && seg.length === 2 && method === "GET") return eventSearch(s, userId, query);
   if (seg[0] === "places" && seg[1] === "search" && seg.length === 2 && method === "GET") {
     const q = (query.get("q") ?? "").trim();
     if (!q || Array.from(q).length > 50) return err(400, "VALIDATION_FAILED", "검색어는 1~50자여야 해요");
     return ok({ items: fakePlaceSearch(q) });
+  }
+  // (#199) 저장된 장소 다시 찾기 (같은 가짜 목록에서 ID 가 같은 것)
+  if (seg[0] === "places" && seg[1] === "resolve" && seg.length === 2 && method === "GET") {
+    const id = query.get("id") ?? "";
+    const q = (query.get("q") ?? "").trim();
+    if (!/^\d{1,20}$/.test(id)) return err(400, "VALIDATION_FAILED", "카카오 장소 ID 가 올바르지 않아요");
+    if (!q) return err(400, "VALIDATION_FAILED", "검색어는 1~100자여야 해요");
+    return ok({ place: fakePlaceSearch(q).find((p) => p.kakaoPlaceId === id) ?? null });
   }
 
   // (#311) 공개 코드로 일정 하나 GET /events/:code?occurrence= (api.md 2.3). 내 팀 일정이 아니거나 없으면 모두 404.
@@ -1496,7 +1504,7 @@ export function mockHandle(ctx: Ctx): MockResult {
         const plIn = placeIn((body ?? {}).place);
         if (isResult(plIn)) return plIn;
         // (#199) 기준 장소: "이 일정만" 은 그 회차 값(예외 반영), "이후 모두" 는 원본
-        const basePlace: MockPlace | null = scope === "this" ? (current.place ? (current.place.name ? current.place : null) : (series.place ?? null)) : (series.place ?? null);
+        const basePlace: MockPlace | null = scope === "this" ? (current.place ? (placeOut(current.place) ? current.place : null) : (series.place ?? null)) : (series.place ?? null);
         const nextPlace = plIn !== undefined ? plIn : basePlace;
         const next = {
           title: input.title !== undefined ? String(input.title).trim() : base.title,
@@ -1519,7 +1527,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           // 원래 회차 값(원본 알림)과 같으면 null (4-1)
           const xReminder = reminder === (series.reminder ?? "NONE") ? null : reminder;
           // (#199) 원본과 같은 장소면 null, 지우면 이름 '' (이 회차만 없음)
-          const xPlace = samePlace(nextPlace, series.place) ? null : (nextPlace ?? { name: "", address: null, lat: null, lng: null, kakaoPlaceId: null });
+          const xPlace = samePlace(nextPlace, series.place) ? null : (nextPlace ?? CLEARED);
           series.exceptions.push({ occurrence: date, cancelled: false, ...next, reminder: xReminder, place: xPlace });
           series.updatedAt = nowIso();
           log(next, { action: "UPDATED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });

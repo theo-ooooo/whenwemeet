@@ -6,8 +6,8 @@ import type { EventReminder, Repeat } from "@/lib/types";
 const DAY_MS = 86_400_000;
 const MARGIN_DAYS = 31;
 
-/** (#199) 저장된 장소. 예외에서 name '' 은 이 회차만 장소 없음 */
-export type MockPlace = { name: string; address: string | null; lat: number | null; lng: number | null; kakaoPlaceId: string | null };
+/** (#199) 저장된 장소 (카카오 ID + 고를 때 검색어, 또는 직접 적은 글자). 예외에서 text '' 만이면 이 회차만 장소 없음 */
+export type MockPlace = { text: string | null; query: string | null; kakaoPlaceId: string | null };
 
 export type MockException = {
   occurrence: string;

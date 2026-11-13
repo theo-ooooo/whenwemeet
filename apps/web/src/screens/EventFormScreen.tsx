@@ -439,7 +439,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
                 <PlaceField
                   place={draft.place}
                   onType={(value) => dispatch({ type: "placeText", value })}
-                  onPick={(value) => dispatch({ type: "placePick", value })}
+                  onPick={(value, query) => dispatch({ type: "placePick", value, query })}
                   onClear={() => dispatch({ type: "placeClear" })}
                 />
               </div>

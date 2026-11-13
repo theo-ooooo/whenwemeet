@@ -41,7 +41,7 @@ export type EventDraft = {
   pick: ParticipantPick | null;
   /** (#343) 일정 색. null = 자동(참여자 색) */
   color: string | null;
-  /** (#199) 장소. 이름이 비면 없음. 검색에서 고르면 picked (지도, 길찾기 좌표) */
+  /** (#199) 장소. 직접 적은 글자, 또는 검색에서 고른 장소(카카오 ID + 검색어만 보낸다, D-242) */
   place: DraftPlace;
 };
 
@@ -60,7 +60,7 @@ export type DraftAction =
   | { type: "color"; value: string | null }
   /** (#199) 장소 칸에 적기 (고른 장소 이름을 고치면 직접 적은 장소가 된다), 후보 고르기, 지우기 */
   | { type: "placeText"; value: string }
-  | { type: "placePick"; value: PlaceCandidate }
+  | { type: "placePick"; value: PlaceCandidate; query: string }
   | { type: "placeClear" };
 
 const BLANK: EventDraft = {
@@ -159,9 +159,9 @@ export function applyDraft(d: EventDraft, a: DraftAction, span: DraftSpan): Even
     case "color":
       return { ...d, color: a.value };
     case "placeText":
-      return { ...d, place: typePlace(d.place, a.value) };
+      return { ...d, place: typePlace(a.value) };
     case "placePick":
-      return { ...d, place: pickPlace(a.value) };
+      return { ...d, place: pickPlace(a.value, a.query) };
     case "placeClear":
       return { ...d, place: NO_PLACE };
   }

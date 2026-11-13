@@ -340,8 +340,8 @@ function occurrenceValues(row: EventRow, occurrence: Occurrence): EventValues {
     allDay: occurrence.allDay,
     memo: occurrence.memo ?? row.memo,
     reminder: occurrence.reminder ?? row.reminder,
-    // (#199) 이 회차만 지운 장소(이름 '')는 null
-    place: occurrence.place ? (occurrence.place.name === '' ? null : occurrence.place) : row.place,
+    // (#199) 이 회차만 지운 장소(CLEARED_PLACE)는 null
+    place: occurrence.place ? (toPlaceView(occurrence.place) ? occurrence.place : null) : row.place,
   };
 }
 
@@ -733,7 +733,7 @@ export class EventsService {
       memo: (next.memo ?? '') !== (series.memo ?? '') ? (next.memo ?? '') : null,
       // (#188) 원래 회차 값(원본 알림)과 같으면 null
       reminder: next.reminder !== series.reminder ? next.reminder : null,
-      // (#199) 원본 장소와 같으면 null, 이 회차만 지우면 이름 '' (메모와 같은 규칙)
+      // (#199) 원본 장소와 같으면 null, 이 회차만 지우면 CLEARED_PLACE (메모와 같은 규칙)
       place: samePlace(next.place, series.place) ? null : (next.place ?? CLEARED_PLACE),
     };
     const isEmpty = Object.values(fields).every((value) => value === null);

@@ -23,6 +23,7 @@ export { useEventDraft } from "./useEventDraft";
 export { useCalendarFeed } from "./useCalendarFeed";
 export { usePolls, usePoll } from "./usePolls";
 export { usePlaceSearch } from "./usePlaceSearch";
+export { usePlaceResolve } from "./usePlaceResolve";
 export { useEventSearch } from "./useEventSearch";
 
 // 변경

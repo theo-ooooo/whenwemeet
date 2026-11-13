@@ -575,49 +575,52 @@ describe("목 약속 투표 (#189, api.md 2.13)", () => {
 });
 
 describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
-  const PICK = { name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, kakaoPlaceId: "8209184" };
+  const PICK = { query: "숲", kakaoPlaceId: "8209184" };
   const at = (date: string, h: string) => `${date}T${h}:00+09:00`;
 
-  it("장소 저장, 응답 url, 수정 생략은 그대로, null 은 지우기, 형식 오류 400", () => {
+  it("장소 저장(ID + 검색어만), 응답 url, 수정 생략은 그대로, null 은 지우기, 형식 오류 400", () => {
     const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "산책", startsAt: at("2030-03-10", "10:00"), endsAt: at("2030-03-10", "11:00"), allDay: false, place: PICK });
     expect(made.status).toBe(201);
     const ev = made.body.data as { id: number; place: Record<string, unknown> };
-    expect(ev.place).toEqual({ ...PICK, url: "https://place.map.kakao.com/8209184" });
+    expect(ev.place).toEqual({ ...PICK, text: null, url: "https://place.map.kakao.com/8209184" });
     const kept = call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { title: "산책 2" });
-    expect((kept.body.data.place as { name: string }).name).toBe("서울숲");
+    expect((kept.body.data.place as { kakaoPlaceId: string }).kakaoPlaceId).toBe("8209184");
     const cleared = call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: null });
     expect(cleared.body.data.place).toBeNull();
-    expect(call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: { name: "집", lat: 1 } }).status).toBe(400);
+    expect(call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: { kakaoPlaceId: "1" } }).status).toBe(400);
+    expect(call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: { text: "집", lat: 1 } }).status).toBe(400);
   });
 
   it("반복 \"이 일정만\" 장소는 그 회차만, 지우면 그 회차만 없음", () => {
     const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "주간 산책", startsAt: at("2030-03-06", "10:00"), endsAt: at("2030-03-06", "11:00"), allDay: false, repeat: "WEEKLY", place: PICK });
     const id = (made.body.data as { id: number }).id;
-    call("PATCH", `/groups/${TEAM_ID}/events/${id}`, { place: { name: "한강" } }, "scope=this&occurrence=2030-03-13");
+    call("PATCH", `/groups/${TEAM_ID}/events/${id}`, { place: { text: "한강" } }, "scope=this&occurrence=2030-03-13");
     call("PATCH", `/groups/${TEAM_ID}/events/${id}`, { place: null }, "scope=this&occurrence=2030-03-20");
-    const get = (occurrence: string) => call("GET", `/groups/${TEAM_ID}/events/${id}`, null, `occurrence=${occurrence}`).body.data.place as { name: string } | null;
-    expect(get("2030-03-13")?.name).toBe("한강");
+    const get = (occurrence: string) => call("GET", `/groups/${TEAM_ID}/events/${id}`, null, `occurrence=${occurrence}`).body.data.place as { text: string | null; kakaoPlaceId: string | null } | null;
+    expect(get("2030-03-13")?.text).toBe("한강");
     expect(get("2030-03-20")).toBeNull();
-    expect(get("2030-03-27")?.name).toBe("서울숲");
+    expect(get("2030-03-27")?.kakaoPlaceId).toBe("8209184");
   });
 
-  it("일정 검색: 제목, 메모, 장소. 반복은 한 줄 + 예외 회차. 비멤버 팀 403, 빈 검색어 400", () => {
+  it("일정 검색: 제목, 메모, 장소(사용자 글자). 반복은 한 줄. 비멤버 팀 403, 빈 검색어 400", () => {
     call("POST", `/groups/${TEAM_ID}/events`, { title: "검색용 반복", startsAt: at("2030-01-02", "10:00"), endsAt: at("2030-01-02", "11:00"), allDay: false, repeat: "WEEKLY" });
     const r = call("GET", "/events/search", null, `q=${encodeURIComponent("검색용")}&groupId=${TEAM_ID}`);
     expect(r.status).toBe(200);
     const items = r.body.data.items as { event: { title: string; repeat: string | null }; group: { id: number }; matched: string[]; upcoming: boolean }[];
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ event: { title: "검색용 반복", repeat: "WEEKLY" }, group: { id: TEAM_ID }, matched: ["title"], upcoming: true });
-    const byPlace = call("GET", "/events/search", null, `q=${encodeURIComponent("연무장길")}`).body.data.items as { matched: string[] }[];
+    const byPlace = call("GET", "/events/search", null, `q=${encodeURIComponent("용산아이파크")}`).body.data.items as { matched: string[] }[];
     expect(byPlace[0].matched).toEqual(["place"]);
     expect(call("GET", "/events/search", null, "q=%20").status).toBe(400);
     expect(call("GET", "/events/search", null, "q=a&groupId=99999").status).toBe(403);
   });
 
-  it("장소 검색: 가짜 후보, 빈 검색어 400", () => {
+  it("장소 검색과 다시 찾기: 가짜 후보, ID 가 같은 것, 없으면 null, 형식 400", () => {
     const r = call("GET", "/places/search", null, `q=${encodeURIComponent("카페")}`);
     expect((r.body.data.items as { name: string }[])[0].name).toBe("카페 온화 성수점");
-    expect((call("GET", "/places/search", null, `q=${encodeURIComponent("없는곳")}`).body.data.items as { name: string }[])[0].name).toBe("없는곳 본점");
     expect(call("GET", "/places/search", null, "q=").status).toBe(400);
+    expect((call("GET", "/places/resolve", null, `id=27531028&q=${encodeURIComponent("카페")}`).body.data.place as { name: string }).name).toBe("카페 온화 성수점");
+    expect(call("GET", "/places/resolve", null, `id=1&q=${encodeURIComponent("카페")}`).body.data.place).toBeNull();
+    expect(call("GET", "/places/resolve", null, "id=x&q=a").status).toBe(400);
   });
 });

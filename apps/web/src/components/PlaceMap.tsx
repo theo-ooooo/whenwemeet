@@ -3,15 +3,14 @@
 // 미리보기(interactive=false)는 끌기, 확대를 끈 그림, 크게 보기(interactive)는 끌기, 확대 + 확대 단추.
 // 키가 없거나 SDK 를 못 받으면 onFail 을 부르고 아무것도 그리지 않는다 (장소 글자와 길찾기 버튼이 남는다, D-244)
 import { useEffect, useRef, useState } from "react";
-import { kakaoJsKey } from "@/lib/kakao-share";
-import { loadKakaoMaps } from "@/lib/kakao-map";
+import { kakaoMapJsKey, loadKakaoMaps } from "@/lib/kakao-map";
 import { Skeleton } from "./ui";
 
 type Status = "loading" | "ready" | "failed";
 
 /** 지도를 그릴 수 있는 환경인지 (키가 빌드에 들어 있는지). 없으면 칸 자체를 만들지 않는다 */
 export function canShowMap(): boolean {
-  return kakaoJsKey() !== null;
+  return kakaoMapJsKey() !== null;
 }
 
 export function PlaceMap({

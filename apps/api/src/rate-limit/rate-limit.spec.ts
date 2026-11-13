@@ -120,6 +120,7 @@ describe('bucketsFor (한도 고르기)', () => {
         { scope: 'ip', limit: 60, windowSec: 60 },
       ],
       placeSearch: [{ scope: 'user', limit: 60, windowSec: 60 }],
+      placeResolve: [{ scope: 'user', limit: 120, windowSec: 60 }],
     });
   });
 
