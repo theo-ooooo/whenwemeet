@@ -269,6 +269,13 @@ export function buildStore(): Store {
     ev(6, TEAM_ID, "제주 여행", d(24), "00:00", d(27), "00:00", ME_ID, true, "항공권 예매함"),
     ev(8, PERSONAL_ID, "팀 회의", addDays(today, 2), "14:00", addDays(today, 2), "16:00", ME_ID),
     ev(9, OTHER_PERSONAL_ID, "운동", addDays(today, 4), "18:00", addDays(today, 4), "20:00", OTHER_ID),
+    // (#192) 주 보기 확인용: 오늘 저녁 4개 겹침(영화 포함, 3열 넘침 "+N"), 자정을 넘는 일정, 지난 일정 2개
+    ev(30, TEAM_ID, "카페 작업", today, "20:00", today, "21:00", OTHER_ID),
+    ev(31, TEAM_ID, "엄마랑 통화", today, "20:30", today, "21:30", ME_ID),
+    ev(32, TEAM_ID, "동네 산책", today, "20:45", today, "21:15", OTHER_ID),
+    ev(33, TEAM_ID, "심야 보드게임", addDays(today, 2), "23:00", addDays(today, 3), "01:30", ME_ID),
+    ev(34, TEAM_ID, "독서 모임", addDays(today, -3), "15:00", addDays(today, -3), "17:00", OTHER_ID),
+    ev(35, TEAM_ID, "생일 파티", addDays(today, -12), "18:00", addDays(today, -12), "21:00", ME_ID),
     // 반복 일정 (#187): 2주 전 내일 요일부터 매주 19:30~21:00. 다음 주 회차는 "이 일정만" 20:00 으로 옮김
     {
       ...ev(10, TEAM_ID, "같이 요리하기", weeklyStart, "19:30", weeklyStart, "21:00", OTHER_ID, false, "장보기는 번갈아"),
