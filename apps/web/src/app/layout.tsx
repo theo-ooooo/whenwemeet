@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { PushPrompt } from "@/components/PushPrompt";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ToastProvider } from "@/components/Toast";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/theme";
@@ -59,6 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           {/* (#188) 알림 권한 안내 시트. 푸시 지원 앱에서 계기가 올 때만 열린다 (푸시-알림.md 8-1) */}
           <PushPrompt />
+          {/* (#203) 브라우저 오프라인 안내와 정적 자산 캐시. 앱 셸에서는 등록하지 않는다 (D-256) */}
+          <ServiceWorkerRegister />
         </ToastProvider>
       </body>
     </html>
