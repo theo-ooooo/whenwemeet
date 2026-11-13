@@ -165,7 +165,7 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/groups` | 유저 | - | `{ data: GroupSummary[] }` — PERSONAL 먼저, 그다음 joinedAt 순 |
-| POST | `/groups` | 유저 | `{ name }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급 |
+| POST | `/groups` | 유저 | `{ name, preset? }` | 201 `{ data: GroupDetail }`. type 은 항상 TEAM, 요청자가 첫 멤버, 초대 코드 발급. (#278, D-250) `preset` 은 만들기 화면의 쓰임(`two`, `family`, `friends`, `study`)으로 **저장도 응답도 하지 않고** 로그 한 줄(`groups.create groupId= preset=`)만 남긴다. 모르는 값, 다른 형식도 400 없이 무시 |
 | GET | `/groups/:groupId` | 멤버 | - | `{ data: GroupDetail }` |
 | PATCH | `/groups/:groupId` | 멤버 | `{ name }` | `{ data: GroupDetail }` |
 | POST | `/groups/:groupId/invite-code` | 멤버 | - | `{ data: { inviteCode, inviteUrl, inviteShareUrl } }`. 새 코드로 교체, 이전 코드 즉시 무효. (#274) 그 팀의 일정 공유 링크도 모두 끊는다. PERSONAL 이면 GROUP_NOT_INVITABLE |

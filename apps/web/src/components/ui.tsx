@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import { IconChevronRight, IconClose } from "./icons";
 import { memberColor, ON_MEMBER_COLOR } from "@/lib/colors";
@@ -157,6 +158,8 @@ export function Toggle({
 
 /* ---------- 줄 버튼 ---------- */
 
+const rowClass = "flex min-h-11 w-full items-center gap-3 py-1 text-left";
+
 /**
  * (#359) 카드 안 "이름 ……… 값 ›" 한 줄 (일정 폼의 참여자, 알림, 반복, 빠른 추가의 알림). 누르면 시트나 펼침을 연다.
  * 값이 글자면 value, 모양이 따로 있으면(참여자 아바타) children. 펼침(빠른 추가)은 chevron 없이
@@ -170,12 +173,41 @@ export function RowButton({
   ...rest
 }: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value"> & { label: string; value?: React.ReactNode; chevron?: boolean }) {
   return (
-    <button type="button" className={`flex min-h-11 w-full items-center gap-3 py-1 text-left ${className}`} {...rest}>
+    <button type="button" className={`${rowClass} ${className}`} {...rest}>
       <span className="shrink-0 text-[14px] font-semibold">{label}</span>
       {value !== undefined && <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2">{value}</span>}
       {children}
       {chevron && <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />}
     </button>
+  );
+}
+
+/**
+ * (#278) RowButton 과 같은 모양의 이동 줄 (시작 안내). 왼쪽 아이콘 18 은 선택. 눌러서 다른 화면으로 가면 버튼 대신 링크
+ */
+export function RowLink({
+  href,
+  label,
+  icon,
+  className = "",
+  onClick,
+}: {
+  href: string;
+  label: string;
+  icon?: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <Link href={href} onClick={onClick} className={`${rowClass} hover:text-acc-ink ${className}`}>
+      {icon && (
+        <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center text-acc-ink">
+          {icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{label}</span>
+      <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+    </Link>
   );
 }
 

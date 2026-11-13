@@ -45,9 +45,12 @@ const qs = (q: URLSearchParams | Record<string, string | null | undefined>): str
   return s ? `?${s}` : "";
 };
 
-/** 팀 설정. `?invite=1` 이면 초대 섹션을 연 채로 (팀 만들기 직후, 함께 안내) */
-export function teamHref(opts: { invite?: boolean } = {}): string {
-  return `${TEAM_PATH}${opts.invite ? "?invite=1" : ""}`;
+/**
+ * 팀 설정. `?invite=1` 이면 초대 섹션을 연 채로 (팀 만들기 직후, 함께 안내).
+ * (#278) `?feed=1` 이면 "다른 캘린더 앱에서 보기" 칸으로 내려 둔다 (시작 안내)
+ */
+export function teamHref(opts: { invite?: boolean; feed?: boolean } = {}): string {
+  return `${TEAM_PATH}${qs({ invite: opts.invite ? "1" : null, feed: opts.feed ? "1" : null })}`;
 }
 
 /** 달력. date, month 등 달력 쿼리는 그대로 싣는다 */

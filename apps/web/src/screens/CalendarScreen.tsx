@@ -22,6 +22,7 @@ import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
 import { DotCluster, useWho } from "@/components/Participants";
 import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { StartGuide } from "@/components/StartGuide";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog, Skeleton } from "@/components/ui";
@@ -896,9 +897,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       <section className={`${dayView ? "hidden" : "flex"} @container/main min-w-0 flex-col fold:min-h-0 fold:flex-1`}>
         {/* phone: 같이 쓰기 입구(있을 때만) → "11월" 제목줄 32 (제목 18/700 / 오늘 알약 + ‹ ›).
             넓은 화면도 입구는 제목줄 위에 같은 카드로 */}
-        {together && (
+        {/* (#278) 팀 만들기 쓰임별 시작 안내(이 기기에 있을 때만)는 같은 카드에서 입구보다 위 */}
+        {(together || group?.type === "TEAM") && (
           <div className="mb-[22px] rounded-xl bg-paper px-3.5 empty:hidden fold:mb-3 [&>div:last-child]:hidden">
-            <TogetherHint hint={together} />
+            {group?.type === "TEAM" && <StartGuide groupId={group.id} />}
+            {together && <TogetherHint hint={together} />}
           </div>
         )}
         <div className="mt-1 flex h-8 items-center fold:hidden">

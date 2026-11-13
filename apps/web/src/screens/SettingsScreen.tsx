@@ -17,8 +17,14 @@ import { inviteKakaoFeed, preloadKakaoSdk, shareKakaoFeed } from "@/lib/kakao-sh
 import { COLOR_NAMES, memberColor, ON_MEMBER_COLOR, PICKABLE_COLORS } from "@/lib/colors";
 import type { GroupDetail } from "@/lib/types";
 
-export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
+export function SettingsScreen({ openInvite, showFeed = false }: { openInvite: boolean; showFeed?: boolean }) {
   const { groupId, group, error, refresh, setGroup } = useGroupContext();
+  // (#278) 시작 안내 "다른 캘린더 앱에서 보기" 로 오면(?feed=1) 그 칸이 보이게 내려 둔다. 팀을 받은 뒤 한 번
+  const feedRef = useRef<HTMLDivElement>(null);
+  const hasGroup = group !== null;
+  useEffect(() => {
+    if (showFeed && hasGroup) feedRef.current?.scrollIntoView({ block: "center" });
+  }, [showFeed, hasGroup]);
 
   if (error && !group) {
     return (
@@ -61,7 +67,9 @@ export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
             {/* (#305) 이 팀 달력에 내 생일 보이기. 옛 API(showBirthday 없음)에서는 줄을 두지 않는다 */}
             {group.me.showBirthday !== undefined && <BirthdaySection group={group} onSaved={setGroup} />}
             {/* (#193) 외부 캘린더 구독 주소. 개인 달력에도 같은 칸 */}
-            <CalendarFeedSection key={group.id} groupId={group.id} personal={group.type === "PERSONAL"} />
+            <div ref={feedRef}>
+              <CalendarFeedSection key={group.id} groupId={group.id} personal={group.type === "PERSONAL"} />
+            </div>
             <ImportSection personal={group.type === "PERSONAL"} />
             {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
           </div>
