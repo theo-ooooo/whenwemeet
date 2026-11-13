@@ -43,8 +43,8 @@ describe('likePattern, containsText, matchedFields', () => {
   it('대소문자 무시, 장소는 사용자 글자(직접 적은 것, 고를 때 검색어)만', () => {
     expect(containsText('Cafe ONHWA', 'onhwa')).toBe(true);
     expect(containsText(null, 'a')).toBe(false);
-    const free = { text: '서울숲 입구', query: null, kakaoPlaceId: null };
-    const picked = { text: null, query: '뚝섬 공원', kakaoPlaceId: '8209184' };
+    const free = { text: '서울숲 입구', query: null, kakaoPlaceId: null, naverKey: null };
+    const picked = { text: null, query: '뚝섬 공원', kakaoPlaceId: '8209184', naverKey: null };
     expect(matchedFields({ title: '산책', memo: '서울숲에서', place: free }, '서울숲')).toEqual(['memo', 'place']);
     expect(matchedFields({ title: '산책', memo: null, place: picked }, '뚝섬')).toEqual(['place']);
     expect(matchedFields({ title: '산책', memo: null, place: picked }, '8209184')).toEqual([]);

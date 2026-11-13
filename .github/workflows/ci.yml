@@ -72,6 +72,13 @@ jobs:
       - name: knip (쓰지 않는 코드, 의존성)
         run: pnpm knip
 
+      # (#204) 테스트 파일(spec)까지 타입 검사. vitest 와 nest build(tsconfig.build.json) 는 spec 타입 오류를 잡지 않는다
+      # Prisma Client 생성 뒤에 돈다. 모바일은 lint 스크립트가 tsc 를 같이 돈다
+      - name: 타입 검사 (api, web, spec 포함)
+        run: |
+          pnpm --filter @whenwemeet/api exec tsc --noEmit -p tsconfig.json
+          pnpm --filter @whenwemeet/web exec tsc --noEmit -p tsconfig.json
+
       # 앱 셸은 네이티브 빌드 없이 lint(eslint + tsc) 와 단위 테스트만 (#95). EAS 빌드는 CI 에서 하지 않는다
       - name: 모바일 lint, 타입, 테스트
         run: |

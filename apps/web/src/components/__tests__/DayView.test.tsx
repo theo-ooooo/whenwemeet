@@ -143,3 +143,80 @@ describe("DayView (C안)", () => {
     expect(screen.queryByRole("group", { name: /하루/ })).toBeNull();
   });
 });
+
+describe("DayView 주간 줄 키보드 (#201)", () => {
+  it("격자 한 줄, Tab 정지점은 그날 하나. 선택은 aria-selected, 오늘은 aria-current", () => {
+    view();
+    const grid = screen.getByRole("grid", { name: "이번 주" });
+    const cells = grid.querySelectorAll('[role="gridcell"]');
+    expect(cells).toHaveLength(7);
+    const tabbable = grid.querySelectorAll('button[tabindex="0"]');
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0].getAttribute("data-strip")).toBe(D);
+    expect(tabbable[0].getAttribute("aria-current")).toBe("date");
+    expect(tabbable[0].getAttribute("aria-label")).toBe("11월 17일 (화), 일정 3개");
+    expect(tabbable[0].closest('[role="gridcell"]')?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("← → Home End 는 포커스만 옮기고, 주 밖이나 PageDown 이면 그날로 바꾼다", () => {
+    const p = view();
+    const start = screen.getByRole("button", { name: /^11월 17일/ });
+    start.focus();
+    fireEvent.keyDown(start, { key: "ArrowRight" });
+    expect((document.activeElement as HTMLElement).dataset.strip).toBe("2026-11-18");
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    expect((document.activeElement as HTMLElement).dataset.strip).toBe("2026-11-21");
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect((document.activeElement as HTMLElement).dataset.strip).toBe("2026-11-15");
+    expect(p.onPickDay).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    expect(p.onPickDay).toHaveBeenLastCalledWith("2026-11-14");
+    // 부모(목)가 날짜를 바꾸지 않았으니 포커스는 그날(17일) 칸으로 돌아온다. 거기서 한 주 뒤
+    expect((document.activeElement as HTMLElement).dataset.strip).toBe(D);
+    fireEvent.keyDown(document.activeElement!, { key: "PageDown" });
+    expect(p.onPickDay).toHaveBeenLastCalledWith("2026-11-24");
+  });
+
+  it("Esc 는 escapeCloses 일 때만 월 보기로, 안쪽이 먼저 처리한 Esc 는 넘긴다", () => {
+    const p = view();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(p.onMonth).not.toHaveBeenCalled();
+    cleanup();
+    const q = view({ escapeCloses: true });
+    const e = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    e.preventDefault();
+    document.dispatchEvent(e);
+    expect(q.onMonth).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(q.onMonth).toHaveBeenCalledTimes(1);
+  });
+
+  it("닫히면 그 날짜의 달력 칸으로 포커스", () => {
+    const cal = document.createElement("div");
+    cal.innerHTML = `<div data-date="${D}"><button>칸</button></div>`;
+    document.body.appendChild(cal);
+    const r = render(
+      <DayView
+        date={D}
+        today={D}
+        titleId="dv"
+        byDay={new Map()}
+        eventsError={null}
+        onRetry={vi.fn()}
+        anniversaries={[]}
+        members={two}
+        now={t("14:10")}
+        stripRef={{ current: null }}
+        onPickDay={vi.fn()}
+        onMonth={vi.fn()}
+        onOpenEvent={vi.fn()}
+        onAdd={vi.fn()}
+        onAddAt={vi.fn()}
+      />,
+    );
+    expect(document.activeElement?.tagName).toBe("H1");
+    r.unmount();
+    expect(document.activeElement).toBe(cal.querySelector("button"));
+    cal.remove();
+  });
+});

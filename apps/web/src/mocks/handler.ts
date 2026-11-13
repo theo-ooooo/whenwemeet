@@ -19,7 +19,8 @@ import {
   type EventRow,
   type CalendarFeedRow,
   type Store, mockEventCode, mockGroupCode, mockPollCode, mockTodoCode, type PollRow, type TodoItemRow, type TodoListRow } from "./fixtures";
-import { mockEmailLogin } from "./email-login";
+import { consumeMockLinkCode, mockEmailLogin } from "./email-login";
+import { maskEmail, normalizeEmail } from "@/lib/email-login";
 import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence, type MockPlace } from "./recurrence";
 import { CLEARED, contains, fakePlaceSearch, placeOut, placeProblem, placeValue, samePlace } from "./places";
 
@@ -1081,6 +1082,53 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
   }
 
+  // (#198) /me/auth-accounts (D-257). 화면 확인용 티켓: mock-KAKAO, mock-APPLE 연결, mock-inuse 409 AUTH_ACCOUNT_IN_USE,
+  // mock-absorb 빈 계정 흡수. 이메일은 연결 메일(purpose LINK) 뒤 코드 000000. 해제 실패 확인은 label 에 "fail" 이 든 계정
+  if (seg[0] === "me" && seg[1] === "auth-accounts") {
+    if (!s.authAccounts) s.authAccounts = [{ id: 9001, userId: ME_ID, provider: "KAKAO", label: "카카오 계정", createdAt: "2026-05-01T00:00:00.000Z" }];
+    const order = { KAKAO: 0, APPLE: 1, EMAIL: 2 } as const;
+    const mine = () => s.authAccounts!.filter((a) => a.userId === userId).sort((a, b) => order[a.provider] - order[b.provider]);
+    const view = (a: NonNullable<typeof s.authAccounts>[number]) => ({ id: a.id, provider: a.provider, label: a.label, createdAt: a.createdAt });
+    const add = (provider: "KAKAO" | "APPLE" | "EMAIL", label: string, absorbed = false): MockResult => {
+      if (mine().some((a) => a.provider === provider)) return err(409, "PROVIDER_ALREADY_LINKED", "이미 연결된 로그인 방법이에요");
+      const row = { id: nextId(), userId, provider, label, createdAt: nowIso() };
+      s.authAccounts!.push(row);
+      return ok({ account: view(row), absorbed });
+    };
+    if (seg.length === 2 && method === "GET") return ok(mine().map(view));
+    if (seg.length === 3 && seg[2] === "link-start" && method === "POST") {
+      const provider = body?.provider;
+      if (provider !== "KAKAO" && provider !== "APPLE") return err(400, "VALIDATION_FAILED", "provider 는 KAKAO 또는 APPLE 이어야 해요");
+      if (mine().some((a) => a.provider === provider)) return err(409, "PROVIDER_ALREADY_LINKED", "이미 연결된 로그인 방법이에요");
+      return ok({ intent: "mock", expiresIn: 600 });
+    }
+    if (seg.length === 2 && method === "POST") {
+      const ticket = body?.ticket;
+      if (typeof ticket === "string") {
+        if (ticket === "mock-KAKAO") return add("KAKAO", "카카오 계정");
+        if (ticket === "mock-APPLE") return add("APPLE", "Apple ID");
+        if (ticket === "mock-absorb") return add("APPLE", "Apple ID", true);
+        if (ticket === "mock-inuse") return err(409, "AUTH_ACCOUNT_IN_USE", "이 로그인으로 만든 다른 계정이 있어요");
+        return err(400, "LINK_TICKET_INVALID", "연결 시간이 지났어요. 다시 시도해 주세요");
+      }
+      if (body?.provider === "EMAIL" && typeof body.email === "string" && typeof body.code === "string") {
+        const failed = consumeMockLinkCode(body.email, body.code);
+        if (failed) return failed;
+        return add("EMAIL", maskEmail(normalizeEmail(body.email)));
+      }
+      return err(400, "VALIDATION_FAILED", "ticket 또는 provider 중 하나만 보내 주세요");
+    }
+    if (seg.length === 3 && method === "DELETE") {
+      const id = parseId(seg[2]);
+      const row = mine().find((a) => a.id === id);
+      if (!row) return err(404, "NOT_FOUND", "찾을 수 없어요");
+      if (mine().length <= 1) return err(409, "LAST_AUTH_ACCOUNT", "마지막 로그인 방법은 해제할 수 없어요");
+      if (row.label.includes("fail")) return err(502, row.provider === "APPLE" ? "APPLE_ERROR" : "KAKAO_ERROR", "연결에 실패했어요");
+      s.authAccounts = s.authAccounts!.filter((a) => a.id !== id);
+      return ok({ ok: true });
+    }
+  }
+
   // (#188) /me/push-devices (7-1). 토큰으로 upsert, 다른 사용자 행이면 나로 옮긴다. 한 사용자 10대
   if (seg[0] === "me" && seg[1] === "push-devices" && seg.length === 2) {
     const devices = (s.pushDevices ??= []);
@@ -1190,15 +1238,20 @@ export function mockHandle(ctx: Ctx): MockResult {
   if (seg[0] === "places" && seg[1] === "search" && seg.length === 2 && method === "GET") {
     const q = (query.get("q") ?? "").trim();
     if (!q || Array.from(q).length > 50) return err(400, "VALIDATION_FAILED", "검색어는 1~50자여야 해요");
-    return ok({ items: fakePlaceSearch(q) });
+    const provider = query.get("provider") || "kakao";
+    if (provider !== "kakao" && provider !== "naver") return err(400, "VALIDATION_FAILED", "장소 검색 출처는 kakao 나 naver 여야 해요");
+    return ok({ items: fakePlaceSearch(q, provider) });
   }
-  // (#199) 저장된 장소 다시 찾기 (같은 가짜 목록에서 ID 가 같은 것)
+  // (#199) 저장된 장소 다시 찾기 (같은 가짜 목록에서 ID 가 같은 것). (D-259) provider=naver 면 키가 같은 것
   if (seg[0] === "places" && seg[1] === "resolve" && seg.length === 2 && method === "GET") {
     const id = query.get("id") ?? "";
     const q = (query.get("q") ?? "").trim();
-    if (!/^\d{1,20}$/.test(id)) return err(400, "VALIDATION_FAILED", "카카오 장소 ID 가 올바르지 않아요");
+    const provider = query.get("provider") || "kakao";
+    if (provider !== "kakao" && provider !== "naver") return err(400, "VALIDATION_FAILED", "장소 검색 출처는 kakao 나 naver 여야 해요");
+    if (provider === "kakao" && !/^\d{1,20}$/.test(id)) return err(400, "VALIDATION_FAILED", "카카오 장소 ID 가 올바르지 않아요");
+    if (provider === "naver" && !/^[0-9a-f]{16}$/.test(id)) return err(400, "VALIDATION_FAILED", "네이버 장소 키가 올바르지 않아요");
     if (!q) return err(400, "VALIDATION_FAILED", "검색어는 1~100자여야 해요");
-    return ok({ place: fakePlaceSearch(q).find((p) => p.kakaoPlaceId === id) ?? null });
+    return ok({ place: fakePlaceSearch(q, provider).find((p) => (provider === "naver" ? p.naverKey : p.kakaoPlaceId) === id) ?? null });
   }
 
   // (#311) 공개 코드로 일정 하나 GET /events/:code?occurrence= (api.md 2.3). 내 팀 일정이 아니거나 없으면 모두 404.

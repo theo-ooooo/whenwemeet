@@ -5,6 +5,7 @@ export type { MutationOptions, MutationOutcome, MutationResult } from "./_useMut
 
 // 조회
 export { useMe } from "./useMe";
+export { useAuthAccounts, useRequestLinkEmail, useLinkEmail, useUnlinkAccount } from "./useAuthAccounts";
 export { useGroups } from "./useGroups";
 export { useGroup } from "./useGroup";
 export { useEvents } from "./useEvents";

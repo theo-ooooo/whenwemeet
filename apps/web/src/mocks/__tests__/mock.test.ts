@@ -582,7 +582,7 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
     const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "산책", startsAt: at("2030-03-10", "10:00"), endsAt: at("2030-03-10", "11:00"), allDay: false, place: PICK });
     expect(made.status).toBe(201);
     const ev = made.body.data as { id: number; place: Record<string, unknown> };
-    expect(ev.place).toEqual({ ...PICK, text: null, url: "https://place.map.kakao.com/8209184" });
+    expect(ev.place).toEqual({ ...PICK, text: null, naverKey: null, provider: "kakao", url: "https://place.map.kakao.com/8209184" });
     const kept = call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { title: "산책 2" });
     expect((kept.body.data.place as { kakaoPlaceId: string }).kakaoPlaceId).toBe("8209184");
     const cleared = call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: null });
@@ -622,6 +622,20 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
     expect((call("GET", "/places/resolve", null, `id=27531028&q=${encodeURIComponent("카페")}`).body.data.place as { name: string }).name).toBe("카페 온화 성수점");
     expect(call("GET", "/places/resolve", null, `id=1&q=${encodeURIComponent("카페")}`).body.data.place).toBeNull();
     expect(call("GET", "/places/resolve", null, "id=x&q=a").status).toBe(400);
+  });
+
+  it("(D-259) 네이버: provider=naver 후보(키, 5개까지), 키 + 검색어로 저장, 다시 찾기는 키가 같은 것. 둘 다 보내면 400", () => {
+    const items = call("GET", "/places/search", null, `q=${encodeURIComponent("서울숲")}&provider=naver`).body.data.items as { provider: string; naverKey: string; address: string }[];
+    expect(items[0]).toMatchObject({ provider: "naver", address: "서울특별시 성동구 뚝섬로 273" });
+    expect(items[0].naverKey).toMatch(/^[0-9a-f]{16}$/);
+    expect(call("GET", "/places/search", null, "q=a&provider=google").status).toBe(400);
+    const key = items[0].naverKey;
+    const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "숲", startsAt: at("2030-03-11", "10:00"), endsAt: at("2030-03-11", "11:00"), allDay: false, place: { naverKey: key, query: "서울숲" } });
+    expect(made.status).toBe(201);
+    expect((made.body.data as { place: unknown }).place).toEqual({ text: null, query: "서울숲", kakaoPlaceId: null, naverKey: key, provider: "naver", url: "https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%88%B2" });
+    expect((call("GET", "/places/resolve", null, `provider=naver&id=${key}&q=${encodeURIComponent("서울숲")}`).body.data.place as { name: string }).name).toBe("서울숲");
+    expect(call("GET", "/places/resolve", null, `provider=naver&id=8209184&q=a`).status).toBe(400);
+    expect(call("POST", `/groups/${TEAM_ID}/events`, { title: "숲", startsAt: at("2030-03-11", "10:00"), endsAt: at("2030-03-11", "11:00"), allDay: false, place: { naverKey: key, kakaoPlaceId: "1", query: "a" } }).status).toBe(400);
   });
 });
 
@@ -665,5 +679,23 @@ describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
     expect(titles("되돌B")).toHaveLength(2);
     call("POST", `/groups/2/event-deletions/${following.deletionId}/restore`);
     expect(titles("되돌B")).toEqual(all);
+  });
+});
+
+describe("(#198) 목 로그인 방법", () => {
+  it("목록, 티켓 연결, 같은 제공자 409, 이메일 연결 코드, 해제와 마지막 하나", () => {
+    const list = () => (call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[]);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO"]);
+    expect(call("POST", "/me/auth-accounts/link-start", { provider: "KAKAO" }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { ticket: "mock-inuse" }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { ticket: "mock-APPLE" }).status).toBe(200);
+    expect(call("POST", "/auth/email/request", { email: "link@example.com", purpose: "LINK" }).status).toBe(200);
+    // 연결 코드는 로그인에 못 쓴다
+    expect(call("POST", "/auth/email/code", { email: "link@example.com", code: "000000" }).status).toBe(400);
+    const linked = call("POST", "/me/auth-accounts", { provider: "EMAIL", email: "link@example.com", code: "000000" });
+    expect(linked.status).toBe(200);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO", "APPLE", "EMAIL"]);
+    for (const a of list().slice(1)) expect(call("DELETE", `/me/auth-accounts/${a.id}`).status).toBe(200);
+    expect(call("DELETE", `/me/auth-accounts/${list()[0].id}`).status).toBe(409);
   });
 });

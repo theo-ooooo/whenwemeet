@@ -221,6 +221,8 @@ export class UsersRepository {
       if (emailAccounts.length > 0) {
         await tx.emailLoginChallenge.deleteMany({ where: { email: { in: emailAccounts.map((account) => account.providerUserId) } } });
       }
+      // (#198) 내가 요청한 이메일 연결 메일 행 (다른 주소일 수 있다)
+      await tx.emailLoginChallenge.deleteMany({ where: { purpose: 'LINK', userId } });
       await tx.authAccount.deleteMany({ where: { userId } });
       await tx.user.delete({ where: { id: userId } });
     });

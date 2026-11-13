@@ -7,7 +7,7 @@ const DAY_MS = 86_400_000;
 const MARGIN_DAYS = 31;
 
 /** (#199) 저장된 장소 (카카오 ID + 고를 때 검색어, 또는 직접 적은 글자). 예외에서 text '' 만이면 이 회차만 장소 없음 */
-export type MockPlace = { text: string | null; query: string | null; kakaoPlaceId: string | null };
+export type MockPlace = { text: string | null; query: string | null; kakaoPlaceId: string | null; naverKey?: string | null };
 
 export type MockException = {
   occurrence: string;

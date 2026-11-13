@@ -1,11 +1,11 @@
 "use client";
 // 내 정보 (#378, 나머지 화면 점검 4). 팀 화면 뼈대(AppShell) 안이라 위 앱 머리줄과 독이 있다.
 // 머리줄 "‹ 내 정보"(넓은 화면은 사이드바가 있어 ‹ 없음) → 프로필 칸(누르면 사진과 닉네임 시트, "바꾸기" 버튼 없음)
-// → 줄 묶음(내 생일, 처음 여는 달력, 알림) → 화면 테마 → 내 팀 → 로그아웃, 약관, 탈퇴
+// → 줄 묶음(내 생일, 처음 여는 달력, 알림, 로그인 방법) → 화면 테마 → 지도 → 내 팀 → 로그아웃, 약관, 탈퇴
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCamera, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { IconBell, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameForm } from "@/components/NameSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -18,7 +18,9 @@ import { forgetGroup } from "@/lib/group-cookie";
 import { shrinkImage } from "@/lib/image";
 import { forgetPushToken, storedPushToken } from "@/lib/push";
 import { usePushSync } from "@/lib/usePushSync";
+import { MAP_APP_NAMES, type MapApp } from "@/lib/map-app";
 import { readTheme, setTheme, subscribeTheme, type ThemeChoice } from "@/lib/theme";
+import { useMapApp } from "@/lib/useMapApp";
 import type { Me } from "@/lib/types";
 import { currentVersionInfo } from "@/lib/version-info";
 
@@ -174,6 +176,27 @@ function ThemePicker() {
   );
 }
 
+const MAP_APPS: { value: MapApp; label: string }[] = [
+  { value: "naver", label: MAP_APP_NAMES.naver },
+  { value: "kakao", label: MAP_APP_NAMES.kakao },
+];
+
+/** 지도 선택 (네이버 지도 기본 / 카카오맵). 장소 검색, 일정 상세의 지도, 길찾기가 모두 이 지도를 쓴다 (D-259). 이 브라우저에만 저장된다 (lib/map-app.ts) */
+function MapAppPicker() {
+  const [app, setApp] = useMapApp();
+  return (
+    <section className="rounded-xl bg-paper px-3.5 py-3.5">
+      <h2 id="map-app-label" className="text-[13px] font-bold leading-5">
+        지도
+      </h2>
+      <div className="mt-2">
+        <Segmented labelledBy="map-app-label" value={app} options={MAP_APPS} onChange={setApp} />
+      </div>
+      <p className="mt-2 text-[12px] text-ink-2">장소 검색, 지도, 길찾기를 이 지도로 해요</p>
+    </section>
+  );
+}
+
 const subscribeNothing = () => () => {};
 
 /** (#333) 맨 아래 버전 한 줄. 누르면 복사 (문의할 때 붙여 넣게). 앱 버전은 UA 라 브라우저에서만 읽는다 */
@@ -317,6 +340,8 @@ export function MeScreen() {
               <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
               <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
+              {/* (#198) 카카오, Apple, 이메일 연결과 해제 (D-257) */}
+              <RowLink href="/me/accounts" label="로그인 방법" icon={<IconKey size={18} />} value="" />
             </RowGroup>
             <RowGroup title={`내 팀${groups ? ` ${groups.length}개` : ""}`}>
               {groups
@@ -331,6 +356,7 @@ export function MeScreen() {
 
           <div className="flex flex-1 flex-col gap-5 main-lg:flex-none">
             <ThemePicker />
+            <MapAppPicker />
             <form
               method="POST"
               action="/auth/logout"

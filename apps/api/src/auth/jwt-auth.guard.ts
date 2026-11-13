@@ -19,7 +19,8 @@ export const IS_OPTIONAL_AUTH_KEY = 'isOptionalAuth';
  */
 export const OptionalAuth = (): MethodDecorator & ClassDecorator => SetMetadata(IS_OPTIONAL_AUTH_KEY, true);
 
-export type AuthenticatedRequest = Request & { user: AuthUser };
+/** (#198) sessionIssuedAt: 세션 JWT 의 iat(초). 최근 로그인 검사(로그인 방법 연결, D-257)에 쓴다 */
+export type AuthenticatedRequest = Request & { user: AuthUser; sessionIssuedAt?: number | null };
 
 /** Bearer JWT 검증 → sub 사용자 조회 → request.user. 없으면 401 UNAUTHORIZED (인증흐름.md 3장) */
 @Injectable()
@@ -52,12 +53,13 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   /** Bearer → 서명, 만료 확인 → 사용자 조회. 어디서든 실패하면 null */
-  private async resolveUser(request: Request): Promise<AuthUser | null> {
+  private async resolveUser(request: AuthenticatedRequest): Promise<AuthUser | null> {
     const token = extractBearer(request.headers.authorization);
     if (!token) return null;
-    const sub = await verifySessionSub(this.jwt, token);
-    if (sub === null) return null;
-    return this.users.findById(sub);
+    const claims = await verifySessionClaims(this.jwt, token);
+    if (claims === null) return null;
+    request.sessionIssuedAt = claims.iat;
+    return this.users.findById(claims.sub);
   }
 }
 
@@ -66,10 +68,16 @@ export class JwtAuthGuard implements CanActivate {
  * sub 는 양의 정수 문자열. 예전 cuid 토큰도 여기서 null 이 된다. 요청 제한 가드(#186)도 같은 판정을 쓴다
  */
 export async function verifySessionSub(jwt: JwtService, token: string): Promise<number | null> {
+  return (await verifySessionClaims(jwt, token))?.sub ?? null;
+}
+
+/** (#198) 세션 JWT 의 sub 와 iat(초, 없으면 null). 판정은 verifySessionSub 와 같다 */
+export async function verifySessionClaims(jwt: JwtService, token: string): Promise<{ sub: number; iat: number | null } | null> {
   try {
-    const payload = await jwt.verifyAsync<{ sub?: unknown }>(token);
+    const payload = await jwt.verifyAsync<{ sub?: unknown; iat?: unknown }>(token);
     if (typeof payload.sub !== 'string' || !/^[1-9]\d{0,9}$/.test(payload.sub)) return null;
-    return Number(payload.sub);
+    const iat = typeof payload.iat === 'number' && Number.isFinite(payload.iat) ? payload.iat : null;
+    return { sub: Number(payload.sub), iat };
   } catch {
     return null;
   }

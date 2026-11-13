@@ -304,6 +304,18 @@ export function IconCake({ active, ...p }: PieceProps) {
   );
 }
 
+/** (#198) 열쇠: 내 정보 > 로그인 방법 */
+export function IconKey(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="7.5" cy="16.5" r="4.5" />
+      <path d="M10.7 13.3 20 4" />
+      <path d="m17 7 2.5 2.5" />
+      <path d="m14.5 9.5 2 2" />
+    </Svg>
+  );
+}
+
 /** 카카오톡 말풍선 심볼 20 (KakaoButton 과 같은 모양). 카카오 공유 버튼 안 (#195, #274) */
 export function KakaoSymbol() {
   return (

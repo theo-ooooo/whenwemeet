@@ -81,6 +81,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.group.deleteMany();
   await prisma.file.deleteMany();
   await prisma.authHandoff.deleteMany();
+  await prisma.authLinkTicket.deleteMany();
   await prisma.emailLoginChallenge.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.user.deleteMany();

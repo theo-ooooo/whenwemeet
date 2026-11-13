@@ -4,9 +4,11 @@ import { Trim } from '../../common/validation.js';
 import { CODE_PATTERN, EMAIL_MAX_LENGTH, isAcceptableEmail, normalizeEmail } from '../email-crypto.js';
 
 export const EMAIL_LOGIN_CLIENTS = ['web', 'app'] as const;
+/** (#198) 이메일 메일의 쓰임 */
+export const EMAIL_PURPOSES = ['LOGIN', 'LINK'] as const;
 
 /** 앞뒤 공백 제거 + 소문자 → ASCII `로컬@도메인.최상위`, 191자 이하 (D-110) */
-function EmailAddress(): PropertyDecorator {
+export function EmailAddress(): PropertyDecorator {
   return (target, key) => {
     Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? normalizeEmail(value) : value))(target, key);
     ValidateBy(
@@ -39,6 +41,11 @@ export class EmailRequestDto {
   @IsOptional()
   @IsString({ message: 'next 는 문자열이어야 해요' })
   next?: string;
+
+  /** (#198) LINK 면 로그인한 사용자의 이메일 연결 (Authorization 필요, D-257). 없으면 LOGIN */
+  @IsOptional()
+  @IsIn(EMAIL_PURPOSES, { message: 'purpose 는 LOGIN 또는 LINK 여야 해요' })
+  purpose?: (typeof EMAIL_PURPOSES)[number];
 }
 
 /** POST /auth/email/link/inspect. 형식이 틀린 토큰은 400 대신 INVALID 로 답한다 */

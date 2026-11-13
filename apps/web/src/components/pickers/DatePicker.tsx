@@ -1,12 +1,13 @@
 "use client";
 // 날짜 피커 (#67). 브라우저 기본 input[type=date] 대신 쓴다.
 // 월 달력: 일요일 시작, 주말과 공휴일(lib/holidays) 빨강, 오늘은 옅은 코랄 테두리, 선택일은 코랄 면.
-// 키보드: 방향키 하루/한 주, PageUp/PageDown 한 달, Home/End 주 처음/끝, Enter 또는 Space 선택, Esc 닫기
+// 키보드: 방향키 하루/한 주, PageUp/PageDown 한 달(Shift 면 한 해), Home/End 주 처음/끝, Enter 또는 Space 선택, Esc 닫기 (lib/calendar-keys, #201)
 import { useEffect, useId, useRef, useState } from "react";
 import { IconChevronLeft, IconChevronRight } from "../icons";
 import { RowIcon } from "../ui";
 import { PickerShell, triggerClassOf, type PickerLook } from "./PickerShell";
-import { addDays, dowOf, formatDateKo, monthGrid, parseKey, shiftMonth, todayKey, WEEKDAYS, type DateKey } from "@/lib/date";
+import { monthGridTarget, sameDayInMonth as sameDay } from "@/lib/calendar-keys";
+import { dowOf, formatDateKo, monthGrid, parseKey, shiftMonth, todayKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
 
 type Props = {
@@ -119,21 +120,10 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
   }
 
   function onKey(e: React.KeyboardEvent) {
-    const b = tabKey;
-    const map: Record<string, () => DateKey> = {
-      ArrowLeft: () => addDays(b, -1),
-      ArrowRight: () => addDays(b, 1),
-      ArrowUp: () => addDays(b, -7),
-      ArrowDown: () => addDays(b, 7),
-      Home: () => addDays(b, -dowOf(b)),
-      End: () => addDays(b, 6 - dowOf(b)),
-      PageUp: () => sameDay(b, -1),
-      PageDown: () => sameDay(b, 1),
-    };
-    const f = map[e.key];
-    if (f) {
+    const next = monthGridTarget(tabKey, e);
+    if (next) {
       e.preventDefault();
-      moveTo(f());
+      moveTo(next);
     }
   }
 
@@ -230,13 +220,4 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
       </div>
     </div>
   );
-}
-
-/** 한 달 앞/뒤 같은 날 (31일 → 다음 달 말일) */
-function sameDay(key: DateKey, n: number): DateKey {
-  const p = parseKey(key);
-  const t = shiftMonth(p.y, p.m, n);
-  const last = new Date(Date.UTC(t.y, t.m, 0)).getUTCDate();
-  const d = Math.min(p.d, last);
-  return `${t.y}-${String(t.m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }

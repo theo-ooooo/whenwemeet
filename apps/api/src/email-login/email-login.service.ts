@@ -10,7 +10,7 @@ import { hashCode, hmacHex, maskEmail, newCode, newToken, normalizeEmail, safeEq
 import { EmailLoginConfig } from './email-login.config.js';
 import { ChallengeRow, EmailLoginChallengesRepository } from './email-login.repository.js';
 import { MAIL_CLIENT, MailSendError, type MailClient } from './mail-client.js';
-import { renderLoginMail } from './mail-template.js';
+import { renderLinkMail, renderLoginMail } from './mail-template.js';
 
 /** 링크와 코드 유효 시간 (3장) */
 export const CHALLENGE_TTL_MS = 15 * 60 * 1000;
@@ -37,6 +37,8 @@ export interface RequestInput {
   email: string;
   next?: string;
   clientIp: string;
+  /** (#198) 로그인한 사용자의 이메일 연결이면 그 사용자 (D-257). 메일은 코드만, 행은 purpose LINK */
+  linkUserId?: number;
 }
 
 function linkInvalid(reason: Exclude<LinkState, 'VALID'>): ApiException {
@@ -82,7 +84,9 @@ export class EmailLoginService {
 
     await this.assertWithinLimits(email, ipHash, now);
 
-    const review = this.config.isReviewEmail(email);
+    const linkUserId = input.linkUserId ?? null;
+    // (#198) 연결 메일은 심사 계정 예외(REVIEW_CODE)를 쓰지 않는다. 심사 계정에 다른 로그인을 붙일 일이 없다
+    const review = linkUserId === null && this.config.isReviewEmail(email);
     const linkToken = newToken();
     const linkTokenHash = sha256hex(linkToken);
     const code = review && this.config.review ? this.config.review.code : newCode();
@@ -97,12 +101,13 @@ export class EmailLoginService {
       // 심사 계정은 보내지 않는다 (D-118). 일반은 임시 FAILED 로 넣고 접수되면 SENT
       sendStatus: review ? 'SKIPPED' : 'FAILED',
       createdAt: now,
+      ...(linkUserId !== null ? { purpose: 'LINK' as const, userId: linkUserId } : {}),
     });
 
     let sendStatus = review ? 'SKIPPED' : 'FAILED';
     let failure = '';
     if (!review) {
-      const mail = renderLoginMail({ link: `${this.config.webOrigin}/auth/email?token=${linkToken}`, code });
+      const mail = linkUserId !== null ? renderLinkMail({ code }) : renderLoginMail({ link: `${this.config.webOrigin}/auth/email?token=${linkToken}`, code });
       try {
         const result = await this.mail.send({ to: email, ...mail, idempotencyKey: `email-login-${id}` });
         sendStatus = result.status;
@@ -113,7 +118,7 @@ export class EmailLoginService {
     }
 
     await this.challenges.deleteCreatedBefore(new Date(now.getTime() - RETENTION_MS));
-    const line = `request challengeId=${id} domain=${domainOf(email)} review=${review} sendStatus=${sendStatus}${failure} ms=${Date.now() - started}`;
+    const line = `request challengeId=${id}${linkUserId !== null ? ' purpose=LINK' : ''} domain=${domainOf(email)} review=${review} sendStatus=${sendStatus}${failure} ms=${Date.now() - started}`;
     if (sendStatus === 'FAILED') this.logger.warn(line);
     else this.logger.log(line);
     return { cooldownSec: COOLDOWN_SEC, expiresInSec: CHALLENGE_TTL_MS / 1000 };
@@ -158,6 +163,29 @@ export class EmailLoginService {
     }
     if (!(await this.challenges.consume(row.id, 'CODE', now))) throw new ApiException('EMAIL_CODE_EXPIRED');
     return this.complete(row, 'CODE', client, now);
+  }
+
+  /**
+   * (#198) 이메일 연결 코드 확인 (POST /me/auth-accounts { provider: EMAIL, email, code }, D-257).
+   * userId 가 요청한 살아 있는 최신 LINK 메일과 대조하고 맞으면 소비. 틀린 횟수, 잠금, 만료는 로그인 코드와 같은 규칙과 오류.
+   * 성공이면 정규화한 이메일
+   */
+  async verifyLinkCode(userId: number, rawEmail: string, code: string): Promise<string> {
+    if (!this.config.available) throw new ApiException('EMAIL_NOT_CONFIGURED');
+    const now = new Date();
+    const email = normalizeEmail(rawEmail);
+    const row = await this.challenges.findLatestLiveLink(email, userId, now);
+    if (!row) throw new ApiException('EMAIL_CODE_EXPIRED');
+    if (!safeEqualHex(hashCode(this.config.codeKey, row.linkTokenHash, code), row.codeHash)) {
+      const wrong = await this.challenges.registerWrongCodeTx(row.id, now, MAX_CODE_ATTEMPTS);
+      this.logger.log(`link challengeId=${row.id} result=${wrong.locked ? 'EMAIL_CODE_LOCKED' : wrong.counted ? 'EMAIL_CODE_INVALID' : 'EMAIL_CODE_EXPIRED'}`);
+      if (!wrong.counted) throw new ApiException('EMAIL_CODE_EXPIRED');
+      if (wrong.locked) throw new ApiException('EMAIL_CODE_LOCKED');
+      throw new ApiException('EMAIL_CODE_INVALID', undefined, { attemptsLeft: MAX_CODE_ATTEMPTS - wrong.attempts });
+    }
+    if (!(await this.challenges.consume(row.id, 'CODE', now))) throw new ApiException('EMAIL_CODE_EXPIRED');
+    this.logger.log(`link challengeId=${row.id} result=VERIFIED`);
+    return email;
   }
 
   /** POST /auth/email/signup. 가입 티켓 1회 소비 → User + EMAIL 계정 + 개인 팀 → 세션 JWT */
