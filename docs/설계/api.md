@@ -573,7 +573,7 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 |--------|------|------|------|------|
 | GET | `/groups/:groupId/calendar-feed` | 멤버 | - | `{ data: CalendarFeed \| null }` 내 주소 (없으면 null) |
 | PUT | `/groups/:groupId/calendar-feed` | 멤버 | `{ includeMemo?: boolean, includeAnniversaries?: boolean }` | `{ data: CalendarFeed }` 없으면 만들고(메모 끔, 기념일 켬) 있으면 설정만 바꾼다(주소 유지) |
-| POST | `/groups/:groupId/calendar-feed/rotate` | 멤버 | - | `{ data: CalendarFeed }` 새 주소, 이전 주소는 즉시 404. 주소가 없으면 404 NOT_FOUND |
+| POST | `/groups/:groupId/calendar-feed/rotate` | 멤버 | - | `{ data: CalendarFeed }` 새 주소, 이전 주소는 즉시 404. 주소가 없으면 404 NOT_FOUND ("연결 주소가 없어요") |
 | DELETE | `/groups/:groupId/calendar-feed` | 멤버 | - | `{ data: { ok: true } }` 끄기(행 삭제). 없어도 200 |
 | GET | `/ics/:token.ics` | 없음 | 헤더 `If-None-Match?` | `200 text/calendar; charset=utf-8` VCALENDAR (봉투 없음) / 304 / 404, 429 본문 없음 |
 
@@ -589,7 +589,7 @@ CalendarFeed = { httpsUrl,        // `${API_PUBLIC_ORIGIN}/v1/ics/<토큰 43자>
 - 피드 404 는 형식 오류, 없는 토큰, 재발급 전 토큰, 끈 주소, 나간 팀, 탈퇴, 지운 팀을 구분하지 않는다. 멤버십은 요청마다 확인
 - 피드 내용: 오늘(KST) 기준 과거 60일 ~ 미래 400일의 그 팀 일정(반복은 회차마다 VEVENT, 예외 반영, 취소 회차 없음), `includeAnniversaries` 면 기념일 항목. 매핑은 설계 3장
 - `ETag` = 본문 해시, `Cache-Control: private, max-age=900`. 피드 조회는 새 소식, 푸시, 활동 기록과 무관하다. 만들기, 재발급도 기록하지 않는다
-- 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음
+- 설정 API 오류는 기존 코드(VALIDATION_FAILED, FORBIDDEN, NOT_FOUND). 새 오류 코드 없음. 사용자에게 보이는 message 에는 "구독" 대신 "연결 주소" (D-221)
 - Sentry 는 `/ics/<토큰>` 경로를 지운다
 
 ## 3. 기획 기능 → API 추적

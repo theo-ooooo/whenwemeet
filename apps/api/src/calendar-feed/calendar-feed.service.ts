@@ -84,7 +84,7 @@ export class CalendarFeedService {
   async rotate(userId: number, groupId: number): Promise<CalendarFeedView> {
     await this.memberships.assertMember(userId, groupId);
     const row = await this.feeds.replaceToken(userId, groupId, this.newToken(userId, groupId));
-    if (!row) throw new ApiException('NOT_FOUND', '구독 주소가 없어요');
+    if (!row) throw new ApiException('NOT_FOUND', '연결 주소가 없어요');
     return this.view(row);
   }
 

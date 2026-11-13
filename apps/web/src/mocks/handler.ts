@@ -133,7 +133,7 @@ function calendarFeedRoute(
     return ok({ ok: true });
   }
   if (rest[0] === "rotate" && rest.length === 1 && method === "POST") {
-    if (!mine) return err(404, "NOT_FOUND", "구독 주소가 없어요");
+    if (!mine) return err(404, "NOT_FOUND", "연결 주소가 없어요");
     mine.token = mockFeedToken();
     return ok(calendarFeedView(mine));
   }

@@ -1,6 +1,6 @@
 // (#193) 구독 칸 판정과 문구
 import { describe, expect, it } from "vitest";
-import { feedOnNote, feedPlatform, feedSheetPoints, lastFetchedText } from "../calendar-feed";
+import { FEED_COPY, feedOnNote, feedPlatform, feedSheetPoints, lastFetchedText } from "../calendar-feed";
 
 const UA = {
   iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
@@ -41,5 +41,21 @@ describe("문구", () => {
     expect(feedSheetPoints(false)[1]).toContain("메모는 나가지 않아요");
     expect(feedOnNote(false)).toBe("주소를 아는 사람은 누구나 이 팀 일정을 볼 수 있어요");
     expect(feedOnNote(true)).toBe("주소를 아는 사람은 누구나 내 일정을 볼 수 있어요");
+  });
+});
+
+describe("용어 (제품 결정: 화면에 '구독' 을 쓰지 않는다)", () => {
+  it("모든 문구에 '구독' 이 없고, 정해진 말을 쓴다", () => {
+    const all = [...Object.values(FEED_COPY), ...feedSheetPoints(false), ...feedSheetPoints(true), feedOnNote(false), feedOnNote(true), lastFetchedText(null)];
+    for (const text of all) expect(text).not.toContain("구독");
+    expect(FEED_COPY.title).toBe("다른 캘린더 앱에서 보기");
+    expect(FEED_COPY.offTeam).toBe("구글 캘린더, 아이폰 캘린더에 이 팀 일정이 보여요. 보기만 되고, 고치는 건 언제볼까에서 해요.");
+    expect(FEED_COPY.create).toBe("연결 주소 만들기");
+    expect(FEED_COPY.copy).toBe("주소 복사");
+    expect(FEED_COPY.apple).toBe("아이폰 캘린더에 추가");
+    expect(FEED_COPY.rotate).toBe("주소 다시 만들기");
+    expect(FEED_COPY.rotateBody).toBe("지금 주소는 바로 끊겨요");
+    expect(FEED_COPY.off).toBe("연결 끊기");
+    expect(FEED_COPY.google).toBe("구글 캘린더 > 다른 캘린더 + > URL로 추가에 붙여 넣으세요");
   });
 });

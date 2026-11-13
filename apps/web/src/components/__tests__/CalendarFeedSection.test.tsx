@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-// (#193) 팀 설정 "내 캘린더에 보이기": 꺼짐 → 고지 시트 → 만들기, 켜짐 버튼과 토글, 메모 켤 때 확인, 다시 만들기, 끄기
+// (#193) 팀 설정 "다른 캘린더 앱에서 보기": 꺼짐 → 고지 시트 → 만들기, 켜짐 버튼과 토글, 메모 켤 때 확인, 다시 만들기, 연결 끊기.
+// 화면 문구에 "구독" 이 없어야 한다 (유료 구독으로 읽힘)
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CalendarFeed } from "@/lib/types";
@@ -55,10 +56,12 @@ describe("CalendarFeedSection (#193)", () => {
   });
   afterEach(cleanup);
 
-  it("꺼짐: 설명(팀원 누구나 구독 가능 고지)과 만들기 버튼. 누르면 고지 시트를 먼저 보이고, 만들기에서 PUT {}", async () => {
+  it("꺼짐: 제목, 설명, 팀원 누구나 만들 수 있다는 고지, 만들기 버튼. 누르면 고지 시트를 먼저 보이고, 만들기에서 PUT {}", async () => {
     save.mockResolvedValue(ok(FEED));
     render(<CalendarFeedSection groupId={1} personal={false} />);
-    expect(screen.getByText(/고치는 건 언제볼까에서 해요/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "다른 캘린더 앱에서 보기" })).toBeTruthy();
+    expect(screen.getByText("구글 캘린더, 아이폰 캘린더에 이 팀 일정이 보여요. 보기만 되고, 고치는 건 언제볼까에서 해요.")).toBeTruthy();
+    expect(screen.getByText("팀원 누구나 자기 연결 주소를 만들 수 있어요")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "연결 주소 만들기" }));
     expect(save).not.toHaveBeenCalled();
     const sheet = screen.getByRole("dialog", { name: "연결 주소를 만들까요?" });
@@ -72,16 +75,14 @@ describe("CalendarFeedSection (#193)", () => {
     expect(setData).toHaveBeenLastCalledWith(FEED);
   });
 
-  it("켜짐(윈도우): 애플 버튼 없음, 구글 추가는 새 창, 복사는 https 주소, 아직 가져가지 않았어요", async () => {
+  it("켜짐(윈도우): 아이폰 버튼 없음, 구글은 붙여 넣기 안내, 복사는 https 주소, 아직 가져가지 않았어요", async () => {
     data = FEED;
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<CalendarFeedSection groupId={1} personal={false} />);
     expect(screen.queryByRole("link", { name: "아이폰 캘린더에 추가" })).toBeNull();
-    const google = screen.getByRole("link", { name: "구글 캘린더에 추가" });
-    expect(google.getAttribute("href")).toBe(FEED.googleAddUrl);
-    expect(google.getAttribute("target")).toBe("_blank");
-    expect(screen.queryByText("구글 캘린더는 컴퓨터에서 다른 캘린더 + > URL로 추가에 붙여 넣으세요")).toBeNull();
+    expect(screen.getByText("구글 캘린더 > 다른 캘린더 + > URL로 추가에 붙여 넣으세요")).toBeTruthy();
+    expect(screen.queryByText("구글 캘린더는 컴퓨터에서만 추가할 수 있어요")).toBeNull();
     expect(screen.getByText("아직 가져가지 않았어요")).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "주소 복사" }));
@@ -90,12 +91,12 @@ describe("CalendarFeedSection (#193)", () => {
     expect(show).toHaveBeenCalledWith("연결 주소를 복사했어요");
   });
 
-  it("켜짐(iPhone): 애플 캘린더는 webcal 링크, 구글은 컴퓨터 안내", () => {
+  it("켜짐(iPhone): 아이폰 캘린더는 webcal 링크, 구글은 컴퓨터에서만 안내", () => {
     setUa("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1");
     data = FEED;
     render(<CalendarFeedSection groupId={1} personal={false} />);
     expect(screen.getByRole("link", { name: "아이폰 캘린더에 추가" }).getAttribute("href")).toBe(FEED.webcalUrl);
-    expect(screen.getByText("구글 캘린더는 컴퓨터에서 다른 캘린더 + > URL로 추가에 붙여 넣으세요")).toBeTruthy();
+    expect(screen.getByText("구글 캘린더는 컴퓨터에서만 추가할 수 있어요")).toBeTruthy();
   });
 
   it("메모 포함은 켤 때 확인 한 번 뒤 PUT, 기념일은 바로 PUT", async () => {
@@ -104,7 +105,7 @@ describe("CalendarFeedSection (#193)", () => {
     render(<CalendarFeedSection groupId={1} personal={false} />);
     fireEvent.click(screen.getByRole("switch", { name: /^메모 포함/ }));
     expect(save).not.toHaveBeenCalled();
-    expect(screen.getByRole("alertdialog", { name: "메모도 내보낼까요?" })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: "메모도 보이게 할까요?" })).toBeTruthy();
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: "메모 포함" }).at(-1)!);
     });
@@ -157,6 +158,25 @@ describe("CalendarFeedSection (#193)", () => {
 
   it("개인 달력은 '내 일정' 문구", () => {
     render(<CalendarFeedSection groupId={1} personal />);
-    expect(screen.getByText("구글 캘린더, 아이폰 캘린더에 내 일정이 보여요. 보기만 되고, 고치는 건 언제볼까에서 해요")).toBeTruthy();
+    expect(screen.getByText("구글 캘린더, 아이폰 캘린더에 내 일정이 보여요. 보기만 되고, 고치는 건 언제볼까에서 해요.")).toBeTruthy();
+    expect(screen.queryByText("팀원 누구나 자기 연결 주소를 만들 수 있어요")).toBeNull();
+  });
+
+  it("꺼짐, 고지 시트, 켜짐, 확인 창 어디에도 '구독' 이 없다", () => {
+    const { unmount } = render(<CalendarFeedSection groupId={1} personal={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "연결 주소 만들기" }));
+    expect(document.body.textContent).not.toContain("구독");
+    unmount();
+    data = FEED;
+    setUa("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1");
+    render(<CalendarFeedSection groupId={1} personal={false} />);
+    expect(document.body.textContent).not.toContain("구독");
+    for (const name of ["주소 다시 만들기", "연결 끊기"]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      expect(document.body.textContent).not.toContain("구독");
+      fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    }
+    fireEvent.click(screen.getByRole("switch", { name: /^메모 포함/ }));
+    expect(document.body.textContent).not.toContain("구독");
   });
 });

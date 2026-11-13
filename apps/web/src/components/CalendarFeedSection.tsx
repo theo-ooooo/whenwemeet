@@ -1,5 +1,5 @@
 "use client";
-// (#193) 팀 설정 "내 캘린더에 보이기": 나만의 구독 주소(ICS) 만들기, 애플/구글에 추가, 복사, 메모와 기념일 토글, 다시 만들기, 끄기
+// (#193) 팀 설정 "다른 캘린더 앱에서 보기": 내 연결 주소(ICS 피드) 만들기, 아이폰 캘린더에 추가, 복사(구글 안내), 메모와 기념일 토글, 다시 만들기, 연결 끊기
 import { useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, Sheet, Skeleton, Toggle } from "@/components/ui";
@@ -109,6 +109,7 @@ export function CalendarFeedSection({ groupId, personal }: { groupId: number; pe
       ) : feed === null ? (
         <>
           <p className="mt-0.5 text-[13px] leading-5 text-soft">{personal ? FEED_COPY.offPersonal : FEED_COPY.offTeam}</p>
+          {!personal && <p className="t-sub mt-1">{FEED_COPY.offTeamNote}</p>}
           <Button variant="secondary" full className="mt-3" onClick={() => setDialog("create")}>
             {FEED_COPY.create}
           </Button>
@@ -122,15 +123,14 @@ export function CalendarFeedSection({ groupId, personal }: { groupId: number; pe
                 {FEED_COPY.apple}
               </a>
             )}
-            <div>
-              <a href={feed.googleAddUrl} target="_blank" rel="noopener noreferrer" className={linkButton}>
-                {FEED_COPY.google}
-              </a>
-              {platform.mobile && <p className="t-sub mt-1 text-center">{FEED_COPY.googleMobile}</p>}
-            </div>
             <Button variant="secondary" full onClick={copy}>
               {FEED_COPY.copy}
             </Button>
+            {/* 구글 캘린더는 앱에서 URL 추가를 못 하고(컴퓨터 웹에서만), 붙여 넣기 안내가 가장 덜 헷갈린다 */}
+            <p className="t-sub text-center">
+              {FEED_COPY.google}
+              {platform.mobile && <span className="block">{FEED_COPY.googleMobile}</span>}
+            </p>
           </div>
           <div className="mt-2 divide-y divide-line">
             <Toggle
@@ -189,7 +189,7 @@ export function CalendarFeedSection({ groupId, personal }: { groupId: number; pe
         open={dialog === "rotate"}
         title={FEED_COPY.rotateTitle}
         body={FEED_COPY.rotateBody}
-        confirmLabel="다시 만들기"
+        confirmLabel={FEED_COPY.rotateConfirm}
         neutral
         loading={rotating}
         onConfirm={doRotate}
