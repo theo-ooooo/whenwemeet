@@ -123,3 +123,41 @@ export function monthBreak(prev: DateKey | null, date: DateKey, today: DateKey):
 export function windowRangeText(range: { from: DateKey; to: DateKey }): string {
   return `${md(range.from)} ~ ${md(addDays(range.to, -1))}`;
 }
+
+/**
+ * (#192 Q3) "지난 일정" 창 i (1 부터, 1 = 오늘 포함 지난 30일). to 는 빼는 끝.
+ * 지난 일정 = 이미 끝난 일정(endsAt <= now). 오늘 끝난 일정도 들어가고, 아직 안 끝난 일정은 다가오는 목록에만 있다
+ */
+export function pastWindow(today: DateKey, index: number): { from: DateKey; to: DateKey } {
+  const to = addDays(today, 1 - (index - 1) * UPCOMING_WINDOW_DAYS);
+  return { from: addDays(to, -UPCOMING_WINDOW_DAYS), to };
+}
+
+/** 지난 창 하나의 날짜 묶음. 끝난 일정만, 시작한 날에 묶는다. 날짜 오름차순 (기념일은 넣지 않는다) */
+export function groupPast(events: Event[] | null | undefined, range: { from: DateKey; to: DateKey }, today: DateKey, nowMs: number): UpcomingDay[] {
+  const byDay = new Map<DateKey, Event[]>();
+  const seen = new Set<string>();
+  for (const ev of events ?? []) {
+    const k = eventKey(ev);
+    if (seen.has(k) || Date.parse(ev.endsAt) > nowMs) continue;
+    seen.add(k);
+    const day = dateKeyOf(ev.startsAt);
+    if (day < range.from || day >= range.to) continue;
+    const arr = byDay.get(day) ?? [];
+    arr.push(ev);
+    byDay.set(day, arr);
+  }
+  return [...byDay.keys()].sort().map((date) => {
+    const dow = dowOf(date);
+    return {
+      date,
+      label: date === addDays(today, -1) ? "어제" : dayLabel(date, today),
+      day: parseKey(date).d,
+      tone: date === today ? "today" : dow === 0 || dow === 6 || holidayOf(date) ? "holiday" : "plain",
+      anniversaries: [],
+      events: (byDay.get(date) ?? []).sort(
+        (a, b) => rank(a) - rank(b) || a.startsAt.localeCompare(b.startsAt) || a.id - b.id || (a.occurrence ?? "").localeCompare(b.occurrence ?? ""),
+      ),
+    };
+  });
+}

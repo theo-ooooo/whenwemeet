@@ -75,6 +75,11 @@ import { TodoHomeSection } from "@/components/TodoHomeSection";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
 import { haptic } from "@/lib/app-bridge";
+import { resolveCalView, withCalView, type CalView } from "@/lib/calendar-view";
+import { useCalendarViewPref } from "@/lib/useCalendarView";
+import { weekDays, weekFetchRange, weekTitle } from "@/lib/week-layout";
+import { ViewToggle } from "@/screens/calendar/ViewToggle";
+import { WeekView } from "@/screens/calendar/WeekView";
 
 type Props = {
   /** `/events/<코드>` 페이지가 넘기는 일정 자리. `/calendar` 는 없음 */
@@ -115,6 +120,12 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const [selected, setSelected] = useState(() => initialEvent?.date ?? dateParam(searchParams.get("date")) ?? today);
   const [{ y, m }, setMonth] = useState(() => monthParam(searchParams.get("month")) ?? parseKey(selected));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // (#192) 월 | 주. 주소 ?view=week 가 우선, 없으면 기기별 마지막 선택 (lib/calendar-view.ts)
+  const viewPref = useCalendarViewPref();
+  const view = resolveCalView(searchParams.get("view"), viewPref.pref);
+  const week = view === "week";
+  // 주 보기는 선택 날짜가 든 주(일~토). ‹ › 는 선택 날짜를 7일씩 옮긴다
+  const days = useMemo(() => weekDays(selected), [selected]);
 
   /* ---------- 날짜 상세 단계 (주소가 원본, 5-5) ---------- */
 
@@ -128,7 +139,12 @@ export function CalendarScreen({ initialEvent = null }: Props) {
 
   // 일 목록은 세 상태 중 하나: 로딩(events=null, 오류 없음) / 오류(eventsError) / 준비됨(events 배열, 비어 있으면 빈 상태)
   // 늦게 온 응답이 최신 상태를 덮지 않는 것, 오류에도 직전 값을 유지하는 것은 훅이 보장한다 (#18)
-  const eventsQ = useEvents(groupId, { from: kstToIso(grid42[0]), to: kstToIso(addDays(grid42[41], 1)) });
+  // (#192) 주 보기는 보이는 주 + 앞뒤 1주(21일). 주를 넘겨도 바로 그릴 수 있게 미리 받아 둔다
+  const fetchWeek = weekFetchRange(selected);
+  const eventsQ = useEvents(
+    groupId,
+    week ? { from: kstToIso(fetchWeek.from), to: kstToIso(fetchWeek.to) } : { from: kstToIso(grid42[0]), to: kstToIso(addDays(grid42[41], 1)) },
+  );
   const events = eventsQ.data;
   const eventsError = eventsQ.error ? messageOf(eventsQ.error, "일정을 불러오지 못했어요") : null;
   const loadEvents = eventsQ.refetch;
@@ -173,7 +189,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const visible = urlStep.open && !closing;
   const ownDepth = Math.max(0, stepDepth(urlStep) - foreign);
   // 닫히는 중에 다른 날짜를 누른 경우: 닫힘이 주소에 반영된 뒤 연다
-  const pending = useRef<{ date: DateKey; ev?: EventRef } | null>(null);
+  const pending = useRef<{ date: DateKey; ev?: EventRef; add?: boolean } | null>(null);
 
   // phone 일 상세에서 고른 다른 날. replaceState 가 useSearchParams 에 닿기 전에도 화면이 그날을 그리게 (스와이프 중 옛 주가 비치지 않게)
   const [dayTarget, setDayTarget] = useState<DateKey | null>(null);
@@ -207,6 +223,13 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     const next = withSelection(window.location.search, selected, today, { y, m });
     if (next !== null) writeUrl(`${CALENDAR_PATH}${next}`, "replace");
   }, [selected, today, y, m, searchParams, pathname]);
+
+  // (#192) 보기를 주소에 남긴다 (저장값으로 주 보기가 된 경우도 새로고침, 공유가 같은 보기로 열리게). 일정 상세 경로 위에서는 쓰지 않는다
+  useEffect(() => {
+    if (onEventRoute()) return;
+    const next = withCalView(window.location.search, view);
+    if (next !== null) writeUrl(`${CALENDAR_PATH}${next}`, "replace");
+  }, [view, searchParams, pathname]);
 
   /** 달력 쿼리의 바탕. 일정 상세 경로 위에서는 주소에 없으니 지금 선택 날짜와 보는 달로 만든다 */
   const calendarSearch = useCallback(() => (onEventRoute() ? (withSelection("", selected, today, { y, m }) ?? "") : window.location.search), [selected, today, y, m]);
@@ -253,6 +276,15 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     },
     { enabled: dayFreeEnabled },
   );
+  // (#192) 주 보기 "빈 시간" 겹쳐 보기 (Q2, 기본 꺼짐). 그 주 7일, 하루 전체, 30분 이상 (api.md 2.5 31일 한도 안)
+  const [showFree, setShowFree] = useState(false);
+  const weekFreeOn = week && showFree;
+  const weekFreeQ = useFreeSlots(
+    groupId,
+    { from: kstToIso(days[0]), to: kstToIso(addDays(days[0], 7)), dayStart: "00:00", dayEnd: "24:00", minMinutes: 30, includeAllDay: false },
+    { enabled: weekFreeOn },
+  );
+  const loadWeekFree = weekFreeQ.refetch;
   // 일정을 추가, 수정, 삭제한 뒤: 일정에서 나오는 값을 모두 다시 받는다 (월 그리드, 다가오는 일정, 이번 주, 비는 시간 QA3-M4)
   const loadTodayFree = todayFreeQ.refetch;
   const loadDayFree = dayFreeQ.refetch;
@@ -263,9 +295,10 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     void loadTodayFree();
     // refetch 는 enabled 를 보지 않으므로 켜져 있을 때만
     if (dayFreeEnabled) void loadDayFree();
+    if (weekFreeOn) void loadWeekFree();
     // 사이드바 "다가오는 일정" 도 다시 받게
     eventsChanged();
-  }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, eventsChanged]);
+  }, [loadEvents, loadUpcoming, loadWeek, wide, loadTodayFree, loadDayFree, dayFreeEnabled, weekFreeOn, loadWeekFree, eventsChanged]);
 
   const dayFreeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간";
   let freeHint: FreeHint = null;
@@ -302,7 +335,15 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   // 요약 카드 라벨: 혼자인 팀은 "비는 시간" (디자인규칙.md 2-2, #212)
   const freeLabel = memberCount <= 1 ? "비는 시간" : memberCount === 2 ? "오늘 둘 다 비는 시간" : "오늘 모두 비는 시간";
   const weekRange = weekQueryOf(today);
-  const weekCount = weekQ.data ? countEventsInRange(weekQ.data, weekRange.from, weekRange.to) : null;
+  // (#192) 주 보기에서는 보이는 주(일~토)를 센다 (격자와 같은 수). 이번 주가 아니면 라벨 "이 주 일정"
+  const weekCount = week
+    ? events
+      ? countEventsInRange(events, kstToIso(days[0]), kstToIso(addDays(days[0], 7)))
+      : null
+    : weekQ.data
+      ? countEventsInRange(weekQ.data, weekRange.from, weekRange.to)
+      : null;
+  const weekCardLabel = week && !days.includes(today) ? "이 주 일정" : "이번 주 일정";
 
   /* ---------- 상세에 넣을 것 ---------- */
 
@@ -316,11 +357,28 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   /* ---------- 동작 ---------- */
 
   function go(n: number) {
-    setMonth(shiftMonth(y, m, n));
+    // (#192) 주 보기는 선택 날짜를 n 주 옮긴다 (보는 달은 그 날짜를 따라간다)
+    if (week) pick(addDays(selected, n * 7));
+    else setMonth(shiftMonth(y, m, n));
   }
+  /** (#192) 월 | 주 전환. 기기에 기억하고 주소도 바꾼다 (일정 상세 경로 위면 기억만. 그 주소에는 달력 쿼리가 없다) */
+  function changeView(v: CalView) {
+    viewPref.save(v);
+    if (onEventRoute()) return;
+    const next = withCalView(window.location.search, v);
+    if (next !== null) writeUrl(`${CALENDAR_PATH}${next}`, "replace");
+  }
+  // 주 보기 좌우 스와이프: 왼쪽으로 밀면 다음 주 (월 달력과 같은 판단, #162)
+  const weekSwipeRef = useMonthSwipe<HTMLDivElement>({
+    enabled: week && !visible,
+    onCommit: (dir) => {
+      go(dir);
+      haptic("light");
+    },
+  });
   // 달력 좌우 스와이프 (#162): 왼쪽으로 밀면 다음 달. 날짜 상세가 떠 있는 동안은 보지 않는다
   const swipeRef = useMonthSwipe<HTMLUListElement>({
-    enabled: !visible,
+    enabled: !week && !visible,
     onCommit: (dir) => {
       go(dir);
       haptic("light");
@@ -346,9 +404,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   }
 
   /** 날짜 상세를 연다 (ev 가 있으면 그 일정 상세까지 두 칸). 이미 열려 있으면 닫고 나서 연다. 넓은 화면은 openDay 가 먼저 패널을 본다 */
-  function openDayFresh(date: DateKey, ev?: EventRef) {
+  function openDayFresh(date: DateKey, ev?: EventRef, add = false) {
     if (urlStep.open) {
-      pending.current = { date, ev };
+      pending.current = { date, ev, add };
       if (!closing) close();
       return;
     }
@@ -361,6 +419,10 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     if (ev !== undefined) {
       routeDates.set(routeKey(ev.publicCode, ev.occurrence ?? null), date);
       writeUrl(dayStepUrl(window.location.search, eventStep(date, ev), today), "push");
+    } else if (add) {
+      // (#192) 주 보기 빈 칸: 날짜 상세 위에 빠른 추가까지 두 칸 (닫으면 그날 목록, 한 번 더 닫으면 주 보기)
+      setIgnoreAdd(false);
+      writeUrl(dayStepUrl(window.location.search, { step: "add", date }, today), "push");
     }
   }
 
@@ -368,7 +430,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const runPending = useEffectEvent(() => {
     const p = pending.current;
     pending.current = null;
-    if (p) openDayFresh(p.date, p.ev);
+    if (p) openDayFresh(p.date, p.ev, p.add);
   });
 
   useEffect(() => {
@@ -422,16 +484,16 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   /* ---------- 넓은 화면 일 상세 패널 (#331) ---------- */
 
   // 일정 상세/빠른 추가에서 한 칸 되돌린 뒤 바꿀 날 (history.back 결과가 주소에 반영되면 아래 효과가 마저 한다)
-  const panelPending = useRef<{ date: DateKey; ev?: EventRef } | null>(null);
+  const panelPending = useRef<{ date: DateKey; ev?: EventRef; add?: boolean } | null>(null);
   /** 열린 패널에서 다른 날(ev 가 있으면 그날의 그 일정 상세까지)로. 기록은 날짜 단계 한 칸(+ 일정 상세 한 칸)을 넘지 않는다 */
-  function showInPanel(date: DateKey, ev?: EventRef) {
+  function showInPanel(date: DateKey, ev?: EventRef, add = false) {
     const move = panelMove(urlStep, ownDepth);
     if (move === "open") {
-      openDayFresh(date, ev);
+      openDayFresh(date, ev, add);
       return;
     }
     if (move === "back") {
-      panelPending.current = { date, ev };
+      panelPending.current = { date, ev, add };
       window.history.back();
       return;
     }
@@ -446,11 +508,12 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       changeDay(date);
     }
     if (ev !== undefined) forward(eventStep(date, ev));
+    else if (add) forward({ step: "add", date });
   }
   const runPanelPending = useEffectEvent(() => {
     const p = panelPending.current;
     panelPending.current = null;
-    if (p) showInPanel(p.date, p.ev);
+    if (p) showInPanel(p.date, p.ev, p.add);
   });
   useEffect(() => {
     if (panelPending.current && urlStep.open && urlStep.step === "day") queueMicrotask(runPanelPending);
@@ -459,9 +522,20 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   }, [urlStep]);
 
   /** 날짜 상세를 연다. (#331) 넓은 화면 패널이 열려 있으면 닫지 않고 내용만 바꾼다 */
-  function openDay(date: DateKey, ev?: EventRef) {
-    if (wide && urlStep.open) showInPanel(date, ev);
-    else openDayFresh(date, ev);
+  function openDay(date: DateKey, ev?: EventRef, add = false) {
+    if (wide && urlStep.open) showInPanel(date, ev, add);
+    else openDayFresh(date, ev, add);
+  }
+
+  // (#192) 빠른 추가의 처음 시작 시각. 주 보기 빈 칸에서 열면 그 시각, "이 날 일정 추가" 는 기본(10:00)
+  const [addStart, setAddStart] = useState<string | null>(null);
+  function addPlain(date: DateKey) {
+    setAddStart(null);
+    forward({ step: "add", date });
+  }
+  function addAtSlot(date: DateKey, time: string) {
+    setAddStart(time);
+    openDay(date, undefined, true);
   }
 
   function onCell(key: DateKey) {
@@ -685,6 +759,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       onPickDay={changeDay}
       onSaved={onQuickSaved}
       onDelete={askDelete}
+      addStart={addStart}
     />
   ) : null;
   // 날짜 단계만 비는 시간 줄과 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다
@@ -692,7 +767,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     surfaceDate && (!urlStep.open || urlStep.step === "day") ? (
       <>
         {freeHint && <DayFreeRow free={freeHint} newEventHref={newEventLink} />}
-        <DayAddButton onAdd={() => forward({ step: "add", date: surfaceDate })} />
+        <DayAddButton onAdd={() => addPlain(surfaceDate)} />
       </>
     ) : null;
 
@@ -759,8 +834,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     );
   const weekCard = (
     <div className={sumCard} aria-busy={weekCount === null && !weekQ.error ? true : undefined}>
-      <span className={sumLabel}>이번 주 일정</span>
-      {weekQ.error ? (
+      <span className={sumLabel}>{weekCardLabel}</span>
+      {!week && weekQ.error ? (
         <button type="button" onClick={() => void loadWeek()} className={`${sumValue} text-left text-[15px] text-ink-2`}>
           불러오기 실패, 다시 시도
         </button>
@@ -790,8 +865,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           stripRef={stripRef}
           onPickDay={changeDay}
           onMonth={close}
+          backLabel={week ? "주 보기" : "월 보기"}
           onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
-          onAdd={() => forward({ step: "add", date: surfaceDate })}
+          onAdd={() => addPlain(surfaceDate)}
           newEventHref={newEventLink}
         />
       )}
@@ -806,36 +882,44 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           </div>
         )}
         <div className="mt-1 flex h-8 items-center fold:hidden">
-          <h1 aria-label={`${y}년 ${m}월`} className="shrink-0 whitespace-nowrap text-[18px] font-bold leading-6 tracking-[-0.02em]">
-            {y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
+          <h1
+            aria-label={week ? weekTitle(days, 0) : `${y}년 ${m}월`}
+            className="min-w-0 truncate whitespace-nowrap text-[18px] font-bold leading-6 tracking-[-0.02em]"
+          >
+            {week ? weekTitle(days, thisYear, true) : y !== thisYear ? `${y}년 ${m}월` : `${m}월`}
           </h1>
-          <span className="flex-1" />
-          <button type="button" onClick={goToday} className="hit h-8 shrink-0 rounded-full bg-paper px-3.5 text-[13px] font-bold">
+          <span className="min-w-2 flex-1" />
+          {/* (#192) 월 | 주 전환 (디자인규칙.md 2-5) */}
+          <ViewToggle value={view} onChange={changeView} className="mr-2" />
+          <button type="button" onClick={goToday} className="hit h-8 shrink-0 rounded-full bg-paper px-3 text-[13px] font-bold">
             오늘
           </button>
-          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-hover">
+          <button type="button" onClick={() => go(-1)} aria-label={week ? "이전 주" : "이전 달"} className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover">
             <IconChevronLeft size={18} />
           </button>
-          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-hover">
+          <button type="button" onClick={() => go(1)} aria-label={week ? "다음 주" : "다음 달"} className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover">
             <IconChevronRight size={18} />
           </button>
         </div>
         {/* 넓은 화면 제목줄 44: "2026년 11월" 28/700, 오늘 알약, ‹ ›, 오른쪽 주 버튼 "일정 추가" (FAB 대신, 디자인규칙.md 2-2).
             본문이 좁은 폭(384 미만. 펼친 사이드바면 뷰포트 712 미만: 아이폰 듀오 펼침 세로 669, 폴드 세로) 에서는
             한 줄에 다 안 들어가 가로 스크롤이 생겼다. 제목만 첫 줄, 둘째 줄에 오늘 ‹ › 와 "+ 추가".
-            (#323) 뷰포트가 아니라 본문 폭(main-narrow/main-roomy)으로 고른다. 사이드바를 접으면 같은 뷰포트에서 본문이 192 넓다 */}
-        <div className="hidden shrink-0 flex-wrap items-center gap-2 fold:flex main-roomy:h-11">
+            (#323) 뷰포트가 아니라 본문 폭(main-narrow/main-roomy)으로 고른다. 사이드바를 접으면 같은 뷰포트에서 본문이 192 넓다.
+            (#192) 주 보기 제목과 "월 | 주" 가 붙어 패널 옆 좁은 칸에서 "일정 추가" 가 다음 줄로 넘어갈 수 있다. 높이를 고정하지 않고(min-h) 오른쪽에 붙인다 */}
+        <div className="hidden shrink-0 flex-wrap items-center gap-2 fold:flex main-roomy:min-h-11">
           <h1 className="mr-2 shrink-0 whitespace-nowrap text-[28px] font-bold leading-9 tracking-[-0.02em] main-narrow:basis-full">
-            {y}년 {m}월
+            {week ? weekTitle(days, thisYear) : `${y}년 ${m}월`}
           </h1>
+          {/* (#192) 월 | 주 전환: 제목 옆, 오늘 알약 앞 (디자인규칙.md 2-5) */}
+          <ViewToggle value={view} onChange={changeView} />
           <button type="button" onClick={goToday} className="hit h-8 shrink-0 whitespace-nowrap rounded-full bg-paper px-3.5 text-[13px] font-bold hover:bg-hover">
             오늘
           </button>
           {/* 화살표는 보이는 크기 32, 누르는 칸 44 가 겹치지 않게 중심 간격 44 (#133) */}
-          <button type="button" onClick={() => go(-1)} aria-label="이전 달" className="hit ml-1 grid size-8 place-items-center rounded-full hover:bg-paper">
+          <button type="button" onClick={() => go(-1)} aria-label={week ? "이전 주" : "이전 달"} className="hit ml-1 grid size-8 place-items-center rounded-full hover:bg-paper">
             <IconChevronLeft size={20} />
           </button>
-          <button type="button" onClick={() => go(1)} aria-label="다음 달" className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-paper">
+          <button type="button" onClick={() => go(1)} aria-label={week ? "다음 주" : "다음 달"} className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-paper">
             <IconChevronRight size={20} />
           </button>
           <span className="flex-1" />
@@ -844,7 +928,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           <Link
             href={newHref}
             aria-label="일정 추가"
-            className={`flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] font-bold hover:brightness-95 main-narrow:px-3 ${
+            className={`ml-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] font-bold hover:brightness-95 main-narrow:px-3 ${
               surfaceDate ? "border border-line bg-paper text-ink" : "bg-btn text-on-btn"
             }`}
           >
@@ -863,7 +947,34 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           {weekCard}
         </div>
 
+        {/* (#192) 주 보기: 7일 × 시간 격자 (screens/calendar/WeekView.tsx) */}
+        {week && (
+          <WeekView
+            days={days}
+            today={today}
+            wide={wide}
+            events={events}
+            eventsError={eventsError}
+            onRetry={reload}
+            annByDay={annByDay}
+            anchor={wide && surfaceDate ? surfaceDate : null}
+            free={{
+              on: showFree,
+              onToggle: () => setShowFree((v) => !v),
+              label: memberCount <= 1 ? "빈 시간" : memberCount === 2 ? "둘 다 비는 시간" : "모두 비는 시간",
+              slots: weekFreeQ.data?.slots ?? null,
+              error: weekFreeQ.error !== null,
+            }}
+            newHref={newHref}
+            swipeRef={weekSwipeRef}
+            onOpenDay={(d) => (wide && visible ? showInPanel(d) : openDay(d))}
+            onOpenEvent={(d, ev) => openDay(d, ev)}
+            onAdd={addAtSlot}
+          />
+        )}
+
         {/* 달력 타일 */}
+        {!week && (
         <div className="mt-2 overflow-x-clip rounded-xl bg-paper px-1.5 pb-1 fold:mt-3 fold:flex fold:min-h-0 fold:flex-1 fold:flex-col fold:px-2">
           <div aria-hidden="true" className="grid h-7 grid-cols-7 items-center text-center text-[11px] font-semibold text-ink-2">
             {WEEKDAYS.map((w, i) => (
@@ -924,6 +1035,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             )}
           </div>
         </div>
+        )}
 
         {/* phone: 다가오는 일정, 기념일, 할 일(#276) 가로 카드 구역 (그날 내용은 일 상세가 보여 준다) */}
         <div className="fold:hidden">

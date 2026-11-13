@@ -49,6 +49,8 @@ type Props = {
   onPickDay: (date: DateKey) => void;
   onSaved: (ev: Event) => void;
   onDelete: () => void;
+  /** (#192) 빠른 추가의 처음 시작 시각 'HH:mm' (주 보기 빈 칸). 없으면 폼 기본값 */
+  addStart?: string | null;
 };
 
 /** "10일 화요일" */
@@ -75,6 +77,8 @@ export function DayPanel(props: Props) {
     <div ref={box} key={step} className="anim-swap">
       {step === "add" ? (
         <QuickAddForm
+          key={props.addStart ?? ""}
+          initialStart={props.addStart ?? undefined}
           groupId={props.groupId}
           date={props.date}
           titleId={props.titleId}

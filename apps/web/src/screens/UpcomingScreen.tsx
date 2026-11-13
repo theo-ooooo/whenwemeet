@@ -4,6 +4,7 @@
 //   왼쪽 48px 열(라벨 11 "오늘"/"내일"/요일 + 날짜 16/700) + 흰 카드 한 장에 줄(3px 멤버 막대 + 제목 15/600 + 시각, 등록자 12 --mute).
 //   기념일 항목은 그날 카드의 첫 줄(하트 아이콘). 달이 바뀌는 곳에 "12월" 구분 제목.
 // "30일 더 보기" 로 다음 30일 창을 하나씩 더 받는다 (api.md 2.3 한 번에 62일까지). 묶음 규칙은 lib/upcoming.ts
+// (#192 Q3) 맨 위 "지난 30일 보기" 로 끝난 일정을 30일씩 거슬러 본다 (별도 목록 화면은 만들지 않는다)
 import Link from "next/link";
 import { useState } from "react";
 import { IconChevronLeft, IconHeart, IconPlus } from "@/components/icons";
@@ -19,7 +20,9 @@ import { eventKey } from "@/lib/recurrence";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
 import type { Anniversary } from "@/lib/types";
 import {
+  groupPast,
   groupUpcoming,
+  pastWindow,
   monthBreak,
   upcomingTimeText,
   upcomingWindow,
@@ -34,6 +37,8 @@ export function UpcomingScreen() {
   const [nowMs] = useState(Date.now);
   // 받을 창 수. 1 = 오늘부터 30일
   const [count, setCount] = useState(1);
+  // 거슬러 받은 지난 창 수. 0 = 지난 일정 안 봄
+  const [pastCount, setPastCount] = useState(0);
   const annQ = useAnniversaries(groupId);
   // 기념일은 못 받아도 일정만 보여 준다
   const anniversaries = annQ.data ?? (annQ.error ? [] : null);
@@ -58,6 +63,26 @@ export function UpcomingScreen() {
           <IconPlus size={14} strokeWidth={2.2} />
           일정 추가
         </Link>
+      </div>
+
+      {/* 지난 일정: 버튼 → 오래된 창부터 위에서 아래로. 끝나면 "지금부터" 구분 뒤 다가오는 일정 */}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => setPastCount((c) => c + 1)}
+          className="h-10 w-full rounded-md border border-line bg-paper text-[13px] font-bold text-ink-2 hover:text-ink hover:brightness-95"
+        >
+          {pastCount === 0 ? "지난 30일 보기" : "지난 30일 더 보기"}
+        </button>
+        {pastCount > 0 && (
+          <section aria-label="지난 일정" className="mt-4">
+            <PastList groupId={groupId} index={pastCount} prevDate={null} today={today} nowMs={nowMs} />
+            <h2 className="mt-6 flex items-center gap-2 text-[13px] font-bold leading-[18px] text-today-ink">
+              지금부터
+              <i aria-hidden="true" className="block h-px flex-1 bg-line" />
+            </h2>
+          </section>
+        )}
       </div>
 
       <div className="mt-3">
@@ -142,6 +167,29 @@ function WindowList(props: WindowProps) {
       ) : (
         <WindowList {...props} index={index + 1} prevDate={last} />
       )}
+    </>
+  );
+}
+
+/** (#192) 지난 창 하나 (index 가 클수록 오래된 창). 다 받으면 묶음을 그리고 더 최근 창(index - 1)을 이어서 그린다 */
+function PastList({ groupId, index, prevDate, today, nowMs }: { groupId: number; index: number; prevDate: DateKey | null; today: DateKey; nowMs: number }) {
+  const range = pastWindow(today, index);
+  const q = useEvents(groupId, { from: kstToIso(range.from), to: kstToIso(range.to) });
+  if (q.error && !q.data) {
+    return <ErrorState message={messageOf(q.error, "지난 일정을 불러오지 못했어요")} onRetry={() => void q.refetch()} />;
+  }
+  if (!q.data) return <ListSkeleton />;
+  const days = groupPast(q.data, range, today, nowMs);
+  const last = days.length ? days[days.length - 1].date : prevDate;
+  return (
+    <>
+      {days.length === 0 ? (
+        <p className="flex min-h-11 items-center text-[14px] text-ink-2">{windowRangeText(range)}에는 지난 일정이 없어요.
+        </p>
+      ) : (
+        <DayGroups days={days} prevDate={prevDate} today={today} first={prevDate === null} />
+      )}
+      {index > 1 && <PastList groupId={groupId} index={index - 1} prevDate={last} today={today} nowMs={nowMs} />}
     </>
   );
 }

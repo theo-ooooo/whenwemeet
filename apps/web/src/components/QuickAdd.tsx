@@ -29,17 +29,19 @@ type Props = {
   onBack: () => void;
   /** 저장 성공. 화면은 목록을 다시 받아 바로 보여준다 */
   onSaved: (ev: Event) => void;
+  /** (#192) 처음 시작 시각 'HH:mm'. 종료는 1시간 뒤(자정에서 멈춘다). 없으면 10:00~11:00 */
+  initialStart?: string;
 };
 
 /* ---------- 폼 (시트, 팝오버 공통) ---------- */
 
-export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId }: Props) {
+export function QuickAddForm({ groupId, date, onClose, onBack, onSaved, titleId, initialStart }: Props) {
   const router = useRouter();
   const ids = useId();
   const [title, setTitle] = useState("");
   const [allDay, setAllDay] = useState(false);
-  const [start, setStart] = useState("10:00");
-  const [end, setEnd] = useState("11:00");
+  const [start, setStart] = useState(initialStart ?? "10:00");
+  const [end, setEnd] = useState(() => (initialStart ? timeOfMinutes(Math.min((minutesOf(initialStart) ?? 600) + 60, 24 * 60)) : "11:00"));
   const [timeOpen, setTimeOpen] = useState<"start" | "end" | null>(null);
   // 알림 (#188, 8장 "빠른 추가 시트 포함"). 시트 안이라 줄 아래로 펼친다
   const [reminder, setReminder] = useState<EventReminder>("NONE");

@@ -417,7 +417,7 @@ ActivityPayload =
    (#191) 팀이 남으면 GroupActivity MEMBER_LEFT 한 줄 (actorName = 지운 멤버십의 표시 이름 ?? 닉네임, D-152)
    (#274) 내가 이 팀에서 만든 살아 있는 일정 공유 링크를 끊는다 (revokedAt = 지금, D-183)
    (#300) 내가 이 팀을 처음 여는 달력으로 고정했으면(User.startGroupId = 이 팀) LAST 로 되돌린다 (D-192)
-   (#193) 내 이 팀 구독 주소(CalendarFeed)를 지운다 (D-217)
+   (#193) 내 이 팀 구독 주소(CalendarFeed)를 지운다 (D-222)
    (#248) 이어서 그 팀 일정의 내 참여자 행 삭제 (EventParticipant where userId = 나, event.groupId = 이 팀). 0 이 된 일정은 "참여자 없음".
    로그, 새 소식, 알림 없음. 다시 합류해도 복구하지 않는다 (D-139)
 3. 남은 멤버 0 이면 이 팀을 고정한 사용자 전부 LAST 로 되돌리고(#300) Group 삭제 (Cascade 로 일정/기념일/로그/멤버십 전부) → groupDeleted: true
@@ -567,7 +567,7 @@ TodoItem        = { id, listId, text, done, doneAt: string | null, doneBy: Membe
 - `done: true` 는 doneAt = 지금, doneBy = 나, `false` 는 둘 다 null. 목록 updatedAt, editor 는 목록과 항목이 실제로 바뀔 때마다 올린다
 - 새 소식, 푸시 기록 없음. 요청 제한은 기본 한도만 (D-210)
 
-### 2.12 외부 캘린더 구독 (#193, 설계 `캘린더-내보내기.md`, D-217 ~ D-221)
+### 2.12 외부 캘린더 구독 (#193, 설계 `캘린더-내보내기.md`, D-222 ~ D-221)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
