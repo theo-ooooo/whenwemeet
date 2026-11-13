@@ -5,6 +5,7 @@
 // 보이는 달력의 다른 날을 누르면 패널 내용만 바뀐다(CalendarScreen). 닫기는 ✕ 와 Esc.
 // 열리면 제목으로 포커스(DayPanel), 닫히면 그때의 날짜 칸으로 포커스를 돌린다
 import { useEffect, useRef } from "react";
+import { dayCellSelector } from "@/lib/calendar-keys";
 
 type Props = {
   /** 지금 패널의 날짜. 닫힐 때 이 날짜 칸으로 포커스를 돌린다 */
@@ -18,9 +19,9 @@ type Props = {
   children: React.ReactNode;
 };
 
-/** 달력의 날짜 칸 버튼 (CalendarScreen DayCell: li[data-date] > button) */
+/** 달력의 날짜 칸 버튼 (월 달력 DayCell: [data-date] > button, 주 보기 날짜 머리: button[data-date], #201) */
 function dayCellButton(date: string): HTMLElement | null {
-  return document.querySelector<HTMLElement>(`[data-date="${date}"] > button`);
+  return document.querySelector<HTMLElement>(dayCellSelector(date));
 }
 
 export function DayDock({ date, titleId, onClose, paused = false, footer, children }: Props) {

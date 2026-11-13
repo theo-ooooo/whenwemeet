@@ -325,6 +325,11 @@ body {
   outline: none;
 }
 
+/* (#201) 달력 날짜 칸은 포커스 테두리를 칸 안쪽 형제 표시(z 위)로 그린다. 바깥 테두리는 옆 칸 선, 겹쳐 그린 칩, 카드 가장자리에 잘린다 */
+[data-ring-inside]:focus-visible {
+  outline: none;
+}
+
 /* 요소 기본값은 base 레이어에 둬야 Tailwind 유틸리티(text-[26px] 등)가 이긴다 */
 @layer base {
   input,

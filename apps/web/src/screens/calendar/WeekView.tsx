@@ -10,6 +10,7 @@ import { DotCluster, useWho } from "@/components/Participants";
 import { IconHeart } from "@/components/icons";
 import { Skeleton } from "@/components/ui";
 import { occurrenceCellText, occurrenceTitle, type Occurrence } from "@/lib/anniversary";
+import { weekRowTarget } from "@/lib/calendar-keys";
 import { groupByDay } from "@/lib/day-detail";
 import { dowOf, formatDateKo, formatEventTime, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
@@ -120,6 +121,21 @@ export function WeekView(props: Props) {
 
   const cols = `${GUTTER}px repeat(7, minmax(0, 1fr))`;
 
+  // (#201) 날짜 머리 roving tabindex. 옮겨 둔 칸 → 패널이 연 날 → 오늘 → 일요일 중 이 주 안의 첫 칸
+  const [headFocus, setHeadFocus] = useState<DateKey | null>(null);
+  const headKey = [headFocus, anchor, today].find((k): k is DateKey => k !== null && days.includes(k)) ?? days[0];
+  const headRow = useRef<HTMLDivElement>(null);
+  function onHeadKey(e: React.KeyboardEvent) {
+    const from = (e.target as HTMLElement).dataset.date;
+    if (!from) return;
+    const next = weekRowTarget(from, e);
+    // 이 주 밖(PageUp/PageDown, 일요일에서 ←)은 받지 않는다. 주는 ‹ › 로 넘긴다
+    if (!next || !days.includes(next)) return;
+    e.preventDefault();
+    setHeadFocus(next);
+    headRow.current?.querySelector<HTMLButtonElement>(`button[data-date="${next}"]`)?.focus();
+  }
+
   return (
     <div
       ref={swipeRef}
@@ -159,10 +175,21 @@ export function WeekView(props: Props) {
       </div>
 
       {/* 날짜 머리 */}
-      <div className="grid shrink-0 border-b border-line" style={{ gridTemplateColumns: cols }}>
+      {/* (#201) 날짜 머리 7칸은 Tab 정지점 하나(roving): ← → 하루, Home End 주 처음/끝. 주를 넘기는 것은 ‹ › 와 스와이프 */}
+      <div ref={headRow} role="group" aria-label="이 주 날짜" onKeyDown={onHeadKey} className="grid shrink-0 border-b border-line" style={{ gridTemplateColumns: cols }}>
         <span aria-hidden="true" />
         {days.map((d) => (
-          <DayHead key={d} date={d} today={today} anchor={anchor === d} ann={annByDay.get(d) ?? []} wide={wide} onOpen={() => onOpenDay(d)} />
+          <DayHead
+            key={d}
+            date={d}
+            today={today}
+            anchor={anchor === d}
+            tabbable={d === headKey}
+            ann={annByDay.get(d) ?? []}
+            wide={wide}
+            onFocus={() => setHeadFocus(d)}
+            onOpen={() => onOpenDay(d)}
+          />
         ))}
       </div>
 
@@ -272,7 +299,25 @@ export function WeekView(props: Props) {
 }
 
 /** 날짜 머리 칸: 요일 11 + 날짜 숫자, 아래 기념일(하트) 또는 공휴일 이름 한 줄 (월 칸과 같은 우선순위, D-61) */
-function DayHead({ date, today, anchor, ann, wide, onOpen }: { date: DateKey; today: DateKey; anchor: boolean; ann: Occurrence[]; wide: boolean; onOpen: () => void }) {
+function DayHead({
+  date,
+  today,
+  anchor,
+  tabbable,
+  ann,
+  wide,
+  onFocus,
+  onOpen,
+}: {
+  date: DateKey;
+  today: DateKey;
+  anchor: boolean;
+  tabbable: boolean;
+  ann: Occurrence[];
+  wide: boolean;
+  onFocus: () => void;
+  onOpen: () => void;
+}) {
   const dow = dowOf(date);
   const holiday = holidayOf(date);
   const red = dow === 0 || dow === 6 || Boolean(holiday);
@@ -285,7 +330,10 @@ function DayHead({ date, today, anchor, ann, wide, onOpen }: { date: DateKey; to
   return (
     <button
       type="button"
+      data-date={date}
       onClick={onOpen}
+      onFocus={onFocus}
+      tabIndex={tabbable ? 0 : -1}
       aria-label={label}
       aria-haspopup="dialog"
       aria-current={isToday ? "date" : undefined}

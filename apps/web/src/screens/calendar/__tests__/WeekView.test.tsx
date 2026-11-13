@@ -156,3 +156,32 @@ describe("ViewToggle", () => {
     expect(onChange).toHaveBeenLastCalledWith("week");
   });
 });
+
+describe("WeekView 날짜 머리 키보드 (#201)", () => {
+  it("Tab 정지점 하나(오늘), ← → Home End 로 이 주 안에서만 옮긴다", () => {
+    const p = view();
+    const group = screen.getByRole("group", { name: "이 주 날짜" });
+    const tabbable = group.querySelectorAll('button[tabindex="0"]');
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0].getAttribute("data-date")).toBe("2026-11-12");
+    (tabbable[0] as HTMLElement).focus();
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect((document.activeElement as HTMLElement).dataset.date).toBe("2026-11-13");
+    fireEvent.keyDown(document.activeElement!, { key: "End" });
+    expect((document.activeElement as HTMLElement).dataset.date).toBe("2026-11-14");
+    // 토요일에서 → 는 이 주 밖이라 그대로
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect((document.activeElement as HTMLElement).dataset.date).toBe("2026-11-14");
+    fireEvent.keyDown(document.activeElement!, { key: "Home" });
+    expect((document.activeElement as HTMLElement).dataset.date).toBe("2026-11-08");
+    expect(group.querySelectorAll('button[tabindex="0"]')).toHaveLength(1);
+    fireEvent.click(document.activeElement!);
+    expect(p.onOpenDay).toHaveBeenCalledWith("2026-11-08");
+  });
+
+  it("패널이 연 날이 있으면 그 칸이 Tab 정지점", () => {
+    view({ anchor: "2026-11-10" });
+    const group = screen.getByRole("group", { name: "이 주 날짜" });
+    expect(group.querySelector('button[tabindex="0"]')?.getAttribute("data-date")).toBe("2026-11-10");
+  });
+});
