@@ -75,7 +75,7 @@ import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event, EventScope } from "@/lib/types";
 import { useLayout } from "@/lib/useLayout";
-import { PollHomeSection } from "@/components/PollHomeSection";
+import { PollHomeSection, PollSideLine } from "@/components/PollHomeSection";
 import { TodoHomeSection } from "@/components/TodoHomeSection";
 import { useMonthSwipe } from "@/lib/useMonthSwipe";
 import { countEventsInRange, weekQueryOf } from "@/lib/week-summary";
@@ -939,6 +939,13 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             {together && <TogetherHint hint={together} />}
           </div>
         )}
+        {/* 폰: 진행 중 약속 투표가 있으면 달력 위에 한 줄 카드 (가장 급한 투표 + 나머지 수). 넓은 화면은 사이드바가 같은 줄을 둔다 */}
+        <PollSideLine
+          groupId={groupId}
+          enabled={!wide && group?.type === "TEAM"}
+          refreshKey={null}
+          className="mb-3 flex h-14 items-center gap-2.5 rounded-xl bg-paper px-3.5 hover:bg-hover fold:hidden"
+        />
         <div className="mt-1 flex h-8 items-center fold:hidden">
           <h1
             aria-label={week ? weekTitle(days, 0) : `${y}년 ${m}월`}
