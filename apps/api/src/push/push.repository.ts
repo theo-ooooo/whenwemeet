@@ -6,7 +6,9 @@ import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './
 import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { ChangeLogSnapshot, Platform, PushKindName, PushPayload } from './push-copy.js';
 import type { EventReminder } from './remind-at.js';
-import type { AnniversaryReminderFlags } from '../anniversaries/anniversary-reminders.js';
+import { type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT } from '../anniversaries/anniversary-reminders.js';
+import { type PreferenceKind, preferenceOn } from '../notification-preferences/notification-preferences.js';
+import { NotificationPreferencesRepository } from '../notification-preferences/notification-preferences.repository.js';
 import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
 
 /** 사용자당 기기 상한 (D-83) */
@@ -267,44 +269,27 @@ export interface CreatedLog {
 const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);
 
-const SETTINGS_SELECT = {
-  notifyReminder: true,
-  notifyChange: true,
-  notifyAnniversary: true,
-  notifyJoin: true,
-  notifyWeekly: true,
-  notifyWeeklyNudge: true,
-  notifyPoll: true,
-} as const;
-
-/** 받는 사람을 거르는 User 설정 컬럼 */
-export type SettingColumn = keyof typeof SETTINGS_SELECT;
-
-/** 종류별 설정 컬럼 (설계 5-6 받는 사람 표). (#277) WEEKLY 의 NUDGE 는 notifyWeeklyNudge 를 따로 넘긴다 (D-204) */
-const KIND_SETTING: Record<PushKindName, SettingColumn> = {
-  REMINDER: 'notifyReminder',
-  CHANGE: 'notifyChange',
-  ANNIVERSARY: 'notifyAnniversary',
-  JOIN: 'notifyJoin',
-  WEEKLY: 'notifyWeekly',
-  POLL: 'notifyPoll',
+/** (#369) 설정 API 키 ↔ 알림 종류 (NotificationPreference.kind, D-249) */
+const SETTING_KIND: Record<keyof NotificationSettings, PreferenceKind> = {
+  reminder: 'REMINDER',
+  change: 'CHANGE',
+  anniversary: 'ANNIVERSARY',
+  join: 'JOIN',
+  weekly: 'WEEKLY',
+  weeklyNudge: 'WEEKLY_NUDGE',
+  poll: 'POLL',
 };
+
+/** 받는 사람을 거르는 알림 종류. 푸시 종류 이름과 같고 WEEKLY 의 NUDGE 만 WEEKLY_NUDGE 를 따로 넘긴다 (D-204) */
+export type SettingKind = PreferenceKind;
 
 const BUSY_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
 const idsOf = (rows: { userId: number }[]): number[] => rows.map((row) => row.userId).sort((a, b) => a - b);
 
 const ACTIVE_REMINDERS: EventReminder[] = ['AT_START', 'MIN_10', 'HOUR_1', 'DAY_1', 'DAY_OF_0900', 'DAY_BEFORE_0900'];
 
-function toSettings(row: Record<SettingColumn, boolean>): NotificationSettings {
-  return {
-    reminder: row.notifyReminder,
-    change: row.notifyChange,
-    anniversary: row.notifyAnniversary,
-    join: row.notifyJoin,
-    weekly: row.notifyWeekly,
-    weeklyNudge: row.notifyWeeklyNudge,
-    poll: row.notifyPoll,
-  };
+function toSettings(values: Record<PreferenceKind, boolean>): NotificationSettings {
+  return Object.fromEntries(Object.entries(SETTING_KIND).map(([key, kind]) => [key, values[kind]])) as unknown as NotificationSettings;
 }
 
 const asPayload = (value: Prisma.JsonValue | null): PushPayload | null => (value === null ? null : (value as unknown as PushPayload));
@@ -313,7 +298,10 @@ const toJson = (payload: PushPayload): Prisma.InputJsonValue => payload as unkno
 /** 푸시 알림 저장소 (#188). 기기, 설정, 임대, 예약, 발송 기록 */
 @Injectable()
 export class PushRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly preferences: NotificationPreferencesRepository,
+  ) {}
 
   // ---------- 기기 (설계 2-3, 7-1) ----------
 
@@ -347,20 +335,16 @@ export class PushRepository {
   // ---------- 설정 (설계 7-1) ----------
 
   async getSettings(userId: number): Promise<NotificationSettings | null> {
-    const row = await this.prisma.user.findUnique({ where: { id: userId }, select: SETTINGS_SELECT });
-    return row && toSettings(row);
+    const values = await this.preferences.find(userId);
+    return values && toSettings(values);
   }
 
   async updateSettings(userId: number, patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
-    const data: Partial<Record<keyof typeof SETTINGS_SELECT, boolean>> = {};
-    if (patch.reminder !== undefined) data.notifyReminder = patch.reminder;
-    if (patch.change !== undefined) data.notifyChange = patch.change;
-    if (patch.anniversary !== undefined) data.notifyAnniversary = patch.anniversary;
-    if (patch.join !== undefined) data.notifyJoin = patch.join;
-    if (patch.weekly !== undefined) data.notifyWeekly = patch.weekly;
-    if (patch.weeklyNudge !== undefined) data.notifyWeeklyNudge = patch.weeklyNudge;
-    if (patch.poll !== undefined) data.notifyPoll = patch.poll;
-    return toSettings(await this.prisma.user.update({ where: { id: userId }, data, select: SETTINGS_SELECT }));
+    const values: Partial<Record<PreferenceKind, boolean>> = {};
+    for (const [key, kind] of Object.entries(SETTING_KIND) as [keyof NotificationSettings, PreferenceKind][]) {
+      if (patch[key] !== undefined) values[kind] = patch[key];
+    }
+    return toSettings(await this.preferences.set(userId, values));
   }
 
   // ---------- 임대 (설계 5-1, D-87) ----------
@@ -495,22 +479,26 @@ export class PushRepository {
   async listAnniversaries(): Promise<AnniversaryPlanRow[]> {
     const rows = await this.prisma.anniversary.findMany({
       // (#269) 알림 없음(셋 다 꺼짐) 은 읽지 않는다
-      where: { OR: [{ remindDayOf: true }, { remindDayBefore: true }, { remindWeekBefore: true }] },
+      where: { reminders: { some: {} } },
       select: {
         id: true,
         groupId: true,
         name: true,
         date: true,
         kind: true,
-        remindDayOf: true,
-        remindDayBefore: true,
-        remindWeekBefore: true,
+        reminders: REMINDER_ROWS_SELECT,
         updatedAt: true,
         group: { select: { name: true, publicCode: true } },
       },
       orderBy: { id: 'asc' },
     });
-    return rows.map(({ group, date, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, date: dbToDate(date) }));
+    return rows.map(({ group, date, reminders, ...row }) => ({
+      ...row,
+      ...flagsFromRows(reminders),
+      groupName: group.name,
+      groupCode: group.publicCode,
+      date: dbToDate(date),
+    }));
   }
 
   /**
@@ -522,14 +510,14 @@ export class PushRepository {
       where: {
         showBirthday: true,
         group: { type: 'TEAM' },
-        user: { birthday: { not: null }, OR: [{ birthdayRemindDayOf: true }, { birthdayRemindDayBefore: true }, { birthdayRemindWeekBefore: true }] },
+        user: { birthday: { not: null }, birthdayReminders: { some: {} } },
       },
       select: {
         userId: true,
         groupId: true,
         displayName: true,
         group: { select: { name: true, publicCode: true } },
-        user: { select: { nickname: true, birthday: true, birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true } },
+        user: { select: { nickname: true, birthday: true, birthdayReminders: REMINDER_ROWS_SELECT } },
       },
       orderBy: { id: 'asc' },
     });
@@ -540,9 +528,7 @@ export class PushRepository {
       groupCode: group.publicCode,
       name: row.displayName ?? user.nickname,
       birthday: user.birthday!,
-      remindDayOf: user.birthdayRemindDayOf,
-      remindDayBefore: user.birthdayRemindDayBefore,
-      remindWeekBefore: user.birthdayRemindWeekBefore,
+      ...flagsFromRows(user.birthdayReminders),
     }));
   }
 
@@ -724,7 +710,7 @@ export class PushRepository {
   }
 
   /**
-   * (#189) userIds 중(null 이면 팀원 전원) 지금 팀원 × 기기, notifyPoll 과 팀 알림이 켜진 것. excludeUserId 는 뺀다.
+   * (#189) userIds 중(null 이면 팀원 전원) 지금 팀원 × 기기, 약속 투표 알림(POLL)과 팀 알림이 켜진 것. excludeUserId 는 뺀다.
    * joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (지난 일을 알리는 "정함", D-180)
    */
   async listPollRecipients(groupId: number, userIds: number[] | null, excludeUserId: number | null, joinedBy: Date | null): Promise<Recipient[]> {
@@ -733,7 +719,7 @@ export class PushRepository {
       where: {
         groupId,
         notify: true,
-        user: { notifyPoll: true },
+        user: preferenceOn('POLL'),
         ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
         ...(userIds === null ? {} : { AND: [{ userId: { in: userIds } }] }),
         ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),
@@ -750,7 +736,7 @@ export class PushRepository {
     const rows = await this.prisma.group.findMany({
       where: {
         memberships: {
-          some: { notify: true, user: { OR: [{ notifyWeekly: true }, { notifyWeeklyNudge: true }], pushDevices: { some: {} } } },
+          some: { notify: true, user: { OR: [preferenceOn('WEEKLY'), preferenceOn('WEEKLY_NUDGE')], pushDevices: { some: {} } } },
         },
       },
       select: { id: true },
@@ -977,7 +963,7 @@ export class PushRepository {
    * 지금 팀원 × 기기 중 종류 설정과 팀 설정이 켜진 것. excludeUserId 는 뺀다 (설계 5-6 받는 사람).
    * (#248) REMINDER 는 펼치는 순간 그 일정의 참여자만 ("모두" 면 팀원 전원). 참여자 없음이거나 일정이 없으면 0명 (D-138).
    * (#297) joinedBy 를 주면 그 시각까지 들어와 있던 팀원만 (joinedAt <= joinedBy). 지난 일을 알리는 CHANGE, JOIN 용 (D-180).
-   * (#277) setting 은 종류 기본 컬럼 대신 볼 설정 (WEEKLY NUDGE 는 notifyWeeklyNudge, D-204)
+   * (#277) setting 은 푸시 종류와 같은 이름의 알림 종류 대신 볼 설정 (WEEKLY NUDGE 는 WEEKLY_NUDGE, D-204). (#369) 행이 없으면 기본값 (D-249)
    */
   async listRecipients(
     groupId: number,
@@ -985,7 +971,7 @@ export class PushRepository {
     excludeUserId: number | null,
     eventId: number | null = null,
     joinedBy: Date | null = null,
-    setting: SettingColumn = KIND_SETTING[kind],
+    setting: SettingKind = kind,
   ): Promise<Recipient[]> {
     let participantIds: number[] | null = null;
     if (kind === 'REMINDER' && eventId !== null) {
@@ -1001,7 +987,7 @@ export class PushRepository {
       where: {
         groupId,
         notify: true,
-        user: { [setting]: true } as Prisma.UserWhereInput,
+        user: preferenceOn(setting),
         ...(excludeUserId === null ? {} : { userId: { not: excludeUserId } }),
         ...(participantIds === null ? {} : { AND: [{ userId: { in: participantIds } }] }),
         ...(joinedBy === null ? {} : { joinedAt: { lte: joinedBy } }),

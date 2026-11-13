@@ -3,11 +3,14 @@
 // 내용: 제목, 시간, 반복, 알림, 참여자(#248), 메모, "○○님이 추가", 등록/수정 시각, 수정/복제/삭제. 제목줄 [공유](#274).
 // 개인 팀은 사람 표시가 없던 그대로 등록자 한 줄만 둔다 (7-2)
 // (#190) 참여자 줄 아래 참석 여부(참여자만)와 반응 줄. 개인 팀은 둘 다 숨긴다
+// (#199) 시간 정보 바로 아래 "장소"(작은 지도 + 길찾기)와 "메모" 칸. 메모는 이름 있는 칸, 읽기 좋은 글자, 링크. 없으면 칸이 없다
 import { useRouter } from "next/navigation";
 import { useEventShareSheet } from "./EventShareSheet";
 import { IconArrowRight, IconBell, IconChevronLeft, IconShare } from "./icons";
 import { CloseButton } from "./ui";
 import { EventResponses } from "./EventResponses";
+import { MemoSection } from "./MemoSection";
+import { PlaceSection } from "./PlaceSection";
 import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
@@ -142,11 +145,12 @@ export function EventDetail({
           {remind}
         </p>
       )}
+      <PlaceSection place={ev.place} />
+      <MemoSection memo={ev.memo} />
       {!who.personal && <ParticipantList event={ev} meId={who.meId} />}
       {!who.personal && ev.rsvp && (
         <EventResponses key={eventKey(ev)} event={ev} groupId={groupId} meId={who.meId} showRsvp={showRsvp(ev, who.personal)} onChanged={onResponded} />
       )}
-      {ev.memo && <p className="mt-2.5 whitespace-pre-wrap text-[14px] leading-5 text-soft">{ev.memo}</p>}
       {/* 참여자와 등록자는 다를 수 있다. 등록자는 여기 한 줄 (#248 D-140) */}
       {!who.personal && <p className="mt-2.5 text-[12px] leading-4 text-ink-2">{ev.creator.displayName}님이 추가</p>}
       <p className={`${who.personal ? "mt-2.5" : "mt-0.5"} text-[12px] leading-4 text-ink-2`}>

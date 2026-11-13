@@ -17,7 +17,6 @@ import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useStat
 import { useGroupContext } from "@/components/AppShell";
 import { DayDock } from "@/components/DayDock";
 import { DayAddButton, DayFreeRow, DayPanel, type FreeHint } from "@/components/DayPanel";
-import { NeedsRsvpTag } from "@/components/EventResponses";
 import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
@@ -67,7 +66,6 @@ import {
 import { cellDensity } from "@/lib/calendar-cell";
 import { fitWeek, packWeek, phoneDayLanes, phoneWeek, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { upcomingSlots } from "@/lib/free-time";
-import { needsMyRsvp } from "@/lib/rsvp";
 import { holidayOf } from "@/lib/holidays";
 import { eventKey } from "@/lib/recurrence";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
@@ -686,7 +684,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                   type="button"
                   onClick={() => openDay(k, ev)}
                   aria-label={withWho(
-                    `${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}${needsMyRsvp(ev, who.meId, who.personal, nowMs()) ? ", 응답 필요" : ""}`,
+                    `${isToday ? "오늘" : formatDateKo(k)} ${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`,
                     ev,
                     who,
                   )}
@@ -700,7 +698,6 @@ export function CalendarScreen({ initialEvent = null }: Props) {
                     <DotCluster event={ev} size={8} gap={3} className="ml-auto" plusClass="text-[11px] font-bold leading-none text-soft" />
                   </span>
                   <b aria-hidden="true" className="mt-1.5 line-clamp-2 text-[16px] font-bold leading-[22px] tracking-[-0.02em]">
-                    {needsMyRsvp(ev, who.meId, who.personal, nowMs()) && <NeedsRsvpTag />}
                     {ev.title}
                   </b>
                   <span aria-hidden="true" className="mt-auto truncate text-[12px] leading-4 text-ink-2">

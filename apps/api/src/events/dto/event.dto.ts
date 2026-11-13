@@ -17,6 +17,7 @@ import { IsIsoDateTime, Trim } from '../../common/validation.js';
 import { CalendarDateConstraint } from '../../anniversaries/dto/anniversary.dto.js';
 import { EVENT_REMINDERS, type EventReminder } from '../../push/remind-at.js';
 import { type ParticipantsInput, participantsProblem } from '../participants.js';
+import { type PlaceInput, placeProblem } from '../place.js';
 import { REPEATS, type Repeat } from '../recurrence.js';
 
 const REPEAT_MESSAGE = `repeat 는 ${REPEATS.join(', ')} 중 하나여야 해요`;
@@ -31,6 +32,18 @@ export class ParticipantsConstraint implements ValidatorConstraintInterface {
 
   defaultMessage(args: ValidationArguments): string {
     return participantsProblem(args.value) ?? '';
+  }
+}
+
+/** (#199) place: 객체 { name, address?, lat?, lng?, kakaoPlaceId? } 또는 null (지우기) */
+@ValidatorConstraint({ name: 'place', async: false })
+export class PlaceConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return placeProblem(value) === null;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    return placeProblem(args.value) ?? '';
   }
 }
 
@@ -94,6 +107,11 @@ export class EventInputDto {
   @ValidateIf((_object, value) => value !== undefined && value !== null)
   @Validate(EventColorConstraint)
   color?: string | null;
+
+  /** (#199) 장소 (D-242). 생성에서 생략하면 없음, 수정에서 생략하면 그대로, null 이면 지우기. 반복은 "이 일정만" 으로도 바꿀 수 있다 */
+  @ValidateIf((_object, value) => value !== undefined)
+  @Validate(PlaceConstraint)
+  place?: PlaceInput;
 }
 
 export class EventPatchDto {
@@ -145,6 +163,11 @@ export class EventPatchDto {
   @ValidateIf((_object, value) => value !== undefined && value !== null)
   @Validate(EventColorConstraint)
   color?: string | null;
+
+  /** (#199) 장소 (D-242). 생성에서 생략하면 없음, 수정에서 생략하면 그대로, null 이면 지우기. 반복은 "이 일정만" 으로도 바꿀 수 있다 */
+  @ValidateIf((_object, value) => value !== undefined)
+  @Validate(PlaceConstraint)
+  place?: PlaceInput;
 }
 
 export class EventRangeQueryDto {

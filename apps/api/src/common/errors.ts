@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -30,12 +30,14 @@ export const ERROR_STATUS = {
   INTERNAL: 500,
   IMPORT_INCOMPLETE: 500,
   KAKAO_ERROR: 502,
+  PLACE_SEARCH_FAILED: 502,
   APPLE_ERROR: 502,
   KAKAO_NOT_CONFIGURED: 503,
   APPLE_NOT_CONFIGURED: 503,
   STORAGE_NOT_CONFIGURED: 503,
   DB_UNAVAILABLE: 503,
   EMAIL_NOT_CONFIGURED: 503,
+  PLACE_SEARCH_NOT_CONFIGURED: 503,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;
@@ -76,6 +78,8 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   STORAGE_NOT_CONFIGURED: '사진 업로드를 지금 사용할 수 없어요',
   DB_UNAVAILABLE: '서버를 점검하고 있어요. 잠시 후 다시 시도해 주세요',
   EMAIL_NOT_CONFIGURED: '지금은 이메일로 로그인할 수 없어요',
+  PLACE_SEARCH_FAILED: '장소를 찾지 못했어요. 잠시 후 다시 시도해 주세요',
+  PLACE_SEARCH_NOT_CONFIGURED: '지금은 장소 검색을 쓸 수 없어요. 장소 이름을 직접 적어 주세요',
 };
 
 /** 검증 실패 시 필드별 위반 항목 (api.md 1장 `error.details`) */

@@ -3,6 +3,7 @@
  * 회차는 저장하지 않고 조회 기간만 계산한다. 일정 목록, 단건, 빈 시간 찾기가 같이 쓰는 순수 함수.
  * 날짜는 KST 달력 기준 (고정 +09:00, 한국은 서머타임이 없다). KST 날짜는 'YYYY-MM-DD' 문자열로 다룬다
  */
+import type { PlaceValue } from './place.js';
 
 export type Repeat = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY';
 
@@ -45,6 +46,8 @@ export interface ExceptionRule {
   memo?: string | null;
   /** (#188) 이 회차의 알림. null 이면 원본 값 (펼치기 규칙과 무관, 그대로 전달만) */
   reminder?: EventReminderValue | null;
+  /** (#199) 이 회차의 장소. null 이면 원본 값, CLEARED_PLACE(text '') 면 이 회차만 장소 없음 (펼치기 규칙과 무관, 그대로 전달만) */
+  place?: PlaceValue | null;
 }
 
 /** (#188) 일정 알림 값 (push/remind-at.ts 의 EventReminder 와 같은 집합) */
@@ -61,6 +64,8 @@ export interface Occurrence {
   memo?: string;
   /** (#188) 예외로 바꾼 알림. 없으면 원본 값을 쓴다 */
   reminder?: EventReminderValue;
+  /** (#199) 예외로 바꾼 장소 (CLEARED_PLACE 는 이 회차만 없음). 없으면 원본 값을 쓴다 */
+  place?: PlaceValue;
   /** 예외가 적용된 회차인지 */
   exception: boolean;
 }
@@ -203,6 +208,7 @@ export function applyException(original: Occurrence, exception: ExceptionRule | 
   if (exception.title != null) result.title = exception.title;
   if (exception.memo != null) result.memo = exception.memo;
   if (exception.reminder != null) result.reminder = exception.reminder;
+  if (exception.place != null) result.place = exception.place;
   return result;
 }
 

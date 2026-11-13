@@ -50,6 +50,12 @@ export class MembershipService {
     return (await this.membershipsRepo.findByUserAndGroup(userId, groupId)) !== null;
   }
 
+  /** (#199) 내가 속한 팀 (번호, 이름, 공개 코드), 가입순. 일정 검색의 팀 범위 */
+  async listGroupsOf(userId: number): Promise<{ id: number; name: string; publicCode: string }[]> {
+    const rows = await this.membershipsRepo.listForUserWithGroup(userId);
+    return rows.map(({ group }) => ({ id: group.id, name: group.name, publicCode: group.publicCode }));
+  }
+
   async listMembers(groupId: number): Promise<MembershipWithUser[]> {
     return this.membershipsRepo.listByGroup(groupId);
   }

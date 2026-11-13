@@ -20,7 +20,9 @@ export type RateLimitPolicy =
   | 'icsImport'
   | 'eventSharePreview'
   | 'eventShareCreate'
-  | 'icsFeed';
+  | 'icsFeed'
+  | 'placeSearch'
+  | 'placeResolve';
 
 export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule[]> = {
   login: [{ scope: 'ip', limit: 20, windowSec: 60 }],
@@ -43,6 +45,10 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule
     { scope: 'token', limit: 10, windowSec: 60 },
     { scope: 'ip', limit: 60, windowSec: 60 },
   ],
+  // (#199) 장소 검색 프록시. 입력 중 300ms 디바운스로 부르므로 분당 60회 (카카오 키워드 검색 쿼터 일 100,000건, D-247)
+  placeSearch: [{ scope: 'user', limit: 60, windowSec: 60 }],
+  // (#199) 저장된 장소 다시 찾기. 상세를 열 때마다 한 번 (같은 검색어는 서버 5분 캐시)
+  placeResolve: [{ scope: 'user', limit: 120, windowSec: 60 }],
 };
 
 /** 모든 요청의 기본 한도. 유효한 JWT 면 사용자 기준, 아니면 IP 기준 (같은 IP 의 여러 사용자가 한도를 나눠 쓰지 않게) */

@@ -30,3 +30,19 @@ export function fromReminderFlags(flags: AnniversaryReminderFlags): AnniversaryR
   if (flags.remindWeekBefore) out.push('WEEK_BEFORE');
   return out;
 }
+
+/**
+ * (#369) 저장은 켜진 시점마다 자식 행 하나 (`AnniversaryReminder`, `BirthdayReminder` 의 offset, D-249).
+ * 시점 이름이 DB enum `ReminderOffset` 과 같다. 안에서는 칸 모양(AnniversaryReminderFlags)으로 다룬다
+ */
+export const REMINDER_ROWS_SELECT = { select: { offset: true } } as const;
+
+/** 자식 행 → 칸 모양 */
+export function flagsFromRows(rows: readonly { offset: AnniversaryReminder }[]): AnniversaryReminderFlags {
+  return toReminderFlags(rows.map((row) => row.offset));
+}
+
+/** 칸 모양 → 만들 자식 행 (당일, 하루 전, 일주일 전 순) */
+export function rowsFromFlags(flags: AnniversaryReminderFlags): { offset: AnniversaryReminder }[] {
+  return fromReminderFlags(flags).map((offset) => ({ offset }));
+}

@@ -196,15 +196,15 @@ describe('PushDispatcher', () => {
       expect(build).toHaveBeenCalledWith(10, '2026-11-16', NOW);
     });
 
-    it('SUMMARY 는 notifyWeekly, NUDGE 는 notifyWeeklyNudge 로 받는 사람을 고른다. joinedAt 조건 없음', async () => {
+    it('SUMMARY 는 WEEKLY, NUDGE 는 WEEKLY_NUDGE 설정으로 받는 사람을 고른다. joinedAt 조건 없음', async () => {
       push.listRecipients.mockResolvedValue([recipient]);
       push.listDuePending.mockResolvedValue([weeklyDue()]);
       build.mockResolvedValue({ variant: 'SUMMARY', payload: SUMMARY });
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'notifyWeekly');
+      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'WEEKLY');
       build.mockResolvedValue({ variant: 'NUDGE', payload: { ...SUMMARY, variant: 'NUDGE' } });
       await dispatcher.expandDue(NOW);
-      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'notifyWeeklyNudge');
+      expect(push.listRecipients).toHaveBeenLastCalledWith(10, 'WEEKLY', null, null, null, 'WEEKLY_NUDGE');
     });
 
     it('보낼 것이 없거나(판정 null) 받는 사람이 0명이면 CANCELLED', async () => {

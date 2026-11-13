@@ -18,8 +18,6 @@ import { dayBadge } from "@/lib/day-detail";
 import { formatDateKo, kstToIso, todayKey, type DateKey } from "@/lib/date";
 import { eventKey } from "@/lib/recurrence";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
-import { needsMyRsvp } from "@/lib/rsvp";
-import { NeedsRsvpTag } from "@/components/EventResponses";
 import type { Anniversary } from "@/lib/types";
 import {
   groupPast,
@@ -208,8 +206,6 @@ function DayGroups({
   first: boolean;
 }) {
   const who = useWho();
-  // (#190) "응답" 표시는 끝나지 않은 일정에만
-  const [now] = useState(Date.now);
   return (
     <>
       {days.map((d, i) => {
@@ -250,13 +246,12 @@ function DayGroups({
                     <Row key={eventKey(ev)} divider={j > 0 || d.anniversaries.length > 0}>
                       <Link
                         href={eventHref(ev)}
-                        aria-label={withWho(`${ev.title}, ${time}${needsMyRsvp(ev, who.meId, who.personal, now) ? ", 응답 필요" : ""}`, ev, who)}
+                        aria-label={withWho(`${ev.title}, ${time}`, ev, who)}
                         className={rowCls}
                       >
                         <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
                         <span aria-hidden="true" className={metaCls}>
                           <b className="block truncate text-[15px] font-semibold leading-5 main-lg:min-w-0 main-lg:flex-1">
-                            {needsMyRsvp(ev, who.meId, who.personal, now) && <NeedsRsvpTag />}
                             {ev.title}
                           </b>
                           <span className="block truncate text-[12px] leading-4 text-ink-2 main-lg:max-w-[50%] main-lg:shrink-0 main-lg:text-[13px]">
@@ -280,10 +275,10 @@ function DayGroups({
 // 올림 표시는 카드 면(--tile)에 글자색(--ink)을 5% 섞는다 (라이트는 살짝 어둡게, 다크는 살짝 밝게).
 // --hover 는 라이트에서 바탕(--bg)과 같은 색이라 카드 안 줄에 쓰면 그 줄만 카드 밖으로 빠진 것처럼 보인다 (#223 리뷰)
 // lg(≥1024) 넓은 줄은 제목 왼쪽, 시각과 등록자는 오른쪽 끝 한 줄로 (#244). 그 아래는 두 줄
-const metaCls = "min-w-0 flex-1 self-center main-lg:flex main-lg:items-center main-lg:gap-4";
-const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-[color-mix(in_srgb,var(--tile),var(--ink)_5%)]";
+export const metaCls = "min-w-0 flex-1 self-center main-lg:flex main-lg:items-center main-lg:gap-4";
+export const rowCls = "flex min-h-[60px] items-stretch gap-2.5 px-3.5 py-2.5 hover:bg-[color-mix(in_srgb,var(--tile),var(--ink)_5%)]";
 
-function Row({ divider, children }: { divider: boolean; children: React.ReactNode }) {
+export function Row({ divider, children }: { divider: boolean; children: React.ReactNode }) {
   return (
     <li className="relative">
       {children}

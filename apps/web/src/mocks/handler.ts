@@ -20,7 +20,8 @@ import {
   type CalendarFeedRow,
   type Store, mockEventCode, mockGroupCode, mockPollCode, mockTodoCode, type PollRow, type TodoItemRow, type TodoListRow } from "./fixtures";
 import { mockEmailLogin } from "./email-login";
-import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence } from "./recurrence";
+import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence, type MockPlace } from "./recurrence";
+import { CLEARED, contains, fakePlaceSearch, placeOut, placeProblem, placeValue, samePlace } from "./places";
 
 export type MockResult = { status: number; body: unknown };
 
@@ -266,6 +267,8 @@ function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     reminder: occ?.reminder ?? e.reminder ?? "NONE",
     participants: participantsOut(s, e),
     color: e.color ?? null,
+    // (#199) 회차 예외 장소(이름 '' 은 그 회차만 없음)
+    place: placeOut(occ?.place ?? e.place),
   };
 }
 
@@ -377,6 +380,70 @@ function repeatCheck(repeat: Repeat | null, until: string | null, startsAt: stri
   }
   if (until && until < dateKeyOf(startsAt)) return err(400, "EVENT_RANGE_INVALID", "종료 날짜는 시작 날짜 뒤여야 해요");
   return null;
+}
+
+/** (#199) 본문 place → 저장 값 (undefined = 생략). 틀리면 400 */
+function placeIn(v: unknown): MockPlace | null | undefined | MockResult {
+  const problem = placeProblem(v);
+  if (problem) return err(400, "VALIDATION_FAILED", problem);
+  return placeValue(v);
+}
+
+/** (#199) 일정 검색 GET /events/search (api.md 2.3, D-245, D-246). API 와 같은 결: 반복은 원본 한 줄(다음 회차, 없으면 마지막) + 예외가 맞는 회차 */
+function eventSearch(s: Store, userId: number, query: URLSearchParams): MockResult {
+  const q = (query.get("q") ?? "").trim();
+  if (!q || Array.from(q).length > 50) return err(400, "VALIDATION_FAILED", "검색어는 1~50자여야 해요");
+  const groupRaw = query.get("groupId");
+  const mine = s.memberships.filter((m) => m.userId === userId).map((m) => m.groupId);
+  const groupIds = groupRaw ? mine.filter((id) => String(id) === groupRaw) : mine;
+  if (groupRaw && groupIds.length === 0) return err(403, "FORBIDDEN", "이 팀의 멤버가 아니에요");
+  const limit = Math.min(50, Math.max(1, Number(query.get("limit") ?? 30) || 30));
+  const now = Date.now();
+  const fields = (v: { title: string; memo?: string | null; place?: MockPlace | null }) => {
+    const out: ("title" | "memo" | "place")[] = [];
+    if (contains(v.title, q)) out.push("title");
+    if (contains(v.memo, q)) out.push("memo");
+    if (v.place && (contains(v.place.text, q) || contains(v.place.query, q))) out.push("place");
+    return out;
+  };
+  const items: { event: EventOut; matched: ("title" | "memo" | "place")[] }[] = [];
+  for (const e of s.events.filter((x) => groupIds.includes(x.groupId))) {
+    if (!e.repeat) {
+      const matched = fields(e);
+      if (matched.length) items.push({ event: eventOut(s, e), matched });
+      continue;
+    }
+    const series = e as RepeatRow;
+    const hits = new Set<string>();
+    for (const x of series.exceptions) {
+      if (x.cancelled || !fields({ title: x.title ?? "", memo: x.memo, place: x.place }).length) continue;
+      const o = occurrenceOf(series, x.occurrence);
+      if (!o) continue;
+      hits.add(x.occurrence);
+      const out = eventOut(s, series, o);
+      items.push({ event: out, matched: fields({ title: out.title, memo: out.memo, place: o.place ?? series.place }) });
+    }
+    if (!fields(series).length) continue;
+    const from = Math.max(now, Date.parse(series.startsAt));
+    const ahead = expand(series, series.exceptions, from, from + 400 * DAY_MS).find((o) => Date.parse(o.endsAt) > now && !hits.has(o.occurrence));
+    const behind = ahead ? null : expand(series, series.exceptions, now - 400 * DAY_MS, now).filter((o) => Date.parse(o.endsAt) <= now && !hits.has(o.occurrence)).pop();
+    const pick = ahead ?? behind;
+    if (pick) items.push({ event: eventOut(s, series, pick), matched: fields(series) });
+  }
+  const rows = items
+    .map((it) => ({ ...it, upcoming: Date.parse(it.event.endsAt) > now }))
+    .sort((a, b) => {
+      if (a.upcoming !== b.upcoming) return a.upcoming ? -1 : 1;
+      const d = a.event.startsAt.localeCompare(b.event.startsAt);
+      return (a.upcoming ? d : -d) || a.event.id - b.event.id || (a.event.occurrence ?? "").localeCompare(b.event.occurrence ?? "");
+    });
+  return ok({
+    items: rows.slice(0, limit).map((r) => {
+      const g = s.groups.find((x) => x.id === r.event.groupId)!;
+      return { event: r.event, group: { id: g.id, name: g.name, publicCode: mockGroupCode(g.id) }, matched: r.matched, upcoming: r.upcoming };
+    }),
+    hasMore: rows.length > limit,
+  });
 }
 
 function repeatOf(v: unknown): Repeat | null | "bad" {
@@ -1100,6 +1167,22 @@ export function mockHandle(ctx: Ctx): MockResult {
     return ok(groupDetail(s, grp.id, userId));
   }
 
+  // (#199) 일정 검색, 장소 검색, 다시 찾기 (events/:code 보다 먼저)
+  if (seg[0] === "events" && seg[1] === "search" && seg.length === 2 && method === "GET") return eventSearch(s, userId, query);
+  if (seg[0] === "places" && seg[1] === "search" && seg.length === 2 && method === "GET") {
+    const q = (query.get("q") ?? "").trim();
+    if (!q || Array.from(q).length > 50) return err(400, "VALIDATION_FAILED", "검색어는 1~50자여야 해요");
+    return ok({ items: fakePlaceSearch(q) });
+  }
+  // (#199) 저장된 장소 다시 찾기 (같은 가짜 목록에서 ID 가 같은 것)
+  if (seg[0] === "places" && seg[1] === "resolve" && seg.length === 2 && method === "GET") {
+    const id = query.get("id") ?? "";
+    const q = (query.get("q") ?? "").trim();
+    if (!/^\d{1,20}$/.test(id)) return err(400, "VALIDATION_FAILED", "카카오 장소 ID 가 올바르지 않아요");
+    if (!q) return err(400, "VALIDATION_FAILED", "검색어는 1~100자여야 해요");
+    return ok({ place: fakePlaceSearch(q).find((p) => p.kakaoPlaceId === id) ?? null });
+  }
+
   // (#311) 공개 코드로 일정 하나 GET /events/:code?occurrence= (api.md 2.3). 내 팀 일정이 아니거나 없으면 모두 404.
   // 찾은 뒤에는 단건 조회와 같은 응답이라 그 경로로 다시 처리한다
   if (seg[0] === "events" && seg.length === 2 && method === "GET") {
@@ -1297,6 +1380,8 @@ export function mockHandle(ctx: Ctx): MockResult {
         if (isResult(pIn)) return pIn;
         const cIn = colorIn((body ?? {}).color);
         if (isResult(cIn)) return cIn;
+        const plIn = placeIn((body ?? {}).place);
+        if (isResult(plIn)) return plIn;
         const v =
           reminderFit(reminder, Boolean(input.allDay)) ??
           validateEvent(input, false) ??
@@ -1319,6 +1404,7 @@ export function mockHandle(ctx: Ctx): MockResult {
           exceptions: [],
           reminder,
           color: cIn ?? null,
+          place: plIn ?? null,
         };
         applyParticipants(row, pIn);
         s.events.push(row);
@@ -1352,9 +1438,12 @@ export function mockHandle(ctx: Ctx): MockResult {
           if (isResult(pIn)) return pIn;
           const cIn = colorIn((body ?? {}).color);
           if (isResult(cIn)) return cIn;
+          const plIn = placeIn((body ?? {}).place);
+          if (isResult(plIn)) return plIn;
           // (#343) 색 말고 바뀐 값이 있는지 (색만 바꾸면 새 소식 없음, D-215)
           const before = JSON.stringify(eventOut(s, { ...e, color: null }));
           applyInput(e, input);
+          if (plIn !== undefined) e.place = plIn;
           if (pIn) applyParticipants(e, pIn);
           e.reminder = reminder;
           // 반복을 켜면 이 일정이 첫 회차 (기획 3-4)
@@ -1412,6 +1501,11 @@ export function mockHandle(ctx: Ctx): MockResult {
         if (v) return v;
         const rIn = reminderIn((body ?? {}).reminder);
         if (isResult(rIn)) return rIn;
+        const plIn = placeIn((body ?? {}).place);
+        if (isResult(plIn)) return plIn;
+        // (#199) 기준 장소: "이 일정만" 은 그 회차 값(예외 반영), "이후 모두" 는 원본
+        const basePlace: MockPlace | null = scope === "this" ? (current.place ? (placeOut(current.place) ? current.place : null) : (series.place ?? null)) : (series.place ?? null);
+        const nextPlace = plIn !== undefined ? plIn : basePlace;
         const next = {
           title: input.title !== undefined ? String(input.title).trim() : base.title,
           startsAt: new Date(startsAt).toISOString(),
@@ -1432,10 +1526,12 @@ export function mockHandle(ctx: Ctx): MockResult {
           series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
           // 원래 회차 값(원본 알림)과 같으면 null (4-1)
           const xReminder = reminder === (series.reminder ?? "NONE") ? null : reminder;
-          series.exceptions.push({ occurrence: date, cancelled: false, ...next, reminder: xReminder });
+          // (#199) 원본과 같은 장소면 null, 지우면 이름 '' (이 회차만 없음)
+          const xPlace = samePlace(nextPlace, series.place) ? null : (nextPlace ?? CLEARED);
+          series.exceptions.push({ occurrence: date, cancelled: false, ...next, reminder: xReminder, place: xPlace });
           series.updatedAt = nowIso();
           log(next, { action: "UPDATED", eventId: series.id, repeat: series.repeat, scope: logScope, occurrence: date });
-          return ok(eventOut(s, series, { occurrence: date, ...next, reminder }));
+          return ok(eventOut(s, series, { occurrence: date, ...next, reminder, ...(xPlace ? { place: xPlace } : {}) }));
         }
         const repeat = input.repeat === undefined ? series.repeat : repeatOf(input.repeat);
         if (repeat === "bad") return err(400, "VALIDATION_FAILED", "반복 주기를 확인해 주세요");
@@ -1463,11 +1559,12 @@ export function mockHandle(ctx: Ctx): MockResult {
           next.endsAt === new Date(base.endsAt).toISOString() &&
           next.allDay === base.allDay &&
           (next.memo || "") === (base.memo || "") &&
+          samePlace(nextPlace, series.place) &&
           reminder === (series.reminder ?? "NONE");
         // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
         const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
         const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
-        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, updatedAt: nowIso() };
+        const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, place: nextPlace, updatedAt: nowIso() };
         let target: EventRow;
         if (date === first) {
           // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)

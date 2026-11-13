@@ -103,7 +103,7 @@ describe("접힌 72 레일", () => {
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/calendar", "/free", "/anniversaries", "/todos", "/news", "/team"]);
     // 툴팁: 칸마다 하나, 스크린 리더에서는 숨김 (이름은 aria-label 로)
     const tips = aside.querySelectorAll("[data-tooltip]");
-    expect([...tips].map((t) => t.textContent)).toEqual(["우리 둘", "달력", "빈 시간", "기념일", "할 일", "새 소식", "팀 설정", "내 정보", "펼치기"]);
+    expect([...tips].map((t) => t.textContent)).toEqual(["우리 둘", "일정 검색", "달력", "빈 시간", "기념일", "할 일", "새 소식", "팀 설정", "내 정보", "펼치기"]);
     for (const t of tips) expect(t.getAttribute("aria-hidden")).toBe("true");
     // 툴팁은 마우스와 키보드 포커스 둘 다에서 보인다 (같은 칸 group 안)
     for (const t of tips) {
@@ -138,12 +138,13 @@ describe("접힌 72 레일", () => {
     expect(screen.getByRole("link", { name: "내 정보" }).getAttribute("href")).toBe("/me");
   });
 
-  it("키보드: 모든 칸이 Tab 으로 닿는 요소(링크, 버튼)이고 순서는 심볼, 팀, 메뉴 6, 내 정보, 펼치기", () => {
+  it("키보드: 모든 칸이 Tab 으로 닿는 요소(링크, 버튼)이고 순서는 심볼, 팀, 일정 검색(#199), 메뉴 6, 내 정보, 펼치기", () => {
     setup({ collapsed: true });
     const focusables = [...screen.getByRole("complementary").querySelectorAll<HTMLElement>("a, button")];
     expect(focusables.map((el) => el.getAttribute("aria-label"))).toEqual([
       "언제볼까 달력",
       "우리 둘, 팀 바꾸기",
+      "일정 검색",
       "달력",
       "빈 시간",
       "기념일",

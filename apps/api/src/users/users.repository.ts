@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { BirthdayReminderColumns } from '../anniversaries/birthdays.js';
+import { type AnniversaryReminder, type AnniversaryReminderFlags, DEFAULT_ANNIVERSARY_REMINDERS, flagsFromRows, REMINDER_ROWS_SELECT, rowsFromFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
 import type { AuthProvider, LinkedAccount, ProviderCredentials, RawProfile } from '../auth/providers/auth-provider.js';
 import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../files/file-url.builder.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
@@ -28,12 +28,16 @@ function toUserSummary(record: UserRecord, urls: FileUrlBuilder): UserSummary {
 }
 
 /** (#300) 처음 여는 달력 (D-191). LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 */
-const BIRTHDAY_SELECT = { birthday: true, birthdayRemindDayOf: true, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true } as const;
+const BIRTHDAY_SELECT = { birthday: true, birthdayReminders: REMINDER_ROWS_SELECT } as const;
 
-/** (#305) User 의 생일 칸 */
-export interface BirthdayRow extends BirthdayReminderColumns {
+/** (#305) 내 생일과 팀원에게 알리는 시점. (#369) 시점은 BirthdayReminder 행 (켜진 시점마다 하나, D-249) */
+export interface BirthdayRow extends AnniversaryReminderFlags {
   /** 'MM-DD'. 없으면 null */
   birthday: string | null;
+}
+
+function toBirthdayRow(row: { birthday: string | null; birthdayReminders: { offset: AnniversaryReminder }[] }): BirthdayRow {
+  return { birthday: row.birthday, ...flagsFromRows(row.birthdayReminders) };
 }
 
 export const START_CALENDAR_MODES = ['LAST', 'PERSONAL', 'GROUP'] as const;
@@ -106,12 +110,21 @@ export class UsersRepository {
 
   /** (#305) 내 생일과 팀원에게 알리는 시점. 사용자가 없으면 null */
   async findBirthday(id: number): Promise<BirthdayRow | null> {
-    return this.prisma.user.findUnique({ where: { id }, select: BIRTHDAY_SELECT });
+    const row = await this.prisma.user.findUnique({ where: { id }, select: BIRTHDAY_SELECT });
+    return row && toBirthdayRow(row);
   }
 
   /** (#305) 내 생일 저장. birthday null 이면 지운다 (알림 칸은 그대로 두어 다시 넣을 때 이어 쓴다) */
-  async updateBirthday(id: number, data: Partial<BirthdayRow>): Promise<BirthdayRow> {
-    return this.prisma.user.update({ where: { id }, data, select: BIRTHDAY_SELECT });
+  async updateBirthday(id: number, data: { birthday: string | null; reminders?: AnniversaryReminderFlags }): Promise<BirthdayRow> {
+    const row = await this.prisma.user.update({
+      where: { id },
+      data: {
+        birthday: data.birthday,
+        ...(data.reminders ? { birthdayReminders: { deleteMany: {}, create: rowsFromFlags(data.reminders) } } : {}),
+      },
+      select: BIRTHDAY_SELECT,
+    });
+    return toBirthdayRow(row);
   }
 
   /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */
@@ -163,6 +176,8 @@ export class UsersRepository {
       const user = await tx.user.create({
         data: {
           nickname: input.nickname,
+          // (#369) 내 생일 알림 시점의 기본(당일만, D-232). 생일을 넣기 전에도 저장해 두고 PATCH /me/birthday 가 바꾼다
+          birthdayReminders: { create: rowsFromFlags(toReminderFlags(DEFAULT_ANNIVERSARY_REMINDERS)) },
           authAccounts: {
             create: {
               provider: input.provider,

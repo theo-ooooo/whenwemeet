@@ -403,7 +403,9 @@ describe('핵심 흐름 (e2e)', () => {
       .send({ reminders: ['WEEK_BEFORE', 'DAY_OF', 'DAY_BEFORE'] })
       .expect(200);
     expect(many.body.data.reminders).toEqual(['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE']);
-    expect(await prisma.anniversary.findUniqueOrThrow({ where: { id } })).toMatchObject({ remindDayOf: true, remindDayBefore: true, remindWeekBefore: true });
+    // (#369) 켜진 시점마다 AnniversaryReminder 행 하나
+    const offsets = async () => (await prisma.anniversaryReminder.findMany({ where: { anniversaryId: id }, orderBy: { offset: 'asc' } })).map((r) => r.offset);
+    expect(await offsets()).toEqual(['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE']);
 
     // 다른 칸만 바꾸면 알림은 그대로
     const renamed = await api(app).patch(`/v1/groups/${groupId}/anniversaries/${id}`).set(auth(bob)).send({ name: '이름만' }).expect(200);
@@ -411,6 +413,7 @@ describe('핵심 흐름 (e2e)', () => {
 
     const none = await api(app).patch(`/v1/groups/${groupId}/anniversaries/${id}`).set(auth(bob)).send({ reminders: [] }).expect(200);
     expect(none.body.data.reminders).toEqual([]);
+    expect(await offsets()).toEqual([]);
 
     const dayBefore = await api(app)
       .post(`/v1/groups/${groupId}/anniversaries`)
@@ -440,13 +443,13 @@ describe('핵심 흐름 (e2e)', () => {
     expect(unchanged.body.data.find((a: { id: number }) => a.id === id).reminders).toEqual([]);
   });
 
-  it('마이그레이션 기본값: 알림 칸 없이 넣은 행(#269 전 행)은 당일만 (#269)', async () => {
+  it('(#369) 알림 시점 행이 없는 기념일은 알림 없음 (#269 전 행은 이전 마이그레이션이 당일 행으로 옮겼다)', async () => {
     const prisma = app.get(PrismaService);
     await prisma.$executeRaw`INSERT INTO Anniversary (groupId, name, date, kind, updatedAt) VALUES (${groupId}, '옛 행', '2024-02-02', 'COUNT_UP', NOW(3))`;
     const row = await prisma.anniversary.findFirstOrThrow({ where: { groupId, name: '옛 행' } });
-    expect(row).toMatchObject({ remindDayOf: true, remindDayBefore: false, remindWeekBefore: false });
+    expect(await prisma.anniversaryReminder.count({ where: { anniversaryId: row.id } })).toBe(0);
     const list = await api(app).get(`/v1/groups/${groupId}/anniversaries`).set(auth(alice)).expect(200);
-    expect(list.body.data.find((a: { id: number }) => a.id === row.id).reminders).toEqual(['DAY_OF']);
+    expect(list.body.data.find((a: { id: number }) => a.id === row.id).reminders).toEqual([]);
     await prisma.anniversary.delete({ where: { id: row.id } });
   });
 

@@ -14,11 +14,11 @@ import { dayBadge, upcomingEvents } from "@/lib/day-detail";
 import { nextOccurrences } from "@/lib/day-view";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
 import { eventKey } from "@/lib/recurrence";
-import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, TEAM_PATH, TODOS_PATH, UPCOMING_PATH } from "@/lib/routes";
+import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, SEARCH_PATH, TEAM_PATH, TODOS_PATH, UPCOMING_PATH } from "@/lib/routes";
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
 import { PollSideLine } from "./PollHomeSection";
-import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconTeam, IconTodo } from "./icons";
+import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -139,6 +139,19 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
         <RailTip label={group ? group.name : "팀 바꾸기"} />
       </div>
 
+      {/* (#199) 일정 검색 */}
+      <div className={`${cell} mt-2`}>
+        <Link
+          href={SEARCH_PATH}
+          onNavigate={onNavigate ? () => onNavigate(SEARCH_PATH) : undefined}
+          aria-label="일정 검색"
+          className="grid size-11 place-items-center rounded-[14px] text-ink-2 hover:bg-hover"
+        >
+          <IconSearch size={22} />
+        </Link>
+        <RailTip label="일정 검색" />
+      </div>
+
       <nav aria-label="주요 화면" className="mt-4">
         <ul className="flex flex-col items-center gap-1">
           {menu.map((it) => (
@@ -237,6 +250,16 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
         <IconChevronDown size={18} className="shrink-0 text-ink-2" />
         <span className="sr-only">팀 바꾸기</span>
       </button>
+
+      {/* (#199) 일정 검색: 팀 상자 아래 검색칸 모양 링크 (높이 40, --bg 면). 누르면 검색 화면 */}
+      <Link
+        href={SEARCH_PATH}
+        onNavigate={onNavigate ? () => onNavigate(SEARCH_PATH) : undefined}
+        className="mt-2 flex h-10 w-full shrink-0 items-center gap-2 rounded-md bg-surface px-3.5 text-[14px] text-ink-2 hover:text-ink"
+      >
+        <IconSearch size={18} className="shrink-0" />
+        일정 검색
+      </Link>
 
       {/* 메뉴: 줄 46, 모서리 14, 아이콘 24 + 이름 15. 선택 = 먹색 칩 + 흰 글자 700 + 코랄 조각 (다크는 --ink/--on-ink 가 뒤집힌다) */}
       <nav aria-label="주요 화면" className="mt-4 shrink-0">

@@ -387,3 +387,41 @@ describe("일정 폼 본문", () => {
     expect(timesKeptOf(null, loaded())).toBe(false);
   });
 });
+
+describe("(#199) 장소", () => {
+  const place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
+  const cand = { kakaoPlaceId: "8209184", name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
+
+  it("불러오기, 복제 모두 장소를 채운다. 없으면 빈 값", () => {
+    expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲" } });
+    expect(draftFromEvent(loaded({ place }), true).place.picked?.kakaoPlaceId).toBe("8209184");
+    expect(draftFromEvent(loaded(), false).place).toEqual({ text: "", picked: null });
+  });
+
+  it("적기, 고르기(그때 검색어), 지우기", () => {
+    const d = run(range(), "range", { type: "placeText", value: "숲" }, { type: "placePick", value: cand, query: "숲" });
+    expect(d.place).toEqual({ text: "", picked: { kakaoPlaceId: "8209184", query: "숲", name: "서울숲", address: cand.address } });
+    expect(run(d, "range", { type: "placeClear" }).place).toEqual({ text: "", picked: null });
+  });
+
+  it("본문: 새 일정은 비면 생략, 수정은 비면 null. 고른 장소는 ID 와 검색어만. 빠른 추가는 장소 없음", () => {
+    expect(eventInput(range(), null)).not.toHaveProperty("place");
+    expect(eventInput(range(), { reminder: "NONE" })?.place).toBeNull();
+    expect(eventInput(run(range(), "range", { type: "placeText", value: " 할머니 댁 " }), null)?.place).toEqual({ text: "할머니 댁" });
+    expect(eventInput(run(range(), "range", { type: "placePick", value: cand, query: "숲" }), null)?.place).toEqual({ kakaoPlaceId: "8209184", query: "숲" });
+    expect(quickInput(day())).not.toHaveProperty("place");
+  });
+
+  it("장소만 바꿔도 작성 중(이탈 확인)", () => {
+    const first = range();
+    expect(draftChanged(run(first, "range", { type: "placeText", value: "집" }), first)).toBe(true);
+    expect(draftChanged(run(first, "range", { type: "placeText", value: " " }), first)).toBe(false);
+  });
+
+  it("반복 \"이 일정만\" 수정도 장소를 싣는다 (회차 예외)", () => {
+    const d = run(draftFromEvent(loaded({ repeat: "WEEKLY", occurrence: "2026-11-14", place }), false), "range", { type: "placeText", value: "을지로" });
+    const input = eventInput(d, { reminder: "NONE" })!;
+    const body = eventBody({ draft: d, input, scope: "this", series: { startsAt: input.startsAt, endsAt: input.endsAt, repeat: "WEEKLY", repeatUntil: null }, editing: true, personal: false, showParticipants: true, currentPick: null, initialPick: null, initialColor: null });
+    expect(body.place).toEqual({ text: "을지로" });
+  });
+});

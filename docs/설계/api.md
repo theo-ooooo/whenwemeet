@@ -45,6 +45,8 @@
 | STORAGE_NOT_CONFIGURED | 503 | R2 환경변수 미설정 상태에서 아바타 업로드/삭제 |
 | KAKAO_NOT_CONFIGURED | 503 | 카카오 환경변수 미설정 상태에서 로그인 (D-29) |
 | DB_UNAVAILABLE | 503 | `GET /health` 의 DB 확인(`SELECT 1`) 실패. 배포 healthcheck 가 이 응답이면 트래픽을 넘기지 않는다 (#50) |
+| PLACE_SEARCH_FAILED | 502 | (#199) 카카오 장소 검색 실패 (2.14) |
+| PLACE_SEARCH_NOT_CONFIGURED | 503 | (#199) 운영에 `KAKAO_REST_API_KEY` 가 없음. 웹은 장소를 직접 적게 둔다 (2.14) |
 | EMAIL_RATE_LIMITED | 429 | 이메일 로그인 발송 횟수 제한. `details: { reason: "COOLDOWN" \| "HOURLY" \| "IP", retryAfterSec }` (#245) |
 | RATE_LIMITED | 429 | 요청 제한 초과 (#186, 아래 "요청 제한"). message "잠시 후 다시 시도해 주세요", `details: { retryAfterSec }`, 헤더 `Retry-After: <초>` |
 | EMAIL_LINK_INVALID | 400 | 로그인 링크 없음, 사용됨, 만료, 무효. `details: { reason: "INVALID" \| "USED" \| "EXPIRED" }` |
@@ -70,6 +72,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 일정 링크 합류 `POST /event-shares/:token/join` (#274) | 사용자 **그리고** IP | 초대 합류 `POST /groups/join` 과 **같은 묶음** (두 길을 번갈아 써서 한도를 두 배로 받지 못하게) |
 | 일정 링크 만들기 `POST /groups/:id/events/:eventId/share` (#274) | 사용자 | 30 / 1시간 |
 | 구독 피드 `GET /ics/:token.ics` (#193) | 주소(경로 토큰) **그리고** IP | 주소 10 / 1분, IP 60 / 1분. 넘으면 본문 없는 429 + `Retry-After` |
+| 장소 검색 `GET /places/search` (#199) | 사용자 | 60 / 1분 |
+| 장소 다시 찾기 `GET /places/resolve` (#199) | 사용자 | 120 / 1분 |
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
@@ -103,6 +107,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `KAKAO_APP_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, `APPLE_BUNDLE_ID`, `APPLE_SERVICE_ID`, `APPLE_REDIRECT_URI` | 앱 로그인과 애플 로그인 (앱.md 7장). 운영 기동 필수 아님, 없으면 해당 엔드포인트만 503 (D-55) |
 | `EMAIL_LOGIN_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM`, `INTERNAL_API_KEY`, `REVIEW_EMAIL`, `REVIEW_CODE`, `RESEND_API_URL` | 이메일 로그인 (#245, 이메일-로그인.md 4-4). 모두 운영 기동 필수 아님. 스위치가 `1` 이 아니거나 운영에서 Resend 키나 내부 키가 없으면 이메일 엔드포인트만 503. 코드, IP 해시 키는 `JWT_SECRET` 에서 HKDF 로 파생 |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
+| `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록 |
 | `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -202,6 +207,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 | GET | `/groups/:groupId/events` | 멤버 | 쿼리 `from`, `to` (ISO, `to - from <= 62일`) | `{ data: Event[] }` 반복 원본은 기간 안 회차로 펼친다. `startsAt` 오름차순, 같으면 `id`, 그다음 `occurrence` |
 | POST | `/groups/:groupId/events` | 멤버 | `EventInput` | 201 `{ data: Event }` (반복이면 첫 회차) + EventLog CREATED |
 | GET | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence?` | `{ data: Event & { hasLaterExceptions } }` |
+| GET | `/events/search` | 유저 | 쿼리 `q`, `groupId?`, `limit?` | (#199) 일정 검색. 아래 "일정 검색" |
 | GET | `/events/:code` | 유저 | 쿼리 `occurrence?` | (#311) 일정 공개 코드로 단건 조회. 응답은 위와 같다. 코드 모양이 틀리거나 없거나 **그 팀 멤버가 아니면 모두 404 NOT_FOUND** (코드의 존재를 드러내지 않는다, D-197). 웹 `/events/<코드>` 페이지가 팀과 날짜를 알아내는 데 쓴다 |
 | PATCH | `/groups/:groupId/events/:eventId` | 멤버 | `Partial<EventInput>`, 쿼리 `occurrence`, `scope` (반복만) | `{ data: Event }` + EventLog UPDATED. 현재 값과 합친 결과가 그대로면(빈 본문, 같은 값, 같은 순간의 다른 오프셋 표기) 저장하지 않고 로그도 남기지 않으며 `updatedAt` 그대로 200 |
 | DELETE | `/groups/:groupId/events/:eventId` | 멤버 | 쿼리 `occurrence`, `scope` (반복만) | `{ data: { ok: true } }` + EventLog DELETED (삭제 전 스냅샷) |
@@ -293,6 +299,7 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
 - (#228, D-71) "이후 모두" 에서 날짜를 바꾸지 않으면(`startsAt` 이 없거나 그 KST 날짜가 원래 회차 날짜) 규칙을 잇는다. 그 뒤 회차: 새 원본은 규칙 자리에서 시작하고, 주기가 그대로인 MONTHLY/YEARLY 면 `repeatAnchor = 원본.repeatAnchor ?? 원본 시작 KST 날짜` (매월 31일을 2/28 회차에서 나눠도 3-31, 4-30. 매년 2/29 를 2027-02-28 에서 나눠도 2028-02-29). 첫 회차: 원본 `repeatAnchor` 그대로. 날짜나 주기를 바꾸면 `repeatAnchor = null`. 주간은 항상 null. 웹은 시작, 종료를 그대로 두면 `startsAt`, `endsAt` 을 빼고 보낸다
 - "이후 모두" 로 시작 시각/날짜를 바꾸면 새 원본의 첫 회차가 되어 요일, 날짜 기준도 따라 바뀐다
 - 메모를 지운 "이 일정만" 예외는 `memo = ''` 로 저장한다 (null 은 원본 값. D-65). 응답 `memo` 도 `''`
+- (#199) 장소도 메모와 같은 규칙으로 "이 일정만" 예외에 둔다: 예외 `placeName` 이 null 이면 원본 장소, `''` 이면 그 회차만 장소 없음(응답 `place: null`), 값이 있으면 다섯 값이 원본 장소 전체를 대신한다. "이후 모두" 로 나누면 새 원본에 복사 (D-242)
 - 같은 값이면 저장하지 않는 규칙(#62): this 는 회차의 현재 값과 같으면 no-op. following 첫 회차는 원본 값, 규칙이 같고 예외가 없으면 no-op. following 그 뒤 회차는 원래 회차 값, 규칙이 같고 그 회차부터 예외가 없으면 no-op (나눠도 결과가 같다)
 - 한 번짜리 일정을 PATCH 해 `repeat` 을 켜면 그 일정이 첫 회차가 된다 (scope 불필요)
 
@@ -307,6 +314,50 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
 | following: `repeatAnchor` 가 있는데 시작 날짜가 그 달(해)의 보정된 기준 날짜가 아님 (#228, 정상 흐름에선 안 나오는 방어 검사) | EVENT_RANGE_INVALID | 반복 기준 날짜와 시작 날짜가 맞지 않아요 |
 | `repeat` 이 넷 중 하나가 아님, `repeatUntil` 이 실제 날짜가 아님 | VALIDATION_FAILED | DTO 문구 |
 | 기존 규칙 (종료 > 시작, 30일 이하) | 그대로 (먼저 검사) | 그대로 |
+
+#### 장소 (#199, D-242 ~ D-244)
+
+카카오 정책상 **카카오가 준 이름, 주소, 좌표는 저장하지 않는다**. 저장은 사용자 입력과 카카오 장소 ID 뿐이다.
+
+```ts
+PlaceInput = { text?: string(≤100)|null,          // 고르지 않고 적은 장소 글자 (사용자 입력)
+               query?: string(≤100)|null,         // 고를 때 사용자가 적은 검색어. kakaoPlaceId 가 있으면 필수
+               kakaoPlaceId?: string(숫자 1~20자)|null }  // 다른 키(name, address, lat, lng ...)는 400
+               // kakaoPlaceId 가 없으면 text 필수. 앞뒤 공백 자름
+Place = { text: string|null, query: string|null, kakaoPlaceId: string|null,
+          url: string|null }   // url = 'https://place.map.kakao.com/<kakaoPlaceId>' (서버가 만든다)
+```
+
+- DB 열: `placeId`, `placeQuery`, `placeText` (Event, EventException)
+- `EventInput.place?: PlaceInput | null`. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, `null` = 지우기
+- 이름, 주소, 좌표는 **보일 때마다 다시 찾는다**: `GET /places/resolve?id=<kakaoPlaceId>&q=<query>` (2.14) 가 그 검색어로 다시 검색해 ID 가 같은 결과를 준다. 서버는 5분 메모리 캐시, 웹은 탭 메모리만. 못 찾거나 카카오가 안 되면 화면은 사용자 글자(`text`, 없으면 `query`) + `url`(장소 상세), 지도 없음
+- 같은 장소면 저장하지 않는 규칙(#62)에 장소도 들어간다. 일정 기록(EventLog), 푸시 문구, 공유 링크 미리보기에는 넣지 않는다
+- 구독 피드(2.12)는 피드를 만들 때 다시 찾아 `LOCATION: 이름, 주소` + `GEO:위도;경도`, 못 찾으면 `LOCATION: 사용자 글자`, GEO 없음. 피드 하나에 서로 다른 장소 30개까지만 다시 찾는다. 메모 토글과 무관 (D-248)
+
+#### 일정 검색 `GET /events/search` (#199, D-245, D-246)
+
+| 쿼리 | 규칙 |
+|------|------|
+| `q` | 필수. 앞뒤 공백 자르고 1~50자. 아니면 400 VALIDATION_FAILED (`field: 'q'`) |
+| `groupId` | 선택. 있으면 그 팀만, 멤버가 아니면 403 FORBIDDEN. 없으면 내가 속한 모든 팀 |
+| `limit` | 선택. 기본 30, 1~50 |
+
+```ts
+// 200 { data: SearchResult }
+SearchResult = {
+  items: Array<{ event: Event,                       // 목록 응답과 같은 모양(응답 집계 rsvp, reactions 는 없음). 반복이면 회차 하나
+                 group: { id, name, publicCode },
+                 matched: Array<'title'|'memo'|'place'>, // 장소는 사용자 글자(text, query)
+                 upcoming: boolean }>,                // 끝이 지금보다 뒤
+  hasMore: boolean,                                   // limit 를 넘는 결과가 더 있다 (페이지 넘김 없음)
+}
+```
+
+- 찾는 곳: 제목, 메모, 장소의 사용자 글자(`placeText`, `placeQuery`). 카카오 이름, 주소는 저장하지 않으므로 찾지 않는다. `LIKE '%q%' ESCAPE '!'` (`!`, `%`, `_` 는 글자 그대로), 열 콜레이션이라 대소문자 무시. 인덱스 추가 없음
+- 권한: 첫 단계에서 내 멤버십으로 팀 목록을 정하고 그 팀 일정만 찾는다 (다른 팀 일정의 존재를 드러내지 않는다)
+- 반복: 원본 값이 맞으면 한 줄, 회차는 **끝이 지금 뒤인 첫 회차**, 없으면 마지막 회차 (D-246). "이 일정만" 예외의 제목, 메모, 장소가 맞으면 그 회차를 따로 한 줄(그 회차는 원본 줄의 대표로 쓰지 않는다). 취소된 회차는 빠진다
+- 정렬: 다가오는 일정 먼저 시작 오름차순, 그다음 지난 일정 시작 내림차순, 같으면 `id`, 회차 날짜
+- 검색어는 저장하지 않는다 (스토어 "검색 기록: 수집 안 함" 유지)
 
 ### 2.4 기념일
 
@@ -343,7 +394,7 @@ BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   
 - 팀을 나가거나 탈퇴하면 멤버십이 없어져 그 팀에서 바로 빠진다. 새 소식(#191)에는 남기지 않는다
 - 알림: 2.8 "생일 알림". 피드: 2.12 `includeAnniversaries` 를 따른다
 
-기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
+기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. (#369) 저장은 `AnniversaryReminder(anniversaryId, offset)` 켜진 시점마다 행 하나(행 없음 = `[]`), 내 생일 시점도 같은 모양의 `BirthdayReminder(userId, offset)`(가입 때 `DAY_OF` 하나), D-249. 보내는 규칙은 `푸시-알림.md` 5-5
 
 ### 2.5 빈 시간 찾기
 
@@ -500,7 +551,7 @@ ActivityPayload =
 | PUT | `/me/push-devices` | 유저 | `{ token, platform: 'IOS'\|'ANDROID', appVersion: string(1~20) }` | `{ data: { ok: true } }`. token 으로 upsert (`userId = 나`, `lastSeenAt = now`). 다른 사용자 행이면 나로 옮긴다 (한 기기는 한 사용자). 내 기기가 10대를 넘으면 `lastSeenAt` 이 가장 오래된 것부터 삭제 |
 | DELETE | `/me/push-devices` | 유저 | `{ token }` (본문) | `{ data: { ok: true } }`. `token` 이고 `userId = 나` 인 행만 삭제. 없어도 200 (멱등). 웹 로그아웃 route handler, OS 에서 알림을 끈 기기 정리가 부른다 |
 | GET | `/me/notification-settings` | 유저 | - | `{ data: NotificationSettings }` |
-| PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로 |
+| PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로. (#369) 저장은 `NotificationPreference(userId, kind)` 행(준 키는 기본값과 같아도 행으로 남김), 행이 없는 키는 기본값(`weeklyNudge` 만 끔). 응답 모양은 그대로 (D-249) |
 
 ```ts
 NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean,   // 기본 true
@@ -526,9 +577,9 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 같은 값이면 저장하지 않는 규칙(#62) 에 `reminder` 도 들어간다. 알림만 바꿔도 UPDATED 로그가 남는다
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
-**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (설정 `REMINDER` AND `Membership.notify`, #369 NotificationPreference). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
-**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
+**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(설정 `ANNIVERSARY` AND `Membership.notify`)
 
 **들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 
@@ -672,6 +723,23 @@ PollSummary = { id, publicCode, title, status, deadline, expired, eventId, event
 - 지난 후보는 새로 켜거나 정하면 400 POLL_OPTION_PAST, 이미 켜 둔 표는 빠져도 남긴다 (D-238)
 - 정하기는 한 트랜잭션(일정 + CREATED 로그 + CLOSED + POLL_CLOSED + 정함 알림), 동시에 누르면 하나만 성공하고 나머지 409. 팀원 변경 알림 없음. 바빠진 대상이 있으면 `warning: 'BUSY_NOW'` (D-239)
 - 나가기: 그 팀 투표의 내 표와 대상 행 삭제(2.7). 탈퇴: Cascade
+
+### 2.14 장소 검색 (#199, D-247)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/places/search` | 유저 | 쿼리 `q` (앞뒤 공백 자르고 1~50자) | `{ data: { items: PlaceCandidate[] } }` |
+| GET | `/places/resolve` | 유저 | 쿼리 `id` (카카오 장소 ID), `q` (저장된 검색어, 1~100자) | `{ data: { place: PlaceCandidate \| null } }` 그 검색어로 다시 찾아 ID 가 같은 결과. 없으면 null |
+
+```ts
+PlaceCandidate = { kakaoPlaceId: string, name: string, address: string|null,   // 도로명, 없으면 지번
+                   lat: number, lng: number, category: string|null }             // 카카오 분류 마지막 조각 ("카페")
+```
+
+- 우리 API 가 카카오 로컬 키워드 검색(`GET https://dapi.kakao.com/v2/local/search/keyword.json?query=&size=15`, `Authorization: KakaoAK <KAKAO_REST_API_KEY>`)을 대신 부른다. REST 키는 서버에만 둔다(로그인과 다른 지도 전용 카카오 앱 키). 검색어 말고 사용자 정보는 보내지 않는다. 결과는 DB 에 저장하지 않고 검색어별 5분 메모리 캐시(최대 500개)만, 로그에 검색어를 남기지 않는다
+- 공급자: `KAKAO_REST_API_KEY` 가 있으면 카카오, 없으면 운영은 503 `PLACE_SEARCH_NOT_CONFIGURED`(웹은 직접 입력만), 로컬과 테스트는 가짜 목록. `PLACE_SEARCH_FAKE=1` 이면 늘 가짜
+- 카카오 실패(연결, 5초 시간 초과, 4xx/5xx, 형식)는 502 `PLACE_SEARCH_FAILED`. 재시도 없음
+- 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`)
 
 ## 3. 기획 기능 → API 추적
 

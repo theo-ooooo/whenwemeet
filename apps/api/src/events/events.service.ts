@@ -25,6 +25,7 @@ import {
   EventsRepository,
   type EventUpdateInput,
   type ExceptionFields,
+  likePattern,
   type LogSnapshot,
   type ScopeLog,
 } from './events.repository.js';
@@ -39,6 +40,15 @@ import {
   sameParticipants,
   toParticipantsView,
 } from './participants.js';
+import {
+  compareSearchItems,
+  type MatchedField,
+  matchedFields,
+  parseSearchQuery,
+  representativeOccurrence,
+  SEARCH_SERIES_CAP,
+} from './event-search.js';
+import { CLEARED_PLACE, parsePlace, type PlaceView, samePlace, toPlaceView } from './place.js';
 import {
   anchorMatchesStart,
   applyException,
@@ -88,6 +98,8 @@ export interface EventView {
   participants: ParticipantsView;
   /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색. 반복 회차는 원본 값 (D-215) */
   color: string | null;
+  /** (#199) 장소. 없으면 null. 반복 회차는 예외 반영 (D-242) */
+  place: PlaceView | null;
 }
 
 /** (#190) 응답 집계를 붙인 일정 (목록, 단건, 생성, 수정 응답) */
@@ -122,6 +134,21 @@ export function responseOccurrence(view: Pick<EventView, 'occurrence' | 'startsA
 /** (#190) 사람 목록의 userId (탈퇴자 null 은 빼고) */
 const idsOf = (members: readonly Member[]): number[] => members.flatMap((member) => (member.userId === null ? [] : [member.userId]));
 
+/** (#199) 검색 결과 한 줄 (api.md 2.3 일정 검색) */
+export interface SearchItem {
+  event: EventView;
+  group: { id: number; name: string; publicCode: string };
+  matched: MatchedField[];
+  /** 끝이 지금보다 뒤면 true */
+  upcoming: boolean;
+}
+
+export interface SearchResult {
+  items: SearchItem[];
+  /** limit 를 넘는 결과가 더 있으면 true. 페이지 넘김 대신 "검색어를 더 구체적으로" (D-245) */
+  hasMore: boolean;
+}
+
 /** 반복 일정 수정/삭제 범위 쿼리 (원문) */
 export interface ScopeQuery {
   occurrence?: unknown;
@@ -131,7 +158,7 @@ export interface ScopeQuery {
 type Scope = 'this' | 'following';
 
 /** 비교와 저장에 쓰는 일정 값 */
-type EventValues = Pick<EventUpdateInput, 'title' | 'startsAt' | 'endsAt' | 'allDay' | 'memo' | 'reminder'>;
+type EventValues = Pick<EventUpdateInput, 'title' | 'startsAt' | 'endsAt' | 'allDay' | 'memo' | 'reminder' | 'place'>;
 
 /** `endsAt > startsAt`, 길이 30일 이하. 아니면 EVENT_RANGE_INVALID */
 export function assertEventRange(startsAt: Date, endsAt: Date): void {
@@ -194,7 +221,8 @@ export function isUnchanged(current: EventValues, next: EventValues): boolean {
     current.endsAt.getTime() === next.endsAt.getTime() &&
     current.allDay === next.allDay &&
     current.memo === next.memo &&
-    current.reminder === next.reminder
+    current.reminder === next.reminder &&
+    samePlace(current.place, next.place)
   );
 }
 
@@ -252,6 +280,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     reminder: row.reminder,
     participants: toParticipantsView(row, resolver),
     color: row.color,
+    place: toPlaceView(row.place),
   };
 }
 
@@ -271,6 +300,7 @@ export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver
     memo: occurrence.memo ?? row.memo,
     occurrence: occurrence.occurrence,
     reminder: occurrence.reminder ?? row.reminder,
+    place: toPlaceView(occurrence.place ?? row.place),
   };
 }
 
@@ -310,6 +340,8 @@ function occurrenceValues(row: EventRow, occurrence: Occurrence): EventValues {
     allDay: occurrence.allDay,
     memo: occurrence.memo ?? row.memo,
     reminder: occurrence.reminder ?? row.reminder,
+    // (#199) 이 회차만 지운 장소(CLEARED_PLACE)는 null
+    place: occurrence.place ? (toPlaceView(occurrence.place) ? occurrence.place : null) : row.place,
   };
 }
 
@@ -324,6 +356,8 @@ function mergeValues(base: EventValues, dto: EventPatchDto): EventValues {
     // 빈 메모('')는 메모 지우기 = null. 회차 예외에서는 아래에서 '' 로 다시 바꿔 저장한다 (D-65)
     memo: dto.memo !== undefined ? (dto.memo === '' ? null : dto.memo) : base.memo,
     reminder: resolveReminder(dto.reminder, base.reminder, allDay),
+    // (#199) 생략은 그대로, null 은 지우기 (D-242)
+    place: dto.place !== undefined ? (parsePlace(dto.place) ?? null) : base.place,
   };
 }
 
@@ -456,6 +490,68 @@ export class EventsService {
     return sortViews(views);
   }
 
+  /**
+   * (#199) 일정 검색 `GET /events/search?q=&groupId=&limit=` (D-245, D-246). 권한은 첫 단계에서 내 팀 목록으로만 정한다.
+   * 한 번짜리는 그대로, 반복은 원본이 맞으면 한 줄(다음 회차, 없으면 마지막 회차), "이 일정만" 예외가 맞으면 그 회차를 따로 한 줄.
+   * 취소된 회차는 빠진다. 다가오는 일정 먼저(시작 오름차순), 그다음 지난 일정(시작 내림차순)
+   */
+  async search(userId: number, raw: { q?: unknown; groupId?: unknown; limit?: unknown }, now: Date = new Date()): Promise<SearchResult> {
+    const query = parseSearchQuery(raw);
+    const groups = await this.memberships.listGroupsOf(userId);
+    const scoped = query.groupId === null ? groups : groups.filter((group) => group.id === query.groupId);
+    if (query.groupId !== null && scoped.length === 0) throw new ApiException('FORBIDDEN');
+    const groupIds = scoped.map((group) => group.id);
+    const pattern = likePattern(query.q);
+    const [once, found] = await Promise.all([
+      this.events.searchOnce(groupIds, pattern, now, query.limit + 1),
+      this.events.searchSeries(groupIds, pattern, SEARCH_SERIES_CAP),
+    ]);
+
+    const resolvers = new Map<number, MemberResolver>();
+    const resolverOf = async (groupId: number) => {
+      let resolver = resolvers.get(groupId);
+      if (!resolver) {
+        resolver = await this.memberships.resolverFor(groupId);
+        resolvers.set(groupId, resolver);
+      }
+      return resolver;
+    };
+    const candidates: { view: EventView; matched: MatchedField[] }[] = [];
+    const push = (view: EventView, values: Pick<EventValues, 'title' | 'memo' | 'place'>) =>
+      candidates.push({ view, matched: matchedFields(values, query.q) });
+
+    for (const row of [...once.upcoming, ...once.past]) push(toEventView(row, await resolverOf(row.groupId)), row);
+
+    const matchedIds = new Set(found.matchedIds);
+    for (const series of found.series) {
+      const resolver = await resolverOf(series.groupId);
+      const rule = seriesRule(series);
+      const hitDates = new Set(found.exceptionHits.filter((hit) => hit.eventId === series.id).map((hit) => hit.occurrence));
+      for (const date of hitDates) {
+        if (!isOccurrenceDate(rule, date)) continue;
+        const occurrence = applyException(originalOccurrence(rule, date), series.exceptions.find((exception) => exception.occurrence === date));
+        if (occurrence) push(toOccurrenceView(series, occurrence, resolver), occurrenceValues(series, occurrence));
+      }
+      if (!matchedIds.has(series.id)) continue;
+      const occurrence = representativeOccurrence(rule, series.exceptions, now, hitDates);
+      if (occurrence) push(toOccurrenceView(series, occurrence, resolver), series);
+    }
+
+    const nameOf = new Map(scoped.map((group) => [group.id, group]));
+    const items = candidates
+      .map(({ view, matched }) => ({ view, matched, upcoming: view.endsAt.getTime() > now.getTime() }))
+      .sort((a, b) => compareSearchItems({ ...a, startsAt: a.view.startsAt, id: a.view.id, occurrence: a.view.occurrence }, { ...b, startsAt: b.view.startsAt, id: b.view.id, occurrence: b.view.occurrence }));
+    return {
+      items: items.slice(0, query.limit).map(({ view, matched, upcoming }) => ({
+        event: view,
+        group: nameOf.get(view.groupId) as SearchItem['group'],
+        matched,
+        upcoming,
+      })),
+      hasMore: items.length > query.limit,
+    };
+  }
+
   /** 반복이면 `occurrence` 회차 (없으면 첫 회차). 한 번짜리는 `occurrence` 를 무시한다. (#190) 응답 집계와 사람별 응답을 붙인다 */
   async get(userId: number, groupId: number, eventId: number, occurrenceRaw?: unknown): Promise<EventDetailView> {
     await this.memberships.assertMember(userId, groupId);
@@ -521,6 +617,7 @@ export class EventsService {
         reminderSetAt: new Date(),
         participants,
         color: colorInput(dto.color) ?? null,
+        place: parsePlace(dto.place) ?? null,
       },
       userId,
     );
@@ -636,6 +733,8 @@ export class EventsService {
       memo: (next.memo ?? '') !== (series.memo ?? '') ? (next.memo ?? '') : null,
       // (#188) 원래 회차 값(원본 알림)과 같으면 null
       reminder: next.reminder !== series.reminder ? next.reminder : null,
+      // (#199) 원본 장소와 같으면 null, 이 회차만 지우면 CLEARED_PLACE (메모와 같은 규칙)
+      place: samePlace(next.place, series.place) ? null : (next.place ?? CLEARED_PLACE),
     };
     const isEmpty = Object.values(fields).every((value) => value === null);
     await this.events.saveExceptionWithLogTx(
