@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays, kstToIso, type DateKey } from "../date";
 import { groupByDay, isMultiDay } from "../day-detail";
-import { eventDays, fitWeek, packWeek, phoneDayLanes } from "../month-lanes";
+import { eventDays, fitWeek, packWeek, phoneDayLanes, phoneWeek } from "../month-lanes";
 import type { Event, Member } from "../types";
 
 const who: Member = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
@@ -204,5 +204,73 @@ describe("phoneDayLanes", () => {
     expect(day.lanes.map((s) => s?.event.id)).toEqual([1, 2]);
     expect(day.overflow.map((e) => e.id)).toEqual([3]);
     expect(phoneDayLanes(p, 2, 1).overflow.map((e) => e.id)).toEqual([2, 3]);
+  });
+});
+
+describe("phoneWeek (#355)", () => {
+  const briefChips = (w: ReturnType<typeof phoneWeek<Event>>) =>
+    w.chips.map((c) => [c.event.id, c.lane, c.col, c.span, c.multi, c.roundStart, c.roundEnd]);
+
+  it("한 날 일정은 칸마다 4줄까지, 넘치면 +N", () => {
+    const d = "2026-11-10";
+    const evs = [1, 2, 3, 4, 5, 6].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`));
+    const w = phoneWeek(pack(W1, evs));
+    expect(briefChips(w)).toEqual([1, 2, 3, 4].map((id, i) => [id, i, 2, 1, false, true, true]));
+    expect(w.more).toEqual([0, 0, 6 - 4, 0, 0, 0, 0]);
+  });
+
+  it("딱 4개면 +N 없음", () => {
+    const d = "2026-11-12";
+    const w = phoneWeek(pack(W1, [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))));
+    expect(w.chips).toHaveLength(4);
+    expect(w.more.every((n) => n === 0)).toBe(true);
+  });
+
+  it("여러 날 막대가 먼저 줄을 잡고, 한 날 일정은 그 아래 빈 줄", () => {
+    const w = phoneWeek(pack(W1, [timed(2, "2026-11-11", "09:00", "10:00"), allDay(1, "2026-11-10", "2026-11-12")]));
+    expect(briefChips(w)).toEqual([
+      [1, 0, 2, 3, true, true, true],
+      [2, 1, 3, 1, false, true, true],
+    ]);
+  });
+
+  it("막대 아래 칸이 비면 한 날 일정이 0번 줄을 쓴다 (막대 없는 칸)", () => {
+    const w = phoneWeek(pack(W1, [allDay(1, "2026-11-10", "2026-11-11"), timed(2, "2026-11-13", "09:00", "10:00")]));
+    expect(briefChips(w)).toContainEqual([2, 0, 5, 1, false, true, true]);
+  });
+
+  it("주를 넘는 여러 날 일정은 주마다 한 조각, 끊긴 쪽은 각진 끝 (제목은 조각마다 한 번)", () => {
+    const trip = allDay(1, "2026-11-12", "2026-11-17");
+    const w1 = phoneWeek(pack(W1, [trip]));
+    const w2 = phoneWeek(pack(W2, [trip]));
+    expect(briefChips(w1)).toEqual([[1, 0, 4, 3, true, true, false]]);
+    expect(briefChips(w2)).toEqual([[1, 0, 0, 3, true, false, true]]);
+  });
+
+  it("막대가 4줄을 넘으면 통째로 못 그리고 걸친 칸마다 +1", () => {
+    const bars = [1, 2, 3, 4, 5].map((id) => allDay(id, "2026-11-09", "2026-11-10"));
+    const w = phoneWeek(pack(W1, bars));
+    expect(w.chips.filter((c) => c.multi)).toHaveLength(4);
+    expect(w.more).toEqual([0, 1, 1, 0, 0, 0, 0]);
+    // 다섯 번째 막대 + 그 칸 한 날 일정 1개 = +2
+    const w2 = phoneWeek(pack(W1, [...bars, timed(9, "2026-11-10", "09:00", "10:00")]));
+    expect(w2.more).toEqual([0, 1, 2, 0, 0, 0, 0]);
+  });
+
+  it("기념일, 공휴일 칸은 0번 줄을 비우고 3줄만 쓴다. 그 칸을 지나는 막대는 1번 줄로", () => {
+    const reserved = [false, false, true, false, false, false, false];
+    const d = "2026-11-10";
+    const w = phoneWeek(pack(W1, [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))), 4, reserved);
+    expect(w.chips.map((c) => c.lane)).toEqual([1, 2, 3]);
+    expect(w.more[2]).toBe(1);
+    const bar = phoneWeek(pack(W1, [allDay(7, "2026-11-09", "2026-11-11")]), 4, reserved);
+    expect(briefChips(bar)).toEqual([[7, 1, 1, 3, true, true, true]]);
+  });
+
+  it("maxLanes 를 바꿀 수 있다", () => {
+    const d = "2026-11-10";
+    const w = phoneWeek(pack(W1, [1, 2, 3].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))), 2);
+    expect(w.chips).toHaveLength(2);
+    expect(w.more[2]).toBe(1);
   });
 });
