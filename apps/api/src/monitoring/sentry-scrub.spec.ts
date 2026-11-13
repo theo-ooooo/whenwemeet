@@ -13,6 +13,8 @@ describe('redactText', () => {
     expect(redactText('GET /v1/event-shares/Ab3_-Ab3_-Ab3_-Ab3_-AB/join 404')).toBe(`GET /v1/event-shares/${FILTERED}/join 404`);
     expect(redactText('/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB?auto=1')).toBe(`/join/e/${FILTERED}?auto=1`);
     expect(redactText('/og/join/e/Ab3_-Ab3_-Ab3_-Ab3_-AB')).toBe(`/og/join/e/${FILTERED}`);
+    // (#193) 구독 피드 주소
+    expect(redactText('GET /v1/ics/Ab3_-Ab3_-Ab3_-Ab3_-Ab3_-Ab3_-Ab3_-Ab3_-Ab3_-Ab3.ics 404')).toBe(`GET /v1/ics/${FILTERED} 404`);
     expect(redactText('보통 문장 그대로')).toBe('보통 문장 그대로');
   });
 });

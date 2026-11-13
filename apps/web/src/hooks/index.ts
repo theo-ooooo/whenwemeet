@@ -17,6 +17,7 @@ export { useNotificationSettings, useUpdateNotificationSettings } from "./useNot
 export { useWidgetAgenda } from "./useWidgetAgenda";
 export { useTodoLists, useTodoList, useRefetchOnVisible } from "./useTodos";
 export { useTodoListEditor, isPendingItem } from "./useTodoListEditor";
+export { useCalendarFeed } from "./useCalendarFeed";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
@@ -27,6 +28,7 @@ export { useJoinGroup } from "./useJoinGroup";
 export { useCreateEventShare, useRevokeEventShare, useJoinEventShare } from "./useEventShare";
 export { useUpdateGroup } from "./useUpdateGroup";
 export { useRotateInviteCode } from "./useRotateInviteCode";
+export { useSaveCalendarFeed, useRotateCalendarFeed, useDeleteCalendarFeed, type CalendarFeedSettings } from "./useCalendarFeed";
 export { useUpdateMembership } from "./useUpdateMembership";
 export { useLeaveGroup } from "./useLeaveGroup";
 export { useCreateAnniversary } from "./useCreateAnniversary";

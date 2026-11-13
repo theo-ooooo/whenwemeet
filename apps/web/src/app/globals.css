@@ -128,6 +128,8 @@
   /* (#343) 핑크 */
   --m8: #ec4899;
   --on-member: #1b1b1f;
+  /* (#355) 폰 월 달력 하루짜리 이름 칩: 일정 색을 --tile 에 섞는 비율 */
+  --day-chip-mix: 26%;
   --fab-shadow: 0 6px 20px rgba(224, 83, 61, 0.3);
   --glass: rgba(255, 255, 255, 0.78);
   --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
@@ -175,6 +177,7 @@
     --m7: #38bdf8;
     --m8: #f472b6;
     --on-member: #121214;
+    --day-chip-mix: 32%;
     --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
     --glass: rgba(36, 36, 41, 0.82);
     --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
@@ -218,6 +221,7 @@
   --m7: #38bdf8;
   --m8: #f472b6;
   --on-member: #121214;
+  --day-chip-mix: 32%;
   --fab-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   --glass: rgba(36, 36, 41, 0.82);
   --dock-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);

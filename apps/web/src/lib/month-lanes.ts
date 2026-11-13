@@ -171,3 +171,63 @@ export function phoneDayLanes<T extends LaneEvent>(week: PackedWeek<T>, col: num
   const overflow = here.filter((s) => s.lane >= maxLanes).sort((a, b) => a.lane - b.lane).map((s) => s.event);
   return { lanes, overflow };
 }
+
+/** 폰 칸 이름 칩 하나 (#355). 여러 날 일정은 주 조각 하나가 칩 하나(걸친 칸만큼 넓다) */
+export type PhoneChip<T> = {
+  event: T;
+  key: string;
+  /** 0 = 날짜 숫자 바로 아래 줄 */
+  lane: number;
+  col: number;
+  span: number;
+  /** 여러 날 일정(진한 막대)인지 */
+  multi: boolean;
+  /** 왼쪽 끝이 일정의 진짜 시작(둥근 끝). 앞 주에서 이어지면 false */
+  roundStart: boolean;
+  /** 오른쪽 끝이 일정의 진짜 끝 */
+  roundEnd: boolean;
+};
+
+export type PhoneWeek<T> = {
+  chips: PhoneChip<T>[];
+  /** 칸별 "+N" 의 N (못 그린 막대 + 칩). 0 이면 배지 없음 */
+  more: number[];
+};
+
+/**
+ * 폰 월 달력 한 주의 이름 칩 배치 (#355, C안). 칸마다 maxLanes 줄(기본 4).
+ * - 여러 날 막대를 먼저(packWeek 순서: 시작 이른 것, 긴 것) 걸친 칸이 모두 비어 있는 가장 낮은 줄에 넣는다.
+ *   어느 줄에도 통째로 안 들어가면 걸친 칸마다 "+1" (막대를 칸 중간에서 끊지 않는다)
+ * - 한 날 일정은 그 칸의 남은 줄을 위에서부터 채우고(byDay 순서), 모자라면 "+1"
+ * - reserved[col] 이 true 인 칸은 0번 줄을 기념일, 공휴일 글자가 쓴다
+ */
+export function phoneWeek<T extends LaneEvent>(week: PackedWeek<T>, maxLanes = 4, reserved: readonly boolean[] = []): PhoneWeek<T> {
+  const cols = week.days.length;
+  const used: boolean[][] = Array.from({ length: maxLanes }, (_, l) => Array.from({ length: cols }, (_, c) => l === 0 && Boolean(reserved[c])));
+  const more = Array.from({ length: cols }, () => 0);
+  const chips: PhoneChip<T>[] = [];
+
+  for (const s of week.segments) {
+    const to = s.col + s.span;
+    const lane = used.findIndex((row) => row.slice(s.col, to).every((x) => !x));
+    if (lane < 0) {
+      for (let c = s.col; c < to; c++) more[c] += 1;
+      continue;
+    }
+    for (let c = s.col; c < to; c++) used[lane][c] = true;
+    chips.push({ event: s.event, key: s.key, lane, col: s.col, span: s.span, multi: true, roundStart: s.isStart, roundEnd: s.isEnd });
+  }
+
+  week.singles.forEach((list, col) => {
+    for (const ev of list) {
+      const lane = used.findIndex((row) => !row[col]);
+      if (lane < 0) {
+        more[col] += 1;
+        continue;
+      }
+      used[lane][col] = true;
+      chips.push({ event: ev, key: eventKey(ev), lane, col, span: 1, multi: false, roundStart: true, roundEnd: true });
+    }
+  });
+  return { chips, more };
+}

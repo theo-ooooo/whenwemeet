@@ -4,6 +4,7 @@ import { IMPORT_PATH } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useGroupContext } from "@/components/AppShell";
+import { CalendarFeedSection } from "@/components/CalendarFeedSection";
 import { useToast } from "@/components/Toast";
 import { IconCheck, IconChevronRight, KakaoSymbol } from "@/components/icons";
 import { NameEditRow } from "@/components/NameEditRow";
@@ -33,7 +34,7 @@ export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
         <h1 className="t-title">팀 설정</h1>
       </div>
       {group ? (
-        // 본문 폭 main-lg(≥696, #323): 왼쪽 팀(이름, 초대, 멤버) | 오른쪽 이 팀에서 나(내 표시, 알림, 나가기). 그 아래는 1단 (#244)
+        // 본문 폭 main-lg(≥696, #323): 왼쪽 팀(이름, 초대, 멤버) | 오른쪽 이 팀에서 나(내 표시, 알림, 다른 캘린더 앱에서 보기, 나가기). 그 아래는 1단 (#244)
         <div className="space-y-2 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
           <div className="space-y-2">
             <NameSection group={group} onSaved={setGroup} />
@@ -57,6 +58,8 @@ export function SettingsScreen({ openInvite }: { openInvite: boolean }) {
             <MeSection group={group} onSaved={setGroup} />
             {/* (#188) 이 팀 알림. 옛 API(notify 없음)에서는 줄을 두지 않는다 */}
             {group.me.notify !== undefined && <NotifySection group={group} onSaved={setGroup} />}
+            {/* (#193) 외부 캘린더 구독 주소. 개인 달력에도 같은 칸 */}
+            <CalendarFeedSection key={group.id} groupId={group.id} personal={group.type === "PERSONAL"} />
             <ImportSection personal={group.type === "PERSONAL"} />
             {group.type === "TEAM" && <LeaveSection group={group} groupId={groupId} />}
           </div>

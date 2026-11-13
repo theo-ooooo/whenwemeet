@@ -19,17 +19,28 @@ export class RateLimitSettings {
   }
 }
 
-/** 요청자 식별값. user 는 서명을 확인한 JWT sub, 없으면 null */
+/** 요청자 식별값. user 는 서명을 확인한 JWT sub, 없으면 null. (#193) token 은 경로의 `:token` (없으면 null) */
 export interface RateLimitSubject {
   ip: string;
   userId: number | null;
+  token?: string | null;
+}
+
+/** (#193) 카운터 키에 넣는 경로 토큰 길이 상한. 긴 값으로 메모리를 늘리지 못하게 */
+const MAX_TOKEN_KEY_LENGTH = 64;
+
+/** 경로의 `:token` (문자열일 때만, 길면 자른다) */
+export function pathTokenOf(request: Pick<Request, 'params'>): string | null {
+  const token = (request.params as Record<string, unknown> | undefined)?.token;
+  return typeof token === 'string' && token.length > 0 ? token.slice(0, MAX_TOKEN_KEY_LENGTH) : null;
 }
 
 /** 이 요청에 걸 버킷 목록. 기본 한도 하나 + 경로 한도(있으면). user 한도는 로그인 요청에만 */
 export function bucketsFor(subject: RateLimitSubject, meta: RateLimitMeta | undefined): RateLimitBucket[] {
   const toBucket = (name: string, rule: RateLimitRule): RateLimitBucket | null => {
     if (rule.scope === 'user' && subject.userId === null) return null;
-    const id = rule.scope === 'user' ? String(subject.userId) : subject.ip;
+    if (rule.scope === 'token' && !subject.token) return null;
+    const id = rule.scope === 'user' ? String(subject.userId) : rule.scope === 'token' ? subject.token : subject.ip;
     return { key: `${name}:${rule.scope}:${id}`, limit: rule.limit, windowSec: rule.windowSec };
   };
   const buckets = [toBucket('default', subject.userId === null ? DEFAULT_IP_RULE : DEFAULT_USER_RULE)];
@@ -63,6 +74,7 @@ export class RateLimitGuard implements CanActivate {
     const subject: RateLimitSubject = {
       ip: clientIpOf(request, this.config.get<string>('INTERNAL_API_KEY')),
       userId: token ? await verifySessionSub(this.jwt, token) : null,
+      token: pathTokenOf(request),
     };
 
     const decision = this.store.consume(bucketsFor(subject, meta), this.settings.now());

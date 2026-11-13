@@ -35,6 +35,8 @@ type Props = {
   stripRef: React.Ref<HTMLUListElement>;
   onPickDay: (date: DateKey) => void;
   onMonth: () => void;
+  /** (#192) 돌아갈 달력 보기 이름. 주 보기에서 열었으면 "주 보기" */
+  backLabel?: string;
   onOpenEvent: (ev: Event) => void;
   onAdd: () => void;
   newEventHref: (start: string, end: string) => string;
@@ -52,6 +54,7 @@ export function DayView({
   stripRef,
   onPickDay,
   onMonth,
+  backLabel = "월 보기",
   onOpenEvent,
   onAdd,
   newEventHref,
@@ -86,7 +89,8 @@ export function DayView({
           onClick={onMonth}
           className="hit flex h-8 shrink-0 items-center gap-1 rounded-full bg-paper px-3 text-[13px] font-bold"
         >
-          <IconCalendar size={16} />월 보기
+          <IconCalendar size={16} />
+          {backLabel}
         </button>
       </div>
 

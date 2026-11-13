@@ -3,6 +3,7 @@ import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow, type UserPublicRecor
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
+import { CalendarFeedsRepository } from '../calendar-feed/calendar-feeds.repository.js';
 import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import { PushRepository } from '../push/push.repository.js';
@@ -70,6 +71,7 @@ export class MembershipsRepository {
     private readonly push: PushRepository,
     private readonly activities: GroupActivitiesRepository,
     private readonly eventShares: EventSharesRepository,
+    private readonly calendarFeeds: CalendarFeedsRepository,
   ) {}
 
   async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
@@ -184,6 +186,7 @@ export class MembershipsRepository {
    * 팀이 지워지면 볼 사람이 없어 남기지 않는다.
    * (#274) 그 사람이 이 팀에서 만든 일정 공유 링크는 끊는다 (D-183). 팀이 지워지면 Cascade 로 같이 사라진다
    * (#300) 그 사람이 이 팀을 처음 여는 달력으로 고정했으면 LAST 로 되돌린다. 팀이 지워지면 이 팀을 고정한 사람 전부 (D-192)
+   * (#193) 그 사람의 이 팀 구독 주소를 지운다 (즉시 404, D-217). 팀이 지워지면 Cascade
    */
   async removeWithGroupPrune(db: Db, membershipId: number, groupId: number, activity: 'MEMBER_LEFT' | 'MEMBER_DELETED'): Promise<boolean> {
     const removed = await db.membership.delete({
@@ -194,6 +197,7 @@ export class MembershipsRepository {
     await db.user.updateMany({ where: { id: userId, startGroupId: groupId }, data: START_CALENDAR_RESET });
     await db.eventParticipant.deleteMany({ where: { userId, event: { groupId } } });
     await this.eventShares.revokeCreatorTx(db, groupId, userId, new Date());
+    await this.calendarFeeds.deleteMemberTx(db, userId, groupId);
     const remaining = await db.membership.count({ where: { groupId } });
     if (remaining > 0) {
       await this.activities.recordTx(db, { groupId, type: activity, actor: { id: userId, name: snapshotName(removed.displayName, removed.user.nickname) } });

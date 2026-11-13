@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
 import {
   dayLabel,
+  groupPast,
   groupUpcoming,
   lastDayOf,
+  pastWindow,
   monthBreak,
   upcomingDayOf,
   upcomingTimeText,
@@ -198,5 +200,34 @@ describe("monthBreak", () => {
     expect(monthBreak("2026-11-12", "2026-11-30", TODAY)).toBeNull();
     expect(monthBreak("2026-11-30", "2026-12-01", TODAY)).toBe("12월");
     expect(monthBreak("2026-12-31", "2027-01-02", TODAY)).toBe("2027년 1월");
+  });
+});
+
+describe("(#192) 지난 일정 pastWindow, groupPast", () => {
+  it("창 1 은 오늘 포함 지난 30일, 창 2 는 그 앞 30일", () => {
+    expect(pastWindow(TODAY, 1)).toEqual({ from: "2026-10-13", to: "2026-11-12" });
+    expect(pastWindow(TODAY, 2)).toEqual({ from: "2026-09-13", to: "2026-10-13" });
+  });
+
+  it("끝난 일정만 시작한 날에 묶고, 날짜 오름차순", () => {
+    const now = Date.parse(at(TODAY, "15:00"));
+    const morning = ev(at(TODAY, "09:00"), at(TODAY, "10:00"));
+    const ongoing = ev(at(TODAY, "14:00"), at(TODAY, "16:00"));
+    const yesterday = ev(at("2026-11-10", "18:00"), at("2026-11-10", "20:00"));
+    const allDay = ev(at("2026-11-08", "00:00"), at("2026-11-09", "00:00"), { allDay: true });
+    const old = ev(at("2026-10-01", "10:00"), at("2026-10-01", "11:00"));
+    const days = groupPast([morning, ongoing, yesterday, allDay, old, yesterday], pastWindow(TODAY, 1), TODAY, now);
+    expect(days.map((d) => [d.date, d.label, d.tone, d.events.map((e) => e.id)])).toEqual([
+      ["2026-11-08", "일", "holiday", [allDay.id]],
+      ["2026-11-10", "어제", "plain", [yesterday.id]],
+      ["2026-11-11", "오늘", "today", [morning.id]],
+    ]);
+  });
+
+  it("앞 창에서 시작해 이번 창에 끝난 일정은 시작한 날의 창에만", () => {
+    const now = Date.parse(at(TODAY, "15:00"));
+    const cross = ev(at("2026-10-12", "22:00"), at("2026-10-13", "02:00"));
+    expect(groupPast([cross], pastWindow(TODAY, 1), TODAY, now)).toEqual([]);
+    expect(groupPast([cross], pastWindow(TODAY, 2), TODAY, now).map((d) => d.date)).toEqual(["2026-10-12"]);
   });
 });
