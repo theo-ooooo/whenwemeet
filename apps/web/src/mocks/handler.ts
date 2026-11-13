@@ -976,6 +976,24 @@ export function mockHandle(ctx: Ctx): MockResult {
     });
   }
 
+  // (#274) 공개(선택 인증): 일정 공유 미리보기. 목은 토큰과 상관없이 첫 팀의 첫 일정을 보여 준다 (화면 확인용)
+  if (method === "GET" && seg[0] === "event-shares" && seg[1] && seg.length === 2) {
+    const e = s.events[0];
+    const grp = e && s.groups.find((x) => x.id === e.groupId);
+    if (!e || !grp) return err(404, "EVENT_SHARE_NOT_FOUND", "링크가 만료됐어요");
+    const member = ctx.userId !== null && s.memberships.some((m) => m.groupId === grp.id && m.userId === ctx.userId);
+    return ok({
+      groupName: grp.name,
+      memberCount: s.memberships.filter((m) => m.groupId === grp.id).length,
+      sharer: null,
+      event: { title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, repeat: null, occurrence: null, color: null },
+      expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      viewer: member
+        ? { member: true, groupId: grp.id, eventId: e.id, groupCode: mockGroupCode(grp.id), eventCode: mockEventCode(e.id), occurrence: null, date: e.startsAt.slice(0, 10) }
+        : { member: false },
+    });
+  }
+
   // (#245) 공개: 이메일 로그인 (웹 서버 전용 엔드포인트, 이메일-로그인.md 4장)
   const email = mockEmailLogin(s, method, path, body);
   if (email) return email;
