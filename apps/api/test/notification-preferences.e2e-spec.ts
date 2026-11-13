@@ -39,7 +39,7 @@ const OFFSET_NAMES = ['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE'] as const;
 type OffsetName = (typeof OFFSET_NAMES)[number];
 
 /** (#376) 지운 옛 칸 */
-const _DROPPED_USER_COLUMNS = [
+const DROPPED_USER_COLUMNS = [
   'notifyReminder',
   'notifyChange',
   'notifyAnniversary',
@@ -51,7 +51,7 @@ const _DROPPED_USER_COLUMNS = [
   'birthdayRemindDayBefore',
   'birthdayRemindWeekBefore',
 ];
-const _DROPPED_ANNIVERSARY_COLUMNS = [
+const DROPPED_ANNIVERSARY_COLUMNS = [
   'remindDayOf',
   'remindDayBefore',
   'remindWeekBefore',
@@ -353,8 +353,24 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
     await app.close();
   });
 
-  it.todo('(#376) 다음 릴리스: User, Anniversary 에 옛 알림 칸 13개가 없다 (DROP 마이그레이션과 함께 살린다)');
-
+  it('(#376) User, Anniversary 에 옛 알림 칸 13개가 없다', async () => {
+    const columns = await sql<{ table: string; column: string }>(
+      `SELECT TABLE_NAME AS \`table\`, COLUMN_NAME AS \`column\` FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('User', 'Anniversary')`,
+    );
+    const names = (table: string) =>
+      columns.filter((c) => c.table === table).map((c) => c.column);
+    expect(names('User')).toContain('birthday');
+    expect(names('Anniversary')).toContain('kind');
+    expect(
+      names('User').filter((c) => DROPPED_USER_COLUMNS.includes(c)),
+    ).toEqual([]);
+    expect(
+      names('Anniversary').filter((c) =>
+        DROPPED_ANNIVERSARY_COLUMNS.includes(c),
+      ),
+    ).toEqual([]);
+  });
 
   it('넣은 행: 기본값과 다른 종류, 기본값과 같은 값을 고른 종류, 기념일 시점 8조합이 다 있다', async () => {
     const prefs = await prisma.notificationPreference.findMany();
