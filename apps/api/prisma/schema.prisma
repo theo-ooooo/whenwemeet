@@ -49,17 +49,6 @@ model User {
   avatarFileId Int?     @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  /// (#188) 내 정보 > 알림. 기본 모두 켬
-  notifyReminder    Boolean   @default(true)
-  notifyChange      Boolean   @default(true)
-  notifyAnniversary Boolean   @default(true)
-  notifyJoin        Boolean   @default(true)
-  /// (#277) 내 정보 > 알림 "주간 요약". 기본 켬 (D-204)
-  notifyWeekly      Boolean   @default(true)
-  /// (#277) 내 정보 > 알림 "다 같이 비는 시간" (조용한 팀 깨우기). 법률 확인 전이라 기본 끔 (D-204)
-  notifyWeeklyNudge Boolean   @default(false)
-  /// (#189) 내 정보 > 알림 "약속 투표" (투표 열림, 마감, 정함). 기본 켬
-  notifyPoll        Boolean   @default(true)
   /// (#188) 마지막 앱 로그인 (handoff 교환 성공). 권한 허용률 지표의 분모 (D-97)
   lastAppLoginAt    DateTime?
   /// (#300) 처음 여는 달력. 기본 LAST(마지막에 본 달력). GROUP 이면 startGroupId 의 팀 (D-191)
@@ -68,7 +57,15 @@ model User {
   startGroupId      Int?
   /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-230)
   birthday          String?   @db.Char(5)
-  /// (#305) 내 생일을 팀원에게 알리는 시점. 기념일과 같이 오전 9시 KST, 기본 당일만 (D-232)
+  /// (#369) 아래 10칸은 더 이상 읽고 쓰지 않는다. 값은 NotificationPreference, BirthdayReminder 로 옮겼고 다음 릴리스에서 DROP 한다
+  /// (배포.md "컬럼 삭제는 두 릴리스로", 이전 이미지로 롤백해도 깨지지 않게, D-249). 새 코드에서 쓰지 말 것
+  notifyReminder           Boolean @default(true)
+  notifyChange             Boolean @default(true)
+  notifyAnniversary        Boolean @default(true)
+  notifyJoin               Boolean @default(true)
+  notifyWeekly             Boolean @default(true)
+  notifyWeeklyNudge        Boolean @default(false)
+  notifyPoll               Boolean @default(true)
   birthdayRemindDayOf      Boolean @default(true)
   birthdayRemindDayBefore  Boolean @default(false)
   birthdayRemindWeekBefore Boolean @default(false)
@@ -107,6 +104,67 @@ model User {
   pollsCreated       Poll[]            @relation("PollCreator")
   pollVotes          PollVote[]
   pollParticipations PollParticipant[]
+  /// (#369) 알림 설정 (종류별 켬/끔, 생일 알림 시점). 행이 없으면 코드의 기본값 (D-249)
+  notificationPreferences NotificationPreference[]
+  /// (#369) 내 생일을 팀원에게 알리는 시점 (켜진 시점마다 행 하나, 가입 때 DAY_OF 하나, D-232)
+  birthdayReminders       BirthdayReminder[]
+}
+
+/// (#369) 사용자별 알림 종류 (내 정보 > 알림 토글, D-249). 기본값은 코드 표 `notification-preferences/notification-preferences.ts` 하나
+enum NotificationPreferenceKind {
+  /// 일정 알림 (기본 켬)
+  REMINDER
+  /// 팀원 변경 (기본 켬)
+  CHANGE
+  /// 기념일, 멤버 생일 (기본 켬)
+  ANNIVERSARY
+  /// 새 멤버 합류 (기본 켬)
+  JOIN
+  /// (#277) 주간 요약 (기본 켬, D-204)
+  WEEKLY
+  /// (#277) 다 같이 비는 시간, 조용한 팀 깨우기 (기본 끔, D-204)
+  WEEKLY_NUDGE
+  /// (#189) 약속 투표 (기본 켬)
+  POLL
+}
+
+/// (#369) 사용자 알림 설정 한 칸 (D-249). 행이 없으면 기본값, 있으면 사용자가 고른 값. 탈퇴하면 Cascade
+model NotificationPreference {
+  userId    Int
+  kind      NotificationPreferenceKind
+  enabled   Boolean
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, kind])
+}
+
+/// (#369) 알림 시점, 모두 오전 9시 KST (D-144). 기념일 알림(#269)과 멤버 생일 알림(#305)이 같이 쓴다
+enum ReminderOffset {
+  DAY_OF
+  DAY_BEFORE
+  WEEK_BEFORE
+}
+
+/// (#369) 기념일의 알림 시점. 켜진 시점마다 행 하나, 행이 없으면 알림 없음 (D-249). 기념일이 지워지면 Cascade
+model AnniversaryReminder {
+  anniversaryId Int
+  offset        ReminderOffset
+
+  anniversary Anniversary @relation(fields: [anniversaryId], references: [id], onDelete: Cascade)
+
+  @@id([anniversaryId, offset])
+}
+
+/// (#369) 내 생일을 팀원에게 알리는 시점. 켜진 시점마다 행 하나, 행이 없으면 알림 없음 (D-249). 탈퇴하면 Cascade
+model BirthdayReminder {
+  userId Int
+  offset ReminderOffset
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, offset])
 }
 
 /// (#300) 처음 여는 달력. LAST 마지막에 본 달력(쿠키 wwm_group), PERSONAL 내 달력(개인 팀), GROUP 고정한 팀
@@ -472,7 +530,7 @@ model Anniversary {
   date      DateTime        @db.Date
   /// (#105) 자동 표시 종류. 기존 행은 COUNT_UP. 항목 계산은 클라이언트 (D-60)
   kind      AnniversaryKind @default(COUNT_UP)
-  /// (#269) 알림 시점, 모두 오전 9시 KST. 기존 행은 당일만. 일주일 전은 100일 단위 항목에 쓰지 않음 (D-144, D-145)
+  /// (#269) 알림 시점. (#369) 아래 3칸은 더 이상 읽고 쓰지 않는다. AnniversaryReminder 로 옮겼고 다음 릴리스에서 DROP 한다 (D-249). 새 코드에서 쓰지 말 것
   remindDayOf      Boolean @default(true)
   remindDayBefore  Boolean @default(false)
   remindWeekBefore Boolean @default(false)
@@ -484,6 +542,8 @@ model Anniversary {
   creator User? @relation("AnniversaryCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   /// (#191) 이 기념일의 새 소식 기록. 기념일이 지워지면 anniversaryId 만 null
   activities GroupActivity[]
+  /// (#269, #369) 알림 시점 (켜진 시점마다 행 하나). 일주일 전은 100일 단위 항목에 쓰지 않음 (D-144, D-145)
+  reminders  AnniversaryReminder[]
 
   @@index([groupId, date])
 }

@@ -106,7 +106,7 @@ export class PushDispatcher {
     const monday = mondayOfKey(row.dedupeKey);
     const built = monday ? await this.weekly.build(row.groupId, monday, now) : null;
     const recipients = built
-      ? await this.push.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'notifyWeeklyNudge' : 'notifyWeekly')
+      ? await this.push.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'WEEKLY_NUDGE' : 'WEEKLY')
       : [];
     if (!built || recipients.length === 0) {
       stats.cancelled += await this.push.markCancelled([row.id]);

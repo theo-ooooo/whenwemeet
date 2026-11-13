@@ -4,7 +4,6 @@
  * 계산은 기념일 "매년 반복"(YEARLY) 규칙을 그대로 쓴다: 2월 29일은 평년에 2월 28일 (D-62)
  */
 import { anniversaryItemsOn, type AnniversaryLike } from '../push/anniversary-items.js';
-import type { AnniversaryReminderFlags } from './anniversary-reminders.js';
 
 /** 'MM-DD' */
 export const BIRTHDAY_PATTERN = /^\d{2}-\d{2}$/;
@@ -34,18 +33,3 @@ export function isBirthdayOn(birthday: string, day: string): boolean {
 
 /** 달력, 알림, 피드의 이름: "지민 생일" (팀 표시 이름 ?? 닉네임) */
 export const birthdayTitle = (name: string): string => `${name} 생일`;
-
-/** User 의 생일 알림 칸 → 기념일 알림 칸 모양 */
-export interface BirthdayReminderColumns {
-  birthdayRemindDayOf: boolean;
-  birthdayRemindDayBefore: boolean;
-  birthdayRemindWeekBefore: boolean;
-}
-
-export function birthdayFlags(row: BirthdayReminderColumns): AnniversaryReminderFlags {
-  return { remindDayOf: row.birthdayRemindDayOf, remindDayBefore: row.birthdayRemindDayBefore, remindWeekBefore: row.birthdayRemindWeekBefore };
-}
-
-export function birthdayColumns(flags: AnniversaryReminderFlags): BirthdayReminderColumns {
-  return { birthdayRemindDayOf: flags.remindDayOf, birthdayRemindDayBefore: flags.remindDayBefore, birthdayRemindWeekBefore: flags.remindWeekBefore };
-}

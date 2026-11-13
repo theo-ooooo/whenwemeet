@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AnniversaryKind } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
-import type { AnniversaryReminderFlags } from './anniversary-reminders.js';
+import { type AnniversaryReminder, type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT, rowsFromFlags } from './anniversary-reminders.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import {
   type ActivityActor,
@@ -19,9 +19,8 @@ export const ANNIVERSARY_SELECT = {
   name: true,
   date: true,
   kind: true,
-  remindDayOf: true,
-  remindDayBefore: true,
-  remindWeekBefore: true,
+  /** (#369) 켜진 알림 시점 (행 → 칸 모양은 toAnniversaryRow) */
+  reminders: REMINDER_ROWS_SELECT,
   creatorId: true,
   createdAt: true,
   creator: USER_PUBLIC_SELECT,
@@ -38,10 +37,24 @@ export interface AnniversaryRow extends AnniversaryReminderFlags {
   creator: UserRow | null;
 }
 
-type AnniversaryRecord = Omit<AnniversaryRow, 'creator'> & { creator: UserPublicRecord | null };
+type AnniversaryRecord = Omit<AnniversaryRow, 'creator' | keyof AnniversaryReminderFlags> & {
+  creator: UserPublicRecord | null;
+  reminders: { offset: AnniversaryReminder }[];
+};
 
-function toAnniversaryRow(record: AnniversaryRecord, urls: FileUrlBuilder): AnniversaryRow {
-  return { ...record, creator: toUserRowOrNull(record.creator, urls) };
+function toAnniversaryRow({ reminders, ...record }: AnniversaryRecord, urls: FileUrlBuilder): AnniversaryRow {
+  return { ...record, ...flagsFromRows(reminders), creator: toUserRowOrNull(record.creator, urls) };
+}
+
+/**
+ * (#369) 알림 시점 칸 → 자식 행 쓰기. 수정에서 시점을 주면 통째로 바꾼다.
+ * 기념일 updatedAt 은 전처럼 수정 요청마다 바뀐다(알림 예약의 개정 규칙이 본다): 시점만 바꿔도 부모 행을 고친다
+ */
+function splitReminders<T extends Partial<AnniversaryReminderFlags>>(data: T) {
+  const { remindDayOf, remindDayBefore, remindWeekBefore, ...rest } = data;
+  const given = remindDayOf !== undefined || remindDayBefore !== undefined || remindWeekBefore !== undefined;
+  const flags = { remindDayOf: remindDayOf ?? false, remindDayBefore: remindDayBefore ?? false, remindWeekBefore: remindWeekBefore ?? false };
+  return { rest, rows: given ? rowsFromFlags(flags) : null };
 }
 
 export interface AnniversaryCreateInput extends AnniversaryReminderFlags {
@@ -98,7 +111,8 @@ export class AnniversariesRepository {
    */
   async createWithActivityTx(data: AnniversaryCreateInput, actor: ActivityActor, now: Date = new Date()): Promise<AnniversaryRow> {
     const row = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.anniversary.create({ data, select: ANNIVERSARY_SELECT });
+      const { rest, rows } = splitReminders(data);
+      const created = await tx.anniversary.create({ data: { ...rest, reminders: { create: rows ?? [] } }, select: ANNIVERSARY_SELECT });
       const values = valuesOf(created);
       const since = new Date(now.getTime() - ANNIVERSARY_UNDO_WINDOW_MS);
       const deletions = await this.activities.listAnniversaryDeletionsTx(tx, data.groupId, actor.id, since);
@@ -114,7 +128,12 @@ export class AnniversariesRepository {
   async updateWithActivityTx(anniversaryId: number, data: AnniversaryUpdateInput, actor: ActivityActor): Promise<AnniversaryRow> {
     const row = await this.prisma.$transaction(async (tx) => {
       const before = await tx.anniversary.findUniqueOrThrow({ where: { id: anniversaryId }, select: { name: true, date: true, kind: true } });
-      const updated = await tx.anniversary.update({ where: { id: anniversaryId }, data, select: ANNIVERSARY_SELECT });
+      const { rest, rows } = splitReminders(data);
+      const updated = await tx.anniversary.update({
+        where: { id: anniversaryId },
+        data: { ...rest, updatedAt: new Date(), ...(rows ? { reminders: { deleteMany: {}, create: rows } } : {}) },
+        select: ANNIVERSARY_SELECT,
+      });
       const payload = anniversaryUpdatedPayload(valuesOf(before), valuesOf(updated));
       if (payload) await this.activities.recordTx(tx, { groupId: updated.groupId, type: 'ANNIVERSARY_UPDATED', actor, anniversaryId, payload });
       return updated;

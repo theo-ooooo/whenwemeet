@@ -6,7 +6,6 @@ import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { AccountCleanupPlan, type BirthdayRow, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
 import { type AnniversaryReminder, DEFAULT_ANNIVERSARY_REMINDERS, fromReminderFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
-import { birthdayColumns, birthdayFlags } from '../anniversaries/birthdays.js';
 import type { UpdateBirthdayDto } from './dto/update-birthday.dto.js';
 import type { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
 
@@ -34,7 +33,7 @@ function toStartCalendar(row: StartCalendarRow | null): StartCalendar {
 }
 
 function toBirthdaySettings(row: BirthdayRow): BirthdaySettings {
-  return { date: row.birthday, reminders: fromReminderFlags(birthdayFlags(row)) };
+  return { date: row.birthday, reminders: fromReminderFlags(row) };
 }
 
 function invalid(field: string, message: string): ApiException {
@@ -63,7 +62,7 @@ export class MeService {
   async updateBirthday(userId: number, dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
     const row = await this.users.updateBirthday(userId, {
       birthday: dto.date,
-      ...(dto.reminders !== undefined ? birthdayColumns(toReminderFlags(dto.reminders)) : {}),
+      ...(dto.reminders !== undefined ? { reminders: toReminderFlags(dto.reminders) } : {}),
     });
     return toBirthdaySettings(row);
   }

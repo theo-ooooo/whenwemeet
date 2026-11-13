@@ -394,7 +394,7 @@ BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   
 - 팀을 나가거나 탈퇴하면 멤버십이 없어져 그 팀에서 바로 빠진다. 새 소식(#191)에는 남기지 않는다
 - 알림: 2.8 "생일 알림". 피드: 2.12 `includeAnniversaries` 를 따른다
 
-기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. 보내는 규칙은 `푸시-알림.md` 5-5
+기념일 알림 시점 `reminders` (#269, D-144, D-145): 기념일에 하나, 팀 공통. 응답은 항상 `DAY_OF, DAY_BEFORE, WEEK_BEFORE` 순서로 켜진 것만, `[]` 은 알림 없음. 요청은 배열(최대 3개, 위 셋 중, 중복 없음, 순서 무관). 배열이 아니거나 `null`, 모르는 값, 중복은 400 VALIDATION_FAILED (`details[0].field = 'reminders'`). #269 전 행은 `['DAY_OF']`. (#369) 저장은 `AnniversaryReminder(anniversaryId, offset)` 켜진 시점마다 행 하나(행 없음 = `[]`), 내 생일 시점도 같은 모양의 `BirthdayReminder(userId, offset)`(가입 때 `DAY_OF` 하나), D-249. 보내는 규칙은 `푸시-알림.md` 5-5
 
 ### 2.5 빈 시간 찾기
 
@@ -551,7 +551,7 @@ ActivityPayload =
 | PUT | `/me/push-devices` | 유저 | `{ token, platform: 'IOS'\|'ANDROID', appVersion: string(1~20) }` | `{ data: { ok: true } }`. token 으로 upsert (`userId = 나`, `lastSeenAt = now`). 다른 사용자 행이면 나로 옮긴다 (한 기기는 한 사용자). 내 기기가 10대를 넘으면 `lastSeenAt` 이 가장 오래된 것부터 삭제 |
 | DELETE | `/me/push-devices` | 유저 | `{ token }` (본문) | `{ data: { ok: true } }`. `token` 이고 `userId = 나` 인 행만 삭제. 없어도 200 (멱등). 웹 로그아웃 route handler, OS 에서 알림을 끈 기기 정리가 부른다 |
 | GET | `/me/notification-settings` | 유저 | - | `{ data: NotificationSettings }` |
-| PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로 |
+| PATCH | `/me/notification-settings` | 유저 | `Partial<NotificationSettings>` | `{ data: NotificationSettings }`. 준 키만 저장, 빈 본문은 그대로. (#369) 저장은 `NotificationPreference(userId, kind)` 행(준 키는 기본값과 같아도 행으로 남김), 행이 없는 키는 기본값(`weeklyNudge` 만 끔). 응답 모양은 그대로 (D-249) |
 
 ```ts
 NotificationSettings = { reminder: boolean, change: boolean, anniversary: boolean, join: boolean,   // 기본 true
@@ -577,9 +577,9 @@ EventReminder = 'NONE'|'AT_START'|'MIN_10'|'HOUR_1'|'DAY_1'|'DAY_OF_0900'|'DAY_B
 - 같은 값이면 저장하지 않는 규칙(#62) 에 `reminder` 도 들어간다. 알림만 바꿔도 UPDATED 로그가 남는다
 - 서버 저장: 한 번짜리는 `Event.remindAt` (알림 시각), 반복 원본은 null. 시작, 끝, 종일, 알림, 반복, 반복 종료일이 바뀌면 `reminderSetAt = now` 이고, 알림 시각이 이 값보다 앞이면 보내지 않는다 (D-86)
 
-**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (`User.notifyReminder` AND `Membership.notify`). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
+**일정 알림 받는 사람** (#248, D-138): 펼치는 순간 그 일정(반복이면 원본)의 참여자 ∩ (설정 `REMINDER` AND `Membership.notify`, #369 NotificationPreference). "모두" 면 팀원 전원, 참여자 없음이면 0명으로 DISPATCHED. 팀원 변경, 기념일, 합류 알림은 그대로 팀 전체
 
-**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(`notifyAnniversary` AND `Membership.notify`)
+**생일 알림** (#305, D-232): 기념일 알림과 같은 틱, 같은 시각(오전 9시 KST)과 문구 모양("민지 생일", "오늘은 민지 생일이에요"), `kind: ANNIVERSARY`. 시점은 생일인 사람이 `PATCH /me/birthday reminders` 로 고른다(기본 당일만). 생일을 보이는 TEAM 팀마다 1건(개인 팀 없음), `dedupeKey` `B:{userId}:{groupId}:{그날}{:D1|:D7}`, `actorId` = 생일인 사람이라 받는 사람에서 빠진다. 펼칠 때 그 사람이 아직 그 팀에 생일을 보이고 생일이 그날이 맞는지 다시 보고, 아니면 SKIPPED. 받는 사람 조건은 기념일과 같다(설정 `ANNIVERSARY` AND `Membership.notify`)
 
 **들어오기 전 일** (#297, D-180): 팀원 변경(CHANGE, 가져오기 포함)과 합류(JOIN) 알림은 그 예약을 만든 시각(`PushNotification.createdAt`)까지 들어와 있던 팀원(`joinedAt <= createdAt`)에게만. 일정 알림, 기념일 알림은 펼칠 때 팀원이면 받는다
 

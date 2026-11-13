@@ -1,7 +1,8 @@
 import { birthdayEvents } from '../calendar-feed/feed-items.js';
 import { birthdayDedupeKey, birthdayTargetOf, planBirthdays } from '../push/anniversary-planner.js';
 import type { BirthdayPlanRow } from '../push/push.repository.js';
-import { birthdayAnniversary, birthdayColumns, birthdayFlags, birthdayTitle, isBirthday, isBirthdayOn } from './birthdays.js';
+import { flagsFromRows, rowsFromFlags } from './anniversary-reminders.js';
+import { birthdayAnniversary, birthdayTitle, isBirthday, isBirthdayOn } from './birthdays.js';
 
 describe('멤버 생일 (#305)', () => {
   it('isBirthday: MM-DD 이고 실제 월일만. 2월 29일은 받는다', () => {
@@ -21,9 +22,12 @@ describe('멤버 생일 (#305)', () => {
 
   it('이름과 알림 칸 변환', () => {
     expect(birthdayTitle('민지')).toBe('민지 생일');
-    const columns = { birthdayRemindDayOf: false, birthdayRemindDayBefore: true, birthdayRemindWeekBefore: true };
-    expect(birthdayFlags(columns)).toEqual({ remindDayOf: false, remindDayBefore: true, remindWeekBefore: true });
-    expect(birthdayColumns(birthdayFlags(columns))).toEqual(columns);
+    // (#369) 생일 알림 시점은 기념일과 같은 자식 행 모양 (켜진 시점마다 행 하나)
+    const rows = [{ offset: 'DAY_BEFORE' as const }, { offset: 'WEEK_BEFORE' as const }];
+    expect(flagsFromRows(rows)).toEqual({ remindDayOf: false, remindDayBefore: true, remindWeekBefore: true });
+    expect(rowsFromFlags(flagsFromRows(rows))).toEqual(rows);
+    expect(flagsFromRows([])).toEqual({ remindDayOf: false, remindDayBefore: false, remindWeekBefore: false });
+    expect(rowsFromFlags(flagsFromRows([]))).toEqual([]);
   });
 
   describe('푸시 예약 planBirthdays (D-232)', () => {
