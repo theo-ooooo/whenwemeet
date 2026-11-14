@@ -50,6 +50,8 @@ export async function generateMetadata({
   return {
     title,
     description,
+    // (#413) 팀 이름이 검색에 남지 않게. 메신저 미리보기는 robots 와 무관하게 그대로
+    robots: { index: false, follow: false },
     openGraph: {
       type: "website",
       siteName: SITE_NAME,
