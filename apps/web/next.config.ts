@@ -33,10 +33,6 @@ const nextConfig: NextConfig = {
       { source: "/join/:code/twitter-image", destination: "/og/join/:code", permanent: true },
     ];
   },
-  // (#407) 소개 페이지는 정적 HTML. 주소는 /welcome 하나로 보이게 한다
-  async rewrites() {
-    return [{ source: "/welcome", destination: "/welcome/index.html" }];
-  },
   // (#274) 일정 공유 링크 화면은 토큰이 밖 링크의 Referer 로 새지 않게 (D-186)
   async headers() {
     // (#203) 서비스 워커와 규칙 파일은 늘 새로 확인한다 (D-256). 루트 scope 라 Service-Worker-Allowed 는 필요 없다

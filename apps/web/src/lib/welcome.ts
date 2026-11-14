@@ -1,4 +1,4 @@
-// (#407) 소개 페이지. 본문은 정적 HTML(public/welcome/index.html), next.config.ts rewrites 가 /welcome 을 그 파일로 잇는다
+// (#407) 소개 페이지 app/welcome/page.tsx. 화면 사진은 public/welcome
 import { isAppUserAgent } from "./app-bridge";
 
 export const WELCOME_PATH = "/welcome";
