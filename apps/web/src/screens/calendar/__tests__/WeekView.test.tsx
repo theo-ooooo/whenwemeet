@@ -75,6 +75,8 @@ describe("WeekView", () => {
     view({ events: [night] });
     const bars = screen.getAllByRole("button", { name: /^심야,/ });
     expect(bars.map((b) => b.dataset.day)).toEqual(["2026-11-12", "2026-11-13"]);
+    // (QA) 막대 안 시각은 날마다 자른 조각("23:00~24:00")이 아니라 일정의 진짜 시각
+    expect(bars.map((b) => b.textContent)).toEqual(["심야23:00~01:30", "심야23:00~01:30"]);
   });
 
   it("4개 겹치면 2개 막대 + \"+2\" 가 그날 상세를 연다", () => {
@@ -88,7 +90,7 @@ describe("WeekView", () => {
   it("종일 일정은 종일 줄 막대", () => {
     const trip = ev("여행", "2026-11-09", "00:00", "2026-11-12", "00:00", { allDay: true });
     const p = view({ events: [trip] });
-    fireEvent.click(screen.getByRole("button", { name: /^여행, 종일, 11\/11까지/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^여행, 종일 ~11월 11일/ }));
     expect(p.onOpenEvent).toHaveBeenCalledWith("2026-11-09", trip);
     // 종일 일정만 있는 주는 빈 주가 아니다
     expect(screen.queryByText("이번 주 일정이 없어요.")).toBeNull();

@@ -1,7 +1,7 @@
 // (#378) 일정 줄: 시각 글자 한 번, 지난 일정, 보일 참여자, 내 참석, 읽기 이름
 import { describe, expect, it } from "vitest";
-import { kstToIso } from "../date";
-import { clockRangeText, clockText, eventRowLabel, eventRowTime, isPastEvent, myRsvpOf, visibleParticipants } from "../event-row";
+import { clockRangeText, clockText, formatEventTime, kstToIso } from "../date";
+import { eventRowLabel, eventRowTime, isPastEvent, myRsvpOf, visibleParticipants } from "../event-row";
 import type { Member, RsvpSummary } from "../types";
 
 const at = (day: string, hm = "00:00") => kstToIso(day, hm);
@@ -20,6 +20,22 @@ describe("시각 글자", () => {
   it("같은 오전/오후면 끝은 숫자만, 바뀌면 끝에도 붙인다", () => {
     expect(clockRangeText(at("2026-11-17", "08:00"), at("2026-11-17", "09:00"))).toBe("오전 8:00 ~ 9:00");
     expect(clockRangeText(at("2026-11-17", "11:00"), at("2026-11-17", "13:00"))).toBe("오전 11:00 ~ 오후 1:00");
+  });
+
+  it("(QA 2026-11-14) formatEventTime(사이드바, 새 소식) 은 시작한 날의 일정 줄 글자와 같다", () => {
+    const cases = [
+      timed("19:30", "22:00"),
+      timed("11:00", "13:00"),
+      timed("22:00", "00:00", "2026-11-17", "2026-11-18"),
+      timed("22:00", "02:00", "2026-11-17", "2026-11-18"),
+      allDay("2026-11-17", "2026-11-18"),
+      allDay("2026-11-17", "2026-11-20"),
+    ];
+    for (const ev of cases) expect(formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)).toBe(eventRowTime(ev));
+    expect(formatEventTime(at("2026-11-17", "19:30"), at("2026-11-17", "22:00"), false)).toBe("오후 7:30 ~ 10:00");
+    expect(formatEventTime(at("2026-11-17", "22:00"), at("2026-11-18"), false)).toBe("오후 10:00 ~ 오전 12:00");
+    expect(formatEventTime(at("2026-11-17", "22:00"), at("2026-11-18", "02:00"), false)).toBe("오후 10:00 ~ 11월 18일 오전 2:00");
+    expect(formatEventTime(at("2026-11-17"), at("2026-11-20"), true)).toBe("종일 ~11월 19일");
   });
 
   it("하루 시간 일정, 종일 하루", () => {
@@ -56,8 +72,10 @@ describe("지난 일정, 참여자, 참석", () => {
   it("모두이거나 개인 팀이면 아바타 없음, 넘치면 앞 3명 + 수", () => {
     const creator = m(1, "지우");
     const four = { creator, participants: { all: false, members: [m(1, "지우"), m(2, "하늘"), m(3, "민지"), m(4, "지훈")] } };
-    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, false)).toEqual({ members: [], more: 0 });
-    expect(visibleParticipants(four, true)).toEqual({ members: [], more: 0 });
+    // (#427) 모두는 아바타 대신 all 표시
+    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, false)).toEqual({ all: true, members: [], more: 0 });
+    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, true)).toEqual({ all: false, members: [], more: 0 });
+    expect(visibleParticipants(four, true)).toEqual({ all: false, members: [], more: 0 });
     const v = visibleParticipants(four, false);
     expect(v.members.map((x) => x.displayName)).toEqual(["지우", "하늘", "민지"]);
     expect(v.more).toBe(1);

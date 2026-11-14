@@ -4,10 +4,9 @@
 // 오늘이면 지난 일정과 아직 시작 안 한 일정 사이에 "지금 오후 2:10" 줄. 누르면 같은 자리에서 일정 상세(onOpen)
 import { EventList, EventRow } from "./EventRow";
 import { useWho } from "./Participants";
-import { clockText } from "@/lib/event-row";
 import { nowLineIndex } from "@/lib/day-view";
 import { eventKey } from "@/lib/recurrence";
-import type { DateKey } from "@/lib/date";
+import { clockText, type DateKey } from "@/lib/date";
 import type { Event } from "@/lib/types";
 
 type Props = {

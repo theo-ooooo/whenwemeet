@@ -1,7 +1,7 @@
 "use client";
-// 빈 시간 찾기 (#378 B 개편). 조건은 칩 한 줄("이번 주", "오전 9시 ~ 오후 11시", "2시간 이상", 넓은 화면은 "종일 일정 제외" 까지, "조건")로 접고
+// 빈 시간 찾기 (#378 B 개편). 조건은 칩 한 줄("이번 주", "오전 9:00 ~ 오후 11:00", "2시간 이상", "종일 일정 제외", "조건")로 접고
 // 누르면 예전 조건 칸을 시트로 연다. 결과 위 "바로 일정 만들기 | 후보 골라 투표"(팀이고 둘 이상일 때), 요약 한 줄
-// ("둘 모두 비는 시간 5곳. 가장 긴 곳은 토 9:00~16:00"), 날짜마다 하루 막대(DayBar, 서버 결과 free) + 시간 칩(가장 긴 곳 강조).
+// ("둘 모두 비는 시간 5곳. 가장 긴 곳은 토 11/14 오전 9:00 ~ 오후 4:00"), 날짜마다 하루 막대(DayBar, 서버 결과 free) + 시간 칩(가장 긴 곳 강조).
 // 칩: 만들기 모드는 일정 만들기 화면(그 시각으로), 투표 모드는 후보 체크 → 아래 버튼 → 투표 만들기 시트(PollCreateSheet).
 // 넓은 화면(본문 main-lg)은 결과를 두 열로
 import Link from "next/link";
@@ -17,7 +17,7 @@ import { DatePicker, TimePicker } from "@/components/pickers";
 import { minutesOf } from "@/components/pickers/time";
 import { Button, EmptyState, ErrorState, Segmented, Sheet, Skeleton, Toggle } from "@/components/ui";
 import { messageOf, useFreeSlots } from "@/hooks";
-import { addDays, dateKeyOf, daysBetween, formatMinutes, kstToIso, startOfWeek, timeOf, todayKey } from "@/lib/date";
+import { addDays, clockRangeText, clockText, dateKeyOf, daysBetween, formatMinutes, kstToIso, startOfWeek, todayKey } from "@/lib/date";
 import { upcomingSlots } from "@/lib/free-time";
 import { dayRangeText, groupFreeDays, longestSlot, minLengthText, periodText, shortDay, whoText } from "@/lib/free-view";
 import { MAX_POLL_OPTIONS, MIN_POLL_OPTIONS, slotKey, type Slot } from "@/lib/poll";
@@ -47,7 +47,6 @@ const MODE_OPTIONS: { value: Mode; label: string }[] = [
 ];
 
 /** 칩 시각 "09:00" 그대로, 요약은 앞 0 을 뗀다 "9:00" */
-const short = (iso: string) => timeOf(iso).replace(/^0(\d)/, "$1");
 
 export function FreeScreen() {
   const { groupId, group } = useGroupContext();
@@ -130,8 +129,9 @@ export function FreeScreen() {
         <h1 className="t-title">빈 시간 찾기</h1>
       </div>
 
-      {/* 조건 칩 한 줄 (넓은 화면은 "종일 일정 제외" 까지). 어느 칩이든 누르면 조건 시트.
-          폰에서 한 줄에 다 안 들어가면 값 칩만 옆으로 밀고 "조건" 은 오른쪽 끝에 둔다 */}
+      {/* 조건 칩 한 줄 (기간, 시간대, 최소 길이, 종일 일정). 어느 칩이든 누르면 조건 시트.
+          폰에서 한 줄에 다 안 들어가면 값 칩만 옆으로 밀고 "조건" 은 오른쪽 끝에 둔다.
+          (QA 2026-11-14) 종일 일정 칩도 폰에 보인다: 조건이 결과에 적용되는데 폰에서만 빠져 있었다 */}
       <div role="group" aria-label="찾는 조건" className="mt-1 flex items-center gap-1.5">
         <div className="-ml-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pl-4 fold:flex-initial [scrollbar-width:none] fold:ml-0 fold:flex-wrap fold:overflow-visible fold:pl-0 [&::-webkit-scrollbar]:hidden">
           <button type="button" aria-haspopup="dialog" aria-label={`기간 ${periodText(period, range.from, addDays(range.to, -1))}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
@@ -143,7 +143,7 @@ export function FreeScreen() {
           <button type="button" aria-haspopup="dialog" aria-label={`최소 길이 ${minLengthText(minMinutes)}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
             <span className={pill}>{minLengthText(minMinutes)}</span>
           </button>
-          <button type="button" aria-haspopup="dialog" aria-label={`${includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={`${chipCls} hidden! fold:flex!`}>
+          <button type="button" aria-haspopup="dialog" aria-label={`${includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
             <span className={pill}>{includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}</span>
           </button>
         </div>
@@ -192,12 +192,15 @@ export function FreeScreen() {
           </EmptyState>
         ) : result ? (
           <div className={loading ? "opacity-60 transition-opacity" : ""}>
-            {/* 요약 한 줄: "둘 모두 비는 시간 5곳. 가장 긴 곳은 토 9:00~16:00" */}
+            {/* 요약 한 줄: "둘 모두 비는 시간 5곳. 가장 긴 곳은 토 11/14 오전 9:00 ~ 오후 4:00" */}
             <p className="px-1 text-[13px] leading-5 text-ink-2">
               <b className="font-bold text-ink">{whoText(result.memberCount)}</b> 비는 시간 <b className="font-bold text-ink">{result.slots.length}곳</b>
               {best && (
                 <>
-                  . 가장 긴 곳은 {shortDay(dateKeyOf(best.startsAt))} {short(best.startsAt)}~{short(best.endsAt)}
+                  . 가장 긴 곳은 {/* 시각이 "오후 / 4:00" 처럼 줄 끝에서 갈라지지 않게 한 덩이로 */}
+                  <span className="whitespace-nowrap">
+                    {shortDay(dateKeyOf(best.startsAt))} {clockRangeText(best.startsAt, best.endsAt)}
+                  </span>
                 </>
               )}
             </p>
@@ -229,8 +232,8 @@ export function FreeScreen() {
                   <ul aria-label={`${shortDay(d.date)} 비는 시간`} className="mt-2.5 flex flex-wrap gap-x-1.5 gap-y-2">
                     {d.slots.map((s) => {
                       const mins = Math.round((Date.parse(s.endsAt) - Date.parse(s.startsAt)) / 60000);
-                      const text = `${timeOf(s.startsAt)}~${timeOf(s.endsAt)}`;
-                      const say = `${shortDay(d.date)} ${timeOf(s.startsAt)}부터 ${timeOf(s.endsAt)}까지, ${formatMinutes(mins)}`;
+                      const text = clockRangeText(s.startsAt, s.endsAt);
+                      const say = `${shortDay(d.date)} ${clockText(s.startsAt)}부터 ${clockText(s.endsAt)}까지, ${formatMinutes(mins)}`;
                       const isBest = slotKey(s) === bestKey;
                       const base = "hit flex h-9 items-center gap-1 rounded-[10px] border-[1.5px] px-2.5 text-[13px] font-bold tabular-nums";
                       if (pollMode) {

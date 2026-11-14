@@ -88,11 +88,11 @@ export function packWeek<T extends LaneEvent>(days: readonly DateKey[], byDay: R
 
 /** 칸 하나의 칩 자리 */
 export type DayFit<T> = {
-  /** 칩이 시작하는 줄 (그 위는 막대 레인 자리) */
-  chipRow: number;
+  /** 칩마다 그리는 줄 (chips 와 같은 순서, 0 = 날짜 숫자 바로 아래 줄). 막대가 없는 줄을 위에서부터 채운다 */
+  rows: number[];
   /** 보이는 한 날 일정 칩 */
   chips: T[];
-  /** "+N개 더" 의 N (숨은 막대 + 숨은 칩). 0 이면 줄 없음 */
+  /** "+N개 더" 의 N (숨은 막대 + 숨은 칩). 0 이면 줄 없음. 있으면 마지막 줄(capacity - 1)에 쓴다 */
   more: number;
 };
 
@@ -113,27 +113,32 @@ export type WeekFit<T> = { pieces: BarPiece<T>[]; days: DayFit<T>[] };
 
 /**
  * 칸에 들어가는 줄 수(capacity) 에 맞춰 막대 조각과 칸별 칩, "+N개 더" 를 정한다.
- * 그날 필요한 줄 = (그날 차 있는 가장 높은 레인 + 1) + 한 날 일정 수.
- * 넘치면 capacity - 1 줄까지만 그리고 마지막 줄은 "+N개 더" (N = 그날 숨은 막대 + 숨은 칩)
+ * 막대는 packWeek 레인을 그대로 지킨다(주 안에서 같은 높이). 한 날 일정 칩은 그 칸에서 막대가 없는 줄을
+ * 위에서부터 채운다 (폰 phoneWeek 과 같은 규칙, D-223). 위 레인이 비어 있으면 칩이 그 줄을 쓴다.
+ * 막대가 capacity 안에 다 들고 칩도 빈 줄에 다 들면 그대로, 아니면 capacity - 1 줄까지만 그리고
+ * 마지막 줄은 "+N개 더" (N = 그날 숨은 막대 + 숨은 칩)
  */
 export function fitWeek<T extends LaneEvent>(week: PackedWeek<T>, capacity: number): WeekFit<T> {
   const cols = week.days.length;
   const limit: number[] = [];
   const days: DayFit<T>[] = [];
+  // 줄 [0, lim) 중 막대가 없는 줄 (위에서부터)
+  const freeRows = (lanesHere: readonly number[], lim: number) => Array.from({ length: Math.max(0, lim) }, (_, r) => r).filter((r) => !lanesHere.includes(r));
   for (let col = 0; col < cols; col++) {
     const lanesHere = week.segments.filter((s) => s.col <= col && col < s.col + s.span).map((s) => s.lane);
-    const height = lanesHere.length ? Math.max(...lanesHere) + 1 : 0;
     const singles = week.singles[col];
-    if (height + singles.length <= capacity) {
+    const free = freeRows(lanesHere, capacity);
+    if (lanesHere.every((l) => l < capacity) && singles.length <= free.length) {
       limit.push(capacity);
-      days.push({ chipRow: height, chips: singles, more: 0 });
+      days.push({ rows: free.slice(0, singles.length), chips: singles, more: 0 });
       continue;
     }
     const lim = Math.max(0, capacity - 1);
     limit.push(lim);
-    const chips = singles.slice(0, Math.max(0, lim - height));
+    const rows = freeRows(lanesHere, lim);
+    const chips = singles.slice(0, rows.length);
     const hiddenBars = lanesHere.filter((l) => l >= lim).length;
-    days.push({ chipRow: Math.min(height, lim), chips, more: hiddenBars + singles.length - chips.length });
+    days.push({ rows: rows.slice(0, chips.length), chips, more: hiddenBars + singles.length - chips.length });
   }
 
   const pieces: BarPiece<T>[] = [];

@@ -4,7 +4,7 @@
 // - 같은 날 겹치는 조각은 묶음마다 열을 나눈다. 묶음 안 최대 열 수로 폭을 등분하고 최대 3열.
 //   넘치면 마지막 열을 "+N" 자리로 쓴다 (N = 그 열과 그 뒤 열에 들어갈 조각 수)
 // - 종일 일정은 격자 위 "종일" 줄에서 month-lanes 의 packWeek, fitWeek 를 그대로 쓴다
-import { addDays, dateKeyOf, kstToIso, parseKey, type DateKey } from "./date";
+import { addDays, dateKeyOf, kstToIso, parseKey, timeOf, type DateKey } from "./date";
 import { meridiem, weekStrip } from "./day-view";
 import { eventKey } from "./recurrence";
 
@@ -167,22 +167,37 @@ export function nowMarker(days: readonly DateKey[], nowMs: number): { col: numbe
 }
 
 /**
- * 처음 열 때 맨 위에 둘 시각(분). 이번 주면 지금 - 1시간, 아니면 그 주 첫 시간 일정 30분 앞, 일정이 없으면 07:00
+ * 처음 열 때 맨 위에 둘 시각(분). 이번 주면 지금 - 1시간, 아니면 그 주(7칸 전체)에서 가장 이른 시간 일정 시작 30분 앞, 일정이 없으면 07:00.
+ * 첫 칸(일요일)의 첫 일정이 아니라 주 전체에서 가장 이른 시각이라야 월, 화의 아침 일정이 위로 숨지 않는다.
+ * 앞날에서 자정을 넘어 이어지는 조각(00:00 부터)은 그 주에 진짜 시작이 하나도 없을 때만 본다
  * (스크롤이 끝까지 내려가도 보이는 범위 안이게 0 ~ 1440 사이로)
  */
 export function initialTopMinute<T extends TimedEvent>(days: readonly DateKey[], events: readonly T[] | null, nowMs: number): number {
   const now = nowMarker(days, nowMs);
   if (now) return Math.max(0, now.minute - 60);
-  let first: DaySegment<T> | null = null;
-  for (const day of days) {
-    const segs = daySegments(events ?? [], day);
-    if (segs.length) {
-      first = segs[0];
-      break;
-    }
-  }
-  if (!first) return DEFAULT_TOP_MINUTE;
-  return Math.max(0, Math.floor((first.start - 30) / SLOT_MINUTES) * SLOT_MINUTES);
+  const segs = days.flatMap((day) => daySegments(events ?? [], day));
+  if (!segs.length) return DEFAULT_TOP_MINUTE;
+  const starts = segs.filter((s) => s.isStart);
+  const earliest = Math.min(...(starts.length ? starts : segs).map((s) => s.start));
+  return Math.max(0, Math.floor((earliest - 30) / SLOT_MINUTES) * SLOT_MINUTES);
+}
+
+/**
+ * 시간 막대 안 시각 글자. 날마다 자른 조각의 범위가 아니라 일정의 진짜 시각을 쓴다
+ * (22:00 ~ 다음 날 02:00 이 앞날 칸에서 "22:00~24:00" 으로 보이지 않게).
+ * 같은 날 "09:00~10:00", 다음 날에 끝나면 "22:00~02:00"(자정에 끝나면 "22:00~24:00"),
+ * 이틀 넘게 걸치면 "22:00~11/16 02:00"
+ */
+export function barTimeText(ev: { startsAt: string; endsAt: string }): string {
+  const s = dateKeyOf(ev.startsAt);
+  const e = dateKeyOf(ev.endsAt);
+  const start = timeOf(ev.startsAt);
+  const end = timeOf(ev.endsAt);
+  if (e === s) return `${start}~${end}`;
+  if (e === addDays(s, 1)) return `${start}~${end === "00:00" ? "24:00" : end}`;
+  // 막대는 좁아 짧은 24시 표기를 쓴다 (일정 줄의 오전/오후 표기와 따로, #433). 끝 날짜만 덧붙인다
+  const d = parseKey(e);
+  return `${start}~${d.m}/${d.d} ${end}`;
 }
 
 /**
