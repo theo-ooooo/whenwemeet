@@ -74,20 +74,27 @@ describe('EventPatchDto.participants (ValidationPipe 와 같은 검증)', () => 
 
 describe('resolveParticipants', () => {
   const current = { allMembers: false, ids: [2, 3] };
+  const members = [3, 1, 2];
 
   it('생성에서 생략 = [요청자]', () => {
-    expect(resolveParticipants(undefined, null, 1, true)).toEqual({ allMembers: false, ids: [1] });
+    expect(resolveParticipants(undefined, null, 1, true, members)).toEqual({ allMembers: false, ids: [1] });
   });
 
   it('수정에서 생략 = 그대로 (참여자 없음도 그대로)', () => {
-    expect(resolveParticipants(undefined, current, 1, false)).toEqual(current);
-    expect(resolveParticipants(undefined, { allMembers: false, ids: [] }, 1, false)).toEqual({ allMembers: false, ids: [] });
-    expect(resolveParticipants(undefined, { allMembers: true, ids: [] }, 1, false)).toEqual({ allMembers: true, ids: [] });
+    expect(resolveParticipants(undefined, current, 1, false, members)).toEqual(current);
+    expect(resolveParticipants(undefined, { allMembers: false, ids: [] }, 1, false, members)).toEqual({ allMembers: false, ids: [] });
+    // 배포 중 옛 API 가 만든 "모두" 는 생략하면 그대로 (바뀐 게 없는 수정을 저장으로 만들지 않는다)
+    expect(resolveParticipants(undefined, { allMembers: true, ids: [] }, 1, false, members)).toEqual({ allMembers: true, ids: [] });
   });
 
-  it("'ALL' 은 행 없이 모두, 배열은 그 사람들 (전원을 골라도 ALL 로 바꾸지 않는다, D-133)", () => {
-    expect(resolveParticipants('ALL', current, 1, false)).toEqual({ allMembers: true, ids: [] });
-    expect(resolveParticipants([3, 1], current, 1, true)).toEqual({ allMembers: false, ids: [1, 3] });
+  it("(#444) 'ALL' 은 지금 멤버 id 목록으로 풀어 allMembers = false (D-263)", () => {
+    expect(resolveParticipants('ALL', null, 1, true, members)).toEqual({ allMembers: false, ids: [1, 2, 3] });
+    expect(resolveParticipants('ALL', current, 1, false, members)).toEqual({ allMembers: false, ids: [1, 2, 3] });
+    expect(resolveParticipants('ALL', { allMembers: true, ids: [] }, 1, false, [2, 2, 5])).toEqual({ allMembers: false, ids: [2, 5] });
+  });
+
+  it('배열은 그 사람들 (전원을 골라도 ALL 로 바꾸지 않는다, D-133)', () => {
+    expect(resolveParticipants([3, 1], current, 1, true, members)).toEqual({ allMembers: false, ids: [1, 3] });
   });
 });
 

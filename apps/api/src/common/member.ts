@@ -97,6 +97,11 @@ export class MemberResolver {
     return [...this.byUserId.values()];
   }
 
+  /** (#444) 지금 멤버 userId 전원, 가입순. 참여자 'ALL' 을 id 목록으로 풀 때 (D-263) */
+  userIds(): number[] {
+    return [...this.byUserId.keys()];
+  }
+
   /** (#191) 지금 멤버면 팀 안의 색/표시 이름, 아니면 undefined */
   find(userId: number): Member | undefined {
     return this.byUserId.get(userId);

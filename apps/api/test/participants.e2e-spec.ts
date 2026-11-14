@@ -28,6 +28,7 @@ describe('일정 참여자 (e2e)', () => {
   const create = async (session: Session, groupId: number, input: Record<string, unknown>) =>
     (await api(app).post(`/v1/groups/${groupId}/events`).set(auth(session)).send(input).expect(201)).body.data;
   const ids = (view: { participants: { members: { userId: number }[] } }) => view.participants.members.map((member) => member.userId);
+  const sorted = (values: number[]) => [...values].sort((a, b) => a - b);
   const makeTeam = async (owner: Session, name: string, ...others: Session[]) => {
     const created = await api(app).post('/v1/groups').set(auth(owner)).send({ name }).expect(201);
     for (const other of others) await api(app).post('/v1/groups/join').set(auth(other)).send({ code: created.body.data.inviteCode }).expect(200);
@@ -57,14 +58,17 @@ describe('일정 참여자 (e2e)', () => {
   });
 
   describe('입력, 저장, 응답 (설계 3-1, 3-2)', () => {
-    it('생성: 생략 = [나], ALL = 모두(지금 멤버 전원, 가입순), 배열 = 그 사람들(가입순)', async () => {
+    it('생성: 생략 = [나], ALL = 지금 멤버 전원 id 목록(가입순, #444 D-263), 배열 = 그 사람들(가입순)', async () => {
       const mine = await create(dad, teamA, body('기본', '10:00:00', '11:00:00'));
       expect(mine.participants).toEqual({ all: false, members: [expect.objectContaining({ userId: dad.userId, displayName: '아빠' })] });
       expect(mine.creator.userId).toBe(dad.userId);
 
       const everyone = await create(dad, teamA, body('모두', '10:00:00', '11:00:00', { participants: 'ALL' }));
-      expect(everyone.participants.all).toBe(true);
+      expect(everyone.participants.all).toBe(false);
       expect(ids(everyone)).toEqual([mom.userId, dad.userId, uncle.userId]);
+      // (#444) "모두" 로 저장하지 않고 참여자 행으로 (D-263)
+      expect(await prisma.event.findUniqueOrThrow({ where: { id: everyone.id }, select: { allMembers: true } })).toEqual({ allMembers: false });
+      expect(await prisma.eventParticipant.count({ where: { eventId: everyone.id } })).toBe(3);
 
       const picked = await create(dad, teamA, body('골라', '10:00:00', '11:00:00', { participants: [uncle.userId, mom.userId, mom.userId] }));
       expect(picked.participants.all).toBe(false);
@@ -75,16 +79,16 @@ describe('일정 참여자 (e2e)', () => {
       const list = await api(app).get(`/v1/groups/${teamA}/events`).set(auth(mom)).query({ from: kst('00:00:00'), to: kst('23:59:00') }).expect(200);
       expect(list.body.data.map((e: { title: string; participants: { all: boolean } }) => [e.title, e.participants.all])).toEqual([
         ['기본', false],
-        ['모두', true],
+        ['모두', false],
         ['골라', false],
       ]);
       const one = await api(app).get(`/v1/groups/${teamA}/events/${picked.id}`).set(auth(mom)).expect(200);
       expect(ids(one.body.data)).toEqual([mom.userId, uncle.userId]);
 
-      // 나중에 합류한 사람도 "모두" 에 들어간다
+      // (#444) 나중에 합류한 사람은 ALL 로 만든 일정에 들어가지 않는다 (D-263)
       await api(app).post('/v1/groups/join').set(auth(aunt)).send({ code: codeA }).expect(200);
       const later = await api(app).get(`/v1/groups/${teamA}/events/${everyone.id}`).set(auth(mom)).expect(200);
-      expect(ids(later.body.data)).toEqual([mom.userId, dad.userId, uncle.userId, aunt.userId]);
+      expect(ids(later.body.data)).toEqual([mom.userId, dad.userId, uncle.userId]);
     });
 
     it('검증: [], null, 다른 문자열, 숫자 아닌 원소, 멤버 아닌 id → 400 participants', async () => {
@@ -113,7 +117,11 @@ describe('일정 참여자 (e2e)', () => {
       const changed = (await patch({ participants: [dad.userId] })).body.data;
       expect(ids(changed)).toEqual([dad.userId]);
       expect((await patch({ participants: [dad.userId] })).body.data.updatedAt).toBe(changed.updatedAt);
-      expect((await patch({ participants: 'ALL' })).body.data.participants.all).toBe(true);
+      const all = (await patch({ participants: 'ALL' })).body.data;
+      expect(all.participants.all).toBe(false);
+      expect(ids(all)).toEqual([mom.userId, dad.userId, uncle.userId]);
+      // 지금 멤버 전원과 같으니 ALL 을 다시 보내도 저장하지 않는다
+      expect((await patch({ participants: 'ALL' })).body.data.updatedAt).toBe(all.updatedAt);
 
       await api(app).delete(`/v1/groups/${teamA}/events/${event.id}`).set(auth(mom)).expect(200);
       const logs = await prisma.eventLog.findMany({ orderBy: { id: 'asc' }, select: { action: true, title: true, participantsAll: true, participantIds: true } });
@@ -121,7 +129,7 @@ describe('일정 참여자 (e2e)', () => {
         { action: 'CREATED', title: '저녁', participantsAll: false, participantIds: [mom.userId] },
         { action: 'UPDATED', title: '저녁 2', participantsAll: false, participantIds: [mom.userId] },
         { action: 'UPDATED', title: '저녁 2', participantsAll: false, participantIds: [dad.userId] },
-        { action: 'UPDATED', title: '저녁 2', participantsAll: true, participantIds: null },
+        { action: 'UPDATED', title: '저녁 2', participantsAll: false, participantIds: sorted([mom.userId, dad.userId, uncle.userId]) },
         { action: 'DELETED', title: '저녁 2', participantsAll: null, participantIds: null },
       ]);
     });
@@ -141,17 +149,18 @@ describe('일정 참여자 (e2e)', () => {
       expect(split.body.data.id).not.toBe(series.id);
       expect(ids(split.body.data)).toEqual([mom.userId, dad.userId]);
       const splitBody = await api(app).patch(`/v1/groups/${teamA}/events/${split.body.data.id}`).query({ scope: 'following', occurrence: '2027-03-31' }).set(auth(mom)).send({ participants: 'ALL' }).expect(200);
-      expect(splitBody.body.data.participants.all).toBe(true);
+      expect(splitBody.body.data.participants.all).toBe(false);
+      expect(ids(splitBody.body.data)).toEqual([mom.userId, dad.userId, uncle.userId]);
       // 끊긴 원본들은 그대로
       expect(ids((await api(app).get(url).set(auth(mom)).expect(200)).body.data)).toEqual([mom.userId, dad.userId]);
       expect(await prisma.eventParticipant.count({ where: { eventId: split.body.data.id } })).toBe(2);
-      expect(await prisma.eventParticipant.count({ where: { eventId: splitBody.body.data.id } })).toBe(0);
+      expect(await prisma.eventParticipant.count({ where: { eventId: splitBody.body.data.id } })).toBe(3);
 
       const logs = await prisma.eventLog.findMany({ where: { action: 'UPDATED' }, orderBy: { id: 'asc' }, select: { scope: true, participantsAll: true, participantIds: true } });
       expect(logs).toEqual([
         { scope: 'THIS', participantsAll: false, participantIds: [mom.userId, dad.userId] },
         { scope: 'FOLLOWING', participantsAll: false, participantIds: [mom.userId, dad.userId] },
-        { scope: 'FOLLOWING', participantsAll: true, participantIds: null },
+        { scope: 'FOLLOWING', participantsAll: false, participantIds: sorted([mom.userId, dad.userId, uncle.userId]) },
       ]);
     });
   });

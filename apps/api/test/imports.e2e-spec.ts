@@ -116,14 +116,16 @@ describe('일정 가져오기 (e2e, #279)', () => {
     expect(await counts()).toEqual(before);
   });
 
-  it('넣기: 팀은 "모두", 알림 없음, EventLog 없이 새 소식 한 줄 + 푸시 한 건', async () => {
+  it('넣기: 팀은 넣는 시각 멤버 전원(#444, D-263), 알림 없음, EventLog 없이 새 소식 한 줄 + 푸시 한 건', async () => {
     const res = await importFile(minji, groupId, sample()).expect(201);
     expect(res.body.data).toMatchObject({ created: 4, skipped: [{ reason: 'CANCELLED', count: 1 }, { reason: 'TOO_OLD', count: 1 }] });
     expect(typeof res.body.data.importId).toBe('number');
 
     const events = await prisma.event.findMany({ where: { groupId }, include: { exceptions: true, participants: true }, orderBy: { startsAt: 'asc' } });
     expect(events).toHaveLength(4);
-    expect(events.every((event) => event.allMembers && event.reminder === 'NONE' && event.remindAt === null && event.creatorId === minji.userId)).toBe(true);
+    expect(events.every((event) => !event.allMembers && event.reminder === 'NONE' && event.remindAt === null && event.creatorId === minji.userId)).toBe(true);
+    const everyone = [minji.userId, jihun.userId].sort((a, b) => a - b);
+    expect(events.every((event) => event.participants.map((row) => row.userId).sort((a, b) => a - b).join() === everyone.join())).toBe(true);
     // (#343) 가져온 일정의 색은 자동 (D-215)
     expect(events.every((event) => event.color === null)).toBe(true);
     expect(events.find((event) => event.title === '둘')!.memo).toBe('장소: 성수동\n메모');

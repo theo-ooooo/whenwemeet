@@ -83,8 +83,10 @@ export class PollsService {
     const deadline = dto.deadline ? parseIsoDate(dto.deadline, 'deadline') : null;
     checkDeadline(deadline, now);
     // 생략하면 "모두" (일정과 다르다, 설계 3장). 멤버 검사는 저장 트랜잭션 안에서 (D-133)
+    // (#444) "모두" 도 지금 멤버 id 목록으로 저장한다 (D-263)
     const input = parseParticipants(dto.participants) ?? 'ALL';
-    const participants = resolveParticipants(input, null, userId, true);
+    const resolver = await this.memberships.resolverFor(groupId);
+    const participants = resolveParticipants(input, null, userId, true, resolver.userIds());
     const actor = actorOf(userId, me);
 
     const row = await this.polls.createWithinLimitTx(
@@ -98,7 +100,7 @@ export class PollsService {
       now,
     );
     if (!row) throw TOO_MANY_OPEN();
-    return toPollView(row, await this.memberships.resolverFor(groupId), userId, now);
+    return toPollView(row, resolver, userId, now);
   }
 
   /** 공개 코드로 하나. 틀린 코드, 없는 투표, 비멤버를 가리지 않고 404 (D-206 과 같은 규칙) */
@@ -155,7 +157,8 @@ export class PollsService {
         reminder: 'NONE',
         remindAt: null,
         reminderSetAt: now,
-        participants: { allMembers: poll.allMembers, ids: poll.allMembers ? [] : targetIds(poll, resolver) },
+        // (#444) 대상이 "모두"(옛 투표)여도 정하는 시각 멤버 id 목록으로 (D-263)
+        participants: { allMembers: false, ids: targetIds(poll, resolver) },
       },
       push: (eventCode) =>
         pollClosedPayload({ groupName: group.name, groupCode: group.publicCode, pollCode: poll.publicCode, title: poll.title, actorName: actor.name, eventCode, option }, now),
