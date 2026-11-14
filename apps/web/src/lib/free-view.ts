@@ -1,21 +1,23 @@
-// (#378 B) 빈 시간 찾기 화면의 글자와 묶음: 조건 칩("이번 주", "오전 9시 ~ 오후 11시", "2시간 이상"), 요약 한 줄(몇 곳, 가장 긴 곳),
+// (#378 B) 빈 시간 찾기 화면의 글자와 묶음: 조건 칩("이번 주", "오전 9:00 ~ 오후 11:00", "2시간 이상"), 요약 한 줄(몇 곳, 가장 긴 곳),
 // 날짜별 묶음(하루 막대 + 시간 칩). React 를 import 하지 않는다 (단위 테스트 대상)
-import { dateKeyOf, dowOf, parseKey, WEEKDAYS, type DateKey } from "./date";
+import { clockOfMinutes, clockPairText, dateKeyOf, dowOf, parseKey, WEEKDAYS, type DateKey } from "./date";
 import type { Interval } from "./day-bar";
 import type { FreeSlots } from "./types";
 
 type FreeSlot = FreeSlots["slots"][number];
 
-/** "09:00" → "오전 9시", "13:30" → "오후 1시 30분", "12:00" → "오후 12시", "00:00" → "오전 12시", "24:00" → "밤 12시" */
-export function hourText(hhmm: string): string {
+const minutesOfHhmm = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
-  if (h >= 24) return "밤 12시";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h < 12 ? "오전" : "오후"} ${h12}시${m ? ` ${m}분` : ""}`;
-}
+  return h * 60 + m;
+};
 
-/** 시간대 칩 "오전 9시 ~ 오후 11시" */
-export const dayRangeText = (dayStart: string, dayEnd: string) => `${hourText(dayStart)} ~ ${hourText(dayEnd)}`;
+/**
+ * 시간대 칩 "오전 9:00 ~ 오후 11:00". 결과 칩, 일정 줄과 같은 표기(lib/date.ts clockPairText, QA 2026-11-14).
+ * 끝 24:00 은 결과 칩(자정에 끝나는 구간)과 같이 "오전 12:00" ("오후 9:00 ~ 오전 12:00")
+ */
+export function dayRangeText(dayStart: string, dayEnd: string): string {
+  return clockPairText(clockOfMinutes(minutesOfHhmm(dayStart)), clockOfMinutes(minutesOfHhmm(dayEnd)));
+}
 
 /** 최소 길이 칩 "2시간 이상", 360 은 "반나절 이상" */
 export function minLengthText(min: number): string {

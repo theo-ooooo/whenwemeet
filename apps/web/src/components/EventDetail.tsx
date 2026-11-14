@@ -17,7 +17,7 @@ import { MemoSection } from "./MemoSection";
 import { PlaceSection } from "./PlaceSection";
 import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
-import { addDays, dateKeyOf, dowOf, parseKey, timeOf, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
+import { addDays, clockRangeText, clockText, dateKeyOf, dowOf, parseKey, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { isShareEnded } from "@/lib/event-share";
 import { eventCopyHref, eventEditHref } from "@/lib/routes";
 import { eventKey } from "@/lib/recurrence";
@@ -27,10 +27,10 @@ import { reminderDetail } from "@/lib/reminder";
 import { iGa } from "@/lib/text";
 import type { Event } from "@/lib/types";
 
-/** 'M월 D일 HH:mm' */
+/** '11월 14일 오후 7:30' (시각 표기는 일정 줄과 같다, lib/date.ts clockText) */
 function stamp(iso: string): string {
   const t = toKst(iso);
-  return `${t.m}월 ${t.d}일 ${String(t.h).padStart(2, "0")}:${String(t.min).padStart(2, "0")}`;
+  return `${t.m}월 ${t.d}일 ${clockText(iso)}`;
 }
 
 const short = (k: DateKey) => {
@@ -106,33 +106,23 @@ export function EventDetail({
       <h2 id={titleId} tabIndex={-1} data-autofocus className="mt-1 text-[20px] font-bold leading-7 tracking-[-0.02em] break-words outline-none">
         {ev.title}
       </h2>
-      {/* 같은 날이면 날짜는 한 번, 시각은 '10:30 → 12:00' (#174 L8). 여러 날이면 시작, 끝 칸에 날짜를 각각 */}
+      {/* 같은 날이면 날짜는 한 번, 시각은 일정 줄과 같은 '오전 10:30 ~ 12:00' (#174 L8, QA 2026-11-14 표기 통일).
+          여러 날이면 시작, 끝 칸에 날짜를 각각 */}
       {startKey === endKey ? (
         <div className="mt-2 rounded-sm bg-surface px-3.5 py-2.5">
           <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
-          <b className="flex items-center gap-1.5 text-[15px] font-bold leading-5">
-            {ev.allDay ? (
-              "종일"
-            ) : (
-              <>
-                {timeOf(ev.startsAt)}
-                <IconArrowRight size={14} className="text-ink-2" />
-                <span className="sr-only">부터</span>
-                {timeOf(ev.endsAt)}
-              </>
-            )}
-          </b>
+          <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockRangeText(ev.startsAt, ev.endsAt)}</b>
         </div>
       ) : (
         <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-sm bg-surface px-3.5 py-2.5">
           <div>
             <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
-            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.startsAt)}</b>
+            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockText(ev.startsAt)}</b>
           </div>
           <IconArrowRight size={16} className="text-ink-2" />
           <div className="text-right">
             <small className="block text-[12px] leading-4 text-ink-2">{short(endKey)}</small>
-            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : timeOf(ev.endsAt)}</b>
+            <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockText(ev.endsAt)}</b>
           </div>
         </div>
       )}

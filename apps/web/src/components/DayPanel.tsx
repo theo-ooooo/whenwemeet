@@ -236,7 +236,7 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
       {/* 빈 날: 공통 빈 상태(원 40, 제목 14/600, 보조 12) 와 같은 모양 (#174 L5) */}
       {empty && (
         <EmptyState className="py-5" icon={<IconCalendar size={20} />} title="아직 일정이 없어요">
-          이 날 함께할 일을 바로 적어 보세요
+          이날 함께할 일을 바로 적어 보세요
         </EmptyState>
       )}
     </div>
@@ -251,7 +251,7 @@ export function DayAddButton({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       className="flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
     >
-      <IconPlus size={16} strokeWidth={2.2} />이 날 일정 추가
+      <IconPlus size={16} strokeWidth={2.2} />이날 일정 추가
     </button>
   );
 }

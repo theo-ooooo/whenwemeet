@@ -1,6 +1,5 @@
 // (#189) 약속 투표 화면 규칙 (설계 약속-투표.md 5장). React 를 import 하지 않는다 (단위 테스트 대상)
-import { addDays, dateKeyOf, formatDateKo, kstToIso, parseKey, timeOf, todayKey, type DateKey } from "./date";
-import { meridiem } from "./day-view";
+import { addDays, clockRangeText, clockText, dateKeyOf, formatDateKo, kstToIso, parseKey, todayKey, type DateKey } from "./date";
 import { ceilToStep } from "./free-time";
 import type { Poll, PollOption, PollOptionInput, PollSummary } from "./types";
 
@@ -11,11 +10,6 @@ export const MAX_POLL_OPTIONS = 5;
 
 const MIN = 60_000;
 
-/** 'HH:mm' → '오후 7:00' */
-function formatTimeKo(hhmm: string): string {
-  const { label, value } = meridiem(hhmm);
-  return `${label} ${value}`;
-}
 const DAY = 24 * 60 * MIN;
 
 /** 빈 시간 결과 한 줄 */
@@ -47,7 +41,7 @@ export function startRange(slot: Slot, minMinutes: number): { day: DateKey; from
   return { day, from, to };
 }
 
-/** 후보 한 줄 "11월 22일 (토) 오후 7:00~9:00", 종일 "11월 22일 (토) 종일" (여러 날이면 "~11월 24일 (월)") */
+/** 후보 한 줄 "11월 22일 (토) 오후 7:00 ~ 9:00" (시각 표기는 일정 줄과 같다, lib/date.ts clockRangeText), 종일 "11월 22일 (토) 종일" (여러 날이면 "~11월 24일 (월)") */
 export function optionLabel(option: Pick<PollOptionInput, "startsAt" | "endsAt" | "allDay">, today: DateKey = todayKey()): string {
   const key = dateKeyOf(option.startsAt);
   const withYear = parseKey(key).y !== parseKey(today).y;
@@ -56,16 +50,13 @@ export function optionLabel(option: Pick<PollOptionInput, "startsAt" | "endsAt" 
     const last = addDays(dateKeyOf(option.endsAt), -1);
     return last === key ? `${date} 종일` : `${date} ~ ${formatDateKo(last, parseKey(last).y !== parseKey(today).y)} 종일`;
   }
-  const start = formatTimeKo(timeOf(option.startsAt));
   const endKey = dateKeyOf(option.endsAt);
-  const endFull = formatTimeKo(timeOf(option.endsAt));
-  if (endKey !== key) return `${date} ${start}~${formatDateKo(endKey)} ${endFull}`;
-  // 오전/오후가 같으면 끝 쪽은 숫자만 ("오후 7:00~9:00")
-  const end = endFull.slice(0, 2) === start.slice(0, 2) ? endFull.slice(3) : endFull;
-  return `${date} ${start}~${end}`;
+  if (endKey !== key) return `${date} ${clockText(option.startsAt)} ~ ${formatDateKo(endKey)} ${clockText(option.endsAt)}`;
+  // 오전/오후가 같으면 끝 쪽은 숫자만 ("오후 7:00 ~ 9:00")
+  return `${date} ${clockRangeText(option.startsAt, option.endsAt)}`;
 }
 
-/** 날짜 줄 "11월 22일 (토)" 과 시각 줄 "오후 7:00~9:00" 으로 나눈 것 (투표 화면 카드) */
+/** 날짜 줄 "11월 22일 (토)" 과 시각 줄 "오후 7:00 ~ 9:00" 으로 나눈 것 (투표 화면 카드) */
 export function optionParts(option: Pick<PollOptionInput, "startsAt" | "endsAt" | "allDay">, today: DateKey = todayKey()): { date: string; time: string } {
   const full = optionLabel(option, today);
   const key = dateKeyOf(option.startsAt);
@@ -106,7 +97,7 @@ export function deadlineOf(mode: DeadlineMode, custom: { date: DateKey; time: st
 /** "11월 14일 (토) 오후 9:00" (올해가 아니면 연도) */
 export function instantLabel(iso: string, today: DateKey = todayKey()): string {
   const key = dateKeyOf(iso);
-  return `${formatDateKo(key, parseKey(key).y !== parseKey(today).y)} ${formatTimeKo(timeOf(iso))}`;
+  return `${formatDateKo(key, parseKey(key).y !== parseKey(today).y)} ${clockText(iso)}`;
 }
 
 /** 카드, 머리줄의 마감 한 줄 */
@@ -153,7 +144,8 @@ export function toggledVotes(current: readonly number[], optionId: number, on: b
 
 /** 새 소식 문구 (#189): "{이름}님이 " 뒤. 정한 시각은 둘째 줄(pollActivitySubline) */
 export function pollActivityPhrase(type: "POLL_CREATED" | "POLL_CLOSED", payload: { title?: string }): string {
-  const title = `'${payload.title ?? ""}'`;
+  // 새 소식 활동 문구라 news-copy 의 이름 따옴표(‘…’)와 같게 쓴다
+  const title = `‘${payload.title ?? ""}’`;
   return type === "POLL_CREATED" ? `${title} 투표를 열었어요` : `${title} 시간을 정했어요`;
 }
 

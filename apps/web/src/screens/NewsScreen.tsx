@@ -3,7 +3,7 @@
 // 줄마다 왼쪽 작은 칸에 종류 아이콘(일정, 기념일, 팀, 투표, 참석), "오늘, 어제, 이번 주, 이전" 으로 묶고 "3시간 전" 은 작게.
 // 안 읽은 소식은 진하게, 읽은 소식은 흐리게. 누를 수 있는 줄은 오른쪽 › 로 알린다(일정, 기념일, 투표, 팀 설정으로)
 import Link from "next/link";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { IconBell, IconCalendar, IconCheck, IconChevronRight, IconHeart, IconPoll, IconTeam } from "@/components/icons";
@@ -135,11 +135,26 @@ function EventText({ item, unread }: { item: NewsItem; unread: boolean }) {
   );
 }
 
-/** (#191) 팀 활동 줄 문장: "{이름}님이 {문구}" */
+/**
+ * (#191) 팀 활동 줄 문장: "{이름}님이 {문구}". 문구 안 ‘기념일, 팀, 일정 이름’ 은 일정 줄 제목(EventText)과 같은 따옴표, 같은 굵기로
+ * (QA 2026-11-14: 일정은 ‘…’ 굵게, 기념일과 팀은 '…' 보통으로 섞여 있었다)
+ */
 function ActivityText({ item, unread }: { item: ActivityNewsItem; unread: boolean }) {
+  const strong = unread ? "font-bold" : "font-semibold";
+  // split 의 잡는 괄호 덕에 홀수 번째 조각이 ‘…’ 이다
+  const parts = activityPhrase(item).split(/(‘[^’]*’)/);
   return (
     <>
-      <span className={unread ? "font-bold" : "font-semibold"}>{item.actor.displayName}</span>님이 {activityPhrase(item)}
+      <span className={strong}>{item.actor.displayName}</span>님이{" "}
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className={strong}>
+            {part}
+          </span>
+        ) : (
+          <Fragment key={i}>{part}</Fragment>
+        ),
+      )}
     </>
   );
 }

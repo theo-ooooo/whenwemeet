@@ -249,7 +249,7 @@ export function DayView({
           </h2>
           <span className="flex-1" />
           <button type="button" onClick={onAdd} className="hit flex h-8 items-center gap-0.5 text-[13px] font-bold text-btn">
-            <IconPlus size={14} strokeWidth={2.2} />이 날 추가
+            <IconPlus size={14} strokeWidth={2.2} />이날 추가
           </button>
         </div>
         <div className="mt-2">
@@ -263,7 +263,7 @@ export function DayView({
             </div>
           ) : events.length === 0 ? (
             <p className="flex h-11 items-center gap-1.5 text-[14px] text-ink-2">
-              이 날은 일정이 없어요.
+              이날은 일정이 없어요.
               <button type="button" onClick={onAdd} className="font-bold text-btn">
                 일정 추가
               </button>

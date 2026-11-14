@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
-import { dayRangeText, groupFreeDays, hourText, longestSlot, minLengthText, periodText, shortDay, whoText } from "../free-view";
+import { dayRangeText, groupFreeDays, longestSlot, minLengthText, periodText, shortDay, whoText } from "../free-view";
 
 const slot = (d: string, a: string, b: string) => ({ startsAt: kstToIso(d, a), endsAt: kstToIso(d, b) });
 
 describe("조건 칩 글자", () => {
-  it("시각: 오전/오후 h시, 분은 있을 때만, 자정 끝은 밤 12시", () => {
-    expect(hourText("09:00")).toBe("오전 9시");
-    expect(hourText("13:30")).toBe("오후 1시 30분");
-    expect(hourText("12:00")).toBe("오후 12시");
-    expect(hourText("00:00")).toBe("오전 12시");
-    expect(hourText("24:00")).toBe("밤 12시");
-    expect(dayRangeText("09:00", "23:00")).toBe("오전 9시 ~ 오후 11시");
+  it("시간대: 일정 줄과 같은 오전/오후 h:mm, 같은 오전/오후면 끝은 숫자만, 24:00 끝은 오전 12:00", () => {
+    expect(dayRangeText("09:00", "23:00")).toBe("오전 9:00 ~ 오후 11:00");
+    expect(dayRangeText("13:30", "18:00")).toBe("오후 1:30 ~ 6:00");
+    expect(dayRangeText("00:00", "12:00")).toBe("오전 12:00 ~ 오후 12:00");
+    expect(dayRangeText("21:00", "24:00")).toBe("오후 9:00 ~ 오전 12:00");
   });
   it("최소 길이: 2시간 이상, 반나절 이상, 1시간 30분 이상", () => {
     expect(minLengthText(120)).toBe("2시간 이상");

@@ -90,7 +90,7 @@ describe("WeekView", () => {
   it("종일 일정은 종일 줄 막대", () => {
     const trip = ev("여행", "2026-11-09", "00:00", "2026-11-12", "00:00", { allDay: true });
     const p = view({ events: [trip] });
-    fireEvent.click(screen.getByRole("button", { name: /^여행, 종일, 11\/11까지/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^여행, 종일 ~11월 11일/ }));
     expect(p.onOpenEvent).toHaveBeenCalledWith("2026-11-09", trip);
     // 종일 일정만 있는 주는 빈 주가 아니다
     expect(screen.queryByText("이번 주 일정이 없어요.")).toBeNull();

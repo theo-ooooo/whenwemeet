@@ -14,7 +14,7 @@ type Props = {
   onClose: () => void;
   /** 삭제 확인 창, 범위 시트가 위에 떠 있으면 Esc 를 그쪽에 맡긴다 */
   paused?: boolean;
-  /** 스크롤 밖 바닥에 고정하는 줄 (#175: 비는 시간 + "이 날 일정 추가") */
+  /** 스크롤 밖 바닥에 고정하는 줄 (#175: 비는 시간 + "이날 일정 추가") */
   footer?: React.ReactNode;
   children: React.ReactNode;
 };

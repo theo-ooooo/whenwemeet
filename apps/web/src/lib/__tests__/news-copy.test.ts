@@ -65,20 +65,20 @@ describe("팀 활동 줄 (#191)", () => {
   const ann = (type: ActivityType, payload: A["payload"] = { name: "처음 만난 날", date: "2026-11-22", kind: "COUNT_UP" }): A => ({ type, payload });
 
   it("activityPhrase: 기념일 추가, 삭제는 받침에 맞는 조사", () => {
-    expect(activityPhrase(ann("ANNIVERSARY_CREATED"))).toBe("기념일 '처음 만난 날'을 추가했어요");
-    expect(activityPhrase(ann("ANNIVERSARY_DELETED", { name: "하늘 생일", date: "2000-05-05", kind: "YEARLY" }))).toBe("기념일 '하늘 생일'을 삭제했어요");
-    expect(activityPhrase(ann("ANNIVERSARY_CREATED", { name: "결혼기념일 파티", date: "2026-01-01", kind: "ONCE" }))).toBe("기념일 '결혼기념일 파티'를 추가했어요");
+    expect(activityPhrase(ann("ANNIVERSARY_CREATED"))).toBe("기념일 ‘처음 만난 날’을 추가했어요");
+    expect(activityPhrase(ann("ANNIVERSARY_DELETED", { name: "하늘 생일", date: "2000-05-05", kind: "YEARLY" }))).toBe("기념일 ‘하늘 생일’을 삭제했어요");
+    expect(activityPhrase(ann("ANNIVERSARY_CREATED", { name: "결혼기념일 파티", date: "2026-01-01", kind: "ONCE" }))).toBe("기념일 ‘결혼기념일 파티’를 추가했어요");
   });
 
   it("activityPhrase: 수정은 바뀐 필드 하나면 그 필드, 여럿이면 수정했어요", () => {
     const base = { name: "처음 만난 날", date: "2026-11-22", kind: "COUNT_UP" as const };
-    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["date"], before: { date: "2026-11-21" } }))).toBe("기념일 '처음 만난 날'의 날짜를 바꿨어요");
-    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["kind"], before: { kind: "ONCE" } }))).toBe("기념일 '처음 만난 날'의 종류를 바꿨어요");
+    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["date"], before: { date: "2026-11-21" } }))).toBe("기념일 ‘처음 만난 날’의 날짜를 바꿨어요");
+    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["kind"], before: { kind: "ONCE" } }))).toBe("기념일 ‘처음 만난 날’의 종류를 바꿨어요");
     expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, name: "첫 만남", changed: ["name"], before: { name: "처음 만난 날" } }))).toBe(
-      "기념일 '처음 만난 날'의 이름을 '첫 만남'으로 바꿨어요",
+      "기념일 ‘처음 만난 날’의 이름을 ‘첫 만남’으로 바꿨어요",
     );
-    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, name: "우리 날", changed: ["name"], before: { name: "처음" } }))).toBe("기념일 '처음'의 이름을 '우리 날'로 바꿨어요");
-    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["name", "date"], before: { name: "x", date: "2026-11-21" } }))).toBe("기념일 '처음 만난 날'을 수정했어요");
+    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, name: "우리 날", changed: ["name"], before: { name: "처음" } }))).toBe("기념일 ‘처음’의 이름을 ‘우리 날’로 바꿨어요");
+    expect(activityPhrase(ann("ANNIVERSARY_UPDATED", { ...base, changed: ["name", "date"], before: { name: "x", date: "2026-11-21" } }))).toBe("기념일 ‘처음 만난 날’을 수정했어요");
   });
 
   it("activityPhrase: 멤버와 팀 이름", () => {
@@ -86,8 +86,8 @@ describe("팀 활동 줄 (#191)", () => {
     expect(activityPhrase({ type: "MEMBER_JOINED", payload: { via: "EVENT_SHARE" } })).toBe("일정 링크로 팀에 들어왔어요");
     expect(activityPhrase({ type: "MEMBER_LEFT", payload: {} })).toBe("팀을 나갔어요");
     expect(activityPhrase({ type: "MEMBER_DELETED", payload: {} })).toBe("서비스를 떠났어요");
-    expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리집", to: "우리 가족" } })).toBe("팀 이름을 '우리집'에서 '우리 가족'으로 바꿨어요");
-    expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리 가족", to: "우리 둘" } })).toBe("팀 이름을 '우리 가족'에서 '우리 둘'로 바꿨어요");
+    expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리집", to: "우리 가족" } })).toBe("팀 이름을 ‘우리집’에서 ‘우리 가족’으로 바꿨어요");
+    expect(activityPhrase({ type: "GROUP_RENAMED", payload: { from: "우리 가족", to: "우리 둘" } })).toBe("팀 이름을 ‘우리 가족’에서 ‘우리 둘’로 바꿨어요");
     // (#279)
     expect(activityPhrase({ type: "EVENTS_IMPORTED", payload: { count: 1234 } })).toBe("일정 1,234개를 가져왔어요");
   });
@@ -114,12 +114,12 @@ describe("팀 활동 줄 (#191)", () => {
       allDay: false,
       status: "GOING" as const,
     };
-    expect(activityPhrase({ type: "EVENT_RSVP", payload })).toBe("'저녁 약속'에 참석으로 답했어요");
-    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "NOT_GOING" } })).toBe("'저녁 약속'에 불참으로 답했어요");
-    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "MAYBE" } })).toBe("'저녁 약속'에 미정으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload })).toBe("‘저녁 약속’에 참석으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "NOT_GOING" } })).toBe("‘저녁 약속’에 불참으로 답했어요");
+    expect(activityPhrase({ type: "EVENT_RSVP", payload: { ...payload, status: "MAYBE" } })).toBe("‘저녁 약속’에 미정으로 답했어요");
     expect(activityHref({ type: "EVENT_RSVP", payload })).toBe("/events/evntcode");
     expect(activityHref({ type: "EVENT_RSVP", payload: { ...payload, occurrence: "2026-11-20" } })).toBe("/events/evntcode?occurrence=2026-11-20");
-    expect(activitySubline({ type: "EVENT_RSVP", payload }, "2026-11-11")).toBe("11월 20일 (금) 19:00~21:00");
+    expect(activitySubline({ type: "EVENT_RSVP", payload }, "2026-11-11")).toBe("11월 20일 (금) 오후 7:00 ~ 9:00");
     expect(knownNewsItems([{ kind: "ACTIVITY", id: 1, type: "EVENT_RSVP", actor: { userId: 1, displayName: "a", color: "#000000", profileImageUrl: null }, anniversaryId: null, payload, createdAt: "", isNew: false }])).toHaveLength(1);
   });
 
@@ -144,9 +144,9 @@ describe("팀 활동 줄 (#191)", () => {
 describe("(#189) 약속 투표 새 소식", () => {
   const closed = { pollId: 1, code: "poll1xxx", title: "저녁 약속", eventId: 9, eventCode: "evnt9xxx", startsAt: "2026-11-22T10:00:00.000Z", endsAt: "2026-11-22T12:00:00.000Z", allDay: false };
   it("문구: 열었어요, 시간을 정했어요. 정한 시간은 둘째 줄", () => {
-    expect(activityPhrase({ type: "POLL_CREATED", payload: { title: "저녁 약속" } })).toBe("'저녁 약속' 투표를 열었어요");
-    expect(activityPhrase({ type: "POLL_CLOSED", payload: closed })).toBe("'저녁 약속' 시간을 정했어요");
-    expect(activitySubline({ type: "POLL_CLOSED", payload: closed }, "2026-11-13")).toBe("11월 22일 (일) 오후 7:00~9:00");
+    expect(activityPhrase({ type: "POLL_CREATED", payload: { title: "저녁 약속" } })).toBe("‘저녁 약속’ 투표를 열었어요");
+    expect(activityPhrase({ type: "POLL_CLOSED", payload: closed })).toBe("‘저녁 약속’ 시간을 정했어요");
+    expect(activitySubline({ type: "POLL_CLOSED", payload: closed }, "2026-11-13")).toBe("11월 22일 (일) 오후 7:00 ~ 9:00");
     expect(activitySubline({ type: "POLL_CLOSED", payload: { ...closed, startsAt: "2026-11-21T15:00:00.000Z", endsAt: "2026-11-22T15:00:00.000Z", allDay: true } }, "2026-11-13")).toBe("11월 22일 (일) 종일");
     expect(activitySubline({ type: "POLL_CREATED", payload: { title: "x" } }, "2026-11-13")).toBeNull();
   });
