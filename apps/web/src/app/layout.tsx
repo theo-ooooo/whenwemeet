@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { PushPrompt } from "@/components/PushPrompt";
+import { PullRefreshGuard } from "@/components/PullRefreshGuard";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ToastProvider } from "@/components/Toast";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site";
@@ -67,6 +68,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PushPrompt />
           {/* (#203) 브라우저 오프라인 안내와 정적 자산 캐시. 앱 셸에서는 등록하지 않는다 (D-256) */}
           <ServiceWorkerRegister />
+          {/* (#419) 앱 셸: 모달, 안쪽 스크롤 영역에서는 당겨서 새로고침을 막도록 셸에 알린다 */}
+          <PullRefreshGuard />
         </ToastProvider>
       </body>
     </html>

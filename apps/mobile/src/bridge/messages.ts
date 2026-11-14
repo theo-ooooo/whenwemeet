@@ -30,7 +30,9 @@ export type BridgeMessage =
   | { v: 1; type: "openSettings" }
   // (#197) 홈 화면 위젯 스냅샷과 비우기 (앱.md 4.7). 셸은 기기 안(App Group / 앱 파일)에만 둔다
   | { v: 1; type: "widgetSnapshot"; snapshot: WidgetSnapshot }
-  | { v: 1; type: "widgetClear" };
+  | { v: 1; type: "widgetClear" }
+  // (#419) 손가락을 댈 때마다 웹이 알린다: 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false (당겨서 새로고침 금지)
+  | { v: 1; type: "pullRefresh"; allow: boolean };
 
 /** 위젯 스냅샷 밖 메시지의 최대 길이 */
 const MESSAGE_MAX = 4096;
@@ -184,6 +186,8 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
     }
     case "widgetClear":
       return { v: 1, type: "widgetClear" };
+    case "pullRefresh":
+      return typeof o.allow === "boolean" ? { v: 1, type: "pullRefresh", allow: o.allow } : null;
     default:
       return null;
   }

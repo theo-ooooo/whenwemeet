@@ -25,7 +25,7 @@ import { clearNativeSessions, kakaoAvailable } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
 import { clearWidget, publishWidgetSnapshot } from "../widget/native";
 import { OfflineScreen } from "./OfflineScreen";
-import { PULL_REFRESH_INITIAL, pullOnScroll, pullOnTouchStart, type PullRefresh } from "./pull-refresh";
+import { PULL_REFRESH_INITIAL, pullEnabled, pullOnScroll, pullOnTouchStart, pullOnWebAllow, type PullRefresh } from "./pull-refresh";
 import { useTheme } from "../ui/theme";
 
 /** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81).
@@ -153,6 +153,9 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
         case "widgetClear":
           clearWidget();
           return;
+        case "pullRefresh":
+          setPull((p) => pullOnWebAllow(p, msg.allow));
+          return;
       }
     },
     [onLoginRequested, sendToWeb],
@@ -226,7 +229,7 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       allowsBackForwardNavigationGestures
-      pullToRefreshEnabled={pull.armed}
+      pullToRefreshEnabled={pullEnabled(pull)}
       // iOS 전용. Android 네이티브 정의는 Double 인데 "normal" 문자열을 그대로 넘겨 실행 직후 강제 종료됐다 (ClassCastException)
       {...(Platform.OS === "ios" ? { decelerationRate: "normal" as const } : {})}
       bounces
@@ -244,7 +247,7 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
           nestedScrollEnabled
           refreshControl={
             <RefreshControl
-              enabled={pull.armed}
+              enabled={pullEnabled(pull)}
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
