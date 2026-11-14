@@ -1,7 +1,7 @@
 // 공유 미리보기 카드 그림 (#159). next/og(satori) 용 JSX 라 Tailwind 대신 인라인 style, 자식이 둘 이상이면 display:flex
-// 색은 디자인 토큰 D-57 (라이트): 바탕 --bg, 타일 --tile, 글자 --ink/--mute, 강조 --sel-fill/--acc-ink, 주말 --holiday, 멤버 --m1~
+// 색은 디자인 토큰 D-57 (라이트): 바탕 --tile(흰색), 휴대폰 화면 --bg, 글자 --ink/--mute, 강조 --sel-fill
 import type { ReactNode } from "react";
-import { freeDayOf, monthGrid, TEAM_NAME_WIDTH } from "@/lib/og";
+import { TEAM_NAME_WIDTH } from "@/lib/og";
 
 export const OG_SIZE = { width: 1200, height: 630 };
 
@@ -10,13 +10,8 @@ const C = {
   tile: "#FFFFFF",
   ink: "#26252A",
   mute: "#6C6C70",
-  faint: "#C7C7CC",
   line: "#ECEBE8",
   sel: "#C8432D",
-  accInk: "#C2402A",
-  blush: "#FFE1D9",
-  holiday: "#B4475C",
-  members: ["#2563EB", "#A16207", "#0B7A8A", "#7C3AED", "#15803D"],
 };
 
 /** 2026 심볼 (components/Logo.tsx Symbol 과 같은 치수 비율, 브랜드 고정색) */
@@ -51,134 +46,45 @@ function BrandMark() {
   );
 }
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-/** 날짜별 멤버 일정 점 (그림용 고정 패턴) */
-function dotsOf(day: number, free: number): string[] {
-  if (day === free) return [];
-  const seed = (day * 7 + 3) % 11;
-  if (seed < 4) return [C.members[seed % 3]];
-  if (seed < 6) return [C.members[0], C.members[(seed % 2) + 1]];
-  if (seed === 6) return [C.members[0], C.members[1], C.members[2]];
-  return [];
-}
-
-/** 오른쪽 달력 타일. 오늘이 있는 달(KST), 오늘 다음 토요일을 "모두 비는 날" 로 칠한다 */
-function MiniCalendar({ now }: { now: Date }) {
-  const { month, today, cells } = monthGrid(now);
-  const free = freeDayOf(cells, today);
-  const CELL = 62;
-  const weeks: (typeof cells)[] = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+/** 휴대폰 틀 안에 실제 팀 달력 화면 사진(#404). 화면은 그림 아래로 잘려 나가게 길게 둔다 */
+function Phone({ shot }: { shot: string }) {
+  const W = 330;
+  const PAD = 11;
+  const SCREEN_W = W - PAD * 2;
   return (
     <div
       style={{
         display: "flex",
-        flexDirection: "column",
-        width: 7 * CELL + 56,
-        padding: "30px 28px 34px",
-        background: C.tile,
-        borderRadius: 32,
-        boxShadow: "0 30px 60px rgba(120, 52, 36, 0.12), 0 2px 6px rgba(38, 37, 42, 0.05)",
+        width: W,
+        padding: PAD,
+        borderRadius: 60,
+        background: "#111214",
+        border: "1.5px solid #3A3B40",
+        boxShadow: "0 40px 80px -30px rgba(25, 31, 40, 0.45)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 18px" }}>
-        <span style={{ fontSize: 30, fontWeight: 700, color: C.ink, letterSpacing: "-0.03em" }}>{month}월</span>
-        <div style={{ display: "flex" }}>
-          {C.members.slice(0, 3).map((c, i) => (
-            <div
-              key={c}
-              style={{ width: 30, height: 30, borderRadius: 15, background: c, border: `3px solid ${C.tile}`, marginLeft: i ? -9 : 0 }}
-            />
-          ))}
+      <div style={{ display: "flex", flexDirection: "column", width: SCREEN_W, height: 640, borderRadius: 50, overflow: "hidden", background: C.bg }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 80, padding: "0 34px 0 40px", position: "relative" }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "#111111" }}>9:41</span>
+          <div style={{ position: "absolute", left: (SCREEN_W - 92) / 2, top: 18, width: 92, height: 27, borderRadius: 14, background: "#000000" }} />
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2 }}>
+            {[5, 7, 9].map((h) => (
+              <div key={h} style={{ width: 3, height: h, borderRadius: 1, background: "#111111" }} />
+            ))}
+            <div style={{ width: 24, height: 11, marginLeft: 5, borderRadius: 3, border: "1.5px solid #111111", padding: 1.5, display: "flex" }}>
+              <div style={{ flex: 1, borderRadius: 1, background: "#111111" }} />
+            </div>
+          </div>
         </div>
-      </div>
-      <div style={{ display: "flex" }}>
-        {WEEKDAYS.map((w, i) => (
-          <span
-            key={w}
-            style={{
-              width: CELL,
-              display: "flex",
-              justifyContent: "center",
-              fontSize: 17,
-              fontWeight: 500,
-              color: i === 0 || i === 6 ? C.holiday : C.mute,
-              paddingBottom: 8,
-            }}
-          >
-            {w}
-          </span>
-        ))}
-      </div>
-      {weeks.map((week, wi) => (
-        <div key={wi} style={{ display: "flex" }}>
-          {week.map((c, ci) => {
-            const isFree = c.day === free;
-            const isToday = c.day === today;
-            const weekend = c.weekday === 0 || c.weekday === 6;
-            const dots = c.day ? dotsOf(c.day, free) : [];
-            return (
-              <div key={ci} style={{ width: CELL, height: 60, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 6 }}>
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: isFree ? C.sel : "transparent",
-                    fontSize: 20,
-                    fontWeight: isFree || isToday ? 700 : 500,
-                    color: isFree ? "#FFFFFF" : isToday ? C.accInk : weekend ? C.holiday : C.ink,
-                  }}
-                >
-                  {c.day ?? ""}
-                </div>
-                <div style={{ display: "flex", gap: 4, marginTop: 3, height: 7 }}>
-                  {dots.map((d, i) => (
-                    <div key={i} style={{ width: 7, height: 7, borderRadius: 4, background: d }} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** 달력 위에 걸친 "모두 비는 시간" 쪽지. 서비스의 핵심 장면 */
-function FreeNote({ now }: { now: Date }) {
-  const { cells, today, month } = monthGrid(now);
-  const free = freeDayOf(cells, today);
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        padding: "18px 26px 18px 20px",
-        background: C.ink,
-        borderRadius: 22,
-        boxShadow: "0 18px 40px rgba(38, 37, 42, 0.22)",
-      }}
-    >
-      <div style={{ display: "flex", width: 14, height: 14, borderRadius: 7, background: "#FF8670" }} />
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <span style={{ fontSize: 18, fontWeight: 500, color: "#B9B8BE" }}>
-          {month}월 {free}일 토요일
-        </span>
-        <span style={{ fontSize: 26, fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.02em" }}>오후 2시부터 모두 비어요</span>
+        {/* eslint-disable-next-line @next/next/no-img-element -- satori 그림 */}
+        <img src={shot} width={SCREEN_W} height={Math.round((SCREEN_W * 1240) / 780)} alt="" style={{ objectFit: "cover", objectPosition: "top" }} />
       </div>
     </div>
   );
 }
 
-/** 바탕 + 왼쪽 글 칸 + 오른쪽 기울인 달력. 달력은 오른쪽 아래로 잘려 나가게 둔다 */
-export function OgFrame({ children, now }: { children: ReactNode; now: Date }) {
+/** (#404) 소개 페이지 첫 화면과 같은 틀: 흰 바탕, 왼쪽 글 칸, 오른쪽 휴대폰. 휴대폰은 아래로 잘려 나가게 둔다 */
+export function OgFrame({ children, shot }: { children: ReactNode; shot: string }) {
   return (
     <div
       style={{
@@ -186,28 +92,13 @@ export function OgFrame({ children, now }: { children: ReactNode; now: Date }) {
         width: "100%",
         height: "100%",
         position: "relative",
-        background: C.bg,
+        background: C.tile,
         fontFamily: "Pretendard",
         overflow: "hidden",
       }}
     >
-      {/* 달력 뒤 옅은 코랄 원: 따뜻한 빛만, 무늬로 쓰지 않는다 */}
-      <div
-        style={{
-          position: "absolute",
-          right: -160,
-          top: -120,
-          width: 760,
-          height: 760,
-          borderRadius: 380,
-          background: "radial-gradient(circle at center, #FFE1D9 0%, rgba(255, 225, 217, 0.6) 45%, rgba(244, 243, 241, 0) 72%)",
-        }}
-      />
-      <div style={{ position: "absolute", right: -18, top: 70, display: "flex", transform: "rotate(-5deg)" }}>
-        <MiniCalendar now={now} />
-      </div>
-      <div style={{ position: "absolute", right: 64, top: 462, display: "flex", transform: "rotate(-5deg)" }}>
-        <FreeNote now={now} />
+      <div style={{ position: "absolute", right: 96, top: 58, display: "flex" }}>
+        <Phone shot={shot} />
       </div>
       <div
         style={{
@@ -215,10 +106,10 @@ export function OgFrame({ children, now }: { children: ReactNode; now: Date }) {
           left: 0,
           top: 0,
           bottom: 0,
-          width: 660,
+          width: 680,
           display: "flex",
           flexDirection: "column",
-          padding: "64px 0 64px 76px",
+          padding: "64px 0 64px 80px",
         }}
       >
         <BrandMark />
