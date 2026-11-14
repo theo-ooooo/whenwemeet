@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Symbol } from "@/components/Logo";
 import { APP_STORE_URL, PLAY_STORE_URL } from "@/lib/app-open";
-import { SITE_OG_IMAGE, SITE_TITLE } from "@/lib/site";
+import { SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
 // (#407) 소개 페이지. 로그인 안 한 웹 방문자가 맨 / 에서 여기로 온다 (app/route.ts, lib/welcome.ts). 로그인 없이 열린다 (proxy.ts matcher 에 없음)
@@ -14,8 +14,24 @@ const DESCRIPTION = "친구랑 여행 날짜도, 연인이랑 100일도, 가족�
 export const metadata: Metadata = {
   title: { absolute: SITE_TITLE },
   description: DESCRIPTION,
-  alternates: { canonical: "/welcome" },
-  openGraph: { type: "website", siteName: "언제볼까", url: "/welcome", title: SITE_TITLE, description: "다들 언제 돼? 이 질문, 이제 언제볼까가 대답해요", images: [SITE_OG_IMAGE] },
+  // (#413) 로그인 안 한 방문자는 맨 / 에서 이 화면을 본다(proxy rewrite). 검색에는 / 로 올린다
+  alternates: { canonical: "/" },
+  openGraph: { type: "website", siteName: "언제볼까", url: "/", title: SITE_TITLE, description: "다들 언제 돼? 이 질문, 이제 언제볼까가 대답해요", images: [SITE_OG_IMAGE] },
+};
+
+/** (#413) 검색 결과 구조화 데이터: 웹 앱 하나, 무료, 웹과 iOS, Android */
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "언제볼까",
+  alternateName: "whenwemeet",
+  url: SITE_URL,
+  description: DESCRIPTION,
+  applicationCategory: "LifestyleApplication",
+  operatingSystem: "Web, iOS, Android",
+  inLanguage: "ko",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" },
+  sameAs: [APP_STORE_URL, PLAY_STORE_URL],
 };
 
 const WRAP = "mx-auto w-full max-w-[1100px] px-[max(20px,env(safe-area-inset-left))]";
@@ -117,6 +133,7 @@ function Feature({ title, gray, sub, shot, alt, band = false }: { title: string;
 export default function WelcomePage() {
   return (
     <div className="min-h-dvh bg-paper text-ink [word-break:keep-all]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       <div className={WRAP}>
         <header className="flex items-center gap-[9px] py-4">
           <Symbol size={30} />

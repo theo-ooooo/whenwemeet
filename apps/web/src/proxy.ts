@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeNext, SESSION_COOKIE } from "@/lib/auth";
 import { clearSessionCookies, EXPIRED_REASON, isSessionUsable, loginExpiredUrl } from "@/lib/session";
+import { signedOutHome, WELCOME_PATH } from "@/lib/welcome";
 
 /** 세션 쿠키를 뺀 요청으로 화면을 그리고, 브라우저에서도 지우게 한다 */
 function renderWithoutSession(req: NextRequest): NextResponse {
@@ -33,10 +34,13 @@ export function proxy(req: NextRequest) {
     return renderWithoutSession(req);
   }
 
-  // 홈(/) 은 쿠키가 없으면 app/route.ts 가 /welcome(웹) 또는 /login(앱 셸)으로 보낸다. 만료 쿠키만 여기서 정리
+  // 홈(/) 은 쿠키가 없으면 웹은 주소 그대로 소개 페이지를 그리고(#413, 검색 노출), 앱 셸은 app/route.ts 가 /login 으로 보낸다. 만료 쿠키만 여기서 정리
   if (pathname === "/") {
     if (token && !isSessionUsable(token)) {
       return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, "/")));
+    }
+    if (!token && signedOutHome(req.headers.get("user-agent")) === WELCOME_PATH) {
+      return NextResponse.rewrite(new URL(WELCOME_PATH, req.nextUrl.origin));
     }
     return NextResponse.next();
   }
