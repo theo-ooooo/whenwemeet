@@ -95,7 +95,6 @@ describe("스터디: 매주 정기 모임", () => {
       endsAt: "2026-11-19T12:00:00.000Z",
       allDay: false,
       repeat: "WEEKLY",
-      participants: "ALL",
     });
   });
 

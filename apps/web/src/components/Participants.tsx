@@ -1,9 +1,9 @@
 "use client";
 // 일정 참여자 (#248, 설계 7-2, 7-3) 화면 조각
 //   DotCluster:       참여자 색 점 묶음 (최대 3 + "+"). PC 칩, 다가오는 일정 카드
-//   AvatarStack:      겹친 아바타 (폼 참여자 줄, 시트의 "모두" 줄)
+//   AvatarStack:      겹친 아바타 (폼 참여자 줄)
 //   ParticipantList:  일정 상세의 "참여자" 줄 (아바타 24 + 이름, 세로, 가입순)
-//   ParticipantSheet: 폼의 참여자 고르기 (모두 / 멤버 여러 명). [완료] 로 닫을 때 반영
+//   ParticipantSheet: 폼의 참여자 고르기 (전체 선택 + 멤버 여러 명, #442). [완료] 로 닫을 때 반영
 import { useMemo, useState } from "react";
 import { useGroupContext } from "./AppShell";
 import { IconCheck } from "./icons";
@@ -57,13 +57,12 @@ export function AvatarStack({ members, size = 20, max = 3, ring = "var(--tile)" 
   );
 }
 
-/** 일정 상세 참여자 줄. 모두면 "모두 (N명)" 아래 같은 목록, 참여자 없음이면 회색 안내 */
+/** 일정 상세 참여자 줄. 가입순 목록 (전원이어도 같은 목록, #442), 참여자 없음이면 회색 안내 */
 export function ParticipantList({ event, meId }: { event: Pick<Event, "creator" | "participants">; meId: number | null }) {
   const p = participantsOf(event);
   return (
     <div className="mt-2.5 rounded-sm bg-surface px-3.5 py-2.5">
       <small className="block text-[12px] leading-4 text-ink-2">참여자</small>
-      {p.all && <b className="mt-1 block text-[14px] font-bold leading-5">모두 ({p.members.length}명)</b>}
       {p.members.length === 0 ? (
         <p className="mt-1">
           <span className="block text-[14px] font-semibold leading-5 text-ink-2">참여자 없음</span>
@@ -132,34 +131,29 @@ function SheetBody({
   initial: ParticipantPick;
   onDone: (v: ParticipantPick) => void;
 }) {
+  // (#442) "모두" 줄 대신 멤버 목록 위 "전체 선택". 전원을 골라도 "ALL" 로 보내지 않고 고른 id 그대로 (사람 아바타로 보이게, 사용자 결정)
   // 지금 멤버가 아닌 id 는 처음부터 뺀다 (방금 나간 멤버, 7-3)
-  const alive = new Set(members.map((m) => m.userId));
-  const [pick, setPick] = useState<ParticipantPick>(() => (initial === "ALL" ? "ALL" : initial.filter((id) => alive.has(id))));
-  const empty = pick !== "ALL" && pick.length === 0;
-  const toggle = (id: number) =>
-    setPick((p) => {
-      if (p === "ALL") return [id];
-      return p.includes(id) ? p.filter((x) => x !== id) : [...p, id];
-    });
+  const ids = members.map((m) => m.userId).filter((id): id is number => id !== null);
+  const alive = new Set(ids);
+  const [pick, setPick] = useState<number[]>(() => (initial === "ALL" ? ids : initial.filter((id) => alive.has(id))));
+  const allOn = ids.length > 0 && ids.every((id) => pick.includes(id));
+  const empty = pick.length === 0;
+  const toggle = (id: number) => setPick((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const row = "flex h-[52px] w-full items-center gap-3 rounded-md px-3 text-left hover:bg-hover";
   return (
     <div className="pb-1">
       <ul aria-label="참여자 고르기">
         <li>
-          <button type="button" role="checkbox" aria-checked={pick === "ALL"} onClick={() => setPick(pick === "ALL" ? [] : "ALL")} className={`${row} h-14`}>
-            <span className="min-w-0 flex-1">
-              <b className={`block text-[15px] leading-5 ${pick === "ALL" ? "font-bold" : "font-medium"}`}>모두</b>
-              <span className="block text-[13px] leading-[18px] text-ink-2">나중에 들어온 멤버도 포함</span>
-            </span>
-            <AvatarStack members={members} size={20} />
-            <Check on={pick === "ALL"} />
+          <button type="button" role="checkbox" aria-checked={allOn} onClick={() => setPick(allOn ? [] : ids)} className={row}>
+            <span className={`min-w-0 flex-1 text-[15px] ${allOn ? "font-bold" : "font-medium"}`}>전체 선택</span>
+            <Check on={allOn} />
           </button>
         </li>
         <li aria-hidden="true" className="mx-3 my-1 h-px bg-line" />
         {members.map((m, i) => {
           const id = m.userId;
           if (id === null) return null;
-          const on = pick !== "ALL" && pick.includes(id);
+          const on = pick.includes(id);
           return (
             <li key={id ?? `x${i}`}>
               <button type="button" role="checkbox" aria-checked={on} onClick={() => toggle(id)} className={row}>
@@ -179,7 +173,7 @@ function SheetBody({
           한 명 이상 골라 주세요
         </p>
       )}
-      <Button size="lg" full className="mt-3" disabled={empty} onClick={() => onDone(pick)}>
+      <Button size="lg" full className="mt-3" disabled={empty} onClick={() => onDone(ids.filter((id) => pick.includes(id)))}>
         완료
       </Button>
     </div>

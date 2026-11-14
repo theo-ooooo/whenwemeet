@@ -76,7 +76,8 @@ describe("participantLabel — 이름 표기", () => {
   it("두 명", () => expect(participantLabel(ev(2, 3), ME)).toBe("민지, 지훈"));
   it("두 명 중 나", () => expect(participantLabel(ev(0, 1), ME)).toBe("나, 하늘"));
   it("셋 이상", () => expect(participantLabel(ev(2, 3, 4), ME)).toBe("민지 외 2명"));
-  it("모두", () => expect(participantLabel(all(0, 1), ME)).toBe("모두"));
+  // (#442) 전원도 이름으로 ("모두" 를 쓰지 않는다)
+  it("전원", () => expect(participantLabel(all(0, 1), ME)).toBe("나, 하늘"));
   it("참여자 없음", () => expect(participantLabel(ev(), ME)).toBe("참여자 없음"));
   it("내 id 를 모르면 이름 그대로", () => expect(participantLabel(ev(0), null)).toBe("지우"));
 });
