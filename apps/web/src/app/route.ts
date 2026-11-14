@@ -1,4 +1,4 @@
-// 맨 `/` 진입 (#311 부터 route handler). 쿠키 없으면 /login, 있으면 처음 여는 달력 설정(#300, lib/start-calendar.ts)대로 팀을 골라
+// 맨 `/` 진입 (#311 부터 route handler). 쿠키 없으면 웹은 소개 페이지 /welcome, 앱 셸은 /login (#407), 있으면 처음 여는 달력 설정(#300, lib/start-calendar.ts)대로 팀을 골라
 // wwm_group 쿠키에 써 두고 /calendar 로 307. 마지막에 본 달력(기본)이면 마지막 팀(wwm_group) 또는 PERSONAL 팀, 내 달력이면 PERSONAL 팀, 팀 고정이면 그 팀.
 // 이 규칙은 맨 `/` 진입에만 쓴다. 딥링크(/calendar?team=, /events/..., /join/..., 알림 누름)는 여기를 거치지 않는다.
 // wwm_group 에 남은 팀이 내 팀 목록에 없으면(나갔거나 삭제된 팀, 목 모드 잔여값) 무시하고 첫 팀으로 보낸다 (#18).
@@ -11,6 +11,7 @@ import { CALENDAR_PATH } from "@/lib/routes";
 import { serverApi } from "@/lib/server-api";
 import { expiredUrl } from "@/lib/session";
 import { pickStartGroupId } from "@/lib/start-calendar";
+import { signedOutHome } from "@/lib/welcome";
 import type { GroupSummary, Me } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ const to = (req: NextRequest, path: string) => NextResponse.redirect(new URL(pat
 
 export async function GET(req: NextRequest) {
   const jar = await cookies();
-  if (!jar.get(SESSION_COOKIE)?.value) return to(req, "/login");
+  if (!jar.get(SESSION_COOKIE)?.value) return to(req, signedOutHome(req.headers.get("user-agent")));
 
   // 숫자 ID 가 아닌 값(예전 cuid 등)은 무시
   const remembered = parseId(jar.get(GROUP_COOKIE)?.value);
