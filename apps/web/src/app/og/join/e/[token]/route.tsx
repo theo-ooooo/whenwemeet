@@ -16,8 +16,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
   const [share, fonts] = await Promise.all([loadEventShareForOg(token), ogFonts()]);
   const maxAge = share ? INVITE_OG_REVALIDATE : 60;
-  const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
   const now = new Date();
+  const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
 
   if (!share) {
     return new ImageResponse(
@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const repeat = eventShareRepeatLabel(share.event.repeat);
   return new ImageResponse(
     (
-      <OgFrame now={now}>
+      <OgFrame now={now} team={clampTeamName(share.groupName, 10)}>
         <OgCopy
           kicker={eventShareTimeLabel(share.event)}
           lines={[

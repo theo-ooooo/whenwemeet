@@ -14,8 +14,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const by = parseInviteBy(new URL(req.url).searchParams.get("by"));
   const [invite, fonts] = await Promise.all([loadInviteForOg(code, by), ogFonts()]);
   const maxAge = invite ? INVITE_OG_REVALIDATE : 60;
-  const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
   const now = new Date();
+  const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
 
   if (!invite) {
     return new ImageResponse(
@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const nameSize = teamNameFontSize(name);
   return new ImageResponse(
     (
-      <OgFrame now={now}>
+      <OgFrame now={now} team={clampTeamName(invite.groupName, 10)}>
         <OgCopy
           kicker={invite.inviter ? `${clampTeamName(invite.inviter.nickname, INVITER_NAME_MAX)}님이 초대했어요` : `멤버 ${invite.memberCount}명`}
           lines={[{ text: name, clamp: 2, wordBreak: teamNameWordBreak(name, nameSize) }, { text: "팀에 초대받았어요", size: 48, gap: 14 }]}

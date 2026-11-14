@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "개인정보처리방침" };
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="개인정보처리방침" updated="2026년 11월 13일">
+    <LegalPage title="개인정보처리방침" updated="2026년 11월 14일">
       <h2>1. 수집하는 항목</h2>
       <p>
         로그인 방법에 따라 아래 항목만 받습니다. 카카오와 Apple 로그인에서는 이메일과 전화번호를 요청하지 않습니다.
@@ -133,7 +133,16 @@ export default function PrivacyPage() {
         바꿔도 덮어쓰지 않습니다. 팀별 표시 이름과 색은 팀 설정에서 바꿀 수 있습니다.
       </p>
       <p>로그인에 쓰는 이메일은 바꿀 수 없습니다. 바꾸려면 탈퇴한 뒤 새 이메일로 가입해 주세요.</p>
-      <h2>7. 문의</h2>
+      <h2>7. 개인정보 보호책임자와 문의</h2>
+      <ul>
+        <li>개인정보 보호책임자: 언제볼까 운영팀</li>
+        <li>
+          연락처:{" "}
+          <a href={supportMailto("개인정보 문의")} className="underline underline-offset-2">
+            {SUPPORT_EMAIL}
+          </a>
+        </li>
+      </ul>
       <p>
         개인정보에 관한 문의와 삭제 요청은{" "}
         <a href={supportMailto("개인정보 문의")} className="underline underline-offset-2">
