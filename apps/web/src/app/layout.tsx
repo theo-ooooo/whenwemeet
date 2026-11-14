@@ -15,6 +15,11 @@ export const metadata: Metadata = {
   applicationName: "언제볼까",
   title: { default: "언제볼까", template: "%s | 언제볼까" },
   description: SITE_DESCRIPTION,
+  // (#413) 구글 Search Console, 네이버 서치어드바이저 소유 확인. 값은 환경 변수(없으면 태그를 넣지 않는다)
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.NAVER_SITE_VERIFICATION ? { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION } : undefined,
+  },
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
