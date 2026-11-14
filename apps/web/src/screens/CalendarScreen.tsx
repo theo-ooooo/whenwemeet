@@ -1218,7 +1218,7 @@ function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; classNa
 }
 
 // 칸 모양은 칸 높이로 고른다 (폴더블.md 4-2): 넓은 화면에서 칸이 [container-type:size] 이고,
-// 높이 ≥84px 이면 tall: 로 2줄, ≥110px 이면 taller: 로 3줄. 줄은 위에서부터 여러 날 막대 레인(WeekBar 가 겹쳐 그림, 칸은 자리만) →
+// 높이 ≥74px 이면 tall: 로 2줄, ≥94px 이면 taller: 로 3줄 (#423, globals.css). 줄은 위에서부터 여러 날 막대 레인(WeekBar 가 겹쳐 그림, 칸은 자리만) →
 // 한 날 일정 칩(디자인규칙.md 2-2) → 넘치면 "+N개 더". 그보다 낮으면(아이폰 듀오 가로) 4px 막대 + 점 + 제목 한 줄.
 // 폰(<600)은 칸 높이 104 에 이름 칩 4줄 (#355, 칩은 달력 격자 위 PhoneWeekChips 가 겹쳐 그리고 칸은 숫자, 기념일/공휴일 줄, "+N" 배지만)
 function DayCell({

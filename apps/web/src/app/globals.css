@@ -60,9 +60,11 @@
 /* 높이가 낮은 펼친 화면(아이폰 듀오 가로 626) */
 @custom-variant short (@media (max-height: 720px));
 /* 달력 날짜 칸(넓은 화면에서 [container-type:size]) 높이로 모양을 고른다.
- * tall ≥84: 멤버 색 칩 2줄, taller ≥110: 칩 3줄. 그 아래(아이폰 듀오 가로 등)는 점 + 제목 한 줄 */
-@custom-variant tall (@container (min-height: 84px));
-@custom-variant taller (@container (min-height: 110px));
+ * tall ≥74: 멤버 색 칩 2줄, taller ≥94: 칩 3줄. 그 아래(아이폰 듀오 가로 등)는 점 + 제목 한 줄.
+ * (#423) 값은 실제로 드는 높이: 첫 줄 위치 30(CalendarScreen FIRST_ROW_TOP) + 줄 20 × n + 아래 여백 4.
+ * 예전 84/110 은 여유가 커서 태블릿 가로(칸 75~83)가 점 모양(#355 이전 디자인)으로 떨어졌다 */
+@custom-variant tall (@container (min-height: 74px));
+@custom-variant taller (@container (min-height: 94px));
 /* (#323) 본문 폭 구간. 팀 화면의 2단, 격자, 좁은 제목줄은 뷰포트(lg/xl/2xl, max-[711px]) 가 아니라 실제 본문 폭으로 고른다.
  * 사이드바가 264 로 펼쳐졌는지 72 레일로 접혔는지에 따라 같은 뷰포트에서도 본문 폭이 192 달라지기 때문이다.
  * 기준은 펼친 사이드바에서 예전 뷰포트 경계와 같은 본문 폭(뷰포트 - 264 - 64): lg 1024 → 696, xl 1280 → 952, 2xl 1536 → 1208,
