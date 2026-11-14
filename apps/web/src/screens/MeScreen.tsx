@@ -12,6 +12,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { useToast } from "@/components/Toast";
 import { Avatar, Button, ErrorState, InlineError, RowGroup, RowLink, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { useGroupContext } from "@/components/AppShell";
 import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
@@ -32,8 +33,11 @@ function photoErrorText(e: ApiFailure): string {
   return messageOf(e, "사진을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
 }
 
-/** 내 정보 상단: 프로필 칸. 누르면 시트에서 사진(바꾸기, 기본으로)과 닉네임을 바꾼다 (#378: "바꾸기" 버튼 대신 칸을 누른다) */
-function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void }) {
+/**
+ * 내 정보 상단: 프로필 칸. 누르면 시트에서 사진(바꾸기, 기본으로)과 닉네임을 바꾼다 (#378: "바꾸기" 버튼 대신 칸을 누른다).
+ * color 는 지금 팀에서의 내 색. 머리줄, 사이드바 아바타와 같은 색으로 그린다 (QA 2026-11-14: 여기만 회색이었다)
+ */
+function ProfileCard({ me, color, onChange }: { me: Me; color: string | null; onChange: (next: Me) => void }) {
   const [open, setOpen] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,7 +83,7 @@ function ProfileCard({ me, onChange }: { me: Me; onChange: (next: Me) => void })
 
   const avatar = (size: number) => (
     <span className="relative shrink-0">
-      <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} size={size} />
+      <Avatar member={{ displayName: me.nickname, profileImageUrl: me.profileImageUrl }} color={color} size={size} />
       {photoBusy && (
         <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white">
           <Spinner />
@@ -232,6 +236,9 @@ function VersionInfo() {
 export function MeScreen() {
   // (#188) 푸시 지원 앱이면 이 기기 토큰을 등록, 정리
   usePushSync();
+  // 지금 팀의 내 색 (AppShell 머리줄 아바타와 같은 값: 주소의 팀을 다 받았을 때만)
+  const { groupId, group } = useGroupContext();
+  const myColor = group && group.id === groupId ? group.me.color : null;
   const meQ = useMe();
   const groupsQ = useGroups();
   const me = meQ.data;
@@ -325,7 +332,7 @@ export function MeScreen() {
         <div className="mt-3 flex flex-1 flex-col gap-5 main-lg:grid main-lg:flex-none main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3">
           <div className="flex flex-col gap-5">
             {me ? (
-              <ProfileCard me={me} onChange={(next) => setMe(next)} />
+              <ProfileCard me={me} color={myColor} onChange={(next) => setMe(next)} />
             ) : (
               <section className="flex items-center gap-3 rounded-xl bg-paper px-3.5 py-3.5">
                 <Skeleton className="size-14 rounded-full" />

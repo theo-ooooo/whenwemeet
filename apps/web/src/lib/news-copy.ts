@@ -112,7 +112,8 @@ export function knownNewsItems(items: readonly NewsEntry[]): NewsEntry[] {
   });
 }
 
-const quoted = (name: string) => `'${name}'`;
+// (QA 2026-11-14) 이름은 일정 줄 제목과 같은 둥근 작은따옴표 ‘…’. 화면(NewsScreen ActivityText)이 이 따옴표로 굵게 할 곳을 찾는다
+const quoted = (name: string) => `‘${name}’`;
 const withEulReul = (name: string) => `${quoted(name)}${hasBatchim(name) ? "을" : "를"}`;
 const withEuro = (name: string) => `${quoted(name)}${euroJosa(name)}`;
 

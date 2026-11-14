@@ -20,8 +20,7 @@ import {
   totalMinutes,
   type Interval,
 } from "@/lib/day-bar";
-import { formatMinutes, type DateKey } from "@/lib/date";
-import { clockRangeText, clockText } from "@/lib/event-row";
+import { clockRangeText, clockText, formatMinutes, type DateKey } from "@/lib/date";
 import type { Member } from "@/lib/types";
 
 export type DayBarMember = { member: Member; busy: Interval[] };

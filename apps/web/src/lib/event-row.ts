@@ -1,32 +1,11 @@
 // (#378) 일정 줄(EventRow) 하나가 쓰는 순수 계산: 시각 글자(한 번만), 지난 일정, 보일 참여자, 내 참석 표시, 읽기 이름.
 // 일 상세, 다가오는 일정, 검색, 홈이 같은 줄을 쓴다 (디자인규칙.md 8-4). React 를 import 하지 않는다 (단위 테스트 대상)
-import { dateKeyOf, parseKey, toKst, type DateKey } from "./date";
+// 시각 글자(clockText, clockRangeText)는 lib/date.ts 에 있다. 사이드바, 새 소식, 빈 시간, 일정 상세도 같은 표기를 쓴다
+import { clockRangeText, clockText, dateKeyOf, parseKey, type DateKey } from "./date";
 import { participantsOf, type WhoContext, whoOf } from "./participants";
 import { RSVP_LABEL, showRsvp } from "./rsvp";
 import { lastDayOf } from "./upcoming";
 import type { Event, Member, Rsvp } from "./types";
-
-type Clock = { meridiem: "오전" | "오후"; text: string };
-
-/** 시각 하나 → 오전/오후 h:mm (KST). 0시는 "오전 12:00", 12시는 "오후 12:00" */
-export function clockOf(at: string | number): Clock {
-  const { h, min } = toKst(at);
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return { meridiem: h < 12 ? "오전" : "오후", text: `${h12}:${String(min).padStart(2, "0")}` };
-}
-
-/** "오전 8:00" */
-export function clockText(at: string | number): string {
-  const c = clockOf(at);
-  return `${c.meridiem} ${c.text}`;
-}
-
-/** 같은 날 두 시각 "오전 8:00 ~ 9:00". 오전/오후가 바뀌면 끝에도 붙인다 "오전 11:00 ~ 오후 1:00" */
-export function clockRangeText(start: string | number, end: string | number): string {
-  const s = clockOf(start);
-  const e = clockOf(end);
-  return `${s.meridiem} ${s.text} ~ ${e.meridiem === s.meridiem ? "" : `${e.meridiem} `}${e.text}`;
-}
 
 const md = (key: DateKey) => {
   const { m, d } = parseKey(key);

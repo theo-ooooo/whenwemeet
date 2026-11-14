@@ -39,12 +39,12 @@ describe("빈 시간 구간 → 후보 (#189 설계 5-1)", () => {
 
 describe("표기", () => {
   it("후보 한 줄: 같은 오전/오후는 끝 쪽 생략, 다르면 둘 다, 종일, 여러 날 종일, 다른 해", () => {
-    expect(optionLabel({ startsAt: kst("2026-11-22T19:00"), endsAt: kst("2026-11-22T21:00"), allDay: false }, TODAY)).toBe("11월 22일 (일) 오후 7:00~9:00");
-    expect(optionLabel({ startsAt: kst("2026-11-22T11:00"), endsAt: kst("2026-11-22T13:00"), allDay: false }, TODAY)).toBe("11월 22일 (일) 오전 11:00~오후 1:00");
+    expect(optionLabel({ startsAt: kst("2026-11-22T19:00"), endsAt: kst("2026-11-22T21:00"), allDay: false }, TODAY)).toBe("11월 22일 (일) 오후 7:00 ~ 9:00");
+    expect(optionLabel({ startsAt: kst("2026-11-22T11:00"), endsAt: kst("2026-11-22T13:00"), allDay: false }, TODAY)).toBe("11월 22일 (일) 오전 11:00 ~ 오후 1:00");
     expect(optionLabel({ startsAt: kst("2026-11-22T00:00"), endsAt: kst("2026-11-23T00:00"), allDay: true }, TODAY)).toBe("11월 22일 (일) 종일");
     expect(optionLabel({ startsAt: kst("2026-11-22T00:00"), endsAt: kst("2026-11-24T00:00"), allDay: true }, TODAY)).toBe("11월 22일 (일) ~ 11월 23일 (월) 종일");
-    expect(optionLabel({ startsAt: kst("2027-01-02T10:00"), endsAt: kst("2027-01-02T11:00"), allDay: false }, TODAY)).toBe("2027년 1월 2일 (토) 오전 10:00~11:00");
-    expect(optionParts({ startsAt: kst("2026-11-22T19:00"), endsAt: kst("2026-11-22T21:00"), allDay: false }, TODAY)).toEqual({ date: "11월 22일 (일)", time: "오후 7:00~9:00" });
+    expect(optionLabel({ startsAt: kst("2027-01-02T10:00"), endsAt: kst("2027-01-02T11:00"), allDay: false }, TODAY)).toBe("2027년 1월 2일 (토) 오전 10:00 ~ 11:00");
+    expect(optionParts({ startsAt: kst("2026-11-22T19:00"), endsAt: kst("2026-11-22T21:00"), allDay: false }, TODAY)).toEqual({ date: "11월 22일 (일)", time: "오후 7:00 ~ 9:00" });
   });
   it("마감과 응답 수", () => {
     expect(deadlineText({ status: "OPEN", expired: false, deadline: kst("2026-11-14T21:00") }, TODAY)).toBe("11월 14일 (토) 오후 9:00까지");

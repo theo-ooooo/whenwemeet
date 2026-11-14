@@ -115,20 +115,55 @@ export function formatDateKo(key: DateKey, withYear = false): string {
   return withYear ? `${y}년 ${base}` : base;
 }
 
-/** 일정 행의 시간 표기 */
+/**
+ * (QA 2026-11-14) 화면에 보이는 시각 표기는 이 모양 하나다 (디자인규칙.md 8-4 일정 줄, D-252): "오전 8:00 ~ 9:00", 앞 0 없음, 물결표 양옆 띄움.
+ * 오전/오후가 바뀌면 끝에도 붙인다 "오전 11:00 ~ 오후 1:00". 'HH:mm' 은 입력 값과 주소에만 쓴다
+ */
+export type Clock = { meridiem: "오전" | "오후"; text: string };
+
+/** 하루 안 분 → 오전/오후 h:mm. 0시는 "오전 12:00", 12시는 "오후 12:00" */
+export function clockOfMinutes(total: number): Clock {
+  const h = Math.floor(total / 60) % 24;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return { meridiem: h < 12 ? "오전" : "오후", text: `${h12}:${pad(total % 60)}` };
+}
+
+/** 시각 하나 → 오전/오후 h:mm (KST) */
+export function clockOf(at: string | number): Clock {
+  const { h, min } = toKst(at);
+  return clockOfMinutes(h * 60 + min);
+}
+
+/** "오전 8:00" */
+export function clockText(at: string | number): string {
+  const c = clockOf(at);
+  return `${c.meridiem} ${c.text}`;
+}
+
+/** 두 시각 "오전 8:00 ~ 9:00". 오전/오후가 바뀌면 끝에도 붙인다 "오전 11:00 ~ 오후 1:00" */
+export function clockPairText(s: Clock, e: Clock): string {
+  return `${s.meridiem} ${s.text} ~ ${e.meridiem === s.meridiem ? "" : `${e.meridiem} `}${e.text}`;
+}
+
+/** 같은 날 두 시각 "오전 8:00 ~ 9:00" (KST) */
+export function clockRangeText(start: string | number, end: string | number): string {
+  return clockPairText(clockOf(start), clockOf(end));
+}
+
+/**
+ * 일정 시간 글자 (사이드바 다가오는 일정, 새 소식, 읽기 이름). 일정 줄(eventRowTime)을 시작한 날에 쓴 것과 같다.
+ * - 하루 시간 일정 "오후 7:30 ~ 10:00" (자정에 끝나면 "오후 10:00 ~ 오전 12:00")
+ * - 종일 "종일", 여러 날 종일 "종일 ~11월 22일"
+ * - 여러 날 시간 일정 "오후 10:00 ~ 11월 23일 오전 2:00"
+ */
 export function formatEventTime(startsAt: string, endsAt: string, allDay: boolean): string {
-  if (allDay) {
-    const s = dateKeyOf(startsAt);
-    const e = addDays(dateKeyOf(endsAt), -1);
-    if (e === s) return "종일";
-    const pe = parseKey(e);
-    return `종일, ${pe.m}/${pe.d}까지`;
-  }
-  const s = dateKeyOf(startsAt);
-  const e = dateKeyOf(endsAt);
-  if (s === e) return `${timeOf(startsAt)}~${timeOf(endsAt)}`;
-  const pe = parseKey(e);
-  return `${timeOf(startsAt)}~${pe.m}/${pe.d} ${timeOf(endsAt)}`;
+  const first = dateKeyOf(startsAt);
+  const end = allDay ? addDays(dateKeyOf(endsAt), -1) : dateKeyOf(Date.parse(endsAt) - 1);
+  const last = end < first ? first : end;
+  const { m, d } = parseKey(last);
+  if (allDay) return last > first ? `종일 ~${m}월 ${d}일` : "종일";
+  if (first === last) return clockRangeText(startsAt, endsAt);
+  return `${clockText(startsAt)} ~ ${m}월 ${d}일 ${clockText(endsAt)}`;
 }
 
 /** 분 → '2시간', '1시간 30분' */
