@@ -4,7 +4,7 @@
 // - 같은 날 겹치는 조각은 묶음마다 열을 나눈다. 묶음 안 최대 열 수로 폭을 등분하고 최대 3열.
 //   넘치면 마지막 열을 "+N" 자리로 쓴다 (N = 그 열과 그 뒤 열에 들어갈 조각 수)
 // - 종일 일정은 격자 위 "종일" 줄에서 month-lanes 의 packWeek, fitWeek 를 그대로 쓴다
-import { addDays, dateKeyOf, formatEventTime, kstToIso, parseKey, timeOf, type DateKey } from "./date";
+import { addDays, dateKeyOf, kstToIso, parseKey, timeOf, type DateKey } from "./date";
 import { meridiem, weekStrip } from "./day-view";
 import { eventKey } from "./recurrence";
 
@@ -186,7 +186,7 @@ export function initialTopMinute<T extends TimedEvent>(days: readonly DateKey[],
  * 시간 막대 안 시각 글자. 날마다 자른 조각의 범위가 아니라 일정의 진짜 시각을 쓴다
  * (22:00 ~ 다음 날 02:00 이 앞날 칸에서 "22:00~24:00" 으로 보이지 않게).
  * 같은 날 "09:00~10:00", 다음 날에 끝나면 "22:00~02:00"(자정에 끝나면 "22:00~24:00"),
- * 이틀 넘게 걸치면 formatEventTime 처럼 "22:00~11/16 02:00"
+ * 이틀 넘게 걸치면 "22:00~11/16 02:00"
  */
 export function barTimeText(ev: { startsAt: string; endsAt: string }): string {
   const s = dateKeyOf(ev.startsAt);
@@ -195,7 +195,9 @@ export function barTimeText(ev: { startsAt: string; endsAt: string }): string {
   const end = timeOf(ev.endsAt);
   if (e === s) return `${start}~${end}`;
   if (e === addDays(s, 1)) return `${start}~${end === "00:00" ? "24:00" : end}`;
-  return formatEventTime(ev.startsAt, ev.endsAt, false);
+  // 막대는 좁아 짧은 24시 표기를 쓴다 (일정 줄의 오전/오후 표기와 따로, #433). 끝 날짜만 덧붙인다
+  const d = parseKey(e);
+  return `${start}~${d.m}/${d.d} ${end}`;
 }
 
 /**
