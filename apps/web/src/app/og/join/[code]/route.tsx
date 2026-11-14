@@ -6,21 +6,21 @@ import { parseInviteBy } from "@/lib/invite-share";
 import { clampTeamName, INVITER_NAME_MAX, teamNameFontSize, teamNameWordBreak } from "@/lib/og";
 import { OG_SIZE, OgCopy, OgFrame } from "../../../_og/card";
 import { ogFonts } from "../../../_og/fonts";
-import { ogPhoneShot } from "../../../_og/shot";
 import { INVITE_OG_REVALIDATE, loadInviteForOg } from "../../../_og/invite";
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const code = (await params).code.toUpperCase();
   // (#196) 보낸 사람 표식. 주소는 join/[code]/page.tsx 가 inviteOgImage(code, by) 로 단다
   const by = parseInviteBy(new URL(req.url).searchParams.get("by"));
-  const [invite, fonts, shot] = await Promise.all([loadInviteForOg(code, by), ogFonts(), ogPhoneShot()]);
+  const [invite, fonts] = await Promise.all([loadInviteForOg(code, by), ogFonts()]);
   const maxAge = invite ? INVITE_OG_REVALIDATE : 60;
+  const now = new Date();
   const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
 
   if (!invite) {
     return new ImageResponse(
       (
-        <OgFrame shot={shot}>
+        <OgFrame now={now}>
           <OgCopy
             lines={[{ text: "같은 달력에" }, { text: "초대받았어요", gap: 6 }]}
             titleSize={80}
@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const nameSize = teamNameFontSize(name);
   return new ImageResponse(
     (
-      <OgFrame shot={shot}>
+      <OgFrame now={now} team={clampTeamName(invite.groupName, 10)}>
         <OgCopy
           kicker={invite.inviter ? `${clampTeamName(invite.inviter.nickname, INVITER_NAME_MAX)}님이 초대했어요` : `멤버 ${invite.memberCount}명`}
           lines={[{ text: name, clamp: 2, wordBreak: teamNameWordBreak(name, nameSize) }, { text: "팀에 초대받았어요", size: 48, gap: 14 }]}

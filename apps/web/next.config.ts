@@ -19,10 +19,10 @@ const nextConfig: NextConfig = {
     // 화면 데이터는 클라이언트 훅이 따로 받으므로 오래된 RSC 를 써도 보이는 값은 낡지 않는다
     staleTimes: { dynamic: 30 },
   },
-  // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 와 (#404) 휴대폰 속 화면 사진을 그 route 함수에만 넣는다 (#204: app/og 로 옮김)
+  // 공유 미리보기 이미지(#159)가 fs 로 읽는 Pretendard OTF 를 그 route 함수에만 넣는다 (#204: app/og 로 옮김)
   outputFileTracingIncludes: {
-    "/og": ["./src/app/_og/fonts/*.otf", "./src/app/_og/img/*.jpg"],
-    "/og/**/*": ["./src/app/_og/fonts/*.otf", "./src/app/_og/img/*.jpg"],
+    "/og": ["./src/app/_og/fonts/*.otf"],
+    "/og/**/*": ["./src/app/_og/fonts/*.otf"],
   },
   // (#204) 옛 메타데이터 이미지 주소(이미 공유된 카드의 캐시된 HTML 이 가리킬 수 있음)를 새 route 로 보낸다
   async redirects() {
