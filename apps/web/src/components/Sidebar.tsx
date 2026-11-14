@@ -229,6 +229,8 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
   const muteLine = "px-3 py-2 text-[13px] leading-[18px] text-ink-2";
 
   return (
+    // (#429) 아래 내 정보 줄과 접기 ◀ 는 늘 보여야 한다. 키 작은 창에서 넘치면 가운데 묶음만 스크롤한다.
+    // 위 묶음과 아래 줄만으로도 넘칠 만큼 낮은 창(약 530 미만)에서만 사이드바 전체가 스크롤된다
     <aside className="sticky top-0 hidden h-dvh flex-col overflow-y-auto border-r border-line bg-paper px-4 pb-4 pt-5 fold:flex">
       <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="ml-2 grid size-[34px] shrink-0 place-items-center rounded-sm">
         <Symbol size={34} />
@@ -290,112 +292,115 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
         </ul>
       </nav>
 
-      <div aria-hidden="true" className="mx-3 my-4 h-px shrink-0 bg-line" />
+      <div aria-hidden="true" className="mx-3 mt-4 h-px shrink-0 bg-line" />
 
-      {/* (#189) 진행 중 약속 투표가 있으면 다가오는 일정 위에 한 줄 (설계 약속-투표.md 5-2) */}
-      {groupId !== null && <PollSideLine groupId={groupId} enabled={enabled && group?.type === "TEAM"} refreshKey={refreshKey} />}
+      {/* (#429) 가운데 묶음(투표, 다가오는 일정, 다음 기념일): 남는 높이만 쓰고 넘치면 이 칸만 스크롤.
+          스크롤바는 사이드바 끝에 붙게 좌우 여백을 안으로 옮기고, 넘친 내용은 바닥 16 을 흐리게 해 더 있다는 걸 보인다 */}
+      <div data-side-scroll className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 [mask-image:linear-gradient(to_bottom,#000_calc(100%-16px),transparent)]">
+        {/* (#189) 진행 중 약속 투표가 있으면 다가오는 일정 위에 한 줄 (설계 약속-투표.md 5-2) */}
+        {groupId !== null && <PollSideLine groupId={groupId} enabled={enabled && group?.type === "TEAM"} refreshKey={refreshKey} />}
 
-      {/* 다가오는 일정 3줄: 3px 멤버 막대 + 제목 14/600 + 날짜와 시각 12 --mute. 누르면 그 일정 (반복은 회차까지) */}
-      <section aria-labelledby="side-up" className="shrink-0">
-        <div className={head}>
-          <h2 id="side-up">다가오는 일정</h2>
-          <span className="flex-1" />
-          <Link href={UPCOMING_PATH} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
-            전체보기
-          </Link>
-        </div>
-        {upcomingQ.error ? (
-          <p className={muteLine}>
-            일정을 불러오지 못했어요.{" "}
-            <button type="button" onClick={() => void refetchUp()} className="font-bold text-btn">
-              다시 시도
-            </button>
-          </p>
-        ) : upcoming === null ? (
-          <div className="space-y-1 px-1 pt-1" aria-busy="true" aria-label="불러오는 중">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : upcoming.length === 0 ? (
-          <p className={muteLine}>한 달 동안 잡힌 일정이 없어요</p>
-        ) : (
-          <ul className="mt-0.5">
-            {upcoming.map((ev) => {
-              const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
-              const day = k === today ? "오늘" : formatDateKo(k);
-              const time = formatEventTime(ev.startsAt, ev.endsAt, ev.allDay);
-              return (
-                <li key={eventKey(ev)}>
-                  <Link
-                    href={eventEditHref(ev)}
-                    aria-label={withWho(`${day} ${ev.title}, ${time}`, ev, { meId, personal })}
-                    className="flex h-12 items-stretch gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
-                  >
-                    <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
-                    <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
-                      <b className="block truncate text-[14px] font-semibold leading-[18px]">{ev.title}</b>
-                      <span className="block truncate text-[12px] leading-4 text-ink-2">
-                        {day} {time}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <div aria-hidden="true" className="mx-3 my-4 h-px shrink-0 bg-line" />
-
-      {/* 다음 기념일 2줄: 이름 14/500 + D-n 14/700 (오늘이면 --acc-ink "오늘") */}
-      <section aria-labelledby="side-ann" className="shrink-0">
-        <div className={head}>
-          <h2 id="side-ann">다음 기념일</h2>
-        </div>
-        {nextAnn === null ? (
-          <div className="space-y-1 px-1 pt-1" aria-busy="true" aria-label="불러오는 중">
-            {[0, 1].map((i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
-          </div>
-        ) : nextAnn.length === 0 ? (
-          <p className={muteLine}>
-            기념일을 등록하면 D-day 가 보여요.{" "}
-            <Link href={ANNIVERSARIES_PATH} className="font-bold text-btn">
-              기념일 추가
+        {/* 다가오는 일정 3줄: 3px 멤버 막대 + 제목 14/600 + 날짜와 시각 12 --mute. 누르면 그 일정 (반복은 회차까지) */}
+        <section aria-labelledby="side-up" className="shrink-0">
+          <div className={head}>
+            <h2 id="side-up">다가오는 일정</h2>
+            <span className="flex-1" />
+            <Link href={UPCOMING_PATH} className="hit text-[12px] font-normal text-ink-2 hover:text-ink">
+              전체보기
             </Link>
-          </p>
-        ) : (
-          <ul className="mt-0.5">
-            {nextAnn.map((o) => {
-              const badge = dayBadge(o.date, today);
-              const title = occurrenceTitle(o);
-              return (
-                <li key={`${o.anniversary.id}-${o.date}`}>
-                  <Link
-                    href={ANNIVERSARIES_PATH}
-                    aria-label={`${title}, ${formatDateKo(o.date)}, ${badge}`}
-                    className="flex h-10 items-center gap-2 rounded-sm px-3 hover:bg-hover"
-                  >
-                    <span aria-hidden="true" className="min-w-0 flex-1 truncate text-[14px] font-medium">
-                      {title}
-                    </span>
-                    <b aria-hidden="true" className={`shrink-0 text-[14px] font-bold ${badge === "오늘" ? "text-acc-ink" : ""}`}>
-                      {badge}
-                    </b>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+          </div>
+          {upcomingQ.error ? (
+            <p className={muteLine}>
+              일정을 불러오지 못했어요.{" "}
+              <button type="button" onClick={() => void refetchUp()} className="font-bold text-btn">
+                다시 시도
+              </button>
+            </p>
+          ) : upcoming === null ? (
+            <div className="space-y-1 px-1 pt-1" aria-busy="true" aria-label="불러오는 중">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : upcoming.length === 0 ? (
+            <p className={muteLine}>한 달 동안 잡힌 일정이 없어요</p>
+          ) : (
+            <ul className="mt-0.5">
+              {upcoming.map((ev) => {
+                const k = dateKeyOf(Math.max(Date.parse(ev.startsAt), Date.parse(kstToIso(today))));
+                const day = k === today ? "오늘" : formatDateKo(k);
+                const time = formatEventTime(ev.startsAt, ev.endsAt, ev.allDay);
+                return (
+                  <li key={eventKey(ev)}>
+                    <Link
+                      href={eventEditHref(ev)}
+                      aria-label={withWho(`${day} ${ev.title}, ${time}`, ev, { meId, personal })}
+                      className="flex h-12 items-stretch gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
+                    >
+                      <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
+                      <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
+                        <b className="block truncate text-[14px] font-semibold leading-[18px]">{ev.title}</b>
+                        <span className="block truncate text-[12px] leading-4 text-ink-2">
+                          {day} {time}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-      {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315) */}
-      <span aria-hidden="true" className="min-h-4 flex-1" />
-      <div className="flex shrink-0 items-center gap-1">
+        <div aria-hidden="true" className="mx-3 my-4 h-px shrink-0 bg-line" />
+
+        {/* 다음 기념일 2줄: 이름 14/500 + D-n 14/700 (오늘이면 --acc-ink "오늘") */}
+        <section aria-labelledby="side-ann" className="shrink-0">
+          <div className={head}>
+            <h2 id="side-ann">다음 기념일</h2>
+          </div>
+          {nextAnn === null ? (
+            <div className="space-y-1 px-1 pt-1" aria-busy="true" aria-label="불러오는 중">
+              {[0, 1].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : nextAnn.length === 0 ? (
+            <p className={muteLine}>
+              기념일을 등록하면 D-day 가 보여요.{" "}
+              <Link href={ANNIVERSARIES_PATH} className="font-bold text-btn">
+                기념일 추가
+              </Link>
+            </p>
+          ) : (
+            <ul className="mt-0.5">
+              {nextAnn.map((o) => {
+                const badge = dayBadge(o.date, today);
+                const title = occurrenceTitle(o);
+                return (
+                  <li key={`${o.anniversary.id}-${o.date}`}>
+                    <Link
+                      href={ANNIVERSARIES_PATH}
+                      aria-label={`${title}, ${formatDateKo(o.date)}, ${badge}`}
+                      className="flex h-10 items-center gap-2 rounded-sm px-3 hover:bg-hover"
+                    >
+                      <span aria-hidden="true" className="min-w-0 flex-1 truncate text-[14px] font-medium">
+                        {title}
+                      </span>
+                      <b aria-hidden="true" className={`shrink-0 text-[14px] font-bold ${badge === "오늘" ? "text-acc-ink" : ""}`}>
+                        {badge}
+                      </b>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315). 가운데 묶음이 넘쳐도 밀리지 않는다 (#429) */}
+      <div data-side-footer className="flex shrink-0 items-center gap-1">
         <Link href="/me" className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
           {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? ""}</span>
