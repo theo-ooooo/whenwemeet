@@ -33,7 +33,7 @@ export function proxy(req: NextRequest) {
     return renderWithoutSession(req);
   }
 
-  // 홈(/) 은 쿠키가 없으면 page.tsx 가 /login 으로 보낸다. 만료 쿠키만 여기서 정리
+  // 홈(/) 은 쿠키가 없으면 app/route.ts 가 /welcome(웹) 또는 /login(앱 셸)으로 보낸다. 만료 쿠키만 여기서 정리
   if (pathname === "/") {
     if (token && !isSessionUsable(token)) {
       return clearSessionCookies(NextResponse.redirect(loginExpiredUrl(req.nextUrl.origin, "/")));
