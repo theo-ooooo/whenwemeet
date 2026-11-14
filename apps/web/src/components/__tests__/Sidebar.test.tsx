@@ -60,6 +60,29 @@ describe("펼친 사이드바", () => {
   });
 });
 
+describe("(#429) 키 작은 창에서 아래 내 정보 줄 고정", () => {
+  it("가운데 묶음(다가오는 일정, 기념일)만 스크롤 칸에 넣고, 내 정보 + 접기 줄은 그 밖 맨 아래에 고정한다", () => {
+    setup();
+    const aside = screen.getByRole("complementary");
+    const scroll = aside.querySelector<HTMLElement>("[data-side-scroll]")!;
+    const footer = aside.querySelector<HTMLElement>("[data-side-footer]")!;
+    // 스크롤 칸: 남는 높이만 쓰고(flex-1 + min-h-0) 넘치면 스스로 스크롤
+    expect(scroll.className).toMatch(/\bmin-h-0\b/);
+    expect(scroll.className).toMatch(/\bflex-1\b/);
+    expect(scroll.className).toMatch(/\boverflow-y-auto\b/);
+    expect(within(scroll).getByText("다가오는 일정")).toBeTruthy();
+    expect(within(scroll).getByText("다음 기념일")).toBeTruthy();
+    // 메뉴는 스크롤 칸 밖 (늘 보인다)
+    expect(within(scroll).queryByRole("navigation")).toBeNull();
+    // 아래 줄: 스크롤 칸 밖, 사이드바의 마지막 줄, 줄어들지 않는다
+    expect(scroll.contains(footer)).toBe(false);
+    expect(aside.lastElementChild).toBe(footer);
+    expect(footer.className).toMatch(/\bshrink-0\b/);
+    expect(within(footer).getByText("내 정보")).toBeTruthy();
+    expect(within(footer).getByRole("button", { name: "사이드바 접기" })).toBeTruthy();
+  });
+});
+
 describe("(#276) 할 일 메뉴", () => {
   it("펼친 사이드바: 기념일과 새 소식 사이, 할 일 화면에서 켜진다", () => {
     setup({ tab: "todos" });
