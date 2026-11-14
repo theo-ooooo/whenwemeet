@@ -95,14 +95,16 @@ export default async function JoinPage({
   const inviter = data && inviterName(data);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))] fold:justify-center fold:py-16">
       {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24. 브랜드 크기 제목은 로그인만 (#174 L4) */}
+      {/* (#429) 폰(<600)은 로고 위, 내용과 버튼은 엄지 닿는 아래(mt-auto). fold 이상은 화면이 커서 위아래로 갈라지면 가운데가
+          절반 넘게 빈다. 로고와 내용을 한 덩어리(로고 아래 48)로 묶어 세로 가운데에 둔다 */}
       <Symbol size={32} />
 
       {data?.isMember && data.groupId !== null ? (
         // (#196) 이미 멤버 (1차 L9). 자동으로 보내지 않고 버튼으로, ?auto=1 자동 합류도 하지 않는다 (D-158)
         <>
-          <div className="mt-auto pt-16">
+          <div className="mt-auto pt-16 fold:mt-0 fold:pt-12">
             <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
               멤버 {data.memberCount}명
             </span>
@@ -121,7 +123,7 @@ export default async function JoinPage({
         </>
       ) : data ? (
         <>
-          <div className="mt-auto pt-16">
+          <div className="mt-auto pt-16 fold:mt-0 fold:pt-12">
             <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
               멤버 {data.memberCount}명
             </span>
@@ -152,7 +154,7 @@ export default async function JoinPage({
         </>
       ) : error?.code === "INVITE_NOT_FOUND" ? (
         <>
-          <h1 className="mt-auto text-[28px] font-bold leading-9 tracking-[-0.03em]">
+          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">
             초대 링크가 만료됐거나 잘못됐어요
           </h1>
           <p className="mt-2 text-[15px] leading-[22px] text-soft">초대한 사람에게 새 링크를 받아 주세요</p>
@@ -164,7 +166,7 @@ export default async function JoinPage({
         </>
       ) : (
         <>
-          <h1 className="mt-auto text-[28px] font-bold leading-9 tracking-[-0.03em]">
+          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">
             초대 정보를 불러오지 못했어요
           </h1>
           <p className="mb-10 mt-2 text-[15px] leading-[22px] text-soft">{error?.message || "새로고침해 주세요"}</p>
