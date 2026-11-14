@@ -25,6 +25,7 @@ import { clearNativeSessions, kakaoAvailable } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
 import { clearWidget, publishWidgetSnapshot } from "../widget/native";
 import { OfflineScreen } from "./OfflineScreen";
+import { PULL_REFRESH_INITIAL, pullOnScroll, pullOnTouchStart, type PullRefresh } from "./pull-refresh";
 import { useTheme } from "../ui/theme";
 
 /** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81).
@@ -53,7 +54,8 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
   const [failedAt, setFailedAt] = useState<number | null>(null);
   const failed = failedAt === navKey;
   const setFailed = useCallback((v: boolean) => setFailedAt(v ? navKey : null), [navKey]);
-  const [atTop, setAtTop] = useState(true);
+  // (#415) 손가락을 댈 때 이미 맨 위였을 때만 당겨서 새로고침 (pull-refresh.ts)
+  const [pull, setPull] = useState<PullRefresh>(PULL_REFRESH_INITIAL);
   const [refreshing, setRefreshing] = useState(false);
   const net = Network.useNetworkState();
   const offline = net.isConnected === false || net.isInternetReachable === false;
@@ -217,14 +219,14 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       }}
       onContentProcessDidTerminate={() => ref.current?.reload()}
       onRenderProcessGone={() => ref.current?.reload()}
-      onScroll={(e: { nativeEvent: { contentOffset: { y: number } } }) => setAtTop(e.nativeEvent.contentOffset.y <= 0)}
+      onScroll={(e: { nativeEvent: { contentOffset: { y: number } } }) => setPull((s) => pullOnScroll(s, e.nativeEvent.contentOffset.y))}
       sharedCookiesEnabled
       thirdPartyCookiesEnabled={false}
       domStorageEnabled
       javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       allowsBackForwardNavigationGestures
-      pullToRefreshEnabled
+      pullToRefreshEnabled={pull.armed}
       // iOS 전용. Android 네이티브 정의는 Double 인데 "normal" 문자열을 그대로 넘겨 실행 직후 강제 종료됐다 (ClassCastException)
       {...(Platform.OS === "ios" ? { decelerationRate: "normal" as const } : {})}
       bounces
@@ -234,15 +236,15 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
   );
 
   return (
-    <View style={[styles.root, { backgroundColor: t.bg }]}>
+    <View style={[styles.root, { backgroundColor: t.bg }]} onTouchStart={() => setPull(pullOnTouchStart)}>
       {Platform.OS === "android" ? (
-        // Android 웹뷰에는 당겨서 새로고침이 없어 RefreshControl 로 감싼다. 문서 최상단에서만 켠다 (4.4)
+        // Android 웹뷰에는 당겨서 새로고침이 없어 RefreshControl 로 감싼다. 손짓을 맨 위에서 시작했을 때만 켠다 (4.4, #415)
         <ScrollView
           contentContainerStyle={styles.root}
           nestedScrollEnabled
           refreshControl={
             <RefreshControl
-              enabled={atTop}
+              enabled={pull.armed}
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
