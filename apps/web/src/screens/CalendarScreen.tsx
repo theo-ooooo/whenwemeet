@@ -1205,7 +1205,8 @@ function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; classNa
         top: FIRST_ROW_TOP + piece.lane * ROW_PX,
         left: `calc(${piece.col} * 100% / 7 + ${l}px)`,
         width: `calc(${piece.span} * 100% / 7 - ${l + r}px)`,
-        background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)`,
+        // 칸 바탕(--tile)에 섞은 불투명 면: 일 상세 패널이 연 날의 --pri 테두리가 막대 글자를 세로로 가로지르지 않게 막대가 덮는다
+        background: `color-mix(in srgb, ${chipColor(ev)} 18%, var(--tile))`,
       }}
     >
       {cluster && <DotCluster event={ev} />}
@@ -1301,10 +1302,12 @@ function DayCell({
   const crowded = hasBar && lined;
   const barHere = phone.lanes.find((s) => s !== null && s.col === col)?.event;
   const labelEvent = barHere ?? [...phone.overflow, ...singles].find((e) => dateKeyOf(e.startsAt) === dateKey || dow === 0) ?? null;
-  // 칩 모양: 막대 레인 아래 한 날 일정 칩. tall 2줄, taller 3줄. 넘치면 "+N개 더" 를 칸 높이별로 따로 센다 (month-lanes.ts)
+  // 칩 모양: 한 날 일정 칩은 막대가 없는 줄을 위에서부터 채운다(빈 위 레인도 쓴다, 폰 D-223 과 같은 규칙). tall 2줄, taller 3줄.
+  // 줄 자리와 "+N개 더" 를 칸 높이별로 따로 센다 (month-lanes.ts fitWeek). 칩마다 높이별 줄을 CSS 변수로 넘긴다
   const shown2 = fit2.chips.length;
   const chips = singles.slice(0, Math.max(shown2, fit3.chips.length));
-  const rowsVar = { "--rows2": `${fit2.chipRow * ROW_PX}px`, "--rows3": `${fit3.chipRow * ROW_PX}px` } as React.CSSProperties;
+  const rowTop = (row: number | undefined) => `${(row ?? 0) * ROW_PX}px`;
+  const moreVar = { "--more2": rowTop(1), "--more3": rowTop(2) } as React.CSSProperties;
 
   return (
     <div role="gridcell" aria-selected={isSelected} data-date={dateKey} className="relative h-[104px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
@@ -1413,8 +1416,7 @@ function DayCell({
         {/* 한 날 일정 칩 (제목 + 시간). 위는 여러 날 막대 레인 자리(막대는 WeekBar 가 주 줄 위에 그린다).
             누르면 그날 상세 → 일정 상세 */}
         {/* (#201) 칩은 마우스, 터치 지름길이다. 키보드, 스크린리더는 칸(Enter → 그날 상세 목록)으로 간다 */}
-        <span aria-hidden="true" className="relative hidden tall:block" style={rowsVar}>
-          <span aria-hidden="true" className="block h-[var(--rows2)] taller:h-[var(--rows3)]" />
+        <span aria-hidden="true" className="relative hidden w-full tall:block" style={moreVar}>
           {chips.map((ev, i) => (
             <button
               key={eventKey(ev)}
@@ -1423,10 +1425,16 @@ function DayCell({
               tabIndex={-1}
               aria-haspopup="dialog"
               aria-label={withWho(`${ev.title}, ${formatEventTime(ev.startsAt, ev.endsAt, ev.allDay)}`, ev, who)}
-              className={`pointer-events-auto mt-0.5 h-[18px] w-full items-center gap-1 overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 ${
+              className={`pointer-events-auto absolute inset-x-0 top-[var(--top2)] mt-0.5 h-[18px] items-center gap-1 overflow-hidden rounded-[5px] px-1.5 text-left text-[11px] font-medium leading-[18px] whitespace-nowrap text-ink hover:brightness-95 taller:top-[var(--top3)] ${
                 i < shown2 ? "flex" : "hidden taller:flex"
               }`}
-              style={{ background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)` }}
+              style={
+                {
+                  "--top2": rowTop(fit2.rows[i]),
+                  "--top3": rowTop(fit3.rows[i]),
+                  background: `color-mix(in srgb, ${chipColor(ev)} 18%, transparent)`,
+                } as React.CSSProperties
+              }
             >
               {/* 첫 참여자 색 면 + 참여자 둘 이상이면 제목 앞 점 묶음 (#248 7-2) */}
               {eventColors(ev).length >= 2 && <DotCluster event={ev} />}
@@ -1436,8 +1444,9 @@ function DayCell({
               </span>
             </button>
           ))}
-          {fit2.more > 0 && <span aria-hidden="true" className="mt-0.5 block truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden">+{fit2.more}<span className="@max-[60px]:hidden">개 더</span></span>}
-          {fit3.more > 0 && <span aria-hidden="true" className="mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{fit3.more}<span className="@max-[60px]:hidden">개 더</span></span>}
+          {/* "+N개 더" 는 마지막 줄 (2줄이면 1번, 3줄이면 2번 줄) */}
+          {fit2.more > 0 && <span aria-hidden="true" className="absolute inset-x-0 top-[var(--more2)] mt-0.5 block truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden">+{fit2.more}<span className="@max-[60px]:hidden">개 더</span></span>}
+          {fit3.more > 0 && <span aria-hidden="true" className="absolute inset-x-0 top-[var(--more3)] mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{fit3.more}<span className="@max-[60px]:hidden">개 더</span></span>}
         </span>
       </div>
     </div>
