@@ -68,7 +68,8 @@ describe("EventRow", () => {
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/events/evnt0001");
     expect(link.getAttribute("aria-label")).toBe("치과 정기검진, 오전 11:00 ~ 오후 12:00, 모두");
-    expect(link.textContent).toBe("치과 정기검진오전 11:00 ~ 오후 12:00");
+    // (#427) 모두면 아바타 대신 팀 아이콘 + "모두"
+    expect(link.textContent).toBe("치과 정기검진오전 11:00 ~ 오후 12:00모두");
     const bar = link.querySelector("[data-bar]") as HTMLElement;
     expect(bar.className).toContain("w-1");
     expect(bar.style.background).toBe("var(--m1)");
