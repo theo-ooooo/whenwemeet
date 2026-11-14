@@ -7,7 +7,7 @@
 // 지난 일정은 흐리게(불투명 55%). 누르면 일정 상세(`/events/<코드>`, 넓은 화면 패널은 onClick 으로 가로챈다).
 // 자료는 모두 props 로 받는다. 장소 이름 다시 찾기(#199 usePlaceResolve)만 resolvePlace 일 때 부른다(한 화면에 줄이 많으면 끈다)
 import Link from "next/link";
-import { IconPin, IconTeam } from "./icons";
+import { IconPin } from "./icons";
 import { Avatar } from "./ui";
 import { usePlaceResolve } from "@/hooks";
 import { eventRowLabel, eventRowTime, isPastEvent, myRsvpOf, visibleParticipants } from "@/lib/event-row";
@@ -83,7 +83,7 @@ function RowBody({
   const past = now !== undefined && isPastEvent(ev, now);
   const people = visibleParticipants(ev, who.personal);
   const rsvp = myRsvpOf(ev, who.personal);
-  const hasMeta = placeName !== null || people.all || people.members.length > 0 || rsvp !== null;
+  const hasMeta = placeName !== null || people.members.length > 0 || rsvp !== null;
   const label = eventRowLabel(ev, { day, dateText, who, place: placeName, past, extra: labelExtra });
 
   return (
@@ -108,13 +108,6 @@ function RowBody({
                 <span className="flex min-w-0 items-center gap-1">
                   <IconPin size={14} className="shrink-0" />
                   <span className="truncate">{placeName}</span>
-                </span>
-              )}
-              {/* (#427) 모두: 아바타를 늘어놓지 않고 팀 아이콘 + "모두" */}
-              {people.all && (
-                <span className="flex shrink-0 items-center gap-1">
-                  <IconTeam size={14} className="shrink-0" />
-                  모두
                 </span>
               )}
               {people.members.length > 0 && (

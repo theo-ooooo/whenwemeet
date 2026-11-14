@@ -38,18 +38,12 @@ export function isPastEvent(ev: Pick<Event, "endsAt">, now: number): boolean {
 
 /**
  * 줄에 보일 참여자. 개인 팀이면 없음. 앞 max 명 아바타 + 넘친 수.
- * (#427) "모두" 는 아바타를 늘어놓지 않고(팀 전체 일정이 대부분이라 소음, D-252) all=true 로 팀 아이콘 + "모두" 한 덩어리를 그린다.
- * 예전엔 아무것도 그리지 않아 "모두" 일정만 사람 표시가 빠졌다
+ * (#442) 전원(all) 일정도 같은 아바타 묶음 ("모두" 표시를 없앴다, D-262. API 는 all 이어도 지금 멤버 전원을 members 로 준다)
  */
-export function visibleParticipants(
-  ev: Pick<Event, "creator" | "participants">,
-  personal: boolean,
-  max = 3,
-): { all: boolean; members: Member[]; more: number } {
+export function visibleParticipants(ev: Pick<Event, "creator" | "participants">, personal: boolean, max = 3): { members: Member[]; more: number } {
   const p = participantsOf(ev);
-  if (personal) return { all: false, members: [], more: 0 };
-  if (p.all) return { all: true, members: [], more: 0 };
-  return { all: false, members: p.members.slice(0, max), more: Math.max(0, p.members.length - max) };
+  if (personal) return { members: [], more: 0 };
+  return { members: p.members.slice(0, max), more: Math.max(0, p.members.length - max) };
 }
 
 /** 내 참석 알약 글자. 참여자가 아니거나 아직 고르지 않았으면 null (줄에는 아무것도 그리지 않는다) */

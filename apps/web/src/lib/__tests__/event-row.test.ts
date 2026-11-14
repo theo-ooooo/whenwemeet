@@ -69,13 +69,12 @@ describe("지난 일정, 참여자, 참석", () => {
     expect(isPastEvent(ev, Date.parse(at("2026-11-17", "08:59")))).toBe(false);
   });
 
-  it("모두이거나 개인 팀이면 아바타 없음, 넘치면 앞 3명 + 수", () => {
+  it("개인 팀이면 아바타 없음, 전원도 일부와 같이 앞 3명 + 수 (#442)", () => {
     const creator = m(1, "지우");
     const four = { creator, participants: { all: false, members: [m(1, "지우"), m(2, "하늘"), m(3, "민지"), m(4, "지훈")] } };
-    // (#427) 모두는 아바타 대신 all 표시
-    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, false)).toEqual({ all: true, members: [], more: 0 });
-    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, true)).toEqual({ all: false, members: [], more: 0 });
-    expect(visibleParticipants(four, true)).toEqual({ all: false, members: [], more: 0 });
+    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, false)).toEqual({ members: [creator], more: 0 });
+    expect(visibleParticipants({ creator, participants: { all: true, members: [creator] } }, true)).toEqual({ members: [], more: 0 });
+    expect(visibleParticipants(four, true)).toEqual({ members: [], more: 0 });
     const v = visibleParticipants(four, false);
     expect(v.members.map((x) => x.displayName)).toEqual(["지우", "하늘", "민지"]);
     expect(v.more).toBe(1);

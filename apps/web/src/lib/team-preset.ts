@@ -85,7 +85,7 @@ export function firstMeetingDate(dow: number, start: string, now: Date = new Dat
   return nowHm < start ? base : addDays(base, 7);
 }
 
-/** 매주 반복 일정. 참여자는 모두(나중에 들어오는 멤버 포함) */
+/** 매주 반복 일정. 참여자는 생략(= 만든 사람). 팀을 막 만든 때라 멤버는 나뿐이다. (#442) "ALL" 로 보내지 않는다 */
 export function weeklyMeetingInput(m: WeeklyMeeting, now: Date = new Date()): EventInput {
   const day = firstMeetingDate(m.dow, m.start, now);
   return {
@@ -94,7 +94,6 @@ export function weeklyMeetingInput(m: WeeklyMeeting, now: Date = new Date()): Ev
     endsAt: kstToIso(day, m.end),
     allDay: false,
     repeat: "WEEKLY",
-    participants: "ALL",
   };
 }
 

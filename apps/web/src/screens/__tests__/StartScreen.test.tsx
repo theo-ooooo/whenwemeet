@@ -122,7 +122,7 @@ describe("StartScreen", () => {
     expect(replace).toHaveBeenCalledWith("/team?invite=1");
   });
 
-  it("스터디: 매주 반복, 모두 참여. 끝이 시작보다 이르면 저장 못 함", async () => {
+  it("스터디: 매주 반복, 참여자 생략(만든 사람). 끝이 시작보다 이르면 저장 못 함", async () => {
     render(<StartScreen groupId={9} preset="study" fromCalendar={false} />);
     fireEvent.click(screen.getByRole("radio", { name: "목" }));
     fireEvent.change(screen.getByLabelText("끝 시각"), { target: { value: "18:00" } });
@@ -131,7 +131,9 @@ describe("StartScreen", () => {
     fireEvent.change(screen.getByLabelText("끝 시각"), { target: { value: "21:30" } });
     expect(screen.getByText(/^첫 모임은 \d+월 \d+일 \(목\)/)).toBeTruthy();
     await click("추가");
-    expect(createEvent).toHaveBeenCalledWith(expect.objectContaining({ title: "정기 모임", repeat: "WEEKLY", participants: "ALL", allDay: false }));
+    expect(createEvent).toHaveBeenCalledWith(expect.objectContaining({ title: "정기 모임", repeat: "WEEKLY", allDay: false }));
+    // (#442) "ALL" 로 보내지 않는다 (생략 = 만든 사람)
+    expect((createEvent.mock.calls[0][0] as { participants?: unknown }).participants).toBeUndefined();
     const body = createEvent.mock.calls[0][0] as { startsAt: string; endsAt: string };
     expect(Date.parse(body.endsAt) - Date.parse(body.startsAt)).toBe(150 * 60_000);
     expect(new Date(Date.parse(body.startsAt) + 9 * 3600_000).getUTCDay()).toBe(4);
