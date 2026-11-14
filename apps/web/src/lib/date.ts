@@ -188,11 +188,9 @@ export function formatRelative(iso: string, now = Date.now()): string {
   return formatDateKo(dateKeyOf(iso));
 }
 
-/** 이번 주(월~일) 의 시작 키 */
+/** 이번 주(일~토) 의 시작 키. (#437) 달력 줄과 같이 일요일 시작 (예전엔 월요일) */
 export function startOfWeek(key: DateKey): DateKey {
-  const dow = dowOf(key); // 0=일
-  const back = dow === 0 ? 6 : dow - 1;
-  return addDays(key, -back);
+  return addDays(key, -dowOf(key)); // 0=일
 }
 
 /** D-day 표기 (화면흐름.md 7). 기념일 대표 라벨은 lib/anniversary.ts mainLabel

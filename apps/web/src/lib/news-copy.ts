@@ -63,7 +63,7 @@ const ACTIVITY_TYPES: readonly ActivityType[] = [
 
 export const isActivity = (item: NewsEntry): item is ActivityNewsItem => item.kind === "ACTIVITY";
 
-/** (#378) 새 소식 묶음. 오늘, 어제, 이번 주(월요일부터), 그 전 */
+/** (#378) 새 소식 묶음. 오늘, 어제, 이번 주(일요일부터, #437), 그 전 */
 export type NewsDay = "오늘" | "어제" | "이번 주" | "이전";
 
 /** (#378) 기록 시각(KST 날짜)으로 묶음을 고른다. 어제가 지난주여도 "어제" */

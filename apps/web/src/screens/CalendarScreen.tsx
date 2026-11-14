@@ -246,7 +246,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
 
   /* ---------- 데이터 ---------- */
 
-  // 넓은 화면 요약 카드 "이번 주 일정" (월요일 시작 KST 한 주, 보는 달과 상관없이)
+  // 넓은 화면 요약 카드 "이번 주 일정" (일요일 시작 KST 한 주, 달력 줄과 같다 #437, 보는 달과 상관없이)
   const weekQ = useEvents(groupId, weekQueryOf(today), { enabled: wide });
   const loadWeek = weekQ.refetch;
   // 기념일은 못 받아도 빈 목록으로 본다 (D-day 줄만 안내로 바뀜)

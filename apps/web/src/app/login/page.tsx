@@ -46,9 +46,10 @@ export default async function LoginPage({
   return (
     <div className="min-h-dvh bg-surface">
       {/* 진입 화면 공통 바탕 --bg, 로고 32, 좌우 24. 제목만 브랜드 크기 (#174 L4) */}
-      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))] fold:justify-center fold:py-16">
+        {/* (#438) 넓은 화면(≥600)은 로고와 내용을 한 덩어리로 세로 가운데. 폰은 아래 붙임 그대로 (초대 화면 #429 와 같은 규칙) */}
         <Symbol size={32} />
-        <ul aria-label="이런 모임이 함께 써요" className="mb-4 mt-auto flex flex-wrap gap-1.5 pt-16">
+        <ul aria-label="이런 모임이 함께 써요" className="mb-4 mt-auto flex flex-wrap gap-1.5 pt-16 fold:mt-12 fold:pt-0">
           {["커플", "가족", "친구 모임", "스터디"].map((t) => (
             <li key={t} className="rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
               {t}

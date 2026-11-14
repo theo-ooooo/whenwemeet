@@ -164,12 +164,13 @@ describe("(#189) 약속 투표 새 소식", () => {
 
 describe("(#378) 새 소식 묶음과 종류 아이콘", () => {
   const TODAY = "2026-11-13"; // 금요일
-  it("오늘, 어제, 이번 주(월요일부터), 이전. 시각은 KST 날짜로", () => {
+  it("오늘, 어제, 이번 주(일요일부터, #437), 이전. 시각은 KST 날짜로", () => {
     expect(newsDayOf("2026-11-12T15:30:00.000Z", TODAY)).toBe("오늘"); // KST 13일 00:30
     expect(newsDayOf("2026-11-12T14:30:00.000Z", TODAY)).toBe("어제"); // KST 12일 23:30
     expect(newsDayOf("2026-11-10T03:00:00.000Z", TODAY)).toBe("이번 주"); // 화요일
     expect(newsDayOf("2026-11-09T00:00:00.000Z", TODAY)).toBe("이번 주"); // 월요일 9시
-    expect(newsDayOf("2026-11-08T03:00:00.000Z", TODAY)).toBe("이전"); // 지난 일요일
+    expect(newsDayOf("2026-11-08T03:00:00.000Z", TODAY)).toBe("이번 주"); // 이번 주 일요일
+    expect(newsDayOf("2026-11-07T03:00:00.000Z", TODAY)).toBe("이전"); // 지난 토요일
   });
   it("월요일에는 어제(일요일)도 '어제'", () => {
     expect(newsDayOf("2026-11-15T03:00:00.000Z", "2026-11-16")).toBe("어제");

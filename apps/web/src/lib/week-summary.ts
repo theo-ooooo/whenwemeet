@@ -3,7 +3,7 @@
 import { addDays, kstToIso, startOfWeek, type DateKey } from "./date";
 import { eventKey } from "./recurrence";
 
-/** 이번 주 범위(KST 달력 날짜). 주는 월요일 시작 (startOfWeek 과 같다), to 는 다음 주 월요일(포함 안 함) */
+/** 이번 주 범위(KST 달력 날짜). 주는 일요일 시작 (startOfWeek 과 같다, #437), to 는 다음 주 일요일(포함 안 함) */
 export function weekRangeOf(today: DateKey): { from: DateKey; to: DateKey } {
   const from = startOfWeek(today);
   return { from, to: addDays(from, 7) };
