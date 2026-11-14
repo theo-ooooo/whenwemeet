@@ -7,6 +7,7 @@ import { clampTeamName, teamNameFontSize, teamNameWordBreak } from "@/lib/og";
 import { OG_SIZE, OgCopy, OgFrame } from "../../../../_og/card";
 import { loadEventShareForOg } from "../../../../_og/event-share";
 import { ogFonts } from "../../../../_og/fonts";
+import { ogPhoneShot } from "../../../../_og/shot";
 import { INVITE_OG_REVALIDATE } from "../../../../_og/invite";
 
 /** 일정 제목은 팀 이름보다 길 수 있어(50자) 2줄 안 글자 수를 조금 더 준다 */
@@ -14,15 +15,14 @@ const EVENT_TITLE_MAX = 30;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [share, fonts] = await Promise.all([loadEventShareForOg(token), ogFonts()]);
+  const [share, fonts, shot] = await Promise.all([loadEventShareForOg(token), ogFonts(), ogPhoneShot()]);
   const maxAge = share ? INVITE_OG_REVALIDATE : 60;
   const headers = { "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}, stale-while-revalidate=86400` };
-  const now = new Date();
 
   if (!share) {
     return new ImageResponse(
       (
-        <OgFrame now={now}>
+        <OgFrame shot={shot}>
           <OgCopy
             lines={[{ text: "일정을" }, { text: "공유받았어요", gap: 6 }]}
             titleSize={80}
@@ -40,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const repeat = eventShareRepeatLabel(share.event.repeat);
   return new ImageResponse(
     (
-      <OgFrame now={now}>
+      <OgFrame shot={shot}>
         <OgCopy
           kicker={eventShareTimeLabel(share.event)}
           lines={[

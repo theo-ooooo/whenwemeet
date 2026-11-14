@@ -34,26 +34,3 @@ export function teamNameWordBreak(name: string, fontSize: number): "keep-all" | 
   const longest = Math.max(...name.split(/\s+/).map(charLength));
   return longest * fontSize * 0.95 > TEAM_NAME_WIDTH ? "break-all" : "keep-all";
 }
-
-export type MiniDay = { day: number | null; weekday: number };
-
-/** KST 기준 그 달의 달력 칸(일요일 시작). 앞쪽 빈칸은 day=null */
-export function monthGrid(now: Date): { year: number; month: number; today: number; cells: MiniDay[] } {
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const year = kst.getUTCFullYear();
-  const month = kst.getUTCMonth(); // 0~11
-  const today = kst.getUTCDate();
-  const first = new Date(Date.UTC(year, month, 1)).getUTCDay();
-  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const cells: MiniDay[] = [];
-  for (let i = 0; i < first; i++) cells.push({ day: null, weekday: i });
-  for (let d = 1; d <= days; d++) cells.push({ day: d, weekday: (first + d - 1) % 7 });
-  while (cells.length % 7 !== 0) cells.push({ day: null, weekday: cells.length % 7 });
-  return { year, month: month + 1, today, cells };
-}
-
-/** 그림 속 "모두 비는 날": 오늘 이후 첫 토요일 (달을 넘기면 그 달 마지막 토요일) */
-export function freeDayOf(cells: MiniDay[], today: number): number {
-  const sats = cells.filter((c) => c.day !== null && c.weekday === 6).map((c) => c.day as number);
-  return sats.find((d) => d > today) ?? sats[sats.length - 1];
-}
