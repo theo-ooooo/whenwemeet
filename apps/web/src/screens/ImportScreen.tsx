@@ -187,12 +187,12 @@ export function ImportScreen() {
                         value={who}
                         onChange={setParticipants}
                         options={[
-                          { value: "ALL", label: "모두" },
+                          { value: "ALL", label: "팀 전체" },
                           { value: "ME", label: "나만" },
                         ]}
                       />
                     </div>
-                    <p className="t-sub mt-1">{who === "ALL" ? "팀원 모두의 빈 시간에 바쁨으로 잡혀요" : "내 빈 시간에만 바쁨으로 잡혀요"}</p>
+                    <p className="t-sub mt-1">{who === "ALL" ? "팀원 전체의 빈 시간에 바쁨으로 잡혀요" : "내 빈 시간에만 바쁨으로 잡혀요"}</p>
                   </div>
                 )}
                 <div>

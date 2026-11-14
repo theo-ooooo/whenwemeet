@@ -64,13 +64,12 @@ export function chipColor(ev: HasParticipants): string {
 
 const nameOf = (m: Member, meId: number | null) => (meId !== null && m.userId === meId ? "나" : m.displayName);
 
-/** 참여자 이름 표기: "나" / "민지" / "민지, 지훈" / "민지 외 2명" / "모두" / "참여자 없음" */
+/** 참여자 이름 표기: "나" / "민지" / "민지, 지훈" / "민지 외 2명" / "참여자 없음". (#442) 전원(all)도 같은 표기, "모두" 는 쓰지 않는다 */
 export function participantLabel(ev: HasParticipants, meId: number | null): string {
   return labelOf(participantsOf(ev), meId);
 }
 
 export function labelOf(p: Participants, meId: number | null): string {
-  if (p.all) return "모두";
   const names = p.members.map((m) => nameOf(m, meId));
   if (names.length === 0) return "참여자 없음";
   if (names.length <= 2) return names.join(", ");

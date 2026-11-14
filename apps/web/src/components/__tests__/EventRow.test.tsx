@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-// (#378) 일정 줄: 4px 일정 색 막대, 제목, 시각 한 번, 장소(다시 찾기 선택), 모두가 아닐 때만 아바타, 내 참석, 지난 일정 흐림, 링크
+// (#378) 일정 줄: 4px 일정 색 막대, 제목, 시각 한 번, 장소(다시 찾기 선택), 참여자 아바타(전원이어도, #442), 내 참석, 지난 일정 흐림, 링크
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { kstToIso } from "@/lib/date";
@@ -67,9 +67,9 @@ describe("EventRow", () => {
     expect(screen.getByRole("list", { name: "이날 일정" })).toBeTruthy();
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/events/evnt0001");
-    expect(link.getAttribute("aria-label")).toBe("치과 정기검진, 오전 11:00 ~ 오후 12:00, 모두");
-    // (#427) 모두면 아바타 대신 팀 아이콘 + "모두"
-    expect(link.textContent).toBe("치과 정기검진오전 11:00 ~ 오후 12:00모두");
+    // (#442) 전원(all) 일정도 이름과 아바타로. "모두" 는 쓰지 않는다
+    expect(link.getAttribute("aria-label")).toBe("치과 정기검진, 오전 11:00 ~ 오후 12:00, 나, 하늘");
+    expect(link.textContent).toBe("치과 정기검진오전 11:00 ~ 오후 12:00지하");
     const bar = link.querySelector("[data-bar]") as HTMLElement;
     expect(bar.className).toContain("w-1");
     expect(bar.style.background).toBe("var(--m1)");
@@ -80,9 +80,10 @@ describe("EventRow", () => {
     expect((screen.getByRole("link").querySelector("[data-bar]") as HTMLElement).style.background).toBe("var(--m8)");
   });
 
-  it("모두면 아바타 없음, 일부면 아바타와 이름 읽기, 개인 팀이면 사람 표기 없음", () => {
+  it("전원이든 일부든 아바타와 이름 읽기, 개인 팀이면 사람 표기 없음", () => {
     row();
-    expect(screen.getByRole("link").textContent).not.toContain("하");
+    expect(screen.getByRole("link").textContent).toContain("지하");
+    expect(screen.getByRole("link").textContent).not.toContain("모두");
     cleanup();
     row({ event: ev({ participants: { all: false, members: [ME, HA] } }) });
     expect(screen.getByRole("link").getAttribute("aria-label")).toContain("나, 하늘");
@@ -142,7 +143,7 @@ describe("EventRow", () => {
     const link = screen.getByRole("link");
     expect(link.getAttribute("href")).toBe("/events/evnt0001?occurrence=2026-11-17");
     expect(link.querySelector("mark")?.textContent).toBe("치과");
-    expect(link.getAttribute("aria-label")).toBe("치과 정기검진, 11월 17일 (화), 종일, 모두, 매주, 메모 한 줄");
+    expect(link.getAttribute("aria-label")).toBe("치과 정기검진, 11월 17일 (화), 종일, 나, 하늘, 매주, 메모 한 줄");
     expect(screen.getByText("메모 한 줄")).toBeTruthy();
     fireEvent.click(link);
     expect(click).toHaveBeenCalled();
