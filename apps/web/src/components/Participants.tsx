@@ -131,7 +131,7 @@ function SheetBody({
   initial: ParticipantPick;
   onDone: (v: ParticipantPick) => void;
 }) {
-  // (#442) "모두" 줄 대신 멤버 목록 위 "전체 선택". 전원을 고르면 보낼 때 "ALL" (나중 합류자도 포함, 화면엔 드러내지 않는다)
+  // (#442) "모두" 줄 대신 멤버 목록 위 "전체 선택". 전원을 골라도 "ALL" 로 보내지 않고 고른 id 그대로 (사람 아바타로 보이게, 사용자 결정)
   // 지금 멤버가 아닌 id 는 처음부터 뺀다 (방금 나간 멤버, 7-3)
   const ids = members.map((m) => m.userId).filter((id): id is number => id !== null);
   const alive = new Set(ids);
@@ -173,7 +173,7 @@ function SheetBody({
           한 명 이상 골라 주세요
         </p>
       )}
-      <Button size="lg" full className="mt-3" disabled={empty} onClick={() => onDone(allOn ? "ALL" : pick)}>
+      <Button size="lg" full className="mt-3" disabled={empty} onClick={() => onDone(ids.filter((id) => pick.includes(id)))}>
         완료
       </Button>
     </div>

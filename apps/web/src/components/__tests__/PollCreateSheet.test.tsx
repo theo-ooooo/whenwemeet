@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("PollCreateSheet (#189)", () => {
-  it("고른 구간 3개가 최소 길이 후보로, 하나 빼고 제목을 적어 만들면 본문은 후보 2개 + 모두 + 마감 없음", async () => {
+  it("고른 구간 3개가 최소 길이 후보로, 하나 빼고 제목을 적어 만들면 본문은 후보 2개 + 멤버 전원 id(#442) + 마감 없음", async () => {
     const onCreated = vi.fn();
     mutate.mockResolvedValue({ ok: true, data: { id: 1, publicCode: "poll1xxx" }, error: null });
     render(<PollCreateSheet open onClose={vi.fn()} groupId={10} members={members} meId={1} slots={slots} minMinutes={120} onCreated={onCreated} />);
@@ -47,7 +47,7 @@ describe("PollCreateSheet (#189)", () => {
         { startsAt: kst("2030-11-24T18:00"), endsAt: kst("2030-11-24T20:00"), allDay: false },
       ],
       deadline: null,
-      participants: "ALL",
+      participants: [1, 2, 3],
     });
     expect(onCreated).toHaveBeenCalledWith({ id: 1, publicCode: "poll1xxx" });
   });

@@ -86,7 +86,8 @@ function Body({
   const [manualError, setManualError] = useState<string | null>(null);
   const [mode, setMode] = useState<DeadlineMode>("none");
   const [custom, setCustom] = useState({ date: addDays(today, 1), time: "21:00" });
-  const [pick, setPick] = useState<ParticipantPick>("ALL");
+  // (#442) 기본은 지금 멤버 전원(id 목록). "ALL" 로 보내지 않는다
+  const [pick, setPick] = useState<ParticipantPick>(() => members.map((m) => m.userId).filter((id): id is number => id !== null));
   const [pickOpen, setPickOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const create = useCreatePoll(groupId, { keepPendingAfterSuccess: true });
