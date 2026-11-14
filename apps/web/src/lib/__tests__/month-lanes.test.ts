@@ -132,18 +132,16 @@ describe("fitWeek", () => {
   const a = allDay(1, "2026-11-09", "2026-11-11");
   const b = allDay(2, "2026-11-10", "2026-11-13");
 
-  it("자리가 넉넉하면 전부: 칩은 그날 가장 높은 레인 아래", () => {
+  it("자리가 넉넉하면 전부: 칩은 그날 막대가 없는 줄을 위에서부터", () => {
     const s = timed(3, "2026-11-10", "09:00", "10:00");
     const f = fitWeek(pack(W1, [a, b, s]), 3);
     expect(f.pieces.map((p) => [p.event.id, p.lane, p.col, p.span, p.roundStart, p.roundEnd])).toEqual([
       [1, 0, 1, 3, true, true],
       [2, 1, 2, 4, true, true],
     ]);
-    expect(f.days[2]).toEqual({ chipRow: 2, chips: [s], more: 0 });
-    expect(f.days[1]).toEqual({ chipRow: 1, chips: [], more: 0 });
-    // b 만 있는 목, 금: 레인 1 이라 칩 자리는 2 (레인 0 은 빈 자리)
-    expect(f.days[4].chipRow).toBe(2);
-    expect(f.days[0]).toEqual({ chipRow: 0, chips: [], more: 0 });
+    expect(f.days[2]).toEqual({ rows: [2], chips: [s], more: 0 });
+    expect(f.days[1]).toEqual({ rows: [], chips: [], more: 0 });
+    expect(f.days[0]).toEqual({ rows: [], chips: [], more: 0 });
   });
 
   it("넘치는 날은 마지막 줄이 +N, 숨은 막대와 칩을 그날 기준으로 센다", () => {
@@ -151,9 +149,9 @@ describe("fitWeek", () => {
     const s2 = timed(4, "2026-11-10", "11:00", "12:00");
     const f = fitWeek(pack(W1, [a, b, s1, s2]), 2);
     // 화(col 2): 레인 2 + 칩 2 = 4 > 2 → 레인 0 만, +3 (b, s1, s2)
-    expect(f.days[2]).toEqual({ chipRow: 1, chips: [], more: 3 });
+    expect(f.days[2]).toEqual({ rows: [], chips: [], more: 3 });
     // 수(col 3): 레인 2 = 2 → 다 들어간다
-    expect(f.days[3]).toEqual({ chipRow: 2, chips: [], more: 0 });
+    expect(f.days[3]).toEqual({ rows: [], chips: [], more: 0 });
     // b 는 화요일에서 숨고 수~금 은 보인다 → 조각이 화요일 다음부터, 왼쪽 각짐
     expect(f.pieces.filter((p) => p.event.id === 2).map((p) => [p.col, p.span, p.roundStart, p.roundEnd])).toEqual([[3, 3, false, true]]);
     expect(f.pieces.filter((p) => p.event.id === 1).map((p) => [p.col, p.span])).toEqual([[1, 3]]);
@@ -168,15 +166,46 @@ describe("fitWeek", () => {
       [0, 3, true, false],
       [4, 3, false, true],
     ]);
-    expect(f.days[3]).toEqual({ chipRow: 0, chips: [], more: 3 });
+    expect(f.days[3]).toEqual({ rows: [], chips: [], more: 3 });
   });
 
   it("레인 없이 칩만 넘치면 기존처럼 (capacity - 1) 개 + 나머지 수", () => {
     const evs = [1, 2, 3, 4].map((i) => timed(i, "2026-11-10", `0${i}:00`, `0${i}:30`));
     const f = fitWeek(pack(W1, evs), 3);
     expect(f.days[2].chips.map((e) => e.id)).toEqual([1, 2]);
+    expect(f.days[2].rows).toEqual([0, 1]);
     expect(f.days[2].more).toBe(2);
-    expect(fitWeek(pack(W1, evs.slice(0, 3)), 3).days[2]).toMatchObject({ more: 0, chipRow: 0 });
+    expect(fitWeek(pack(W1, evs.slice(0, 3)), 3).days[2]).toMatchObject({ more: 0, rows: [0, 1, 2] });
+  });
+
+  it("(QA) 위 레인이 비어 있으면 한 날 칩이 그 줄을 쓴다 (폰 phoneWeek 과 같은 규칙)", () => {
+    // 11/16~17 막대(레인 0), 11/17~18 막대(레인 1), 11/18 한 날 일정. 수(11/18) 칸은 레인 0 이 비어 있다
+    const x = allDay(1, "2026-11-16", "2026-11-17");
+    const y = allDay(2, "2026-11-17", "2026-11-18");
+    const s = timed(3, "2026-11-18", "09:00", "10:00");
+    const f = fitWeek(pack(W2, [x, y, s]), 2);
+    // 빈 첫 줄 + "+2개 더" 가 아니라 0번 줄에 칩, 1번 줄에 막대
+    expect(f.days[3]).toEqual({ rows: [0], chips: [s], more: 0 });
+    // 막대는 레인을 지키고 끊기지 않는다
+    expect(f.pieces.map((p) => [p.event.id, p.lane, p.col, p.span, p.roundStart, p.roundEnd])).toEqual([
+      [1, 0, 1, 2, true, true],
+      [2, 1, 2, 2, true, true],
+    ]);
+    // 3줄이어도 같은 자리
+    expect(fitWeek(pack(W2, [x, y, s]), 3).days[3]).toEqual({ rows: [0], chips: [s], more: 0 });
+  });
+
+  it("빈 줄에 칩을 먼저 채우고, 모자라면 마지막 줄이 +N (빈 위 줄도 칩 자리로 센다)", () => {
+    const b = allDay(2, "2026-11-10", "2026-11-13");
+    const a = allDay(1, "2026-11-09", "2026-11-10");
+    // 목(col 4): b 가 레인 1, 레인 0 빈 줄
+    const s1 = timed(3, "2026-11-12", "09:00", "10:00");
+    const s2 = timed(4, "2026-11-12", "11:00", "12:00");
+    const f3 = fitWeek(pack(W1, [a, b, s1, s2]), 3);
+    expect(f3.days[4]).toEqual({ rows: [0, 2], chips: [s1, s2], more: 0 });
+    const f2 = fitWeek(pack(W1, [a, b, s1, s2]), 2);
+    // 2줄: 막대 1 + 칩 2 > 2 → 0번 줄 칩 하나, 1번 줄 "+2" (숨은 막대 b + 칩 s2)
+    expect(f2.days[4]).toEqual({ rows: [0], chips: [s1], more: 2 });
   });
 
   it("주 경계 조각은 둥근 끝을 일정의 진짜 시작, 끝에만", () => {

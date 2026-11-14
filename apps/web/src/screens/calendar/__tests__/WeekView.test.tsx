@@ -75,6 +75,8 @@ describe("WeekView", () => {
     view({ events: [night] });
     const bars = screen.getAllByRole("button", { name: /^심야,/ });
     expect(bars.map((b) => b.dataset.day)).toEqual(["2026-11-12", "2026-11-13"]);
+    // (QA) 막대 안 시각은 날마다 자른 조각("23:00~24:00")이 아니라 일정의 진짜 시각
+    expect(bars.map((b) => b.textContent)).toEqual(["심야23:00~01:30", "심야23:00~01:30"]);
   });
 
   it("4개 겹치면 2개 막대 + \"+2\" 가 그날 상세를 연다", () => {

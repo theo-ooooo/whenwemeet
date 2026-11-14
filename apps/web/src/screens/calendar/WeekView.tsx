@@ -19,7 +19,7 @@ import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/l
 import type { Event } from "@/lib/types";
 import {
   ALL_DAY_CAPACITY,
-  DAY_MINUTES,
+  barTimeText,
   daySegments,
   freeBands,
   hhmm,
@@ -95,7 +95,7 @@ export function WeekView(props: Props) {
   const emptyWeek = events !== null && layouts.every((l) => l.placed.length === 0 && l.more.length === 0) && allDay.fit.pieces.length === 0 && allDay.fit.days.every((d) => d.more === 0);
   const bands = useMemo(() => (free.on && free.slots ? days.map((d) => freeBands(free.slots ?? [], d)) : null), [free.on, free.slots, days]);
 
-  // 처음 열 때, 주를 넘길 때 맨 위 시각: 이번 주면 지금 - 1시간, 아니면 그 주 첫 일정 (일정을 받은 뒤 한 번)
+  // 처음 열 때, 주를 넘길 때 맨 위 시각: 이번 주면 지금 - 1시간, 아니면 그 주 7칸에서 가장 이른 일정 (일정을 받은 뒤 한 번)
   const scroller = useRef<HTMLDivElement>(null);
   const scrolledFor = useRef<string | null>(null);
   const weekKey = days[0];
@@ -396,7 +396,8 @@ function TimedBar({ seg, day, hourPx, wide, label, onOpen }: { seg: PlacedSegmen
   // 폰은 열 폭이 40 남짓이라 나란히 선 막대(cols > 1)에는 제목을 넣지 않는다 (글자가 세로로 한 자씩 쌓인다)
   const showTitle = wide || (seg.cols === 1 && seg.end - seg.start >= 60);
   const showTime = wide && height >= 34;
-  const time = `${hhmm(seg.start)}~${seg.end >= DAY_MINUTES ? "24:00" : hhmm(seg.end)}`;
+  // 조각 범위(22:00~24:00)가 아니라 일정의 진짜 시각 (자정을 넘으면 "22:00~02:00")
+  const time = barTimeText(ev);
   return (
     <button
       type="button"

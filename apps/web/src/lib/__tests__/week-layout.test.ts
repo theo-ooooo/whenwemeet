@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
 import {
+  barTimeText,
   daySegments,
   freeBands,
   hhmm,
@@ -192,11 +193,25 @@ describe("nowMarker, initialTopMinute", () => {
     expect(initialTopMinute(days, [], now)).toBe(13 * 60 + 20);
     expect(initialTopMinute(days, [], Date.parse(kstToIso(DAY, "00:30")))).toBe(0);
   });
-  it("다른 주면 첫 시간 일정 30분 앞 (30분 단위), 없으면 07:00", () => {
+  it("다른 주면 그 주에서 가장 이른 시간 일정 30분 앞 (30분 단위), 없으면 07:00", () => {
     const next = weekDays("2026-11-19");
-    expect(initialTopMinute(next, [at("2026-11-17", "15:10", "16:00"), at("2026-11-18", "08:00", "09:00")], now)).toBe(14 * 60 + 30);
+    // 화요일 15:10 보다 수요일 08:00 이 이르다 → 07:30 (첫 칸 순서가 아니라 주 전체에서 가장 이른 시각)
+    expect(initialTopMinute(next, [at("2026-11-17", "15:10", "16:00"), at("2026-11-18", "08:00", "09:00")], now)).toBe(7 * 60 + 30);
+    expect(initialTopMinute(next, [at("2026-11-17", "15:10", "16:00")], now)).toBe(14 * 60 + 30);
     expect(initialTopMinute(next, [ev("2026-11-17", "00:00", "2026-11-18", "00:00", true)], now)).toBe(7 * 60);
     expect(initialTopMinute(next, null, now)).toBe(7 * 60);
+  });
+  it("(QA) 일요일 저녁 일정이 있어도 월, 화 아침 일정이 위로 숨지 않는다", () => {
+    const w = weekDays("2026-11-22");
+    const list = [at("2026-11-22", "19:00", "21:00"), at("2026-11-23", "09:00", "10:00"), at("2026-11-24", "08:30", "09:00")];
+    expect(initialTopMinute(w, list, now)).toBe(8 * 60);
+  });
+  it("앞 주에서 자정을 넘어 이어지는 조각은 진짜 시작이 있으면 보지 않는다", () => {
+    const w = weekDays("2026-11-22");
+    // 토 11/21 23:00 ~ 일 11/22 01:00 은 일요일 칸에 00:00 조각
+    const spill = ev("2026-11-21", "23:00", "2026-11-22", "01:00");
+    expect(initialTopMinute(w, [spill, at("2026-11-25", "10:00", "11:00")], now)).toBe(9 * 60 + 30);
+    expect(initialTopMinute(w, [spill], now)).toBe(0);
   });
 });
 
@@ -235,5 +250,21 @@ describe("segmentLabel", () => {
     [ev(DAY, "23:00", "2026-11-13", "01:30"), "11월 12일 오후 11시부터 11월 13일 오전 1시 30분까지"],
   ])("%#", (e, want) => {
     expect(segmentLabel({ ...e, title: "저녁 약속" })).toBe(`저녁 약속, ${want}`);
+  });
+});
+
+describe("barTimeText (QA: 자정 넘는 막대 시각)", () => {
+  it("같은 날이면 그 시각", () => {
+    expect(barTimeText(at("2026-11-12", "09:00", "10:30"))).toBe("09:00~10:30");
+  });
+  it("다음 날에 끝나면 조각 범위(24:00)가 아니라 진짜 끝 시각", () => {
+    expect(barTimeText(ev("2026-11-14", "22:00", "2026-11-15", "02:00"))).toBe("22:00~02:00");
+    expect(barTimeText(ev("2026-11-14", "23:00", "2026-11-15", "01:30"))).toBe("23:00~01:30");
+  });
+  it("다음 날 자정에 끝나면 24:00", () => {
+    expect(barTimeText(ev("2026-11-14", "22:00", "2026-11-15", "00:00"))).toBe("22:00~24:00");
+  });
+  it("이틀 넘게 걸치면 끝 날짜까지", () => {
+    expect(barTimeText(ev("2026-11-14", "22:00", "2026-11-16", "02:00"))).toBe("22:00~11/16 02:00");
   });
 });
