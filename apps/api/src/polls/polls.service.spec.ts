@@ -79,12 +79,12 @@ describe('PollsService', () => {
   });
 
   describe('create', () => {
-    it('후보를 검사해 저장하고 열림 알림 문구를 코드로 만든다. 참여자를 생략하면 "모두"', async () => {
+    it('후보를 검사해 저장하고 열림 알림 문구를 코드로 만든다. 참여자를 생략하면 지금 멤버 전원 id (#444, D-263)', async () => {
       polls.createWithinLimitTx.mockResolvedValue(row());
       await service.create(1, 10, input({ deadline: '2026-11-14T12:00:00+09:00' }), NOW);
       const [saved, limit, push] = polls.createWithinLimitTx.mock.calls[0];
       expect(limit).toBe(OPEN_POLL_LIMIT);
-      expect(saved).toMatchObject({ groupId: 10, title: '저녁 약속', participants: { allMembers: true, ids: [] }, actor: { id: 1, name: '민지' } });
+      expect(saved).toMatchObject({ groupId: 10, title: '저녁 약속', participants: { allMembers: false, ids: [1, 2, 3] }, actor: { id: 1, name: '민지' } });
       expect(saved.deadline).toEqual(kst('2026-11-14T12:00'));
       expect(push('abcd2345')).toMatchObject({ title: "민지님이 '저녁 약속' 시간을 묻고 있어요", body: '후보 2개, 마감 11월 14일 (토) 오후 12:00', url: '/polls/abcd2345?team=team1234' });
     });
@@ -159,6 +159,13 @@ describe('PollsService', () => {
       expect(arg.push('evnt2345')).toMatchObject({ title: "지훈님이 '저녁 약속' 시간을 정했어요", body: '11월 14일 (토) 오후 7:00', url: '/events/evnt2345?team=team1234' });
       expect(result.warning).toBe('BUSY_NOW');
       expect(result.event.publicCode).toBe('evnt2345');
+    });
+
+    it('(#444) 대상이 "모두" 인 옛 투표를 정하면 일정 참여자는 지금 멤버 id 목록 (D-263)', async () => {
+      polls.findInGroup.mockResolvedValue(row({ allMembers: true, participantIds: [] }));
+      polls.confirmTx.mockResolvedValue({ ...event, participantIds: [1, 2, 3] } as never);
+      await service.confirm(2, 10, 5, { optionId: 11 }, NOW);
+      expect(polls.confirmTx.mock.calls[0][0].event.participants).toEqual({ allMembers: false, ids: [1, 2, 3] });
     });
 
     it('종일 후보는 바쁨을 보지 않는다', async () => {

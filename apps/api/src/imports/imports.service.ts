@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
-import type { ParticipantSet } from '../events/participants.js';
+import { type ParticipantSet, resolveParticipants } from '../events/participants.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { importPayload } from '../push/push-copy.js';
@@ -54,8 +54,12 @@ export class ImportsService {
     if (plan.events.length === 0) return { importId: null, created: 0, skipped: toSkipList(skipped) };
 
     // (기획 Q4) 팀은 "모두" 가 기본, 개인 달력은 나. [나만] 을 고르면 나
+    // (#444) "모두" 는 넣는 시각 멤버 id 목록으로 저장한다. 나중 합류자는 들어가지 않는다 (D-263)
     const participantsMode = options.participants ?? (group.type === 'TEAM' ? 'ALL' : 'ME');
-    const participants: ParticipantSet = participantsMode === 'ALL' ? { allMembers: true, ids: [] } : { allMembers: false, ids: [userId] };
+    const participants: ParticipantSet =
+      participantsMode === 'ALL'
+        ? resolveParticipants('ALL', null, userId, true, (await this.memberships.resolverFor(groupId)).userIds())
+        : { allMembers: false, ids: [userId] };
     const actor = { id: userId, name: snapshotName(me.displayName, me.user.nickname) };
     const importId = await this.imports.startImport(groupId, userId);
 

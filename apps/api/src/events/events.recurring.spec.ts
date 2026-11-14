@@ -671,10 +671,12 @@ describe('EventsService 반복 일정 참여자', () => {
   });
 
   it('following 첫 회차: 원본의 참여자를 바꾼다 (참여자만 바꿔도 저장)', async () => {
-    events.updateSeriesFromStartTx.mockResolvedValue({ ...PICKED, allMembers: true, participantIds: [] });
+    events.updateSeriesFromStartTx.mockResolvedValue({ ...PICKED, participantIds: [1, 2] });
     const view = await service.update(1, 10, 200, { participants: 'ALL' }, { scope: 'following', occurrence: '2026-11-11' });
-    expect(events.updateSeriesFromStartTx).toHaveBeenCalledWith(PICKED, expect.objectContaining({ participants: { allMembers: true, ids: [] } }), expect.anything());
-    expect(view.participants.all).toBe(true);
+    // (#444) ALL 은 지금 멤버 id 목록 (D-263)
+    expect(events.updateSeriesFromStartTx).toHaveBeenCalledWith(PICKED, expect.objectContaining({ participants: { allMembers: false, ids: [1, 2] } }), expect.anything());
+    expect(view.participants.all).toBe(false);
+    expect(view.participants.members.map((member) => member.userId)).toEqual([1, 2]);
   });
 
   it('following 첫 회차: 생략하거나 같은 값이면 참여자를 넘기지 않고, 다른 것도 같으면 저장 안 함', async () => {

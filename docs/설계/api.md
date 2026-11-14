@@ -246,7 +246,7 @@ EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean,
                repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
                reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
-               participants?: 'ALL'|number[],                          // (#248) 'ALL' = 모두, 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
+               participants?: 'ALL'|number[],                          // (#248) 'ALL' = 지금 멤버 전원(#444 부터 id 목록으로 저장, D-263), 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
                color?: string|null }                                   // (#343) MEMBER_COLORS 키 하나(대소문자 무시, 대문자로 저장). null = 자동. 생성에서 생략 = null, 수정에서 생략 = 그대로
 Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,   // publicCode: (#311) 주소용 공개 코드 (`/events/<코드>`)
                repeat, repeatUntil,
@@ -277,14 +277,14 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
   - 시각이 바뀌어도 응답은 지우지 않는다. `stale` 로 알린다 (D-226)
   - 일정 알림(REMINDER)은 그 회차에 불참으로 답한 사람에게 보내지 않는다 (D-228)
 
-- (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙
+- (#248) 참여자 (`일정-참여자.md`, D-130 ~ D-139). 저장은 `Event.allMembers`(true = "모두", 나중 합류자 포함) + `EventParticipant` 행. 개인 팀도 같은 규칙. (#444) 새로 쓰는 값은 항상 `allMembers = false` + 행이고 기존 "모두" 는 마이그레이션으로 행이 됐다 (D-263)
   - 응답 `participants` 는 목록, 단건, 생성/수정 모두 같은 모양. `members` 는 지금 멤버만(나가면 행이 지워진다), 순서는 `Membership.joinedAt`. `creator` 는 그대로 ("○○님이 추가")
   - 검증 (400 VALIDATION_FAILED, `field: 'participants'`):
 
     | 입력 | 결과 / message |
     |------|------|
     | 생략 | 생성: `[요청자]`. 수정: 그대로 (참여자 없음 일정도 다른 필드는 고칠 수 있다) |
-    | `'ALL'` | 모두, 참여자 행 없음 |
+    | `'ALL'` | (#444) 그 시각 팀 멤버 전원 id 를 참여자 행으로 (`allMembers = false`, 나중 합류자 제외, D-263) |
     | 양의 정수 1~50개 | 중복은 합친다. 전원을 하나씩 골라도 `'ALL'` 로 바꾸지 않는다 |
     | `[]` | 참여자를 한 명 이상 골라 주세요 |
     | 50명 초과 | 참여자는 최대 50명까지 고를 수 있어요 |

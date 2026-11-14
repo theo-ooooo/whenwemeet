@@ -249,12 +249,12 @@ describe('EventsService 참여자', () => {
 
   const createdParticipants = () => events.createWithLogTx.mock.calls[0][0].participants;
 
-  it('생성: 생략하면 [요청자], ALL 은 모두, 배열은 오름차순 중복 없이', async () => {
+  it('생성: 생략하면 [요청자], ALL 은 지금 멤버 id 목록(#444, D-263), 배열은 오름차순 중복 없이', async () => {
     await service.create(1, 10, input);
     expect(createdParticipants()).toEqual({ allMembers: false, ids: [1] });
     events.createWithLogTx.mockClear();
     await service.create(1, 10, { ...input, participants: 'ALL' });
-    expect(createdParticipants()).toEqual({ allMembers: true, ids: [] });
+    expect(createdParticipants()).toEqual({ allMembers: false, ids: [1, 2] });
     events.createWithLogTx.mockClear();
     await service.create(1, 10, { ...input, participants: [2, 1, 2] });
     expect(createdParticipants()).toEqual({ allMembers: false, ids: [1, 2] });
@@ -298,12 +298,17 @@ describe('EventsService 참여자', () => {
     expect(events.updateWithLogTx).toHaveBeenCalledWith(ROW, expect.objectContaining({ participants: { allMembers: false, ids: [2] }, title: ROW.title }), 1);
   });
 
-  it('수정: 같은 참여자(순서 달라도)면 저장도 로그도 없다', async () => {
+  it('수정: 같은 참여자(순서 달라도, ALL 이 지금 멤버 전원과 같아도)면 저장도 로그도 없다', async () => {
     events.findInGroup.mockResolvedValue({ ...ROW, allMembers: false, participantIds: [1, 2] });
     await service.update(1, 10, 100, { participants: [2, 1] });
-    events.findInGroup.mockResolvedValue(ROW);
     await service.update(1, 10, 100, { participants: 'ALL' });
     expect(events.updateWithLogTx).not.toHaveBeenCalled();
+  });
+
+  it('(#444) 수정: "모두" 로 남은 일정에 ALL 을 보내면 지금 멤버 id 목록으로 저장한다 (D-263)', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    await service.update(1, 10, 100, { participants: 'ALL' });
+    expect(events.updateWithLogTx.mock.calls[0][1].participants).toEqual({ allMembers: false, ids: [1, 2] });
   });
 
   it('수정: 생략하면 참여자는 그대로 (참여자 없음 일정도 다른 필드는 고칠 수 있다)', async () => {

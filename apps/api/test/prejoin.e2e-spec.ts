@@ -144,12 +144,22 @@ describe('들어오기 전 일 빼기 (e2e, #297)', () => {
     expect(joins.filter((m) => m.title.startsWith('데이브')).map((m) => m.to).sort()).toEqual([CAROL_TOKEN, JIHUN_TOKEN, MINJI_TOKEN].sort());
   });
 
-  it('일정 알림(앞날): 예약된 일정이 들어오기 전 것이어도 펼칠 때 팀원이면 받는다', async () => {
-    await createEvent(minji, '저녁 약속', { reminder: 'HOUR_1' });
+  it('일정 알림(앞날): 예약된 일정이 들어오기 전 것이어도 펼칠 때 팀원이면 받는다 ("모두" 로 남은 옛 일정)', async () => {
+    const event = await createEvent(minji, '저녁 약속', { reminder: 'HOUR_1' });
+    // (#444) ALL 은 더 "모두" 로 저장되지 않는다(D-263). 배포 중 옛 API 가 남긴 "모두" 행을 흉내 낸다
+    await prisma.event.update({ where: { id: event.id }, data: { allMembers: true, participants: { deleteMany: {} } } });
     await join(carol);
     await scheduler.tick(at('17:00:10'));
     const reminders = fake.messages.filter((m) => m.data.kind === 'REMINDER');
     expect(reminders.map((m) => m.to).sort()).toEqual([CAROL_TOKEN, JIHUN_TOKEN, MINJI_TOKEN].sort());
+  });
+
+  it('(#444) 일정 알림: ALL 로 만든 일정은 그 뒤 들어온 사람에게 보내지 않는다 (D-263)', async () => {
+    await createEvent(minji, '저녁 약속', { reminder: 'HOUR_1' });
+    await join(carol);
+    await scheduler.tick(at('17:00:10'));
+    const reminders = fake.messages.filter((m) => m.data.kind === 'REMINDER');
+    expect(reminders.map((m) => m.to).sort()).toEqual([JIHUN_TOKEN, MINJI_TOKEN].sort());
   });
 
   it('다시 들어오면 멤버십을 새로 만들어 joinedAt 이 다시 들어온 시각. 나가 있던 동안과 그 전 기록은 안 보인다', async () => {

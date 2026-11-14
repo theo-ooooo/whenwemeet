@@ -1,10 +1,16 @@
 import { ApiException } from '../common/errors.js';
 import type { Member, MemberResolver } from '../common/member.js';
 
-/** (#248) 본문 입력. 'ALL' = "모두"(나중 합류자 포함), 배열 = 고른 멤버 userId (설계 3-1, D-133) */
+/**
+ * (#248) 본문 입력. 'ALL' = 지금 멤버 전원, 배열 = 고른 멤버 userId (설계 3-1, D-133).
+ * (#444) 'ALL' 은 옛 화면, 앱 셸 호환으로 계속 받지만 "모두"(나중 합류자 포함)로 저장하지 않고 그 시각 멤버 id 목록으로 푼다 (D-263)
+ */
 export type ParticipantsInput = 'ALL' | number[];
 
-/** (#248) 저장 모양. allMembers 가 false 이고 ids 가 비면 "참여자 없음" (D-130). ids 는 오름차순, 중복 없음 */
+/**
+ * (#248) 저장 모양. allMembers 가 false 이고 ids 가 비면 "참여자 없음" (D-130). ids 는 오름차순, 중복 없음.
+ * (#444) 새로 쓰는 값은 항상 allMembers = false 다 (D-263). true 는 마이그레이션 전 행, 배포 중 옛 API 가 만든 행을 읽을 때만 나온다
+ */
 export interface ParticipantSet {
   allMembers: boolean;
   ids: number[];
@@ -53,15 +59,18 @@ export function parseParticipants(raw: unknown): ParticipantsInput | undefined {
 
 /**
  * 저장할 참여자. 생략이면 생성은 [요청자], 수정은 지금 값 그대로 (설계 3-2).
- * 멤버 전원을 하나씩 고른 배열도 'ALL' 로 바꾸지 않는다 (D-133)
+ * 멤버 전원을 하나씩 고른 배열도 'ALL' 로 바꾸지 않는다 (D-133).
+ * (#444) 'ALL' 은 memberIds(그 팀의 지금 멤버 userId) 로 풀어 allMembers = false 로 돌려준다. "모두" 를 새로 저장하지 않는다 (D-263).
+ * 생략한 수정은 지금 값 그대로라 "모두"(마이그레이션 뒤 배포 중 옛 API 가 만든 행) 는 그대로 남는다. 바뀐 게 없는 수정을 저장으로 만들지 않기 위해서다
  */
 export function resolveParticipants(
   input: ParticipantsInput | undefined,
   current: ParticipantSet | null,
   requesterId: number,
   isCreate: boolean,
+  memberIds: readonly number[],
 ): ParticipantSet {
-  if (input === 'ALL') return { allMembers: true, ids: [] };
+  if (input === 'ALL') return { allMembers: false, ids: sortedUnique(memberIds) };
   if (input !== undefined) return { allMembers: false, ids: sortedUnique(input) };
   if (isCreate || current === null) return { allMembers: false, ids: [requesterId] };
   return { allMembers: current.allMembers, ids: [...current.ids] };
