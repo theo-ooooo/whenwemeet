@@ -208,3 +208,15 @@ describe("(#197) widgetSnapshot, widgetClear", () => {
     expect(p({ v: 1, type: "widgetClear" }, "https://evil.com/")).toBeNull();
   });
 });
+
+describe("(#419) pullRefresh", () => {
+  it("allow 가 boolean 일 때만", () => {
+    expect(p({ v: 1, type: "pullRefresh", allow: false })).toEqual({ v: 1, type: "pullRefresh", allow: false });
+    expect(p({ v: 1, type: "pullRefresh", allow: true })).toEqual({ v: 1, type: "pullRefresh", allow: true });
+    expect(p({ v: 1, type: "pullRefresh", allow: "no" })).toBeNull();
+    expect(p({ v: 1, type: "pullRefresh" })).toBeNull();
+  });
+  it("다른 출처는 버린다", () => {
+    expect(p({ v: 1, type: "pullRefresh", allow: false }, "https://evil.com/")).toBeNull();
+  });
+});

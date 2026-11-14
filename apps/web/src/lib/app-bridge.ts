@@ -23,7 +23,9 @@ export type BridgeMessage =
   | { type: "openSettings" }
   // (#197) 홈 화면 위젯. appSupportsWidget() 일 때만 보낸다 (앱.md 4.7)
   | { type: "widgetSnapshot"; snapshot: WidgetSnapshot }
-  | { type: "widgetClear" };
+  | { type: "widgetClear" }
+  // (#419) 손가락을 댈 때 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false. 옛 셸은 모르는 type 이라 버린다
+  | { type: "pullRefresh"; allow: boolean };
 
 /** 셸이 WebView applicationNameForUserAgent 로 붙이는 접미사: `WhenwemeetApp/<버전> (<ios|android>)` */
 const APP_UA = /\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/;
