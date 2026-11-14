@@ -186,6 +186,16 @@ describe('일정 삭제 되돌리기 (e2e)', () => {
       expect(await prisma.pushNotification.count({ where: { kind: 'REMINDER' } })).toBe(0);
     });
 
+    it('(#444) "모두" 로 남은 옛 일정은 되돌리는 시각 멤버 전원을 참여자 행으로 되살린다 (D-263)', async () => {
+      const event = await create(minji, { title: '저녁', startsAt: at('18:00:00').toISOString(), endsAt: at('19:00:00').toISOString() });
+      await prisma.event.update({ where: { id: event.id }, data: { allMembers: true, participants: { deleteMany: {} } } });
+      const { deletionId } = await remove(minji, event.id);
+      await restore(minji, deletionId).expect(200);
+      expect((await prisma.event.findUniqueOrThrow({ where: { id: event.id } })).allMembers).toBe(false);
+      const rows = await prisma.eventParticipant.findMany({ where: { eventId: event.id }, orderBy: { userId: 'asc' } });
+      expect(rows.map((row) => row.userId)).toEqual([minji.userId, jihun.userId].sort((a, b) => a - b));
+    });
+
     it('투표로 정한 일정: 되돌리면 투표의 일정 연결도 돌아온다', async () => {
       const poll = (
         await api(app)

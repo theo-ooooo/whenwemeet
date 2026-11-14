@@ -192,12 +192,14 @@ async function restoreEventTx(tx: Db, groupId: number, snapshot: DeletionSnapsho
   // 공개 코드는 그대로 (주소, 공유 링크가 같은 일정을 연다). 7일 사이 같은 코드가 새로 생겼을 때만 새로 만든다
   const codeTaken = await tx.event.findUnique({ where: { publicCode: event.publicCode as string }, select: { id: true } });
   const creatorId = typeof event.creatorId === 'number' && existing.has(event.creatorId) ? event.creatorId : null;
+  // (#444) "모두"(allMembers) 였던 일정은 되돌리는 시각 멤버 전원을 참여자 행으로 (D-263). "모두" 로 되살리지 않는다
+  const wasAll = event.allMembers === true;
   await tx.event.create({
-    data: { ...event, creatorId, ...(codeTaken ? { publicCode: generatePublicCode() } : {}) } as Prisma.EventUncheckedCreateInput,
+    data: { ...event, creatorId, allMembers: false, ...(codeTaken ? { publicCode: generatePublicCode() } : {}) } as Prisma.EventUncheckedCreateInput,
   });
 
   if (snapshot.exceptions.length) await tx.eventException.createMany({ data: snapshot.exceptions as Prisma.EventExceptionCreateManyInput[] });
-  const participants = keepMembers(snapshot.participants, members);
+  const participants = wasAll ? [...members].map((userId) => ({ eventId, userId })) : keepMembers(snapshot.participants, members);
   if (participants.length) await tx.eventParticipant.createMany({ data: participants as Prisma.EventParticipantCreateManyInput[] });
   await restoreResponsesTx(tx, snapshot, members);
   const shares = reviveShares(snapshot.shares, members, existing, now);

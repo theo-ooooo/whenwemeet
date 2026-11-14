@@ -599,8 +599,9 @@ export class EventsService {
     const repeatUntil = dto.repeatUntil ?? null;
     assertRepeatRule(repeat, repeatUntil, startsAt, endsAt);
     const reminder = resolveReminder(dto.reminder, 'NONE', dto.allDay);
-    // (#248) 생략하면 [요청자] (D-131, D-133). 멤버 검사는 저장 트랜잭션 안에서
-    const participants = resolveParticipants(parseParticipants(dto.participants), null, userId, true);
+    // (#248) 생략하면 [요청자] (D-131, D-133). 멤버 검사는 저장 트랜잭션 안에서. (#444) 'ALL' 은 지금 멤버 id 목록 (D-263)
+    const resolver = await this.memberships.resolverFor(groupId);
+    const participants = resolveParticipants(parseParticipants(dto.participants), null, userId, true, resolver.userIds());
 
     const row = await this.events.createWithLogTx(
       {
@@ -621,7 +622,6 @@ export class EventsService {
       },
       userId,
     );
-    const resolver = await this.memberships.resolverFor(groupId);
     return this.withSummary(toEventView(row, resolver), userId, resolver);
   }
 
@@ -706,7 +706,8 @@ export class EventsService {
     assertRepeatRule(repeat, repeatUntil, next.startsAt, next.endsAt);
     if (repeat) Object.assign(next, { repeat, repeatUntil });
     // (#248) 참여자만 바꿔도 수정이다 (D-136). 바뀐 경우만 행을 다시 쓴다. 반복을 켜도 같은 행이라 참여자는 유지
-    const participants = resolveParticipants(input, participantsOf(current), userId, false);
+    const resolver = await this.memberships.resolverFor(current.groupId);
+    const participants = resolveParticipants(input, participantsOf(current), userId, false, resolver.userIds());
     const participantsChanged = !sameParticipants(participantsOf(current), participants);
     if (participantsChanged) next.participants = participants;
 
@@ -714,7 +715,6 @@ export class EventsService {
     const colorChanged = color !== undefined && color !== current.color;
 
     const unchanged = !repeat && !participantsChanged && isUnchanged(current, next);
-    const resolver = await this.memberships.resolverFor(current.groupId);
     // (#343) 색만 바꾸면 로그, 새 소식, 푸시 없이 색만 저장 (D-215)
     if (unchanged) return toEventView(colorChanged ? await this.events.updateColor(current.id, color) : current, resolver);
     if (colorChanged) next.color = color;
@@ -793,14 +793,14 @@ export class EventsService {
     // 기준 날짜는 비교하지 않는다. 그 뒤 회차에서 잇는 기준은 원본과 같은 규칙이다
     const sameRule = repeat === series.repeat && repeatUntil === series.repeatUntil;
     // (#248) 본문에 없으면 원본 참여자 (첫 회차는 그대로, 그 뒤 회차는 새 원본에 복사, D-135)
-    const participants = resolveParticipants(input, participantsOf(series), userId, false);
+    const resolver = await this.memberships.resolverFor(series.groupId);
+    const participants = resolveParticipants(input, participantsOf(series), userId, false, resolver.userIds());
     const sameMembers = sameParticipants(participantsOf(series), participants);
     // (#343) 본문에 없으면 원본 색 (새 원본에 복사)
     const inputColor = colorInput(dto.color);
     const color = inputColor === undefined ? series.color : inputColor;
     const colorChanged = color !== series.color;
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };
-    const resolver = await this.memberships.resolverFor(series.groupId);
 
     if (isFirst) {
       if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) {
