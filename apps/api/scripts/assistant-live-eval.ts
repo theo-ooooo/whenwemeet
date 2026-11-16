@@ -6,18 +6,19 @@
  * 실행 (apps/api 에서, 키는 환경 변수로만. 이 스크립트는 키를 출력하지 않는다):
  *   OPENAI_API_KEY=... pnpm dlx tsx@4 scripts/assistant-live-eval.ts
  *   OPENAI_MODEL=gpt-4o-mini 처럼 (기본 gpt-4.1-mini) 모델을 바꿀 수 있다
- * 하나라도 틀리면 종료 코드 1. 문장 하나당 모델 호출 1번 (약 22번)
+ * 하나라도 틀리면 종료 코드 1. 문장 하나당 모델 호출 1번 (약 24번).
+ * (#474) 일정 초안은 events 의 일정마다 "event 날짜 시각 [참여자]" 를 말한 순서대로 " | " 로 잇는다 (일정 하나면 예전과 같은 한 줄)
  */
 import { OpenAiAssistantModel } from '../src/assistant/openai-model.js';
 import { DEFAULT_OPENAI_MODEL } from '../src/assistant/assistant-model.js';
 import { decide } from '../src/assistant/guard.js';
 import {
   NormalizeProblem,
-  normalizeDraftEvent,
+  normalizeDraftEvents,
   normalizeFindAnniversary,
   normalizeFreeTime,
   normalizeListEvents,
-  type DraftEventArgs,
+  type DraftEventsArgs,
   type FindAnniversaryArgs,
   type FindFreeTimeArgs,
   type ListEventsArgs,
@@ -97,6 +98,16 @@ const CASES: Case[] = [
   },
   { text: '다음 달 기념일 뭐 있어?', expected: 'days 2026-12-01~2026-12-31' },
   { text: '내일 서울 날씨 어때?', expected: 'refusal' },
+  // (#474) 한 글의 일정 여러 개 → 초안 여러 개 (말한 순서, 이름은 그 일정에만)
+  {
+    text: '내일 저녁 7시 회식, 토요일 오후 2시 영화',
+    expected: 'event 2026-11-17 19:00 [경] | event 2026-11-21 14:00 [경]',
+  },
+  {
+    text: '내일 점심 12시 수경이랑 밥, 금요일 저녁 7시 회식, 다음 주 월요일 오전 10시 병원',
+    expected:
+      'event 2026-11-17 12:00 [경, 김수경] | event 2026-11-20 19:00 [경] | event 2026-11-23 10:00 [경]',
+  },
 ];
 
 const nameOf = (ids: readonly number[]): string =>
@@ -140,12 +151,17 @@ function summarize(
   try {
     switch (outcome.name) {
       case 'draft_event': {
-        const card = normalizeDraftEvent(
-          outcome.args as unknown as DraftEventArgs,
+        // 서비스와 같은 정규화 (앞 5개, 하나라도 되물으면 되묻기, D-280)
+        const cards = normalizeDraftEvents(
+          outcome.args as unknown as DraftEventsArgs,
           context,
         );
-        const start = kst(card.startsAt);
-        return `event ${start.date} ${card.allDay ? '종일' : start.time} ${nameOf(card.participants)}`;
+        return cards
+          .map((card) => {
+            const start = kst(card.startsAt);
+            return `event ${start.date} ${card.allDay ? '종일' : start.time} ${nameOf(card.participants)}`;
+          })
+          .join(' | ');
       }
       case 'find_free_time': {
         const plan = normalizeFreeTime(

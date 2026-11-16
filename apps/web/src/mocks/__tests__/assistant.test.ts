@@ -53,6 +53,19 @@ describe("목 AI 비서 (#450)", () => {
       expect(meta().usedToday).toBe(1);
     });
 
+    it("(#474) 회식과 영화를 같이 말하면 초안 2개 (말한 순서), 문구 '일정 2개를', 기록은 ' / ' 로 잇는다", () => {
+      const r = say("내일 저녁 7시 회식, 토요일 오후 2시 영화 잡아줘");
+      const d = r.body.data as { reply: string; historyText: string; cards: { type: string; draft: { title: string; startsAt: string } }[] };
+      expect(d.reply).toBe("일정 2개를 이렇게 넣을까요?");
+      expect(d.cards.map((c) => [c.type, c.draft.title])).toEqual([
+        ["eventDraft", "회식"],
+        ["eventDraft", "영화"],
+      ]);
+      expect(new Date(d.cards[1].draft.startsAt).getUTCDay()).toBe(6);
+      expect(d.historyText.split(" / ")).toHaveLength(2);
+      expect(meta().usedToday).toBe(1);
+    });
+
     it("빈 시간 + 투표: freeSlots 와 pollDraft", () => {
       const types = cardsOf(say("이번 달 주말에 둘 다 되는 저녁 찾아서 투표 열어줘")).map((c) => c.type);
       expect(types[0]).toBe("freeSlots");

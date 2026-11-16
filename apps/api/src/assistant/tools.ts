@@ -72,22 +72,33 @@ export const CLARIFY_FIELDS = ['date', 'time', 'title', 'period', 'which'] as co
 export type ModelClarifyField = (typeof CLARIFY_FIELDS)[number];
 export const UNSUPPORTED_ACTIONS = ['edit_event', 'delete_event', 'repeat', 'reminder', 'anniversary_create', 'todo', 'team', 'other_team', 'other'] as const;
 export type ModelUnsupportedAction = (typeof UNSUPPORTED_ACTIONS)[number];
+/** (#474) draft_event 한 번에 받는 일정 수 상한 (D-280) */
+export const MAX_DRAFT_EVENTS = 5;
 export const REFUSE_REASONS = ['off_topic', 'role_change', 'other_person', 'unsafe'] as const;
 
 export const TOOL_SCHEMAS = {
   draft_event: {
-    description: '일정 초안을 만든다. 저장하지 않고 사용자가 확인한다',
+    description: '일정 초안을 만든다. 저장하지 않고 사용자가 확인한다. 한 글에 일정이 여럿이면 events 에 말한 순서대로 모두 (최대 5개)',
     parameters: obj({
-      title: str('일정 제목 1~50자'),
-      date: when('시작 날짜 표현'),
-      startTime: time(),
-      endDate: when('끝 날짜 표현 (여러 날일 때만, 아니면 kind null)'),
-      endTime: time(),
-      allDay: bool('여행, 휴가, 출장처럼 날 단위면 true'),
-      place: nullableStr('장소 글자 100자 이하'),
-      participants: names,
-      everyone: bool('다 같이, 모두, 전원, 우리'),
-      includeMe: bool('나도 함께면 true. "하늘이만"처럼 나를 빼는 뜻일 때만 false'),
+      // (#474) 한 글의 일정 여러 개를 한 번에 받는다. strict 는 도구를 여러 번 부르는 것(parallel_tool_calls)과 같이 못 쓴다
+      events: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_DRAFT_EVENTS,
+        description: '말한 일정들 (말한 순서, 1~5개). 사람과 날짜는 일정마다 그 일정과 같이 말한 것만',
+        items: obj({
+          title: str('일정 제목 1~50자'),
+          date: when('시작 날짜 표현'),
+          startTime: time(),
+          endDate: when('끝 날짜 표현 (여러 날일 때만, 아니면 kind null)'),
+          endTime: time(),
+          allDay: bool('여행, 휴가, 출장처럼 날 단위면 true'),
+          place: nullableStr('장소 글자 100자 이하'),
+          participants: names,
+          everyone: bool('다 같이, 모두, 전원, 우리'),
+          includeMe: bool('나도 함께면 true. "하늘이만"처럼 나를 빼는 뜻일 때만 false'),
+        }),
+      },
     }),
   },
   find_free_time: {

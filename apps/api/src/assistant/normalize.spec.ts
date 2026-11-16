@@ -5,6 +5,7 @@ import {
   isMentioned,
   isRealDate,
   kstToDate,
+  markedEveryone,
   matchName,
   type NormalizeContext,
   NormalizeProblem,
@@ -560,5 +561,37 @@ describe('(#459) 서버 안전장치: 실모델 평가에서 남은 실수 (D-27
       const ctx = context({ userId: 1, members: pair, spoken: '다 같이 저녁\n27일 7시 회식', text: '27일 7시 회식' });
       expect(normalizeDraftEvent({ ...event({ participants: [], everyone: false }), date: on('2026-11-27') }, ctx).participants).toEqual([1]);
     });
+  });
+});
+
+describe('(#474) 한 글의 일정 여러 개: 전원 말은 일정마다 (D-280)', () => {
+  const text = '내일 7시 회식 다 같이, 토요일 2시 하늘이랑 영화';
+  const base = context({ spoken: text, text });
+  const input = (participants: string[], everyone = false) => ({ participants, everyone, includeMe: true });
+
+  it('일정 하나(multiEvent 없음)는 D-278 그대로: 이번 글의 전원 말이 모델 이름보다 앞선다', () => {
+    expect(resolveParticipants(input(['하늘']), 'me', base)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('모델이 어느 일정에 전원을 매겼으면 일정마다 모델 값 (이름 일정은 그 이름 + 나, 이름 없는 일정은 나)', () => {
+    const multi = { ...base, multiEvent: { modelSawEveryone: true } };
+    expect(resolveParticipants(input([], true), 'me', multi)).toEqual([1, 2, 3, 4]);
+    expect(resolveParticipants(input(['하늘']), 'me', multi)).toEqual([1, 2]);
+    expect(resolveParticipants(input([]), 'me', multi)).toEqual([1]);
+  });
+
+  it('모델이 전원을 하나도 매기지 않았으면 글에 나온 이름이 있는 일정만 이름을 따르고, 나머지는 전원 말(D-278)', () => {
+    const multi = { ...base, multiEvent: { modelSawEveryone: false } };
+    expect(resolveParticipants(input(['하늘']), 'me', multi)).toEqual([1, 2]);
+    expect(resolveParticipants(input([]), 'me', multi)).toEqual([1, 2, 3, 4]);
+    // 글에 없는 이름은 이름으로 치지 않는다 (D-277)
+    expect(resolveParticipants(input(['철수']), 'me', multi)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('markedEveryone: everyone 또는 participants 의 전원 말', () => {
+    expect(markedEveryone(input([], true))).toBe(true);
+    expect(markedEveryone(input(['다 같이']))).toBe(true);
+    expect(markedEveryone(input(['모두']))).toBe(true);
+    expect(markedEveryone(input(['하늘']))).toBe(false);
   });
 });

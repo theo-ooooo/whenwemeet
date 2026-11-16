@@ -267,3 +267,35 @@ export function resolvePeriod(
   if (toDate === null) return null;
   return { fromDate, toDate };
 }
+
+/**
+ * (#474) 모델이 표현 값(요일, 날짜, 며칠 뒤, 며칠)은 채우고 kind 만 null 로 보낼 때가 있다 (실모델: "금요일 저녁 7시" →
+ * weekday 금, which nearest, kind null). kind 가 null 인데 값이 있으면 그 값의 kind 로 채운다 (D-281).
+ * 값이 하나도 없으면 그대로 null (말하지 않음)
+ */
+export function inferWhenKind(when: WhenArg): WhenArg {
+  if (when.kind !== null) return when;
+  if (when.date !== null) return { ...when, kind: 'date' };
+  if (when.weekday !== null) return { ...when, kind: 'weekday' };
+  if (when.days !== null) return { ...when, kind: 'relativeDays' };
+  if (when.day !== null) return { ...when, kind: 'monthDay' };
+  return when;
+}
+
+const WHEN_KEYS = ['kind', 'date', 'days', 'weekday', 'which', 'month', 'day'] as const;
+const isWhenArg = (value: unknown): value is WhenArg =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.keys(value).length === WHEN_KEYS.length &&
+  WHEN_KEYS.every((key) => key in value);
+
+/** 도구 인자 안의 날짜 표현(중첩, 배열 포함)마다 inferWhenKind (스키마 검사를 통과한 인자에만 쓴다) */
+export function fillWhenKinds(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(fillWhenKinds);
+  if (isWhenArg(value)) return inferWhenKind(value);
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillWhenKinds(item)]));
+  }
+  return value;
+}

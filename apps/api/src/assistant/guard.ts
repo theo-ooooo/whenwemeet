@@ -1,5 +1,6 @@
 import type { ModelResult } from './assistant-model.js';
-import { checkArgs, isToolName, TOOL_SCHEMAS, type Schema, type ToolName } from './tools.js';
+import { checkArgs, isToolName, MAX_DRAFT_EVENTS, TOOL_SCHEMAS, type Schema, type ToolName } from './tools.js';
+import { fillWhenKinds } from './when.js';
 
 /**
  * (#450) 모델 결과 → 처리할 일 (설계 AI-비서.md 5장 서버 가드, D-267). 순수 함수.
@@ -24,8 +25,18 @@ export function decide(result: ModelResult): GuardOutcome {
   } catch {
     return { kind: 'invalid' };
   }
+  if (call.name === 'draft_event') args = firstEvents(args);
   if (!checkArgs(TOOL_SCHEMAS[call.name].parameters as Schema, args)) return { kind: 'invalid' };
   if (call.name === 'refuse') return { kind: 'refusal' };
   if (call.name === 'greet') return { kind: 'greet' };
-  return { kind: 'tool', name: call.name, args: args as Record<string, unknown> };
+  // (#474) kind 만 빠진 날짜 표현은 값으로 kind 를 채운다 (D-281)
+  return { kind: 'tool', name: call.name, args: fillWhenKinds(args) as Record<string, unknown> };
+}
+
+/** (#474) 일정이 5개를 넘게 오면 앞 5개만 본다 (D-280). 넘는 개수 때문에 전부 형식 실패로 버리지 않는다 */
+function firstEvents(args: unknown): unknown {
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) return args;
+  const events = (args as { events?: unknown }).events;
+  if (!Array.isArray(events) || events.length <= MAX_DRAFT_EVENTS) return args;
+  return { ...args, events: events.slice(0, MAX_DRAFT_EVENTS) };
 }

@@ -46,6 +46,49 @@ describe('decide (서버 가드, 설계 5장)', () => {
     expect(decide(result([call('ask_clarification', args), call('refuse', { reason: 'off_topic' })]))).toEqual({ kind: 'tool', name: 'ask_clarification', args });
     expect(decide(result([call('refuse', { reason: 'off_topic' }), call('ask_clarification', args)]))).toEqual({ kind: 'refusal' });
   });
+
+  it('(#474) draft_event 일정이 5개를 넘으면 앞 5개만 넘기고, 5개 안의 형식 실패는 그대로 형식 실패', () => {
+    const nowhen = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+    const event = (title: string) => ({ title, date: { ...nowhen, kind: 'relativeDays', days: 1 }, startTime: '19:00', endDate: nowhen, endTime: null, allDay: false, place: null, participants: [], everyone: false, includeMe: true });
+    const seven = Array.from({ length: 7 }, (_, i) => event(`일정${i + 1}`));
+    const outcome = decide(result([call('draft_event', { events: seven })]));
+    expect(outcome).toMatchObject({ kind: 'tool', name: 'draft_event' });
+    expect((outcome as unknown as { args: { events: { title: string }[] } }).args.events.map((e) => e.title)).toEqual(['일정1', '일정2', '일정3', '일정4', '일정5']);
+    // 6번째(버리는 일정)가 깨져 있어도 앞 5개로 본다. 앞 5개 안이 깨지면 형식 실패
+    expect(decide(result([call('draft_event', { events: [...seven.slice(0, 5), { bad: 1 }] })]))).toMatchObject({ kind: 'tool' });
+    expect(decide(result([call('draft_event', { events: [{ bad: 1 }, ...seven] })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('draft_event', { events: [] })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('draft_event', seven[0])]))).toEqual({ kind: 'invalid' });
+  });
+});
+
+describe('(#474) kind 만 빠진 날짜 표현 채우기 (D-281)', () => {
+  const none = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+  const event = (date: Record<string, unknown>) => ({
+    title: '회식', date, startTime: '19:00', endDate: none, endTime: null, allDay: false, place: null,
+    participants: [], everyone: false, includeMe: true,
+  });
+  const datesOf = (args: unknown) => (args as { events: { date: { kind: unknown }; endDate: { kind: unknown } }[] }).events;
+
+  it('요일, 날짜, 며칠 뒤, 며칠 값이 있으면 그 kind, 값이 없으면 null 그대로', () => {
+    const outcome = decide(result([call('draft_event', { events: [
+      event({ ...none, weekday: '금', which: 'nearest' }),
+      event({ ...none, date: '2026-12-01' }),
+      event({ ...none, days: 1 }),
+      event({ ...none, month: 11, day: 27 }),
+      event(none),
+    ] })]));
+    expect(outcome.kind).toBe('tool');
+    const events = datesOf((outcome as { args: unknown }).args);
+    expect(events.map((e) => e.date.kind)).toEqual(['weekday', 'date', 'relativeDays', 'monthDay', null]);
+    expect(events.every((e) => e.endDate.kind === null)).toBe(true);
+  });
+
+  it('kind 가 있으면 건드리지 않는다', () => {
+    const when = { ...none, kind: 'week', which: 'next', weekday: '금' };
+    const outcome = decide(result([call('list_events', { from: when, to: none, member: null })]));
+    expect((outcome as { args: Record<string, unknown> }).args.from).toEqual(when);
+  });
 });
 
 describe('도구 스키마 (설계 3-2)', () => {
@@ -76,6 +119,19 @@ describe('도구 스키마 (설계 3-2)', () => {
     expect(checkArgs(poll, { title: 't', options: [option, { ...option, endTime: '25:00' }], participants: [], everyone: true })).toBe(false);
     expect(checkArgs(poll, { title: 't', options: [option, option], participants: [1], everyone: true })).toBe(false);
     expect(checkArgs(poll, [])).toBe(false);
+    // (#474) draft_event 는 일정 객체 배열 (1~5개), 일정마다 스키마 검사
+    const draftSchema = TOOL_SCHEMAS.draft_event.parameters as Schema;
+    const event = { title: '회식', date: { ...nowhen, kind: 'relativeDays', days: 1 }, startTime: '19:00', endDate: nowhen, endTime: null, allDay: false, place: null, participants: [], everyone: false, includeMe: true };
+    expect(checkArgs(draftSchema, { events: [event] })).toBe(true);
+    expect(checkArgs(draftSchema, { events: Array(5).fill(event) })).toBe(true);
+    expect(checkArgs(draftSchema, { events: [] })).toBe(false);
+    expect(checkArgs(draftSchema, { events: Array(6).fill(event) })).toBe(false);
+    expect(checkArgs(draftSchema, event)).toBe(false);
+    expect(checkArgs(draftSchema, { events: [event, { ...event, startTime: '7pm' }] })).toBe(false);
+    expect(checkArgs(draftSchema, { events: [event, { ...event, groupId: 2 }] })).toBe(false);
+    const { includeMe: _includeMe, ...noIncludeMe } = event;
+    expect(checkArgs(draftSchema, { events: [event, noIncludeMe] })).toBe(false);
+    expect(checkArgs(draftSchema, { events: [event, 'event'] })).toBe(false);
     const free = TOOL_SCHEMAS.find_free_time.parameters as Schema;
     const base = { from: { ...nowhen, kind: 'week', which: 'next' }, to: nowhen, days: 'all', dayStart: null, dayEnd: '24:00', minMinutes: 90, participants: [], everyone: true, includeMe: true, next: 'show', purpose: null };
     expect(checkArgs(free, base)).toBe(true);

@@ -150,6 +150,36 @@ describe("AssistantChat (#450)", () => {
     );
   });
 
+  it("(#474) 한 답에 일정 초안 카드 2장, [추가] 는 카드마다 따로 (하나 넣어도 다른 카드는 그대로)", async () => {
+    const movie = { ...draftReply.cards[0], draft: { ...(draftReply.cards[0] as { draft: object }).draft, title: "영화", startsAt: kst("2030-11-30T14:00"), endsAt: kst("2030-11-30T15:00"), place: null, participants: [1], members: [members[0]] } };
+    send.mockResolvedValue(ok({ ...draftReply, reply: "일정 2개를 이렇게 넣을까요?", cards: [draftReply.cards[0], movie] } as AssistantReply));
+    createEvent.mockResolvedValueOnce(ok({ id: 10, title: "영화", startsAt: kst("2030-11-30T14:00") }));
+    renderChat();
+    await type("회식, 영화 잡아줘");
+    expect(within(screen.getByRole("log")).getByText("일정 2개를 이렇게 넣을까요?")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "강남 회식" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "영화" })).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "영화 추가" }));
+    });
+    expect(createEvent).toHaveBeenCalledTimes(1);
+    expect(createEvent).toHaveBeenLastCalledWith({ title: "영화", startsAt: kst("2030-11-30T14:00"), endsAt: kst("2030-11-30T15:00"), allDay: false, participants: [1] });
+    expect(screen.getByText(/^'영화'\S* 넣었어요\.$/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "영화 추가" })).toBeNull();
+    // 회식 카드는 아직 넣지 않은 그대로
+    expect(screen.getByRole("button", { name: "강남 회식 추가" })).toBeTruthy();
+
+    createEvent.mockResolvedValueOnce(ok({ id: 11, title: "강남 회식", startsAt: kst("2030-11-29T19:00") }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "강남 회식 추가" }));
+    });
+    expect(createEvent).toHaveBeenCalledTimes(2);
+    expect(createEvent).toHaveBeenLastCalledWith(expect.objectContaining({ title: "강남 회식", participants: [1, 2] }));
+    expect(screen.getByText("'강남 회식'을 넣었어요.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /추가$/ })).toBeNull();
+  });
+
   it("[추가] 가 실패하면 서버 문구 토스트, 카드는 그대로", async () => {
     send.mockResolvedValue(ok(draftReply));
     createEvent.mockResolvedValue(fail(400, "VALIDATION_FAILED", "참여자를 다시 골라 주세요"));
