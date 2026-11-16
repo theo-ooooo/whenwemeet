@@ -101,7 +101,7 @@ export const HISTORY_TURNS = 10;
 export const HISTORY_CHARS = 4000;
 /** 이 글자 수부터 "N/300" 을 보인다 */
 export const COUNTER_FROM = 250;
-/** 남은 횟수가 이만큼 이하면 "오늘 N번 남았어요" */
+/** 남은 횟수가 이만큼 이하면 "오늘 N번 남았어요" 를 강조색으로 (#470 부터 늘 보인다) */
 export const REMAIN_HINT = 5;
 
 /**
@@ -314,3 +314,9 @@ export function rowEventOf(e: AssistantEvent, groupId: number): Event {
     participants: { all: false, members: e.members },
   };
 }
+
+/**
+ * (#470) 넓은 화면 패널에서 달력을 움직인다. event 없이 부르면 그날을 고르기만 하고([추가] 직후),
+ * event 를 주면 그 일정 상세를 연다("달력에서 보기")
+ */
+export type ShowDate = (date: string, event?: { publicCode: string }) => void;
