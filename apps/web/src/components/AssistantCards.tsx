@@ -30,6 +30,7 @@ import {
   slotEditHref,
   slotTimeText,
   type AssistantCard,
+  type ShowDate,
 } from "@/lib/assistant";
 import { memberColor } from "@/lib/colors";
 import { dateKeyOf, formatDateKo, todayKey } from "@/lib/date";
@@ -49,8 +50,8 @@ type CardProps = {
   /** 결과 키 `${메시지 id}:${카드 순번}` */
   resultKey: string;
   tone: CardTone;
-  /** 넓은 화면 패널: [추가] 뒤 달력이 그날을 보이게 (주면 "달력에서 보기" 가 이동 대신 이것을 부른다) */
-  onShowDate?: (date: string) => void;
+  /** 넓은 화면 패널: [추가] 뒤 달력이 그날을 보이게, "달력에서 보기" 는 이동 대신 그 일정 상세를 연다 (#470) */
+  onShowDate?: ShowDate;
 };
 
 export function AssistantCardView({ card, ...rest }: CardProps & { card: AssistantCard }) {
@@ -127,7 +128,7 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
       return;
     }
     const date = dateKeyOf(r.data.startsAt);
-    setResult(resultKey, { kind: "event", title: r.data.title, date });
+    setResult(resultKey, { kind: "event", title: r.data.title, date, publicCode: r.data.publicCode });
     eventsChanged();
     onShowDate?.(date);
   }
@@ -153,7 +154,7 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
             text={`'${done.title}'을 넣었어요.`}
             link={
               onShowDate ? (
-                <button type="button" onClick={() => onShowDate(done.date)} className={linkCls}>
+                <button type="button" onClick={() => onShowDate(done.date, { publicCode: done.publicCode })} className={linkCls}>
                   달력에서 보기
                 </button>
               ) : (

@@ -3,6 +3,7 @@
 // 본문 760 이상(main-panel)은 달력 오른쪽 400 칸, 그보다 좁으면(main-sheet) 오른쪽에서 밀려 나와 덮는 시트. 비모달이라 달력을 계속 누를 수 있다.
 // 열리면 입력으로(동의 전이면 제목으로) 포커스, ✕ 와 Esc 로 닫는다(대화를 지운다). 열림은 주소에 넣지 않는다
 import { useEffect, useId, useRef } from "react";
+import type { ShowDate } from "@/lib/assistant";
 import { useGroupContext } from "./AppShell";
 import { AssistantChat, type AssistantChatHandle } from "./AssistantChat";
 import { AssistantHeader } from "./AssistantHeader";
@@ -13,7 +14,7 @@ import { CloseButton, EmptyState } from "./ui";
 type Props = {
   onClose: () => void;
   /** [추가] 뒤 달력이 그날을 보이게 */
-  onShowDate?: (date: string) => void;
+  onShowDate?: ShowDate;
 };
 
 export function AssistantPanel({ onClose, onShowDate }: Props) {
