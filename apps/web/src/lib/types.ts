@@ -1,4 +1,5 @@
 // docs/설계/api.md 의 응답 타입. 필드명은 명세와 동일하게 유지한다
+import type { AssistantMeta } from "./assistant";
 
 export type GroupType = "PERSONAL" | "TEAM";
 
@@ -315,6 +316,8 @@ export type Me = {
   startCalendar?: StartCalendar;
   /** (#305) GET /me 에만 있다 (PATCH /me 응답에는 없어 앞 값을 이어 쓴다) */
   birthday?: BirthdaySettings;
+  /** (#450) AI 비서. GET /me 에만 있다. 옛 API 는 없음 = 버튼을 그리지 않는다 */
+  assistant?: AssistantMeta;
 };
 
 export type InvitePreview = {

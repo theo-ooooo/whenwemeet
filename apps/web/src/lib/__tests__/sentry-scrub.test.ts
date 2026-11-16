@@ -119,3 +119,12 @@ describe('scrubBreadcrumb', () => {
     expect(scrubBreadcrumb({ category: 'ui.click', message: 'button' })).toEqual({ category: 'ui.click', message: 'button' });
   });
 });
+
+describe('(#450) AI 비서 글', () => {
+  it('text, history, historyText, reply 키는 모양과 상관없이 통째로 지운다', () => {
+    const event = scrubEvent({
+      extra: { body: { text: '하늘이랑 강남 회식', history: [{ role: 'user', text: '내일' }] }, reply: '이렇게 넣을까요?', historyText: '[일정 초안] 회식', code: 'X' },
+    });
+    expect(event.extra).toEqual({ body: { text: FILTERED, history: FILTERED }, reply: FILTERED, historyText: FILTERED, code: 'X' });
+  });
+});

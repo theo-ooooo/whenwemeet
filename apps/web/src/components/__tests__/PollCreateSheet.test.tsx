@@ -85,4 +85,28 @@ describe("PollCreateSheet (#189)", () => {
       expect.objectContaining({ options: expect.arrayContaining([{ startsAt: kst("2030-11-22T16:30"), endsAt: kst("2030-11-22T18:30"), allDay: false }]) }),
     );
   });
+
+  it("(#450) AI 비서 [고치기]: 제목과 대상(지금 멤버만)을 채워 연다", async () => {
+    mutate.mockResolvedValue({ ok: true, data: { id: 1, publicCode: "poll1xxx" }, error: null });
+    render(
+      <PollCreateSheet
+        open
+        onClose={vi.fn()}
+        groupId={10}
+        members={members}
+        meId={1}
+        slots={slots.slice(0, 2)}
+        minMinutes={120}
+        onCreated={vi.fn()}
+        initialTitle="저녁 약속"
+        initialParticipants={[1, 3, 99]}
+        clientSource="assistant-edit"
+      />,
+    );
+    expect((screen.getByLabelText(/제목/) as HTMLInputElement).value).toBe("저녁 약속");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "투표 만들기" }));
+    });
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ title: "저녁 약속", participants: [1, 3] }));
+  });
 });

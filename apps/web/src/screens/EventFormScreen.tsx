@@ -16,6 +16,7 @@ import { useEventDeleteToast } from "@/components/useEventDeleteToast";
 import { haptic } from "@/lib/app-bridge";
 import { DatePicker, TimePicker } from "@/components/pickers";
 import { Button, ConfirmDialog, InlineError, MemberDot, RowButton, RowGroup, Segmented, Sheet, Skeleton, ToggleRow } from "@/components/ui";
+import { editSource, FROM_ASSISTANT } from "@/lib/assistant";
 import { messageOf, useCreateEvent, useDeleteEvent, useEvent, useEventDraft, useUpdateEvent } from "@/hooks";
 import { dateKeyOf, todayKey } from "@/lib/date";
 import { missingEventTarget } from "@/lib/calendar-url";
@@ -93,8 +94,11 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   // 제목을 한 번이라도 고쳤는지. 빈 제목 오류는 고친 뒤 벗어나거나 저장을 눌렀을 때만 띄운다 (#80)
   const titleEdited = useRef(false);
 
+  // (#450) AI 비서 [고치기]로 연 새 일정 폼(?from=assistant). 저장 요청에 X-Client-Source 를 싣는다 (AI-비서.md 6-1)
+  const fromAssistant = !sourceId && query.get("from") === FROM_ASSISTANT;
+  const source = fromAssistant && form.initial ? editSource(form.initial, draft) : null;
   // 성공 뒤 달력으로 이동하므로 이동 중 버튼을 로딩으로 둔다
-  const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true });
+  const create = useCreateEvent(groupId, { keepPendingAfterSuccess: true, source });
   const update = useUpdateEvent(groupId, { keepPendingAfterSuccess: true });
   const remove = useDeleteEvent(groupId, { keepPendingAfterSuccess: true });
   const deletedToast = useEventDeleteToast(groupId);
@@ -164,7 +168,13 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const memberIds = useMemo(() => (group?.members ?? []).flatMap((m) => (m.userId === null ? [] : [m.userId])), [group]);
   // 지금 값. 새 일정 기본은 [나], 복제는 원본 참여자를 지금 멤버로 거르고 비면 [나] (D-142)
   const currentPick: ParticipantPick | null =
-    pick === null ? (meId !== null ? [meId] : null) : copyFrom && !eventId && meId !== null ? copyPick(pick, memberIds, meId) : pick;
+    pick === null
+      ? meId !== null
+        ? [meId]
+        : null
+      : (copyFrom || fromAssistant) && !eventId && meId !== null && group
+        ? copyPick(pick, memberIds, meId)
+        : pick;
   // 수정이면 불러온 참여자, 색과 비교한다 (새 일정, 복제는 비교하지 않는다)
   const initialPick = editing ? (form.initial?.pick ?? null) : null;
   const initialColor = editing ? (form.initial?.color ?? null) : null;

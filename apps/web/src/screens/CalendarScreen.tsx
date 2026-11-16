@@ -22,7 +22,9 @@ import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
 import { EventList, EventRow } from "@/components/EventRow";
 import { DotCluster, useWho } from "@/components/Participants";
-import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
+import { IconChevronLeft, IconChevronRight, IconHeart, IconPlus, IconSparkle } from "@/components/icons";
+import { AssistantPanel } from "@/components/AssistantPanel";
+import { useAssistant } from "@/components/AssistantProvider";
 import { StartGuide } from "@/components/StartGuide";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
@@ -650,6 +652,35 @@ export function CalendarScreen({ initialEvent = null }: Props) {
 
   const newHref = newEventLink(kstToIso(selected, "10:00"), kstToIso(selected, "11:00"));
   const thisYear = parseKey(today).y;
+
+  /* ---------- (#450) 넓은 화면 AI 비서 패널 (AI-비서.md 7-3, D-272) ---------- */
+
+  // 일 상세 패널과 같은 오른쪽 칸을 번갈아 쓴다. 한 번에 하나: AI 를 열면 일 상세를 닫고, AI 가 열린 채 날짜를 누르면 일 상세로 바뀐다
+  // (대화는 메모리에 남아 버튼으로 다시 열면 그대로). 열림은 주소에 넣지 않는다
+  const assistant = useAssistant();
+  const { setPanelOpen: setAiOpen, clear: clearAi } = assistant;
+  const aiButton = useRef<HTMLButtonElement>(null);
+  const showAi = wide && assistant.available && assistant.panelOpen && !visible;
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    if (visible && !wasVisible.current) setAiOpen(false);
+    wasVisible.current = visible;
+  }, [visible, setAiOpen]);
+  function openAssistant() {
+    if (urlStep.open) close();
+    setAiOpen(true);
+  }
+  const closeAssistant = useCallback(() => {
+    // ✕ 로 닫으면 대화를 지운다 (7-4). 포커스는 "AI 볼까" 버튼으로
+    clearAi();
+    setAiOpen(false);
+    aiButton.current?.focus({ preventScroll: true });
+  }, [clearAi, setAiOpen]);
+  /** 카드 [추가] 뒤: 달력을 다시 받고 그날을 고른다 (보는 달도 그 달로) */
+  function showAddedDate(date: DateKey) {
+    reload();
+    pick(date);
+  }
   const titleId = useId();
 
   /* ---------- 조각 ---------- */
@@ -988,13 +1019,28 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             <IconChevronRight size={20} />
           </button>
           <span className="flex-1" />
+          {/* (#450) AI 볼까: "일정 추가" 왼쪽 보조(테두리) 버튼. 좁은 제목줄(main-narrow)은 아이콘 + "AI". 서버에 키가 없으면 숨긴다 */}
+          {assistant.available && (
+            <button
+              ref={aiButton}
+              type="button"
+              onClick={() => (showAi ? closeAssistant() : openAssistant())}
+              aria-expanded={showAi}
+              className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-line bg-paper px-4 text-[14px] font-bold text-ink hover:brightness-95 main-narrow:px-3"
+            >
+              <IconSparkle size={18} className="text-pri" />
+              <span>
+                AI<span className="main-narrow:hidden"> 볼까</span>
+              </span>
+            </button>
+          )}
           {/* (#339) 오른쪽 일 상세 패널이 열려 있으면 패널의 "이 날 일정 추가" 가 주 버튼이다. 한 화면 코랄 주 버튼 하나(디자인규칙.md 1-3, 2-4)라
               여기는 보조(테두리) 버튼으로 낮춘다 */}
           <Link
             href={newHref}
             aria-label="일정 추가"
             className={`ml-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-4 text-[14px] font-bold hover:brightness-95 main-narrow:px-3 ${
-              surfaceDate ? "border border-line bg-paper text-ink" : "bg-btn text-on-btn"
+              surfaceDate || showAi ? "border border-line bg-paper text-ink" : "bg-btn text-on-btn"
             }`}
           >
             <IconPlus size={18} strokeWidth={2.2} />
@@ -1144,6 +1190,9 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             {panel}
           </DaySheet>
         ) : null)}
+
+      {/* (#450) AI 비서 패널: 일 상세가 닫혀 있을 때만 같은 자리에 */}
+      {showAi && <AssistantPanel onClose={closeAssistant} onShowDate={showAddedDate} />}
 
       <ConfirmDialog
         open={confirmDelete}

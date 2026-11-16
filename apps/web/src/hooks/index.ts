@@ -47,6 +47,7 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
 export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
+export { useSendAssistantMessage, useAssistantConsent } from "./useAssistant";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
 export { useUpdateStartCalendar } from "./useUpdateStartCalendar";

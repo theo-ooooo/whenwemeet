@@ -22,6 +22,8 @@ import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
 import { IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
+import { AssistantProvider } from "./AssistantProvider";
+import { AssistantPill } from "./AssistantPill";
 import { DockTabs } from "./PhoneDock";
 import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
@@ -257,11 +259,14 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   // 일정 작성/수정 화면(/events/new, /events/<코드>/edit)은 저장 버튼이 주 동작이라 폰 독과 + 를 숨긴다 (#137). 일정 가져오기(#279)도 같다.
   // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-209)
   // (#189) 약속 투표 화면(/polls/<코드>)도 맨 아래 "이 시간으로 정하기" 가 주 동작이라 같다
-  const isForm = info.form || info.todoCode !== null || pollCodeOf(pathname) !== null;
+  // (#450) AI 비서 화면(/assistant)도 맨 아래 입력 줄이 주 동작이라 같다 (AI-비서.md 7-2)
+  const isForm = info.form || info.todoCode !== null || pollCodeOf(pathname) !== null || info.screen === "assistant";
   const shownGroup = group && group.id === groupId ? group : null;
 
   return (
     <Ctx.Provider value={value}>
+      {/* (#450) AI 비서 대화는 메모리에. 팀이 바뀌면 지운다 (AssistantProvider 안에서 groupId 를 본다) */}
+      <AssistantProvider groupId={groupId}>
       {/* 사이드바 폭 264, 접으면 72 (#315). 열 너비를 200ms 로 옮긴다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
       <div
         className={`min-h-dvh fold:grid fold:grid-cols-[var(--side-w)_minmax(0,1fr)] ${animate ? "transition-[grid-template-columns] duration-200 ease-out" : ""}`}
@@ -359,7 +364,10 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         >
           {/* 선택된 메뉴만 먹색 칩 + 아이콘 + 이름, 나머지는 아이콘만 (디자인규칙.md 4-1, components/PhoneDock.tsx) */}
           <DockTabs tab={menuTab} onNavigate={onMenuNavigate} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
-          {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170) */}
+          {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170).
+              (#450) + 위 오른쪽 끝에 12 띄워 "AI 볼까" 알약을 얹는다 (390 미만에서 + 가 독 위로 올라가면 그 위로 같이) */}
+          <div className="pointer-events-none relative shrink-0">
+            <AssistantPill />
           {fabAction ? (
             <button
               type="button"
@@ -378,6 +386,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
               <IconPlus size={26} strokeWidth={2.2} />
             </Link>
           )}
+          </div>
         </div>
       </div>
 
@@ -424,6 +433,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           초대 코드로 합류
         </Link>
       </Sheet>
+      </AssistantProvider>
     </Ctx.Provider>
   );
 }

@@ -61,6 +61,12 @@ describe("routeInfo, activeTab, afterTeamSwitch", () => {
     expect(afterTeamSwitch("/search")).toBeNull();
   });
 
+  it("(#450) /assistant 는 팀 화면, 메뉴 칩 없음, 팀을 바꿔도 머문다", () => {
+    expect(routeInfo("/assistant").screen).toBe("assistant");
+    expect(activeTab("/assistant")).toBeNull();
+    expect(afterTeamSwitch("/assistant")).toBeNull();
+  });
+
   it("화면과 일정 코드, 작성 화면 여부", () => {
     expect(routeInfo("/calendar")).toEqual({ screen: "calendar", eventCode: null, form: false, eventDetail: false, todoCode: null });
     expect(routeInfo("/team/import")).toEqual({ screen: "team", eventCode: null, form: true, eventDetail: false, todoCode: null });
