@@ -22,7 +22,8 @@ export type RateLimitPolicy =
   | 'eventShareCreate'
   | 'icsFeed'
   | 'placeSearch'
-  | 'placeResolve';
+  | 'placeResolve'
+  | 'assistant';
 
 export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule[]> = {
   login: [{ scope: 'ip', limit: 20, windowSec: 60 }],
@@ -49,6 +50,8 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule
   placeSearch: [{ scope: 'user', limit: 60, windowSec: 60 }],
   // (#199) 저장된 장소 다시 찾기. 상세를 열 때마다 한 번 (같은 검색어는 서버 5분 캐시)
   placeResolve: [{ scope: 'user', limit: 120, windowSec: 60 }],
+  // (#450) AI 비서 메시지. 분당 폭주만 막는다. 하루 30번은 DB(AssistantUsage)로 따로 센다 (D-269)
+  assistant: [{ scope: 'user', limit: 10, windowSec: 60 }],
 };
 
 /** 모든 요청의 기본 한도. 유효한 JWT 면 사용자 기준, 아니면 IP 기준 (같은 IP 의 여러 사용자가 한도를 나눠 쓰지 않게) */

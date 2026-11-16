@@ -18,6 +18,8 @@ describe('MeService', () => {
   const email = new EmailProvider();
   const emailUnlink = vi.spyOn(email, 'unlink');
   const avatars = { purgeObjects: vi.fn() };
+  const ASSISTANT = { available: true, consented: false, dailyLimit: 30, usedToday: 0 };
+  const assistant = { status: vi.fn(), consent: vi.fn() };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);
@@ -27,7 +29,9 @@ describe('MeService', () => {
     devUnlink.mockClear();
     emailUnlink.mockClear();
     avatars.purgeObjects.mockReset().mockResolvedValue(undefined);
-    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never, email), avatars as never);
+    assistant.status.mockReset().mockResolvedValue(ASSISTANT);
+    assistant.consent.mockReset();
+    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never, email), avatars as never, assistant as never);
     membershipsRepo.listByUserWithGroupType.mockResolvedValue([
       { id: 501, groupId: 21, groupType: 'PERSONAL' },
       { id: 502, groupId: 31, groupType: 'TEAM' },
@@ -106,6 +110,28 @@ describe('MeService', () => {
     expect(await service.updateNickname(1, '새닉')).toBe(user);
     expect(users.updateNickname).toHaveBeenCalledWith(1, '새닉');
   });
+  describe('AI 비서 (#450)', () => {
+    it('GET /me 는 assistant 상태를 붙인다 (available, consented, dailyLimit, usedToday)', async () => {
+      users.findStartCalendar.mockResolvedValue(null);
+      users.findBirthday.mockResolvedValue(null);
+      assistant.status.mockResolvedValue({ available: false, consented: true, dailyLimit: 30, usedToday: 7 });
+      expect((await service.getProfile({ id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date(0) })).assistant).toEqual({
+        available: false,
+        consented: true,
+        dailyLimit: 30,
+        usedToday: 7,
+      });
+      expect(assistant.status).toHaveBeenCalledWith(1);
+    });
+
+    it('동의는 AssistantService 에 그대로 넘긴다', async () => {
+      const consentedAt = new Date('2026-11-16T05:00:00.000Z');
+      assistant.consent.mockResolvedValue({ consentedAt });
+      expect(await service.consentAssistant(3)).toEqual({ consentedAt });
+      expect(assistant.consent).toHaveBeenCalledWith(3);
+    });
+  });
+
   describe('내 생일 (#305)', () => {
     const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
     const stored = { birthday: '02-29', remindDayOf: true, remindDayBefore: true, remindWeekBefore: false };
@@ -143,7 +169,7 @@ describe('MeService', () => {
 
     it('GET /me 는 저장값을 붙인다. 행이 없거나 GROUP 인데 팀이 없으면 LAST, GROUP 이 아니면 groupId 는 null', async () => {
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: 31 });
-      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] } });
+      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] }, assistant: ASSISTANT });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: null });
       expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'PERSONAL', groupId: 31 });

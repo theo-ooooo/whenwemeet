@@ -4,6 +4,7 @@ import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types.js';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from '../src/app.module.js';
+import { ASSISTANT_MODEL } from '../src/assistant/assistant-model.js';
 import { configureApp } from '../src/app.setup.js';
 import { APPLE_JWKS } from '../src/auth/providers/apple.provider.js';
 import { EmailLoginConfig } from '../src/email-login/email-login.config.js';
@@ -32,6 +33,8 @@ export interface TestAppOptions {
    * (rate-limit.e2e-spec)
    */
   rateLimit?: { now?: () => number };
+  /** (#450) AI 비서 모델 (목). 없으면 test-env 의 ASSISTANT_FAKE=1 로 가짜 모델 */
+  assistantModel?: unknown;
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -42,6 +45,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   }
   if (options.appleJwks) builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
   if (options.mail) builder.overrideProvider(MAIL_CLIENT).useValue(options.mail);
+  if (options.assistantModel) builder.overrideProvider(ASSISTANT_MODEL).useValue(options.assistantModel);
   if (options.emailEnv) builder.overrideProvider(EmailLoginConfig).useValue(new EmailLoginConfig(fakeConfig({ ...process.env, ...options.emailEnv })));
   const settings = new RateLimitSettings();
   settings.enabled = options.rateLimit !== undefined;
@@ -84,6 +88,7 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.authLinkTicket.deleteMany();
   await prisma.emailLoginChallenge.deleteMany();
   await prisma.authAccount.deleteMany();
+  await prisma.assistantUsage.deleteMany();
   await prisma.user.deleteMany();
 }
 

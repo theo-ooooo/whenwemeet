@@ -12,7 +12,7 @@ import { BirthdaysService } from './birthdays.service.js';
   imports: [GroupsModule, GroupActivitiesModule],
   controllers: [AnniversariesController, BirthdaysController],
   providers: [AnniversariesService, AnniversariesRepository, BirthdaysService, BirthdaysRepository],
-  /** (#193) 구독 피드가 기념일과 (#305) 멤버 생일을 읽는다 */
-  exports: [AnniversariesRepository, BirthdaysRepository],
+  /** (#193) 구독 피드가 기념일과 (#305) 멤버 생일을 읽는다. (#450) AI 비서가 기념일, 생일 목록을 읽는다 */
+  exports: [AnniversariesRepository, BirthdaysRepository, AnniversariesService, BirthdaysService],
 })
 export class AnniversariesModule {}

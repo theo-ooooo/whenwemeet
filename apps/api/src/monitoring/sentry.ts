@@ -17,6 +17,9 @@ export const QUIET_5XX_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'STORAGE_NOT_CONFIGURED',
   'EMAIL_NOT_CONFIGURED',
   'DB_UNAVAILABLE',
+  // (#450) AI 비서의 OpenAI 실패, 시간 초과는 상태라 여기서 보내지 않는다. 키 인증 실패, 잔액 부족만 서비스가 10분에 한 번 따로 보낸다 (D-271)
+  'ASSISTANT_UNAVAILABLE',
+  'ASSISTANT_TIMEOUT',
 ]);
 
 /** SDK 가 스스로 모으는 것을 모두 끈다. 헤더는 진단에 필요한 몇 개만 (나머지는 scrubEvent 가 한 번 더 거른다) */
