@@ -62,6 +62,35 @@ describe('decide (서버 가드, 설계 5장)', () => {
   });
 });
 
+describe('(#474) kind 만 빠진 날짜 표현 채우기 (D-281)', () => {
+  const none = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+  const event = (date: Record<string, unknown>) => ({
+    title: '회식', date, startTime: '19:00', endDate: none, endTime: null, allDay: false, place: null,
+    participants: [], everyone: false, includeMe: true,
+  });
+  const datesOf = (args: unknown) => (args as { events: { date: { kind: unknown }; endDate: { kind: unknown } }[] }).events;
+
+  it('요일, 날짜, 며칠 뒤, 며칠 값이 있으면 그 kind, 값이 없으면 null 그대로', () => {
+    const outcome = decide(result([call('draft_event', { events: [
+      event({ ...none, weekday: '금', which: 'nearest' }),
+      event({ ...none, date: '2026-12-01' }),
+      event({ ...none, days: 1 }),
+      event({ ...none, month: 11, day: 27 }),
+      event(none),
+    ] })]));
+    expect(outcome.kind).toBe('tool');
+    const events = datesOf((outcome as { args: unknown }).args);
+    expect(events.map((e) => e.date.kind)).toEqual(['weekday', 'date', 'relativeDays', 'monthDay', null]);
+    expect(events.every((e) => e.endDate.kind === null)).toBe(true);
+  });
+
+  it('kind 가 있으면 건드리지 않는다', () => {
+    const when = { ...none, kind: 'week', which: 'next', weekday: '금' };
+    const outcome = decide(result([call('list_events', { from: when, to: none, member: null })]));
+    expect((outcome as { args: Record<string, unknown> }).args.from).toEqual(when);
+  });
+});
+
 describe('도구 스키마 (설계 3-2)', () => {
   it('도구 9개, 모두 strict 규칙: object, 모든 키 필수, additionalProperties false, id 인자 없음', () => {
     expect(TOOL_NAMES).toEqual(['draft_event', 'find_free_time', 'draft_poll', 'list_events', 'find_anniversary', 'ask_clarification', 'report_unsupported', 'refuse', 'greet']);
