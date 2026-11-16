@@ -229,6 +229,25 @@ export const SIGNED_OUT_PROPS: WidgetProps = {
   url: APP_LINK,
 };
 
+/**
+ * (#462) 네이티브(expo-widgets)로 넘기는 props. 값이 null 인 키를 뺀다.
+ * iOS 위젯 생성자와 updateTimeline 은 [String: Any] 로 받는데 null 이 섞이면 예외가 나서
+ * 앱 시작 때 createWidget 이 터지면 앱이 로고에서 바로 꺼진다. 위젯 함수는 없는 키를 null 과 같게 본다
+ */
+export function toNativeProps(p: WidgetProps): WidgetProps {
+  return dropNulls(p) as WidgetProps;
+}
+
+function dropNulls(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(dropNulls);
+  if (v && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) if (x !== null && x !== undefined) out[k] = dropNulls(x);
+    return out;
+  }
+  return v;
+}
+
 /** D-day 글자. diff = 기념일 - 오늘 (0 이상) */
 export function ddayText(diff: number): string {
   return diff === 0 ? "D-day" : `D-${diff}`;

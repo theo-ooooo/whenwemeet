@@ -2,7 +2,14 @@
 // 여기는 RN 과 위젯 라이브러리를 import 하지 않는다 (jest 대상).
 //   iOS     expo-widgets 타임라인 (App Group `group.day.whenwemeet.app` 의 UserDefaults). 셸에 따로 두지 않는다
 //   Android 앱 문서 폴더의 JSON 파일 하나. 위젯 갱신(30분, 추가, 크기 변경) 때 다시 읽어 그 순간 값으로 그린다
-import { parseWidgetSnapshot, SIGNED_OUT_PROPS, timelineEntries, type WidgetProps, type WidgetSnapshot } from "./snapshot";
+import {
+  parseWidgetSnapshot,
+  SIGNED_OUT_PROPS,
+  timelineEntries,
+  toNativeProps,
+  type WidgetProps,
+  type WidgetSnapshot,
+} from "./snapshot";
 
 /** Android 저장 파일 이름 (Paths.document 아래) */
 export const SNAPSHOT_FILE_NAME = "widget-snapshot.json";
@@ -50,12 +57,12 @@ export type TimelineWidget = {
 
 /**
  * iOS: 스냅샷을 날짜별 타임라인으로 넣는다 (지금, 매 KST 자정, 오래됨 시각). null 이면 로그인 안내 하나로 덮는다.
- * updateTimeline 이 위젯 다시 그리기까지 한다
+ * updateTimeline 이 위젯 다시 그리기까지 한다. null 값은 네이티브가 못 받아서 뺀다 (#462)
  */
 export function publishTimeline(w: TimelineWidget, s: WidgetSnapshot | null, now: number): void {
   if (!s) {
-    w.updateTimeline([{ date: new Date(now), props: SIGNED_OUT_PROPS }]);
+    w.updateTimeline([{ date: new Date(now), props: toNativeProps(SIGNED_OUT_PROPS) }]);
     return;
   }
-  w.updateTimeline(timelineEntries(s, now));
+  w.updateTimeline(timelineEntries(s, now).map((e) => ({ date: e.date, props: toNativeProps(e.props) })));
 }
