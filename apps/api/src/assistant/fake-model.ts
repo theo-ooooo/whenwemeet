@@ -1,6 +1,8 @@
-import { addDays, kstDate } from '../events/recurrence.js';
 import { AssistantModelError, type AssistantModel, type ModelMessage, type ModelResult, type ModelToolCall } from './assistant-model.js';
-import { dateRanges } from './prompt.js';
+import { NO_WHEN, type WhenArg } from './when.js';
+
+/** 날짜 표현 (#458) */
+const relative = (days: number): WhenArg => ({ ...NO_WHEN, kind: 'relativeDays', days });
 
 /**
  * (#450) 가짜 모델 (`ASSISTANT_FAKE=1`, 로컬과 e2e. 운영에서는 쓰지 않는다, D-271). 마지막 사용자 글의 키워드로 도구를 고른다.
@@ -13,8 +15,6 @@ import { dateRanges } from './prompt.js';
  */
 export class FakeAssistantModel implements AssistantModel {
   readonly kind = 'fake' as const;
-
-  constructor(private readonly now: () => Date = () => new Date()) {}
 
   complete(messages: ModelMessage[]): Promise<ModelResult> {
     const text = [...messages].reverse().find((message) => message.role === 'user')?.content ?? '';
@@ -31,7 +31,6 @@ export class FakeAssistantModel implements AssistantModel {
   }
 
   private pick(text: string): ModelToolCall | null {
-    const today = kstDate(this.now());
     const call = (name: string, args: Record<string, unknown>): ModelToolCall => ({ name, arguments: JSON.stringify(args) });
     const person = /(\S+?)(?:이랑|랑|하고)(?=\s|$)/.exec(text)?.[1] ?? null;
     if (text.includes('고쳐') || text.includes('바꿔')) return call('report_unsupported', { action: 'edit_event', keyword: null });
@@ -39,9 +38,9 @@ export class FakeAssistantModel implements AssistantModel {
     if (text.includes('잡아') || text.includes('넣어')) {
       return call('draft_event', {
         title: '약속',
-        date: addDays(today, 1),
+        date: relative(1),
         startTime: '19:00',
-        endDate: null,
+        endDate: NO_WHEN,
         endTime: '20:00',
         allDay: false,
         place: null,
@@ -52,8 +51,8 @@ export class FakeAssistantModel implements AssistantModel {
     }
     if (text.includes('빈 시간') || text.includes('되는')) {
       return call('find_free_time', {
-        fromDate: today,
-        toDate: addDays(today, 6),
+        from: relative(0),
+        to: relative(6),
         days: 'all',
         dayStart: null,
         dayEnd: null,
@@ -65,11 +64,8 @@ export class FakeAssistantModel implements AssistantModel {
         purpose: null,
       });
     }
-    if (text.includes('뭐 있')) {
-      const [fromDate, toDate] = dateRanges(today).thisWeek;
-      return call('list_events', { fromDate, toDate, member: person });
-    }
-    if (text.includes('생일') || text.includes('기념일')) return call('find_anniversary', { keyword: null, fromDate: null, toDate: null });
+    if (text.includes('뭐 있')) return call('list_events', { from: { ...NO_WHEN, kind: 'week', which: 'this' }, to: NO_WHEN, member: person });
+    if (text.includes('생일') || text.includes('기념일')) return call('find_anniversary', { keyword: null, from: NO_WHEN, to: NO_WHEN });
     if (text.includes('안녕') || text.includes('고마워')) return call('greet', {});
     return null;
   }

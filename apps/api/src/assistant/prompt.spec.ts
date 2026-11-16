@@ -1,4 +1,4 @@
-import { buildData, buildMessages, buildSystemPrompt, dateRanges, dateTable, FIXED_INSTRUCTIONS, kstTime, kstWeekday } from './prompt.js';
+import { buildData, buildMessages, buildSystemPrompt, dateRanges, FIXED_INSTRUCTIONS, kstTime, kstWeekday } from './prompt.js';
 
 /** 2026-11-16 (월) 14:05 KST */
 const NOW = new Date('2026-11-16T05:05:00.000Z');
@@ -30,18 +30,19 @@ describe('지시문 (설계 3-1)', () => {
     expect(dateRanges('2027-01-15').thisMonth).toEqual(['2027-01-01', '2027-01-31']);
   });
 
-  it('날짜표 42일, 오늘부터 "MM-DD 요일"', () => {
-    const table = dateTable('2026-11-16');
-    expect(table).toHaveLength(42);
-    expect(table[0]).toBe('11-16 월');
-    expect(table[11]).toBe('11-27 금');
-    expect(table[41]).toBe('12-27 일');
+  it('(#458) 그날 값: 오늘, 요일, 지금, 멤버 표시 이름(나 표시), 개인 팀 여부만. 날짜표와 기간은 보내지 않는다 (D-276)', () => {
+    const data = dataOf(buildSystemPrompt({ now: NOW, members, personalTeam: false }));
+    expect(Object.keys(data)).toEqual(['today', 'weekday', 'now', 'members', 'personalTeam']);
+    expect(data).toMatchObject({ today: '2026-11-16', weekday: '월', now: '14:05', members: ['민지(나)', '하늘'], personalTeam: false });
   });
 
-  it('그날 값: 오늘, 요일, 지금, 기간, 날짜표, 멤버 표시 이름(나 표시), 개인 팀 여부만', () => {
-    const data = dataOf(buildSystemPrompt({ now: NOW, members, personalTeam: false }));
-    expect(Object.keys(data)).toEqual(['today', 'weekday', 'now', 'ranges', 'days', 'members', 'personalTeam']);
-    expect(data).toMatchObject({ today: '2026-11-16', weekday: '월', now: '14:05', members: ['민지(나)', '하늘'], personalTeam: false });
+  it('(#458) 지시문: 날짜는 셈하지 않고 표현을 옮긴다, 이름은 글에 나온 사람만, 모임 말만으로는 everyone 아님', () => {
+    expect(FIXED_INSTRUCTIONS).toContain('날짜는 네가 셈하지 않는다');
+    expect(FIXED_INSTRUCTIONS).toContain('"다음 주 금요일" → which next');
+    expect(FIXED_INSTRUCTIONS).toContain('사용자 글에 이름이 나온 사람만');
+    expect(FIXED_INSTRUCTIONS).toContain('"회식, 모임" 같은 말만으로는 everyone 이 아니다');
+    // 서비스 밖 질문 막기 지시는 그대로
+    expect(FIXED_INSTRUCTIONS).toContain('관계없는 요청(날씨, 상식, 번역, 계산, 코딩, 글쓰기, 잡담, 추천, 이 팀 멤버가 아닌 사람 정보)은 refuse.');
   });
 
   it('멤버 이름은 JSON 으로 이스케이프되고 </data> 로 자료 칸을 닫지 못한다', () => {

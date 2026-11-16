@@ -4,6 +4,7 @@ import { AssistantModelError, type ModelResult } from './assistant-model.js';
 import { AssistantService, DAILY_LIMIT, filterAnniversaries, firstOccurrence } from './assistant.service.js';
 import type { AssistantRequestDto } from './dto/assistant-request.dto.js';
 import { GREET_REPLY, INVALID_REPLY, REFUSAL_REPLY } from './replies.js';
+import { NO_WHEN, type WhenArg } from './when.js';
 
 const reportError = vi.hoisted(() => vi.fn());
 vi.mock('../monitoring/sentry.js', () => ({ reportError }));
@@ -28,11 +29,16 @@ const toolResult = (name: string, args: unknown, extra: Partial<ModelResult> = {
 
 const textResult = (text: string): ModelResult => ({ toolCalls: [], text, finishReason: 'stop', usage: null, model: 'gpt-4o-mini' });
 
+/** (#458) 날짜 표현 */
+const on = (date: string): WhenArg => ({ ...NO_WHEN, kind: 'date', date });
+const nextFriday: WhenArg = { ...NO_WHEN, kind: 'weekday', weekday: '금', which: 'next' };
+const thisWeek: WhenArg = { ...NO_WHEN, kind: 'week', which: 'this' };
+
 const EVENT_ARGS = {
   title: '강남 회식',
-  date: '2026-11-27',
+  date: nextFriday,
   startTime: '19:00',
-  endDate: null,
+  endDate: NO_WHEN,
   endTime: null,
   allDay: false,
   place: '강남',
@@ -211,8 +217,8 @@ describe('AssistantService', () => {
       ]);
       model.complete.mockResolvedValue(
         toolResult('find_free_time', {
-          fromDate: '2026-11-16',
-          toDate: '2026-11-30',
+          from: { ...NO_WHEN, kind: 'relativeDays', days: 0 },
+          to: { ...NO_WHEN, kind: 'monthDay', month: 11, day: 30 },
           days: 'weekend',
           dayStart: '18:00',
           dayEnd: '22:00',
@@ -244,7 +250,7 @@ describe('AssistantService', () => {
 
     it('find_free_time: 0개면 카드 없이 넓혀 보자는 문구, show 면 투표 없음', async () => {
       freeSlots.computeFor.mockResolvedValue([]);
-      const args = { fromDate: '2026-11-16', toDate: '2026-11-22', days: 'all', dayStart: null, dayEnd: null, minMinutes: 60, participants: ['하늘'], everyone: false, includeMe: false, next: 'show', purpose: null };
+      const args = { from: on('2026-11-16'), to: on('2026-11-22'), days: 'all', dayStart: null, dayEnd: null, minMinutes: 60, participants: ['하늘'], everyone: false, includeMe: false, next: 'show', purpose: null };
       model.complete.mockResolvedValue(toolResult('find_free_time', args));
       const reply = await send('하늘이만 되는 시간');
       expect(reply).toMatchObject({ reply: '그 조건으로는 다 같이 비는 시간이 없어요. 기간이나 시간대를 넓혀 볼까요?', cards: [] });
@@ -253,7 +259,7 @@ describe('AssistantService', () => {
 
     it('find_free_time: 기간 31일 초과는 되묻기(period)', async () => {
       model.complete.mockResolvedValue(
-        toolResult('find_free_time', { fromDate: '2026-11-16', toDate: '2027-01-30', days: 'all', dayStart: null, dayEnd: null, minMinutes: null, participants: [], everyone: true, includeMe: true, next: 'show', purpose: null }),
+        toolResult('find_free_time', { from: on('2026-11-16'), to: on('2027-01-30'), days: 'all', dayStart: null, dayEnd: null, minMinutes: null, participants: [], everyone: true, includeMe: true, next: 'show', purpose: null }),
       );
       expect(await send('두 달 안에 빈 시간')).toMatchObject({ reply: '언제쯤으로 찾아볼까요?', cards: [{ type: 'clarify', field: 'period' }] });
       expect(freeSlots.computeFor).not.toHaveBeenCalled();
@@ -263,7 +269,7 @@ describe('AssistantService', () => {
       groups.findType.mockResolvedValue({ type: 'PERSONAL' });
       memberships.listMembers.mockResolvedValue([ROWS[0]]);
       model.complete.mockResolvedValueOnce(
-        toolResult('draft_poll', { title: '약속', options: [{ date: '2026-11-20', startTime: '18:00', endTime: '20:00' }, { date: '2026-11-21', startTime: '18:00', endTime: '20:00' }], participants: [], everyone: true }),
+        toolResult('draft_poll', { title: '약속', options: [{ date: on('2026-11-20'), startTime: '18:00', endTime: '20:00' }, { date: on('2026-11-21'), startTime: '18:00', endTime: '20:00' }], participants: [], everyone: true }),
       );
       expect(await send('투표 열어 줘')).toMatchObject({
         reply: '투표는 여럿이 있는 팀에서 열 수 있어요',
@@ -274,7 +280,7 @@ describe('AssistantService', () => {
         { startsAt: new Date('2026-11-21T09:00:00Z'), endsAt: new Date('2026-11-21T13:00:00Z') },
       ]);
       model.complete.mockResolvedValueOnce(
-        toolResult('find_free_time', { fromDate: '2026-11-16', toDate: '2026-11-22', days: 'all', dayStart: null, dayEnd: null, minMinutes: null, participants: ['하늘'], everyone: false, includeMe: true, next: 'poll', purpose: null }),
+        toolResult('find_free_time', { from: on('2026-11-16'), to: on('2026-11-22'), days: 'all', dayStart: null, dayEnd: null, minMinutes: null, participants: ['하늘'], everyone: false, includeMe: true, next: 'poll', purpose: null }),
       );
       const reply = await send('이번 주 내 빈 시간으로 투표');
       expect(reply.cards.map((card) => card.type)).toEqual(['freeSlots']);
@@ -283,8 +289,8 @@ describe('AssistantService', () => {
 
     it('draft_poll: 후보 검사(지난 시간은 되묻기), 대상 기본 전원', async () => {
       const options = [
-        { date: '2026-11-21', startTime: '18:00', endTime: '20:00' },
-        { date: '2026-11-22', startTime: '18:00', endTime: '20:00' },
+        { date: on('2026-11-21'), startTime: '18:00', endTime: '20:00' },
+        { date: on('2026-11-22'), startTime: '18:00', endTime: '20:00' },
       ];
       model.complete.mockResolvedValueOnce(toolResult('draft_poll', { title: '저녁 약속', options, participants: [], everyone: false }));
       const reply = await send('그 중 두 개로 투표');
@@ -292,7 +298,7 @@ describe('AssistantService', () => {
       expect(reply.cards[0]).toMatchObject({ type: 'pollDraft', draft: { title: '저녁 약속', participants: [1, 2, 3] }, members: [{ userId: 1 }, { userId: 2 }, { userId: 3 }] });
       expect(reply.historyText).toBe('[투표 초안] 저녁 약속, 11-21(토) 18:00~20:00; 11-22(일) 18:00~20:00');
 
-      model.complete.mockResolvedValueOnce(toolResult('draft_poll', { title: '저녁', options: [{ date: '2026-11-16', startTime: '09:00', endTime: '10:00' }, options[0]], participants: [], everyone: true }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_poll', { title: '저녁', options: [{ date: on('2026-11-16'), startTime: '09:00', endTime: '10:00' }, options[0]], participants: [], everyone: true }));
       expect((await send('오늘 아침으로 투표')).cards).toEqual([{ type: 'clarify', field: 'period', choices: [] }]);
     });
 
@@ -309,7 +315,7 @@ describe('AssistantService', () => {
         participants: { all: false, members: participantIds.map((userId) => ({ userId, displayName: `m${userId}`, color: '#F26D6D', profileImageUrl: null })) },
       });
       events.list.mockResolvedValue([...Array.from({ length: 11 }, (_, i) => view(i + 1, [2])), view(99, [3])]);
-      model.complete.mockResolvedValue(toolResult('list_events', { fromDate: '2026-11-22', toDate: '2026-11-28', member: '하늘' }));
+      model.complete.mockResolvedValue(toolResult('list_events', { from: { ...NO_WHEN, kind: 'week', which: 'next' }, to: NO_WHEN, member: '하늘' }));
       const reply = await send('다음 주 하늘이 일정 뭐 있어?');
       expect(events.list).toHaveBeenCalledWith(1, 10, '2026-11-21T15:00:00.000Z', '2026-11-28T15:00:00.000Z');
       expect(reply.reply).toBe('다음 주에 일정이 11개 있어요');
@@ -331,24 +337,24 @@ describe('AssistantService', () => {
       expect(reply.historyText.length).toBeLessThanOrEqual(600);
 
       events.list.mockResolvedValue([]);
-      model.complete.mockResolvedValue(toolResult('list_events', { fromDate: '2026-11-15', toDate: '2026-11-21', member: null }));
+      model.complete.mockResolvedValue(toolResult('list_events', { from: thisWeek, to: NO_WHEN, member: null }));
       expect((await send('이번 주에 뭐 있어?')).reply).toBe('이번 주에는 일정이 없어요');
     });
 
     it('find_anniversary: 기념일 + 생일, 기간 안 첫 날짜, 1건 문구', async () => {
       anniversaries.list.mockResolvedValue([{ name: '사귄 날', date: '2025-12-01', kind: 'COUNT_UP' }]);
       birthdays.list.mockResolvedValue([{ member: { userId: 2, displayName: '하늘', color: '#F26D6D', profileImageUrl: null }, date: '03-04' }]);
-      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '하늘', fromDate: null, toDate: null }));
+      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '하늘', from: NO_WHEN, to: NO_WHEN }));
       const one = await send('하늘 생일 언제야?');
       expect(one.reply).toBe("'하늘 생일'은 3월 4일 (목)이에요. D-108");
       expect(one.cards[0]).toMatchObject({ type: 'eventList', events: [], more: 0, days: [{ name: '하늘 생일', date: '2027-03-04', kind: 'BIRTHDAY', dday: 108 }] });
       expect(one.historyText).toBe('[기념일] 하늘 생일 2027-03-04');
 
-      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '우리 기념일', fromDate: null, toDate: null }));
+      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '우리 기념일', from: NO_WHEN, to: NO_WHEN }));
       const ours = await send('우리 기념일 언제야?');
       expect(ours.reply).toBe("'사귄 날 1주년'은 12월 1일 (화)이에요. D-15");
 
-      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '없는 이름', fromDate: null, toDate: null }));
+      model.complete.mockResolvedValueOnce(toolResult('find_anniversary', { keyword: '없는 이름', from: NO_WHEN, to: NO_WHEN }));
       expect(await send('없는 이름 기념일')).toMatchObject({ reply: '찾는 기념일이 없어요', cards: [] });
     });
 
@@ -364,6 +370,54 @@ describe('AssistantService', () => {
       expect((await send('지워')).reply).toBe(INVALID_REPLY);
       model.complete.mockResolvedValueOnce(toolResult('draft_event', '{"title":'));
       expect((await send('깨진')).reply).toBe(INVALID_REPLY);
+    });
+  });
+
+  describe('(#458) 운영 재현: 2인 팀 "경"(나), "김수경", 2026-11-16 (월)', () => {
+    beforeEach(() => {
+      memberships.listMembers.mockResolvedValue([member(1, '경'), member(2, '김수경')]);
+    });
+    /** 운영에서 모델이 준 것처럼 참여자에 김수경, everyone true 를 넣어도 */
+    const hallucinated = (date: WhenArg) => ({ ...EVENT_ARGS, date, participants: ['나', '김수경'], everyone: true });
+    const draftOf = async (text: string, date: WhenArg) => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', hallucinated(date)));
+      const reply = await send(text);
+      const card = reply.cards[0] as { type: string; draft: { startsAt: string; participants: number[] } };
+      return { card, historyText: reply.historyText };
+    };
+
+    it('"다음 주 금요일 7시 강남 회식 잡아줘" → 11-27 (금) 19:00, 참여자 나만', async () => {
+      const { card, historyText } = await draftOf('다음 주 금요일 7시 강남 회식 잡아줘', nextFriday);
+      expect(card).toMatchObject({ type: 'eventDraft', draft: { startsAt: '2026-11-27T10:00:00.000Z', participants: [1] } });
+      expect(historyText).toBe('[일정 초안] 강남 회식, 2026-11-27(금) 19:00~20:00, 장소 강남, 참여자 경');
+    });
+
+    it('"이번 주 금요일 저녁 7시 강남 회식" → 11-20 (금), 나만', async () => {
+      const { card } = await draftOf('이번 주 금요일 저녁 7시 강남 회식', { ...NO_WHEN, kind: 'weekday', weekday: '금', which: 'this' });
+      expect(card.draft).toMatchObject({ startsAt: '2026-11-20T10:00:00.000Z', participants: [1] });
+    });
+
+    it('"11월 27일 금요일 저녁 7시 강남 회식" → 11-27 (금), 나만', async () => {
+      const { card } = await draftOf('11월 27일 금요일 저녁 7시 강남 회식', { ...NO_WHEN, kind: 'monthDay', month: 11, day: 27, weekday: '금' });
+      expect(card.draft).toMatchObject({ startsAt: '2026-11-27T10:00:00.000Z', participants: [1] });
+    });
+
+    it('이름은 대화 기록의 사용자 글에 나와도 믿는다 (볼까 글은 아님)', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['김수경'], everyone: false }));
+      const reply = await send('다음 주 금요일 7시로 잡아줘', [
+        { role: 'user', text: '수경이랑 회식' },
+        { role: 'assistant', text: '[되물음] 언제로 할까요?' },
+      ]);
+      expect((reply.cards[0] as { draft: { participants: number[] } }).draft.participants).toEqual([1, 2]);
+
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['김수경'], everyone: false }));
+      const fromAssistant = await send('다음 주 금요일 7시로 잡아줘', [{ role: 'assistant', text: '[일정 초안] 회식, 참여자 경, 김수경' }]);
+      expect((fromAssistant.cards[0] as { draft: { participants: number[] } }).draft.participants).toEqual([1]);
+    });
+
+    it('"이번 주 일요일" 은 이미 지난 날이라 되묻는다', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, date: { ...NO_WHEN, kind: 'weekday', weekday: '일', which: 'this' } }));
+      expect(await send('이번 주 일요일 7시 회식')).toMatchObject({ reply: '언제로 할까요?', cards: [{ type: 'clarify', field: 'date' }] });
     });
   });
 
@@ -413,7 +467,7 @@ describe('AssistantService', () => {
 
     it('그 밖의 실패(일정 읽기 오류)는 500 INTERNAL 로 바꾸고 되돌린다', async () => {
       events.list.mockRejectedValue(new Error('db down'));
-      model.complete.mockResolvedValue(toolResult('list_events', { fromDate: '2026-11-15', toDate: '2026-11-21', member: null }));
+      model.complete.mockResolvedValue(toolResult('list_events', { from: thisWeek, to: NO_WHEN, member: null }));
       await expect(send('이번 주에 뭐 있어?')).rejects.toMatchObject({ code: 'INTERNAL' });
       expect(usage.refund).toHaveBeenCalledTimes(1);
     });

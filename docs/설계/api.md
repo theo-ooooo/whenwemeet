@@ -120,7 +120,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
 | `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록. `PLACE_SEARCH_FAKE=1` 은 카카오, 네이버 둘 다 가짜 |
 | `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`, `NAVER_SEARCH_URL` | (D-259) 네이버 장소 검색(2.14). NAVER API HUB 지역 검색 키 둘(비밀). 선택. 하나라도 없으면 운영은 `provider=naver` 만 503, 로컬은 가짜 목록. `NAVER_SEARCH_URL` 은 테스트용 주소 바꾸기(기본 `https://naverapihub.apigw.ntruss.com/search/v1/local`) |
-| `OPENAI_API_KEY`, `OPENAI_MODEL`, `ASSISTANT_FAKE` | (#450) AI 비서(2.15). 모두 선택. 키가 없으면 `/me.assistant.available = false`, 메시지 503. `OPENAI_MODEL` 기본 `gpt-4o-mini`. `ASSISTANT_FAKE=1` 은 키 없이 가짜 모델(운영에서는 무시) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `ASSISTANT_FAKE` | (#450) AI 비서(2.15). 모두 선택. 키가 없으면 `/me.assistant.available = false`, 메시지 503. `OPENAI_MODEL` 기본 `gpt-4.1-mini`(D-278). `ASSISTANT_FAKE=1` 은 키 없이 가짜 모델(운영에서는 무시) |
 | `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -797,7 +797,7 @@ AssistantCard    = eventDraft | freeSlots | pollDraft | eventList | clarify | un
 ```
 
 - 서버는 아무것도 쓰지 않는다(일정, 투표, 새 소식, 알림 없음). 카드의 저장은 웹이 2.3 `POST /events`, 2.13 `POST /polls` 로 한다
-- OpenAI `gpt-4o-mini` 를 요청당 한 번(도구 호출 강제) 부르고 `reply` 는 항상 서버 문구 틀이다. 모델 글자는 내보내지 않는다 (D-267)
+- OpenAI `gpt-4.1-mini`(D-278) 를 요청당 한 번(도구 호출 강제) 부르고 `reply` 는 항상 서버 문구 틀이다. 모델 글자는 내보내지 않는다 (D-267)
 - 하루 30번(KST, 사용자 단위, `AssistantUsage`): 모델로 보낸 메시지는 거절이어도 센다. 503, 504, 500 은 되돌린다. 400, 403, 409, 분당 429 는 세지 않는다 (D-269)
 - 오류: 400 VALIDATION_FAILED(`text`, `history`), 403, 409 ASSISTANT_CONSENT_REQUIRED, 429 RATE_LIMITED, 429 ASSISTANT_DAILY_LIMIT, 503 ASSISTANT_UNAVAILABLE, 504 ASSISTANT_TIMEOUT
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)

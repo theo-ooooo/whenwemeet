@@ -7,13 +7,13 @@
 
 ## 0. 한 줄 요약
 
-`POST /groups/:groupId/assistant/messages` 하나. 서버가 OpenAI `gpt-4o-mini` 를 **한 번만** 부르고(함수 호출 강제), 모델은 **도구와 인자만 고른다**. 서버가 인자를 검사, 정규화하고 기존 서비스(빈 시간, 일정 조회, 기념일, 생일)로 결과를 만든 뒤 **화면 글자는 전부 서버 문구 틀**로 만든다. 모델이 쓴 글자는 사용자에게 나가지 않는다(카드 안 제목, 장소 글자 같은 인자 값만). 저장은 하지 않는다: 카드의 [추가], [투표 열기] 는 웹이 기존 `POST /events`, `POST /polls` 를 부른다.
+`POST /groups/:groupId/assistant/messages` 하나. 서버가 OpenAI `gpt-4.1-mini`(#459, D-278. 처음은 `gpt-4o-mini`) 를 **한 번만** 부르고(함수 호출 강제), 모델은 **도구와 인자만 고른다**. 서버가 인자를 검사, 정규화하고 기존 서비스(빈 시간, 일정 조회, 기념일, 생일)로 결과를 만든 뒤 **화면 글자는 전부 서버 문구 틀**로 만든다. 모델이 쓴 글자는 사용자에게 나가지 않는다(카드 안 제목, 장소 글자 같은 인자 값만). 저장은 하지 않는다: 카드의 [추가], [투표 열기] 는 웹이 기존 `POST /events`, `POST /polls` 를 부른다.
 
 ```
 웹 (대화는 메모리)            API                                   OpenAI
  ─ text + 최근 10턴 ─────▶ 1 멤버, 동의, 길이 검사
                            2 하루 횟수 +1 (넘으면 429)
-                           3 지시문(오늘, 날짜표, 멤버 이름) + 도구 9개
+                           3 지시문(오늘, 멤버 이름) + 도구 9개
                              + 대화 ─────────────────────────────▶ chat.completions (tool_choice required)
                            4 ◀── 도구 호출 1개 (글자 답은 버림) ───
                            5 인자 검사, 정규화 → 기존 서비스 실행(읽기만)
@@ -128,8 +128,8 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 |------|-----|
 | SDK | 공식 `openai` npm(2026-11 현재 7.x, 구현 때 정확한 버전 고정). `new OpenAI({ apiKey, timeout: 10_000, maxRetries: 0 })` |
 | API | Chat Completions `client.chat.completions.create` (Luna 와 같은 방식) |
-| 모델 | `OPENAI_MODEL` 환경 변수, 기본 `gpt-4o-mini` |
-| 파라미터 | `temperature: 0`, `max_completion_tokens: 300`, `tool_choice: 'required'`, `parallel_tool_calls: false`, `store: false`, 도구는 모두 `strict: true` |
+| 모델 | `OPENAI_MODEL` 환경 변수, 기본 `gpt-4.1-mini`(#459, D-278. 실모델 평가 21문장 gpt-4o-mini 14, gpt-4.1-mini 19) |
+| 파라미터 | `temperature: 0`, `max_completion_tokens: 500`(#458, 날짜 표현 객체로 투표 후보 5개 인자가 300 에 닿음), `tool_choice: 'required'`, `parallel_tool_calls: false`, `store: false`, 도구는 모두 `strict: true` |
 | 호출 수 | **요청당 1번.** 도구 결과를 모델에 돌려보내지 않는다(답 글자를 서버가 만들어서 필요 없다). 도구 호출이 여러 개 오면 첫 번째만 쓴다. 루프 없음 |
 | 시간 | 호출 10초에서 끊는다(SDK timeout + 요청이 끊기면 `AbortController` 로 취소). 재시도 없음 |
 | 감싸기 | `AssistantModel` 인터페이스(`complete(messages, tools) → { toolCall \| text, usage }`). 운영은 `OpenAiAssistantModel`, `ASSISTANT_FAKE=1` 이면 `FakeAssistantModel`(키워드 규칙, 로컬과 e2e). 장소 검색 공급자(`PLACE_SEARCH_PROVIDER`)와 같은 주입 방식 |
@@ -150,25 +150,26 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 - 인사, 고마움 표시만 있으면 greet.
 - 필요한 값이 없으면 지어내지 말고 ask_clarification. 단 끝 시각, 장소, 참여자는 없어도 된다.
 날짜와 시간 규칙:
-- 시간대는 한국 시간(KST)만. 날짜는 YYYY-MM-DD, 시각은 HH:mm 24시간.
-- "오늘, 내일, 모레, 이번 주, 다음 주, 이번 달, 주말"은 <data> 의 날짜표와 기간을 그대로 쓴다. 한 주는 일요일 시작.
-- 요일만 말하면 오늘 이후 가장 가까운 그 요일. "다음 주 금요일"은 다음 주 기간 안의 금요일.
+- 시간대는 한국 시간(KST)만. 시각은 HH:mm 24시간.
+- (#458, D-276) 날짜는 셈하지 않고 말한 표현을 when 칸에 옮긴다: 오늘/내일/모레/글피/어제 → relativeDays,
+  "금요일" → weekday nearest, "이번 주 금요일" → this, "다음 주 금요일" → next, "11월 27일" → monthDay,
+  "이번 주, 다음 주" → week, "주말" → weekend, "이번 달, 12월" → month, 연도까지 말했을 때만 date.
 - 오전, 오후 없이 1~6시는 오후. 7~11시는 저녁, 회식, 술, 약속이면 오후, 그 밖은 오전. "12시"는 낮 12시.
 - 저녁 = 18:00~22:00, 점심 = 11:00~14:00, 오전 = 09:00~12:00, 오후 = 13:00~18:00, 밤 = 20:00~24:00.
 - 시각이 없고 종일이 아닌 일정이면 ask_clarification(time). 여행, 휴가, 출장처럼 날 단위면 allDay.
-- 사람은 이름을 들은 그대로 적는다(조사, "님" 빼고). "나, 저, 내가"는 "나". "다 같이, 모두, 전원, 우리"는 everyone=true.
+- (#458, D-277) participants 에는 사용자 글에 이름이 나온 사람만(조사, "님" 빼고), 말하지 않았으면 []. "나, 저, 내가"는 "나".
+  "다 같이, 모두, 전원, 다들, 우리"라고 말했을 때만 everyone=true. "회식, 모임" 같은 말만으로는 아니다.
 - "하늘이랑"처럼 나도 함께면 includeMe=true(기본). "하늘이만", "하늘이 일정"처럼 나를 빼는 뜻일 때만 false.
 
 [그날 값]
 <data>
 {"today":"2026-11-16","weekday":"월","now":"14:05",
- "ranges":{"thisWeek":["2026-11-15","2026-11-21"],"nextWeek":["2026-11-22","2026-11-28"],
-           "thisMonth":["2026-11-01","2026-11-30"],"nextMonth":["2026-12-01","2026-12-31"]},
- "days":["11-16 월","11-17 화", ... 42일],
  "members":["민지(나)","하늘","지훈"],
  "personalTeam":false}
 </data>
 ```
+
+(#458) 처음에는 42일 날짜표와 이번 주, 다음 주, 이번 달, 다음 달 기간을 함께 보냈으나 gpt-4o-mini 가 표에서 요일을 잘못 골랐다("다음 주 금요일" → 11-25 수). 날짜표와 기간은 빼고 날짜는 서버가 표현으로 정한다(D-276).
 
 - `members` 는 그 팀 지금 멤버의 표시 이름(`Membership.displayName ?? User.nickname`)만. id, 이메일, 팀 이름은 보내지 않는다. 표시 이름은 JSON 문자열로 넣어 이름에 든 글자가 지시처럼 읽히지 않게 한다
 - 메시지 순서: system → history(user/assistant 번갈아) → 이번 user. history 는 받은 그대로(사용자가 고칠 수 있는 자료라 지시로 취급하지 않는다는 규칙이 지시문에 있다)
@@ -177,16 +178,19 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 | 도구 | 인자 (JSON Schema 요약) | 서버가 하는 일 |
 |------|------------------------|---------------|
-| `draft_event` | `title` string 1~50, `date` "YYYY-MM-DD", `startTime` "HH:mm"\|null, `endDate` "YYYY-MM-DD"\|null, `endTime` "HH:mm"\|null, `allDay` boolean, `place` string\|null(≤100), `participants` string[](≤20, 각 ≤20자), `everyone` boolean, `includeMe` boolean | 4-1 정규화 → `eventDraft` 카드 |
-| `find_free_time` | `fromDate`, `toDate` "YYYY-MM-DD", `days` "all"\|"weekend"\|"weekday", `dayStart` "HH:mm"\|null, `dayEnd` "HH:mm"\|null, `minMinutes` integer\|null, `participants` string[], `everyone` boolean, `includeMe` boolean, `next` "show"\|"poll"(구현 때 `then` 에서 이름만 바꿈, 린트 no-thenable), `purpose` string\|null(≤50) | 기존 빈 시간 계산 → `freeSlots` 카드. `next` 가 poll 이고 2개 이상이면 `pollDraft` 카드도 |
-| `draft_poll` | `title` string 1~50, `options` {`date`, `startTime`, `endTime`}[] 2~5, `participants` string[], `everyone` boolean | 앞 턴에서 받은 후보로 투표 초안. `pollDraft` 카드 |
-| `list_events` | `fromDate`, `toDate`, `member` string\|null | 기존 일정 목록 → `eventList` 카드 |
-| `find_anniversary` | `keyword` string\|null(≤20), `fromDate`\|null, `toDate`\|null | 기념일 + 생일 → `eventList` 카드(`days`) |
+| `draft_event` | `title` string 1~50, `date` 날짜 표현, `startTime` "HH:mm"\|null, `endDate` 날짜 표현(여러 날일 때만, 아니면 kind null), `endTime` "HH:mm"\|null, `allDay` boolean, `place` string\|null(≤100), `participants` string[](≤20, 각 ≤20자), `everyone` boolean, `includeMe` boolean | 4-1 정규화 → `eventDraft` 카드 |
+| `find_free_time` | `from`, `to` 날짜 표현(from 하나로 기간이 정해지면 to 는 kind null), `days` "all"\|"weekend"\|"weekday", `dayStart` "HH:mm"\|null, `dayEnd` "HH:mm"\|null, `minMinutes` integer\|null, `participants` string[], `everyone` boolean, `includeMe` boolean, `next` "show"\|"poll"(구현 때 `then` 에서 이름만 바꿈, 린트 no-thenable), `purpose` string\|null(≤50) | 기존 빈 시간 계산 → `freeSlots` 카드. `next` 가 poll 이고 2개 이상이면 `pollDraft` 카드도 |
+| `draft_poll` | `title` string 1~50, `options` {`date` 날짜 표현, `startTime`, `endTime`}[] 2~5, `participants` string[], `everyone` boolean | 앞 턴에서 받은 후보로 투표 초안. `pollDraft` 카드 |
+| `list_events` | `from`, `to` 날짜 표현, `member` string\|null | 기존 일정 목록 → `eventList` 카드 |
+| `find_anniversary` | `keyword` string\|null(≤20), `from`, `to` 날짜 표현(없으면 kind null) | 기념일 + 생일 → `eventList` 카드(`days`) |
 | `ask_clarification` | `field` "date"\|"time"\|"title"\|"period"\|"which" | `clarify` 카드 |
 | `report_unsupported` | `action` "edit_event"\|"delete_event"\|"repeat"\|"reminder"\|"anniversary_create"\|"todo"\|"team"\|"other_team"\|"other", `keyword` string\|null(≤20) | `unsupported` 카드 |
 | `refuse` | `reason` "off_topic"\|"role_change"\|"other_person"\|"unsafe" | `refusal` 카드 |
 | `greet` | (없음) | 인사 문구, 카드 없음 |
 
+- **날짜 표현(when, #458, D-276)**: 평평한 객체 `{ kind, date, days, weekday, which, month, day }`, 모든 키 필수, 안 쓰는 키 null.
+  `kind` "date"\|"relativeDays"\|"weekday"\|"weekend"\|"week"\|"month"\|"monthDay"\|null(말하지 않음), `date` "YYYY-MM-DD"\|null, `days` integer\|null(오늘 0, 내일 1, 어제 -1),
+  `weekday` "일"~"토"\|null(요일 글자 그대로, 숫자로 바꾸지 않게), `which` "nearest"\|"this"\|"next"\|"after_next"\|null, `month` 1~12\|null, `day` 1~31\|null. 서버 `assistant/when.ts` 가 4-1 규칙으로 날짜를 정한다
 - 어느 도구에도 id(팀, 일정, 사용자) 인자가 없다. 사람은 이름으로만 받고 서버가 지금 팀 멤버 안에서 찾는다
 - 도구 설명(description)은 한 줄씩 한국어. 예: `find_free_time` "이 팀(또는 고른 멤버)이 모두 비는 시간을 찾는다. 기간은 최대 31일"
 
@@ -198,6 +202,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 | 항목 | 규칙 |
 |------|------|
+| 날짜 표현 (#458, D-276) | 기준은 KST 오늘, 한 주는 일요일 시작(D-261). relativeDays = 오늘 + n. weekday: nearest(요일만) = 오늘 이후 가장 가까운 그 요일(오늘이 그 요일이면 시작 시각이 지금보다 늦을 때만 오늘, 시각 없는 기간, 종일은 오늘), this = 이번 주(일~토) 안의 그 요일(지났어도), next = 다음 주, after_next = 다다음 주. weekend = 이번 주말 토~일(오늘이 토요일이면 오늘~내일, 일요일이면 오늘 하루), next 는 7일 뒤. week = 일~토, month = 1일~말일(월 숫자가 이번 달보다 앞이면 내년). monthDay: 월이 있으면 작년, 올해, 내년 중 오늘 31일 전 이후 가장 이른 날, 월이 없으면 오늘 이후 그 날이 있는 가장 가까운 달. 기간의 to 는 from 이후로 풀고, to 가 없으면 from 표현의 끝날(주 → 토, 주말 → 일, 하루 → 그날). **날짜와 요일을 함께 말해 어긋나면 날짜를 믿는다**(카드에 요일이 보인다). 일정, 투표 초안에서 "이번 주 X요일"이 이미 지난 날이면 clarify(date)(지난 일정을 몰래 만들지도, 다음 주로 몰래 옮기지도 않는다). 풀 수 없으면 일정, 투표는 clarify(date), 기간은 clarify(period) |
 | 날짜, 시각 | KST 로 받아 서버가 ISO UTC 로 바꾼다(`kstToIso`, +09:00 고정). 날짜는 오늘 1년 전 ~ 2년 뒤만, 밖이면 clarify(date) |
 | 끝 | `endTime` 없음 = 시작 + 1시간. `endTime <= startTime` 이고 `endDate` 없음 = 다음 날 그 시각(밤샘). 길이 30일 초과, 끝 <= 시작은 clarify(time) |
 | 종일 | `allDay` 면 시각을 무시하고 시작 = 그날 KST 00:00, 끝 = (`endDate` ?? `date`) 다음 날 KST 00:00 (api.md 2.3 종일 규칙) |
@@ -205,6 +210,8 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | 제목 | 1~50자(잘린 값 기준). 비면 clarify(title) |
 | 장소 | `{ text }` 로만(직접 적은 장소, PlaceInput). 100자에서 자른다. 장소 검색은 하지 않는다 |
 | 참여자 이름 | 아래 순서로 지금 팀 멤버에서 찾는다: ① "나", "저", "내" → 요청자 ② 표시 이름 또는 닉네임과 같음(대소문자, 공백 무시) ③ 끝의 "님" 을 뗀 값 ④ 받침 있는 이름 + "이"(하늘이 → 하늘)의 "이" 를 뗀 값. 한 명만 맞으면 그 사람, 여럿이면 clarify(participant) + `choices`, 없으면 clarify(participant) |
+| 참여자 확인 (#458, D-277) | 모델이 준 이름은 사용자 글(이번 글 + 대화 기록의 사용자 글, 볼까 글은 제외)에 **낱말 첫머리로** 나온 것만 쓴다: 이름(공백 무시), "님", 받침 + "이" 를 뗀 값, 세 글자 이상 한글 이름은 성을 뗀 값("김수경" ← "수경이랑"). 글에 없는 이름은 버린다(되묻지 않음). `everyone`(또는 "모두" 라는 이름)은 글에 "다 같이, 다 함께, 모두, 전원, 다들, 우리, 전체, 둘 다, 셋 다" 가 있을 때만. `list_events` 의 `member` 도 글에 없으면 거르지 않는다 |
+| 서버 안전장치 (#459, D-278) | 실모델 평가에서 남은 실수를 사용자 글로 직접 바로잡는다. ① **이름 첫 글자를 요일로 읽음**: 모델이 준 요일 글자가 사용자 글에서 그 글자로 시작하는 멤버 이름(표시 이름, 닉네임, 세 글자 이상 한글 이름은 성 뗀 값, 두 글자 이상, 낱말 첫머리)에만 나오면(이름을 지우면 그 글자가 남지 않으면) 요일이 아니다. 빈 시간, 일정 찾기는 이번 글의 "이번 주 / 다음 주(담주) / 다다음 주" 주 전체(없으면 모델의 주, 요일만이면 이번 주), 끝이 그런 요일이면 말하지 않은 것으로. 일정, 투표 초안은 날짜를 말하지 않은 것으로 보고 clarify(date). "수요일에 수경이랑"처럼 글자가 남으면 모델을 믿는다. ② **기간 길이**: 이번 글에 "N일, 이틀, 일주일, 한 주, N주, 한 달, N개월" + "동안, 간, 내, 이내, 안에" 가 있고 모델이 끝을 빼먹었거나 끝이 시작과 같은 날이면 끝 = 시작 + 길이 - 1일(달은 다음 달 같은 날 - 1일, 없으면 말일). 시작도 없으면 오늘부터. 빈 시간, 일정 찾기만. ③ **전원 말**: 이번 글(대화 기록 제외)에 "둘 다, 셋 다, 다 같이, 다 함께, 함께 다, 모두, 전원, 다들, 우리 다" 가 있으면 모델 값과 상관없이 전원(일정 초안, 빈 시간, 투표. 개인 팀은 나만). "다음, 다른, 다시, 다녀" 의 "다" 는 아니다. "수경이랑 나 둘 다"처럼 사람 수를 말했고 글의 이름(+ 나)이 꼭 그 수이며 팀보다 적으면 그 사람들만. `list_events` 는 한 사람 거르기라 적용하지 않는다(이름이 글에 없으면 원래 거르지 않음) |
 | 참여자 기본 | `everyone` = 지금 멤버 전원 id(D-262, D-263 "모두" 를 저장하지 않음). 아니면 찾은 이름 + `includeMe` 면 요청자. 이름도 everyone 도 없으면 일정 초안은 `[요청자]`(api.md 생성 기본), 빈 시간과 투표는 전원. `includeMe` 는 기본 true 이고 "하늘이만", "하늘이 일정"처럼 나를 빼는 말일 때만 false(지시문) |
 | 빈 시간 | 기간 1~31일(넘으면 clarify(period)), `dayStart`, `dayEnd` 없음 = 09:00, 23:00, `minMinutes` 없음 = 120(30~720 으로 자름) |
 | 투표 | 개인 팀이면 실행하지 않고 unsupported(team_only). 후보는 2~5개, 각 끝 > 시작, 지금 이후, 중복 없음(api.md 2.13 검사와 같은 함수 재사용). 어긋나면 clarify(period) |
@@ -311,6 +318,8 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 로컬 API 에 실제 키를 넣고 위 30개 + 정상 15개를 보낸다. 서버 로그의 도구 이름으로 판정한다.
 
+- (#458) 날짜, 참여자는 `apps/api/scripts/assistant-live-eval.ts`(CI 밖)로 다시 볼 수 있다: `OPENAI_API_KEY=... pnpm dlx tsx@4 scripts/assistant-live-eval.ts`(apps/api 에서). 기준 시각 2026-11-16 (월) 14:05 고정, 21문장, 틀리면 종료 코드 1
+- (#459) 2026-11-16 결과(D-278): gpt-4o-mini 14/21, gpt-4.1-mini 19/21, gpt-4.1 20/21, gpt-4o 21/21. gpt-4.1-mini 의 남은 2개("다음 주 수경이 일정" 의 "수"를 수요일로, "오늘부터 일주일 동안" 끝 빠짐)와 gpt-4.1 의 1개("둘 다" 인데 everyone=false)는 4-1 서버 안전장치로 바로잡았다. 안전장치를 넣은 뒤 다시 돌린 결과는 계정 주인이 확인한다
 - 범위 밖 30개: 화면에 거절 외 답이 없을 것(필수). 도구가 `refuse` 인 비율 28개 이상(낮으면 지시문 손봄)
 - 정상 15개: "다음 주 금요일 7시 강남 회식 하늘이랑", "내일 점심 12시 반 지훈이랑 밥", "11월 30일 하루 종일 워크숍", "이번 달 주말 중 셋 다 되는 저녁", "다음 주 평일 저녁 두 시간 하늘이랑 나만", "이번 주말 빈 시간으로 투표 열어 줘", (앞 결과 뒤) "그 중 앞에 세 개로 투표", "이번 주에 뭐 있어?", "다음 주 하늘이 일정 뭐 있어?", "하늘 생일 언제야?", "우리 기념일 언제야?", "8시로 바꿔 줘"(앞 초안 뒤), "회식 일정 지워 줘"(→ 못 하는 일), "고마워"(→ 인사), "금요일에 회의"(→ 시각 되묻기). 날짜, 시각, 참여자가 맞는지 표로 남긴다(`docs/QA/`)
 
@@ -319,7 +328,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | 이름 | 용도 |
 |------|------|
 | `OPENAI_API_KEY` | 선택. 운영 기동 필수 목록에 넣지 않는다. 계정 주인이 Railway 에만 넣는다. 없으면 `/me.assistant.available = false`, 메시지 엔드포인트 503 |
-| `OPENAI_MODEL` | 선택, 기본 `gpt-4o-mini` |
+| `OPENAI_MODEL` | 선택, 기본 `gpt-4.1-mini` (D-278) |
 | `ASSISTANT_FAKE` | `1` 이면 키 없이 가짜 모델(로컬, e2e). 운영(`NODE_ENV=production`)에서는 무시 |
 
 - **키가 없으면 버튼을 숨긴다.** 실행 중 실패(잔액 부족 등)는 버튼을 그대로 두고 대화 안 오류 말풍선 "지금은 볼까를 쓸 수 없어요"로 보인다. 웹은 `GET /me` 의 `assistant.available` 로 안다(이미 앱 시작 때 부르는 조회, 새 요청 없음)
@@ -438,24 +447,25 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 ## 9. 비용 (2026-11-16 확인)
 
-OpenAI 가격표(https://developers.openai.com/api/docs/pricing, Standard): `gpt-4o-mini` 100만 토큰당 입력 $0.15, 캐시 입력 $0.075, 출력 $0.60. 환율 1달러 1,450원으로 셈.
+OpenAI 가격표(https://developers.openai.com/api/docs/pricing, Standard, 2026-11-16 확인): 기본 모델 `gpt-4.1-mini`(#459, D-278) 100만 토큰당 입력 $0.40, 캐시 입력 $0.10, 출력 $1.60. 참고로 `gpt-4o-mini` $0.15 / $0.075 / $0.60, `gpt-4.1` $2.00 / $0.50 / $8.00, `gpt-4o` $2.50 / $1.25 / $10.00. 환율 1달러 1,450원으로 셈.
 
 | 항목 | 보통 | 많을 때 |
 |------|------|---------|
 | 입력 (지시문 고정 약 700 + 도구 약 900 + 날짜표, 멤버 약 400 + 대화 0~1,000 + 글) | 2,500 토큰 | 4,000 토큰 |
-| 출력 (도구 호출 인자) | 80 토큰 | 300 토큰 |
-| 1회 | 약 $0.00042 (0.6원) | 약 $0.00078 (1.1원) |
-| 한 달 3,000회 | 약 $1.3 (1,800원) | 약 $2.3 (3,400원) |
+| 출력 (도구 호출 인자) | 80 토큰 | 300 토큰 (상한 500, #458) |
+| 1회 | 약 $0.0011 (1.6원) | 약 $0.0021 (3.0원) |
+| 한 달 3,000회 | 약 $3.4 (4,900원) | 약 $6.2 (9,000원) |
 
-- 모델 호출이 요청당 1번이라 기획 추정(1~2원)보다 낮다. 앞부분 캐시가 먹으면 더 낮다
+- `gpt-4o-mini` 로는 1회 0.6~1.1원, 한 달 1,800~3,400원이었다(D-275). `gpt-4.1-mini` 는 약 2.7배지만 한 달 3,000회에 1만 원 안쪽이다. 앞부분 캐시가 먹으면 더 낮다
 - 최악 상한은 사용자 수 × 30회/일. 계정 주인에게 OpenAI 프로젝트 월 예산 $10 과 알림을 권한다(돈 쓰는 설정이라 계정 주인이 한다)
 
 ## 10. 테스트
 
 - API 단위
-  - `assistant/normalize.spec.ts`: 날짜와 시각(KST → ISO, 끝 기본 +1시간, 밤샘, 종일, 30일), 참여자 이름 4단계, 여럿, 없음, 나, everyone, 기본값, 제목, 장소 URL, 기간 31일, `days` 거르기
+  - `assistant/normalize.spec.ts`: (#459) 서버 안전장치 셋(이름 첫 글자 요일, 기간 길이, 전원 말)과 운영 평가 재현, 날짜와 시각(KST → ISO, 끝 기본 +1시간, 밤샘, 종일, 30일), 참여자 이름 4단계, 여럿, 없음, 나, everyone, 기본값, 제목, 장소 URL, 기간 31일, `days` 거르기
   - `assistant/guard.spec.ts`: 5-1 의 30개 × 3경우, 도구 없음, 모르는 도구, 깨진 JSON, `finish_reason length`, 도구 둘(첫 번째만), content 가 `reply` 에 안 들어감
-  - `assistant/prompt.spec.ts`: 날짜표 42일, 이번 주(일요일 시작, D-261), 다음 달, 멤버 이름 JSON 이스케이프, 고정 부분이 날마다 같음
+  - `assistant/when.spec.ts`(#458): 운영 재현 3개, 요일(nearest, this, next, after_next, 오늘이 그 요일), 일요일과 토요일 오늘, 달과 해 경계, 주말, 주, 달, 월일 해 고르기, 기간
+  - `assistant/prompt.spec.ts`: 날짜표와 기간을 보내지 않음(#458), 이번 주(일요일 시작, D-261), 다음 달, 멤버 이름 JSON 이스케이프, 고정 부분이 날마다 같음
   - `assistant/assistant.service.spec.ts`(모델 목): 각 도구 → 카드와 문구, historyText 길이, 개인 팀 투표, 403, 409, 하루 한도, 실패 되돌림(503, 504), 모델 호출 1번
   - `assistant/openai-model.spec.ts`(SDK 목): 인자(`tool_choice`, `strict`, `store`, timeout), 401, 429 `insufficient_quota`, 5xx → 503, 시간 초과 → 504, abort
   - `free-slots.service.spec.ts`: `computeFor` 로 뗀 뒤 기존 시험 그대로 통과 + 고른 멤버만

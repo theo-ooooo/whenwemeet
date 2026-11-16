@@ -3,8 +3,11 @@ import { AssistantModelError, type AssistantModel, type ModelMessage, type Model
 
 /** (#450) OpenAI 호출 제한 시간. 재시도 없음 (D-265) */
 export const OPENAI_TIMEOUT_MS = 10_000;
-/** 도구 호출 인자만 받으므로 출력은 짧다 (설계 9장 "많을 때" 300 토큰) */
-export const OPENAI_MAX_COMPLETION_TOKENS = 300;
+/**
+ * 도구 호출 인자만 받으므로 출력은 짧다 (설계 9장). (#458) 날짜가 표현 객체(when)가 되어 후보 5개 투표 인자가 300 토큰에 닿으므로 500.
+ * 실제 쓴 만큼만 값이 나간다
+ */
+export const OPENAI_MAX_COMPLETION_TOKENS = 500;
 
 /** 우리가 쓰는 SDK 부분만 (테스트가 목으로 바꾼다) */
 export interface ChatCompletionsClient {
