@@ -63,6 +63,10 @@
 | EMAIL_NOT_CONFIGURED | 503 | `EMAIL_LOGIN_ENABLED` 꺼짐, 운영에서 `RESEND_API_KEY` 또는 `INTERNAL_API_KEY` 없음 |
 | IMPORT_TOO_LARGE | 400 | (#279) ICS 파일의 VEVENT 가 3,000개 초과 |
 | IMPORT_INCOMPLETE | 500 | (#279) 일정 가져오기가 중간에 실패. 넣은 묶음은 남는다. message "N개 중 M개 넣었어요. 같은 파일을 다시 올리면 나머지만 들어가요", `details: { created, total }`. 웹은 점검 화면으로 보내지 않는다(INTERNAL 아님) |
+| ASSISTANT_CONSENT_REQUIRED | 409 | (#450) AI 비서 처음 안내에 동의하기 전 메시지. message "먼저 안내를 확인해 주세요" (2.15) |
+| ASSISTANT_DAILY_LIMIT | 429 | (#450) AI 비서 하루 30번(KST) 초과. `details: { limit, resetAt }`, `Retry-After` 없음 (2.15, D-269) |
+| ASSISTANT_UNAVAILABLE | 503 | (#450) `OPENAI_API_KEY` 없음, OpenAI 인증 실패, 잔액, 한도, 5xx, 연결 실패 (2.15) |
+| ASSISTANT_TIMEOUT | 504 | (#450) OpenAI 호출 10초 초과. message "답이 늦어지고 있어요. 다시 보내 주세요" (2.15) |
 | INTERNAL | 500 | 그 외. message 는 "잠시 후 다시 시도해 주세요" 고정 |
 
 ### 요청 제한 (#186, D-143)
@@ -83,6 +87,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 사진 업로드 `POST /me/avatar` | 사용자 | 20 / 1시간 |
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
+| AI 비서 `POST /groups/:id/assistant/messages` (#450) | 사용자 | 10 / 1분 (하루 30번은 DB 로 따로 센다, 2.15) |
 | 그 밖의 모든 요청 (위 경로도 함께 센다) | 로그인(유효한 JWT)이면 사용자, 아니면 IP | 사용자 300 / 1분, IP 600 / 1분 |
 
 - 제외: `GET /health` (배포 healthcheck, 점검 화면). 푸시 스케줄러는 HTTP 가 아니라 대상 아님. 이메일 엔드포인트는 자체 제한(EMAIL_RATE_LIMITED)을 그대로 두고 기본 한도만 함께 센다
@@ -115,6 +120,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`, `EXPO_PUSH_URL` | 푸시 (#188, 2.8). 모두 선택. `PUSH_ENABLED=1` 일 때만 30초 틱이 돈다 (기본 끔) |
 | `KAKAO_REST_API_KEY`, `PLACE_SEARCH_FAKE` | (#199) 장소 검색 프록시(2.14). 지도 전용 카카오 앱("언제볼까 장소 검색" REST 키, 로그인 `KAKAO_CLIENT_ID` 와 다른 앱). 선택. 없으면 운영은 장소 검색만 503, 로컬은 가짜 목록. `PLACE_SEARCH_FAKE=1` 은 카카오, 네이버 둘 다 가짜 |
 | `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET`, `NAVER_SEARCH_URL` | (D-259) 네이버 장소 검색(2.14). NAVER API HUB 지역 검색 키 둘(비밀). 선택. 하나라도 없으면 운영은 `provider=naver` 만 503, 로컬은 가짜 목록. `NAVER_SEARCH_URL` 은 테스트용 주소 바꾸기(기본 `https://naverapihub.apigw.ntruss.com/search/v1/local`) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `ASSISTANT_FAKE` | (#450) AI 비서(2.15). 모두 선택. 키가 없으면 `/me.assistant.available = false`, 메시지 503. `OPENAI_MODEL` 기본 `gpt-4o-mini`. `ASSISTANT_FAKE=1` 은 키 없이 가짜 모델(운영에서는 무시) |
 | `API_PUBLIC_ORIGIN` | (#193) 구독 주소의 API 공개 주소. 선택. 없으면 운영(`NODE_ENV=production`) `https://api.whenwemeet.day`, 그 밖 `http://localhost:${PORT}` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | Cloudflare R2 (S3 호환). `R2_PUBLIC_BASE_URL` 은 공개 도메인(`https://images.whenwemeet.day`). 응답의 사진 URL 은 이 값 + `File.key` 로 매번 만들므로 도메인을 바꾸면 기존 사진 URL 도 바로 바뀐다 (D-56). docs/운영/cloudflare-r2.md |
 
@@ -132,7 +138,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
-| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings) |
+| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings). (#450) `assistant: { available, consented, dailyLimit, usedToday }` AI 비서 (2.15) |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
@@ -777,6 +783,26 @@ PlaceCandidate = { provider: 'kakao'|'naver',
 - 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`). 출처와 상관없이 같은 묶음
 - 웹은 내 정보의 지도 선택(네이버 지도 기본, D-258)으로 `provider` 를 고른다. `provider` 가 없는 옛 웹은 카카오
 
+### 2.15 AI 비서 "볼까" (#450, 설계 `AI-비서.md`, D-264 ~ D-275)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| POST | `/me/assistant-consent` | 유저 | - | `{ data: { consentedAt } }`. 멱등(이미 했으면 처음 값) |
+| POST | `/groups/:groupId/assistant/messages` | 멤버 | `AssistantRequest` | `{ data: AssistantReply }` |
+
+```ts
+AssistantRequest = { text: string(1~300), history?: { role: 'user'|'assistant', text: string(1~600) }[] /* ≤10, 합계 ≤4,000자 */ }
+AssistantReply   = { reply: string, cards: AssistantCard[] /* 0~2 */, historyText: string /* ≤600 */, usage: { used, limit } }
+AssistantCard    = eventDraft | freeSlots | pollDraft | eventList | clarify | unsupported | refusal   // 모양은 AI-비서.md 2장
+```
+
+- 서버는 아무것도 쓰지 않는다(일정, 투표, 새 소식, 알림 없음). 카드의 저장은 웹이 2.3 `POST /events`, 2.13 `POST /polls` 로 한다
+- OpenAI `gpt-4o-mini` 를 요청당 한 번(도구 호출 강제) 부르고 `reply` 는 항상 서버 문구 틀이다. 모델 글자는 내보내지 않는다 (D-267)
+- 하루 30번(KST, 사용자 단위, `AssistantUsage`): 모델로 보낸 메시지는 거절이어도 센다. 503, 504, 500 은 되돌린다. 400, 403, 409, 분당 429 는 세지 않는다 (D-269)
+- 오류: 400 VALIDATION_FAILED(`text`, `history`), 403, 409 ASSISTANT_CONSENT_REQUIRED, 429 RATE_LIMITED, 429 ASSISTANT_DAILY_LIMIT, 503 ASSISTANT_UNAVAILABLE, 504 ASSISTANT_TIMEOUT
+- 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
+- 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -808,6 +834,7 @@ PlaceCandidate = { provider: 'kakao'|'naver',
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
 | 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
+| AI 비서 볼까 (#450) | 2.15 전부, `GET /me` 의 `assistant`, 저장은 `POST /groups/:id/events`, `POST /groups/:id/polls` |
 
 ## 4. 개발 전용
 
