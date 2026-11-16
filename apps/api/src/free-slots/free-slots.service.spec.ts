@@ -176,4 +176,20 @@ describe('FreeSlotsService', () => {
       expect(pairs((await service.find(1, 10, query(), now)).slots)).toEqual([['2026-11-10T03:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
     });
   });
+
+  it('(#450) computeFor: 고른 멤버만 바쁨으로 본다 (팀 멤버 전원이 아니라), 멤버십 검사 없음', async () => {
+    events.listBusyRanges.mockResolvedValue([
+      { startsAt: new Date('2026-11-10T01:00:00.000Z'), endsAt: new Date('2026-11-10T03:00:00.000Z'), allMembers: false, participantIds: [2] },
+    ]);
+    const options = { dayStartMin: 9 * 60, dayEndMin: 23 * 60, minMinutes: 120, includeAllDay: false };
+    const from = new Date('2026-11-10T00:00:00.000Z');
+    const to = new Date('2026-11-11T00:00:00.000Z');
+    const onlyMe = await service.computeFor([1], from, to, options, now);
+    expect(onlyMe.map((s) => [s.startsAt.toISOString(), s.endsAt.toISOString()])).toEqual([['2026-11-10T00:00:00.000Z', '2026-11-10T14:00:00.000Z']]);
+    expect(membershipsRepo.listDistinctGroupIds).toHaveBeenLastCalledWith([1]);
+    const withSky = await service.computeFor([1, 2], from, to, options, now);
+    expect(withSky.map((s) => s.startsAt.toISOString())).toEqual(['2026-11-10T03:00:00.000Z']);
+    expect(membershipsRepo.findByUserAndGroup).not.toHaveBeenCalled();
+    expect(await service.computeFor([1], from, from, options, now)).toEqual([]);
+  });
 });

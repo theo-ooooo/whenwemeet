@@ -109,6 +109,19 @@ export class UsersRepository {
   }
 
   /** (#305) 내 생일과 팀원에게 알리는 시점. 사용자가 없으면 null */
+  /** (#450) AI 비서 안내 동의 시각. 아직이면 null (D-270) */
+  async findAssistantConsent(id: number): Promise<Date | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: { assistantConsentAt: true } });
+    return row?.assistantConsentAt ?? null;
+  }
+
+  /** (#450) 동의 시각을 처음 한 번만 넣고 저장된 값을 돌려준다 (멱등. 이미 있으면 처음 값 그대로) */
+  async recordAssistantConsent(id: number, at: Date): Promise<Date> {
+    await this.prisma.user.updateMany({ where: { id, assistantConsentAt: null }, data: { assistantConsentAt: at } });
+    const row = await this.prisma.user.findUniqueOrThrow({ where: { id }, select: { assistantConsentAt: true } });
+    return row.assistantConsentAt ?? at;
+  }
+
   async findBirthday(id: number): Promise<BirthdayRow | null> {
     const row = await this.prisma.user.findUnique({ where: { id }, select: BIRTHDAY_SELECT });
     return row && toBirthdayRow(row);

@@ -45,5 +45,10 @@ export function applyTestEnv(): string {
   process.env.NAVER_SEARCH_CLIENT_ID = '';
   process.env.NAVER_SEARCH_CLIENT_SECRET = '';
   process.env.NAVER_SEARCH_URL = 'http://127.0.0.1:9/search/v1/local';
+  // (#450) AI 비서는 가짜 모델. 로컬 .env 의 실제 OpenAI 키가 섞이지 않게 비우고, SDK 가 읽는 주소도 닫힌 로컬 포트로
+  process.env.OPENAI_API_KEY = '';
+  process.env.OPENAI_MODEL = '';
+  process.env.OPENAI_BASE_URL = 'http://127.0.0.1:9/v1';
+  process.env.ASSISTANT_FAKE = '1';
   return url;
 }

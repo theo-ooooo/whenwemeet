@@ -34,6 +34,13 @@ export class MeController {
     return this.me.updateBirthday(user.id, dto);
   }
 
+  /** (#450) AI 비서 처음 안내 동의. 멱등이라 200 (api.md 2.15, D-270) */
+  @Post('assistant-consent')
+  @HttpCode(200)
+  consentAssistant(@CurrentUser() user: AuthUser): Promise<{ consentedAt: Date }> {
+    return this.me.consentAssistant(user.id);
+  }
+
   /** 닉네임 변경 (D-36) */
   @Patch()
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto): Promise<AuthUser> {

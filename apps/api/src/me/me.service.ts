@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { ApiException } from '../common/errors.js';
+import { AssistantService } from '../assistant/assistant.service.js';
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
@@ -18,8 +19,16 @@ export interface BirthdaySettings {
   reminders: AnniversaryReminder[];
 }
 
-/** (#300) GET /me 응답. (#305) 내 생일 */
-export type MeProfile = AuthUser & { startCalendar: StartCalendar; birthday: BirthdaySettings };
+/** (#450) GET /me 의 AI 비서 상태 (D-270, D-271). available = 서버에 모델이 있음 (키 또는 가짜) */
+export interface AssistantStatus {
+  available: boolean;
+  consented: boolean;
+  dailyLimit: number;
+  usedToday: number;
+}
+
+/** (#300) GET /me 응답. (#305) 내 생일. (#450) AI 비서 */
+export type MeProfile = AuthUser & { startCalendar: StartCalendar; birthday: BirthdaySettings; assistant: AssistantStatus };
 
 const NO_BIRTHDAY: BirthdaySettings = { date: null, reminders: [...DEFAULT_ANNIVERSARY_REMINDERS] };
 
@@ -47,12 +56,22 @@ export class MeService {
     private readonly membershipsRepo: MembershipsRepository,
     private readonly providers: AuthProviders,
     private readonly avatars: AvatarsService,
+    private readonly assistant: AssistantService,
   ) {}
 
-  /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력 */
+  /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력. (#450) AI 비서 상태 */
   async getProfile(user: AuthUser): Promise<MeProfile> {
-    const [start, birthday] = await Promise.all([this.users.findStartCalendar(user.id), this.users.findBirthday(user.id)]);
-    return { ...user, startCalendar: toStartCalendar(start), birthday: birthday ? toBirthdaySettings(birthday) : NO_BIRTHDAY };
+    const [start, birthday, assistant] = await Promise.all([
+      this.users.findStartCalendar(user.id),
+      this.users.findBirthday(user.id),
+      this.assistant.status(user.id),
+    ]);
+    return { ...user, startCalendar: toStartCalendar(start), birthday: birthday ? toBirthdaySettings(birthday) : NO_BIRTHDAY, assistant };
+  }
+
+  /** (#450) POST /me/assistant-consent. 멱등 (이미 했으면 처음 값 그대로, D-270) */
+  consentAssistant(userId: number): Promise<{ consentedAt: Date }> {
+    return this.assistant.consent(userId);
   }
 
   /**
