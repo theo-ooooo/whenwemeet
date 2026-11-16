@@ -1,0 +1,244 @@
+import {
+  cleanText,
+  filterByDays,
+  hasUrl,
+  isRealDate,
+  kstToDate,
+  matchName,
+  type NormalizeContext,
+  NormalizeProblem,
+  normalizeDraftEvent,
+  normalizeDraftPoll,
+  normalizeFindAnniversary,
+  normalizeFreeTime,
+  normalizeListEvents,
+  normalizePeriod,
+  resolveParticipants,
+  truncate,
+} from './normalize.js';
+
+/** 2026-11-16 (월) 14:05 KST */
+const NOW = new Date('2026-11-16T05:05:00.000Z');
+const person = (userId: number, displayName: string, nickname = displayName) => ({
+  userId,
+  displayName,
+  nickname,
+  member: { userId, displayName, color: '#F26D6D', profileImageUrl: null },
+});
+const context = (overrides: Partial<NormalizeContext> = {}): NormalizeContext => ({
+  now: NOW,
+  userId: 1,
+  personal: false,
+  members: [person(1, '민지'), person(2, '하늘'), person(3, '지훈', 'Jihoon'), person(4, '은', '은')],
+  ...overrides,
+});
+
+const event = (overrides: Record<string, unknown> = {}) => ({
+  title: '회식',
+  date: '2026-11-27',
+  startTime: '19:00',
+  endDate: null,
+  endTime: null,
+  allDay: false,
+  place: null,
+  participants: [],
+  everyone: false,
+  includeMe: true,
+  ...overrides,
+});
+
+/** 던진 문제 */
+function problemOf(fn: () => unknown) {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof NormalizeProblem) return error.problem;
+    throw error;
+  }
+  throw new Error('문제가 없었다');
+}
+
+describe('글자', () => {
+  it('cleanText: 줄바꿈, 제어 문자를 공백 하나로, 앞뒤 공백 제거 / hasUrl / truncate 는 코드 포인트', () => {
+    expect(cleanText('  강남\n회식\t\u0007 ')).toBe('강남 회식');
+    expect(cleanText('a b')).toBe('a b');
+    expect(hasUrl('HTTPS://x')).toBe(true);
+    expect(hasUrl('www.naver.com')).toBe(true);
+    expect(hasUrl('강남역')).toBe(false);
+    expect(truncate('😀😀😀', 2)).toBe('😀😀');
+    expect(truncate('abc', 5)).toBe('abc');
+  });
+
+  it('날짜: 있는 날짜만, KST → UTC, 24:00 은 다음 날 0시', () => {
+    expect(isRealDate('2026-02-30')).toBe(false);
+    expect(isRealDate('2028-02-29')).toBe(true);
+    expect(kstToDate('2026-11-27', '19:00').toISOString()).toBe('2026-11-27T10:00:00.000Z');
+    expect(kstToDate('2026-11-27', '24:00').toISOString()).toBe('2026-11-27T15:00:00.000Z');
+  });
+});
+
+describe('참여자 이름 (D-268)', () => {
+  const ctx = context();
+  const one = (name: string) => {
+    const match = matchName(name, ctx);
+    return match.kind === 'one' ? match.member.userId : match.kind;
+  };
+
+  it('① 나, 저, 내 → 요청자 ② 표시 이름, 닉네임(대소문자, 공백 무시) ③ 님 ④ 받침 + 이', () => {
+    expect(one('나')).toBe(1);
+    expect(one('저')).toBe(1);
+    expect(one('내')).toBe(1);
+    expect(one(' 하 늘 ')).toBe(2);
+    expect(one('jihoon')).toBe(3);
+    expect(one('하늘님')).toBe(2);
+    expect(one('하늘이')).toBe(2);
+    expect(one('하늘이님')).toBe(2);
+    expect(one('지훈이')).toBe(3);
+    // 받침 없는 이름 + 이 는 떼지 않는다
+    expect(one('민지이')).toBe('none');
+    expect(one('철수')).toBe('none');
+  });
+
+  it('앞 단계에서 맞으면 멈춘다: "은" 이 이름이면 "은이" 는 ④ 로 "은"', () => {
+    expect(one('은')).toBe(4);
+    expect(one('은이')).toBe(4);
+  });
+
+  it('여럿이 맞으면 many', () => {
+    const twins = context({ members: [person(1, '민지'), person(2, '하늘'), person(5, '하늘')] });
+    expect(matchName('하늘', twins)).toMatchObject({ kind: 'many', members: [{ userId: 2 }, { userId: 5 }] });
+    expect(problemOf(() => resolveParticipants({ participants: ['하늘'], everyone: false, includeMe: true }, 'me', twins))).toMatchObject({
+      kind: 'clarify',
+      field: 'participant',
+      name: '하늘',
+      choices: [{ userId: 2 }, { userId: 5 }],
+    });
+  });
+
+  it('참여자: everyone(또는 "모두" 라는 이름) = 전원, 이름 + includeMe, 기본은 일정 나 / 빈 시간 전원, 개인 팀은 늘 나', () => {
+    const input = (participants: string[], everyone = false, includeMe = true) => ({ participants, everyone, includeMe });
+    expect(resolveParticipants(input([], true), 'me', ctx)).toEqual([1, 2, 3, 4]);
+    expect(resolveParticipants(input(['모두']), 'me', ctx)).toEqual([1, 2, 3, 4]);
+    expect(resolveParticipants(input(['지훈', '하늘']), 'me', ctx)).toEqual([1, 2, 3]);
+    expect(resolveParticipants(input(['하늘'], false, false), 'me', ctx)).toEqual([2]);
+    expect(resolveParticipants(input([' ']), 'me', ctx)).toEqual([1]);
+    expect(resolveParticipants(input([]), 'all', ctx)).toEqual([1, 2, 3, 4]);
+    expect(resolveParticipants(input(['하늘'], true), 'all', context({ personal: true }))).toEqual([1]);
+    expect(problemOf(() => resolveParticipants(input(['철수']), 'me', ctx))).toEqual({ kind: 'clarify', field: 'participant', name: '철수' });
+  });
+});
+
+describe('draft_event', () => {
+  const ctx = context();
+
+  it('끝 없음 = +1시간, 끝 <= 시작이고 끝 날짜 없음 = 다음 날(밤샘), 끝 날짜 있으면 그날', () => {
+    expect(normalizeDraftEvent(event(), ctx)).toMatchObject({ startsAt: '2026-11-27T10:00:00.000Z', endsAt: '2026-11-27T11:00:00.000Z', allDay: false, participants: [1] });
+    expect(normalizeDraftEvent(event({ startTime: '22:00', endTime: '02:00' }), ctx)).toMatchObject({ endsAt: '2026-11-27T17:00:00.000Z' });
+    expect(normalizeDraftEvent(event({ endDate: '2026-11-28', endTime: '10:00' }), ctx)).toMatchObject({ endsAt: '2026-11-28T01:00:00.000Z' });
+  });
+
+  it('종일: 시각 무시, KST 자정 경계, 여러 날', () => {
+    expect(normalizeDraftEvent(event({ allDay: true, startTime: '10:00' }), ctx)).toMatchObject({ startsAt: '2026-11-26T15:00:00.000Z', endsAt: '2026-11-27T15:00:00.000Z', allDay: true });
+    expect(normalizeDraftEvent(event({ allDay: true, endDate: '2026-11-29' }), ctx)).toMatchObject({ endsAt: '2026-11-29T15:00:00.000Z' });
+  });
+
+  it('되묻기: 시각 없음(time), 30일 초과, 끝 < 시작(time), 날짜 범위 밖(date), 빈 제목(title)', () => {
+    expect(problemOf(() => normalizeDraftEvent(event({ startTime: null }), ctx))).toEqual({ kind: 'clarify', field: 'time' });
+    expect(problemOf(() => normalizeDraftEvent(event({ allDay: true, endDate: '2027-01-30' }), ctx))).toEqual({ kind: 'clarify', field: 'time' });
+    expect(problemOf(() => normalizeDraftEvent(event({ endDate: '2026-11-26', endTime: '10:00' }), ctx))).toEqual({ kind: 'clarify', field: 'time' });
+    expect(problemOf(() => normalizeDraftEvent(event({ date: '2025-11-15' }), ctx))).toEqual({ kind: 'clarify', field: 'date' });
+    expect(problemOf(() => normalizeDraftEvent(event({ date: '2028-11-16' }), ctx))).toEqual({ kind: 'clarify', field: 'date' });
+    expect(problemOf(() => normalizeDraftEvent(event({ date: '2026-02-30' }), ctx))).toEqual({ kind: 'clarify', field: 'date' });
+    expect(problemOf(() => normalizeDraftEvent(event({ title: ' \n ' }), ctx))).toEqual({ kind: 'clarify', field: 'title' });
+  });
+
+  it('제목 50자, 장소 100자에서 자르고 URL 은 형식 실패, 빈 장소는 null', () => {
+    const draft = normalizeDraftEvent(event({ title: '가'.repeat(60), place: '나'.repeat(120) }), ctx);
+    expect(draft.title).toHaveLength(50);
+    expect(draft.place?.text).toHaveLength(100);
+    expect(normalizeDraftEvent(event({ place: '  ' }), ctx).place).toBeNull();
+    expect(problemOf(() => normalizeDraftEvent(event({ title: 'www.evil.example' }), ctx))).toEqual({ kind: 'invalid' });
+    expect(problemOf(() => normalizeDraftEvent(event({ place: 'http://evil' }), ctx))).toEqual({ kind: 'invalid' });
+  });
+
+  it('카드의 members 는 참여자 표시 정보 (가입순)', () => {
+    expect(normalizeDraftEvent(event({ participants: ['하늘이'] }), ctx).members.map((m) => m.displayName)).toEqual(['민지', '하늘']);
+  });
+});
+
+describe('기간, 빈 시간', () => {
+  const free = (overrides: Record<string, unknown> = {}) => ({
+    fromDate: '2026-11-16',
+    toDate: '2026-11-22',
+    days: 'all' as const,
+    dayStart: null,
+    dayEnd: null,
+    minMinutes: null,
+    participants: [],
+    everyone: false,
+    includeMe: true,
+    next: 'show' as const,
+    purpose: null,
+    ...overrides,
+  });
+
+  it('기간 1~31일, 거꾸로나 너무 먼 날짜는 clarify(period)', () => {
+    expect(normalizePeriod('2026-11-16', '2026-11-16', 31, '2026-11-16')).toMatchObject({ from: new Date('2026-11-15T15:00:00Z'), to: new Date('2026-11-16T15:00:00Z') });
+    expect(problemOf(() => normalizePeriod('2026-11-16', '2026-12-17', 31, '2026-11-16'))).toEqual({ kind: 'clarify', field: 'period' });
+    expect(problemOf(() => normalizePeriod('2026-11-20', '2026-11-16', 31, '2026-11-16'))).toEqual({ kind: 'clarify', field: 'period' });
+    expect(problemOf(() => normalizePeriod('2026-13-01', '2026-11-16', 31, '2026-11-16'))).toEqual({ kind: 'clarify', field: 'period' });
+    expect(problemOf(() => normalizePeriod('2029-01-01', '2029-01-02', 31, '2026-11-16'))).toEqual({ kind: 'clarify', field: 'period' });
+  });
+
+  it('기본 09:00~23:00, 120분, 30~720 으로 자름, 기본 대상 전원, 개인 팀은 투표 없음, 목적은 투표 제목(URL, 줄바꿈이면 버림)', () => {
+    expect(normalizeFreeTime(free(), context())).toMatchObject({ dayStart: '09:00', dayEnd: '23:00', minMinutes: 120, participants: [1, 2, 3, 4], poll: false, pollTitle: null });
+    expect(normalizeFreeTime(free({ minMinutes: 5 }), context()).minMinutes).toBe(30);
+    expect(normalizeFreeTime(free({ minMinutes: 9999 }), context()).minMinutes).toBe(720);
+    expect(normalizeFreeTime(free({ next: 'poll', purpose: ' 저녁 약속 ' }), context())).toMatchObject({ poll: true, pollTitle: '저녁 약속' });
+    expect(normalizeFreeTime(free({ next: 'poll' }), context({ personal: true })).poll).toBe(false);
+    expect(normalizeFreeTime(free({ purpose: 'www.x.com' }), context()).pollTitle).toBeNull();
+    expect(normalizeFreeTime(free({ purpose: '저녁\n약속' }), context()).pollTitle).toBeNull();
+    expect(normalizeFreeTime(free({ dayEnd: '24:00', dayStart: '20:00' }), context())).toMatchObject({ dayStart: '20:00', dayEnd: '24:00' });
+    expect(problemOf(() => normalizeFreeTime(free({ dayStart: '22:00', dayEnd: '18:00' }), context()))).toEqual({ kind: 'clarify', field: 'period' });
+  });
+
+  it('요일 거르기: 주말 = KST 토, 일 / 평일 = 월~금', () => {
+    const at = (iso: string) => ({ startsAt: new Date(iso), endsAt: new Date(iso) });
+    const slots = [at('2026-11-20T15:30:00Z'), at('2026-11-20T10:00:00Z'), at('2026-11-22T10:00:00Z')]; // 토 00:30, 금, 일
+    expect(filterByDays(slots, 'weekend')).toEqual([slots[0], slots[2]]);
+    expect(filterByDays(slots, 'weekday')).toEqual([slots[1]]);
+    expect(filterByDays(slots, 'all')).toEqual(slots);
+  });
+});
+
+describe('draft_poll, list_events, find_anniversary', () => {
+  const options = [
+    { date: '2026-11-22', startTime: '18:00', endTime: '20:00' },
+    { date: '2026-11-21', startTime: '18:00', endTime: '20:00' },
+  ];
+
+  it('투표: 시작 순 정렬, 대상 기본 전원, 개인 팀은 team_only, 중복이나 끝 <= 시작은 clarify(period)', () => {
+    const draft = normalizeDraftPoll({ title: '약속', options, participants: [], everyone: false }, context());
+    expect(draft.options.map((o) => o.startsAt)).toEqual(['2026-11-21T09:00:00.000Z', '2026-11-22T09:00:00.000Z']);
+    expect(draft.participants).toEqual([1, 2, 3, 4]);
+    expect(normalizeDraftPoll({ title: '약속', options, participants: ['하늘'], everyone: false }, context()).participants).toEqual([1, 2]);
+    expect(problemOf(() => normalizeDraftPoll({ title: '약속', options, participants: [], everyone: true }, context({ personal: true })))).toEqual({ kind: 'unsupported', action: 'team_only' });
+    expect(problemOf(() => normalizeDraftPoll({ title: '약속', options: [options[0], options[0]], participants: [], everyone: true }, context()))).toEqual({ kind: 'clarify', field: 'period' });
+    expect(problemOf(() => normalizeDraftPoll({ title: '약속', options: [{ ...options[0], endTime: '17:00' }, options[1]], participants: [], everyone: true }, context()))).toEqual({
+      kind: 'clarify',
+      field: 'period',
+    });
+  });
+
+  it('일정 찾기: 사람 이름은 id 로, 없으면 null, 못 찾으면 clarify(participant)', () => {
+    expect(normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: '하늘이' }, context())).toMatchObject({ memberId: 2, fromDate: '2026-11-15' });
+    expect(normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: ' ' }, context()).memberId).toBeNull();
+    expect(problemOf(() => normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: '철수' }, context()))).toMatchObject({ field: 'participant' });
+  });
+
+  it('기념일: 기간 없으면 오늘부터 1년, 검색어 20자', () => {
+    expect(normalizeFindAnniversary({ keyword: null, fromDate: null, toDate: null }, context())).toMatchObject({ fromDate: '2026-11-16', toDate: '2027-11-16', keyword: null });
+    expect(normalizeFindAnniversary({ keyword: '가'.repeat(30), fromDate: '2026-12-01', toDate: null }, context())).toMatchObject({ toDate: '2027-12-01', keyword: '가'.repeat(20) });
+    expect(normalizeFindAnniversary({ keyword: ' ', fromDate: null, toDate: null }, context()).keyword).toBeNull();
+  });
+});

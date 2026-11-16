@@ -178,7 +178,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | 도구 | 인자 (JSON Schema 요약) | 서버가 하는 일 |
 |------|------------------------|---------------|
 | `draft_event` | `title` string 1~50, `date` "YYYY-MM-DD", `startTime` "HH:mm"\|null, `endDate` "YYYY-MM-DD"\|null, `endTime` "HH:mm"\|null, `allDay` boolean, `place` string\|null(≤100), `participants` string[](≤20, 각 ≤20자), `everyone` boolean, `includeMe` boolean | 4-1 정규화 → `eventDraft` 카드 |
-| `find_free_time` | `fromDate`, `toDate` "YYYY-MM-DD", `days` "all"\|"weekend"\|"weekday", `dayStart` "HH:mm"\|null, `dayEnd` "HH:mm"\|null, `minMinutes` integer\|null, `participants` string[], `everyone` boolean, `includeMe` boolean, `then` "show"\|"poll", `purpose` string\|null(≤50) | 기존 빈 시간 계산 → `freeSlots` 카드. `then` 이 poll 이고 2개 이상이면 `pollDraft` 카드도 |
+| `find_free_time` | `fromDate`, `toDate` "YYYY-MM-DD", `days` "all"\|"weekend"\|"weekday", `dayStart` "HH:mm"\|null, `dayEnd` "HH:mm"\|null, `minMinutes` integer\|null, `participants` string[], `everyone` boolean, `includeMe` boolean, `next` "show"\|"poll"(구현 때 `then` 에서 이름만 바꿈, 린트 no-thenable), `purpose` string\|null(≤50) | 기존 빈 시간 계산 → `freeSlots` 카드. `next` 가 poll 이고 2개 이상이면 `pollDraft` 카드도 |
 | `draft_poll` | `title` string 1~50, `options` {`date`, `startTime`, `endTime`}[] 2~5, `participants` string[], `everyone` boolean | 앞 턴에서 받은 후보로 투표 초안. `pollDraft` 카드 |
 | `list_events` | `fromDate`, `toDate`, `member` string\|null | 기존 일정 목록 → `eventList` 카드 |
 | `find_anniversary` | `keyword` string\|null(≤20), `fromDate`\|null, `toDate`\|null | 기념일 + 생일 → `eventList` 카드(`days`) |
