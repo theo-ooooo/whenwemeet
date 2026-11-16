@@ -139,6 +139,7 @@ export type NameMatch = { kind: 'one'; member: TeamMember } | { kind: 'many'; me
 /**
  * 이름 → 지금 팀 멤버 (D-268). 앞 단계에서 맞으면 멈춘다.
  * ① "나", "저", "내" → 요청자 ② 표시 이름 또는 닉네임과 같음(대소문자, 공백 무시) ③ 끝의 "님" 을 뗀 값 ④ 받침 있는 이름 + "이" 의 "이" 를 뗀 값
+ * ⑤ (#466) ②~④ 로 못 찾으면 세 글자 이상 한글 멤버 이름의 성(첫 글자)을 뗀 값 ("수경이" → "김수경")
  */
 export function matchName(raw: string, context: Pick<NormalizeContext, 'userId' | 'members'>): NameMatch {
   const name = key(raw);
@@ -151,7 +152,19 @@ export function matchName(raw: string, context: Pick<NormalizeContext, 'userId' 
     if (hits.length === 1) return { kind: 'one', member: hits[0] };
     if (hits.length > 1) return { kind: 'many', members: hits };
   }
+  for (const candidate of nameStems(name)) {
+    const hits = context.members.filter((member) => givenName(member.displayName) === candidate || givenName(member.nickname) === candidate);
+    if (hits.length === 1) return { kind: 'one', member: hits[0] };
+    if (hits.length > 1) return { kind: 'many', members: hits };
+  }
   return { kind: 'none' };
+}
+
+/** (#466) 세 글자 이상 한글 이름에서 성(첫 글자)을 뗀 값. 아니면 null */
+function givenName(raw: string): string | null {
+  const name = key(raw);
+  const chars = Array.from(name);
+  return chars.length >= 3 && /^[\uac00-\ud7a3]+$/.test(name) ? chars.slice(1).join('') : null;
 }
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

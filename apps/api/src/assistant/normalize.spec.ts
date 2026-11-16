@@ -122,6 +122,31 @@ describe('참여자 이름 (D-268)', () => {
     expect(one('은이')).toBe(4);
   });
 
+  // (#466) 운영: 멤버 "김수경" 을 "수경이" 로 부르면 못 찾았다
+  it('⑤ 앞 단계로 못 찾으면 성을 뗀 이름 (세 글자 이상 한글)', () => {
+    const team = context({ members: [person(1, '경원'), person(3, '김수경'), person(6, '남궁민수', '민수')] });
+    const id = (name: string) => {
+      const match = matchName(name, team);
+      return match.kind === 'one' ? match.member.userId : match.kind;
+    };
+    expect(id('수경')).toBe(3);
+    expect(id('수경이')).toBe(3);
+    expect(id('수경님')).toBe(3);
+    expect(id('김수경')).toBe(3);
+    // 두 글자 이름은 성을 떼지 않는다 ("경원" → "원" 으로 맞추지 않음)
+    expect(id('원')).toBe('none');
+    // 표시 이름이나 닉네임이 그대로 맞으면 그쪽이 먼저
+    expect(id('민수')).toBe(6);
+    expect(
+      resolveParticipants({ participants: ['수경이'], everyone: false, includeMe: true }, 'me', { ...team, spoken: '수경이랑 금요일 저녁' }),
+    ).toEqual([1, 3]);
+  });
+
+  it('⑤ 성을 뗀 이름이 여럿이면 many', () => {
+    const team = context({ members: [person(1, '경원'), person(3, '김수경'), person(7, '이수경')] });
+    expect(matchName('수경', team)).toMatchObject({ kind: 'many', members: [{ userId: 3 }, { userId: 7 }] });
+  });
+
   it('여럿이 맞으면 many', () => {
     const twins = context({ members: [person(1, '민지'), person(2, '하늘'), person(5, '하늘')] });
     expect(matchName('하늘', twins)).toMatchObject({ kind: 'many', members: [{ userId: 2 }, { userId: 5 }] });
