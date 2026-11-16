@@ -1,5 +1,5 @@
 import { clearSnapshot, loadSnapshot, publishTimeline, saveSnapshot, type SnapshotFile, type TimelineWidget } from "../store";
-import { SIGNED_OUT_PROPS } from "../snapshot";
+import { SIGNED_OUT_PROPS, toNativeProps } from "../snapshot";
 import { NOW, sample } from "./fixture";
 
 function memFile(initial: string | null = null): SnapshotFile & { text: string | null } {
@@ -75,6 +75,35 @@ describe("iOS 타임라인", () => {
     const { w, calls } = fake();
     publishTimeline(w, sample(), NOW);
     publishTimeline(w, null, NOW);
-    expect(calls[1]).toEqual([{ date: new Date(NOW), props: SIGNED_OUT_PROPS }]);
+    expect(calls[1]).toEqual([{ date: new Date(NOW), props: toNativeProps(SIGNED_OUT_PROPS) }]);
+  });
+
+  // (#462) iOS 네이티브는 null 이 든 props 를 받으면 예외를 낸다 (시작 때면 앱이 꺼짐)
+  it("네이티브로 넘기는 props 에 null 이 없다", () => {
+    const { w, calls } = fake();
+    publishTimeline(w, sample(), NOW);
+    publishTimeline(w, null, NOW);
+    const hasNull = (v: unknown): boolean =>
+      v === null || (typeof v === "object" && v !== undefined && Object.values(v as object).some(hasNull));
+    for (const entries of calls) for (const e of entries) expect(hasNull(e.props)).toBe(false);
+  });
+});
+
+describe("toNativeProps", () => {
+  it("null 키를 빼고 나머지는 그대로 (중첩, 배열 포함)", () => {
+    const p = toNativeProps({
+      ...SIGNED_OUT_PROPS,
+      kind: "today",
+      rows: [{ title: "a", time: "9:00", color: 1, team: null }],
+      anniversary: null,
+    });
+    expect(p).toEqual({ ...SIGNED_OUT_PROPS, kind: "today", rows: [{ title: "a", time: "9:00", color: 1 }], anniversary: undefined });
+    expect("anniversary" in p).toBe(false);
+    expect("team" in p.rows[0]).toBe(false);
+  });
+
+  it("값이 있으면 남긴다", () => {
+    const ann = { title: "생일", dday: "D-3", url: "whenwemeet://x" };
+    expect(toNativeProps({ ...SIGNED_OUT_PROPS, anniversary: ann }).anniversary).toEqual(ann);
   });
 });

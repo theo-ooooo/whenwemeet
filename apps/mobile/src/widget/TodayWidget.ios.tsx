@@ -12,7 +12,7 @@ import {
   widgetURL,
 } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
-import { SIGNED_OUT_PROPS, type WidgetProps } from "./snapshot";
+import { SIGNED_OUT_PROPS, toNativeProps, type WidgetProps } from "./snapshot";
 
 /** app.config.ts 의 expo-widgets widgets[].name 과 같은 값 */
 export const IOS_WIDGET_NAME = "WwmToday";
@@ -137,4 +137,5 @@ const TodayWidget = (p: WidgetProps, env: WidgetEnvironment) => {
 };
 
 /** 앱 첫 실행 전(위젯 갤러리)과 스냅샷이 없을 때는 로그인 안내 */
-export const todayWidget = createWidget<WidgetProps>(IOS_WIDGET_NAME, TodayWidget, SIGNED_OUT_PROPS);
+/** (#462) null 이 든 props 를 그대로 넘기면 네이티브 생성자가 예외를 내 앱이 시작하자마자 꺼진다 */
+export const todayWidget = createWidget<WidgetProps>(IOS_WIDGET_NAME, TodayWidget, toNativeProps(SIGNED_OUT_PROPS));
