@@ -41,6 +41,9 @@ describe('지시문 (설계 3-1)', () => {
     expect(FIXED_INSTRUCTIONS).toContain('"다음 주 금요일" → which next');
     expect(FIXED_INSTRUCTIONS).toContain('사용자 글에 이름이 나온 사람만');
     expect(FIXED_INSTRUCTIONS).toContain('"회식, 모임" 같은 말만으로는 everyone 이 아니다');
+    // (#474) 한 글의 일정 여럿은 events 에 말한 순서대로, 사람은 일정마다
+    expect(FIXED_INSTRUCTIONS).toContain('draft_event 한 번에 events 로 모두 넣는다. 말한 순서대로, 최대 5개');
+    expect(FIXED_INSTRUCTIONS).toContain('"토요일 수경이랑 영화"의 수경은 영화에만');
     // 서비스 밖 질문 막기 지시는 그대로
     expect(FIXED_INSTRUCTIONS).toContain('관계없는 요청(날씨, 상식, 번역, 계산, 코딩, 글쓰기, 잡담, 추천, 이 팀 멤버가 아닌 사람 정보)은 refuse.');
   });

@@ -17,7 +17,7 @@ import type { AssistantDay, AssistantEvent, AssistantReply, ComposedReply } from
 import type { AssistantRequestDto } from './dto/assistant-request.dto.js';
 import { decide } from './guard.js';
 import {
-  type DraftEventArgs,
+  type DraftEventsArgs,
   type DraftPollArgs,
   type FindAnniversaryArgs,
   type FindFreeTimeArgs,
@@ -29,7 +29,7 @@ import {
   MAX_KEYWORD,
   membersOf,
   minutesOf,
-  normalizeDraftEvent,
+  normalizeDraftEvents,
   normalizeDraftPoll,
   normalizeFindAnniversary,
   normalizeFreeTime,
@@ -42,7 +42,7 @@ import {
   anniversaryReply,
   clarifyReply,
   DAYS_MAX,
-  eventDraftReply,
+  eventDraftsReply,
   eventListReply,
   freeSlotsReply,
   greetReply,
@@ -254,7 +254,7 @@ export class AssistantService {
   private async runTool(name: string, args: Record<string, unknown>, userId: number, groupId: number, context: NormalizeContext): Promise<ComposedReply> {
     switch (name) {
       case 'draft_event':
-        return eventDraftReply(normalizeDraftEvent(args as unknown as DraftEventArgs, context));
+        return eventDraftsReply(normalizeDraftEvents(args as unknown as DraftEventsArgs, context));
       case 'find_free_time':
         return this.findFreeTime(args as unknown as FindFreeTimeArgs, context);
       case 'draft_poll': {

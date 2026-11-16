@@ -85,7 +85,13 @@ const CLARIFY_TEXT: Record<Exclude<ClarifyField, 'participant'>, string> = {
   which: '어떤 일정을 말하는지 알려 주세요',
 };
 
-export function clarifyReply(field: ClarifyField, extra: { name?: string; choices?: Member[] } = {}): ComposedReply {
+/** (#474) 되묻는 일정 이름 머리말 "'영화'는 " (일정 여럿 중 하나를 되물을 때, D-280) */
+export const subjectPrefix = (title: string): string => {
+  const word = userWord(title);
+  return word ? `'${word}'${topic(word)} ` : '';
+};
+
+export function clarifyReply(field: ClarifyField, extra: { name?: string; choices?: Member[]; subject?: string } = {}): ComposedReply {
   let reply: string;
   if (field === 'participant') {
     const name = userWord(extra.name ?? '');
@@ -93,6 +99,7 @@ export function clarifyReply(field: ClarifyField, extra: { name?: string; choice
   } else {
     reply = CLARIFY_TEXT[field];
   }
+  if (extra.subject) reply = `${subjectPrefix(extra.subject)}${reply}`;
   return compose(reply, [{ type: 'clarify', field, choices: extra.choices ?? [] }], `[되물음] ${reply}`);
 }
 
@@ -148,11 +155,29 @@ function draftWhen(draft: EventDraftCard): string {
   return end === start || hm(endsAt) === '00:00' ? `${day(start)} ${timeSpan(startsAt, endsAt)}` : `${day(start)} ${hm(startsAt)}~${day(end)} ${hm(endsAt)}`;
 }
 
-export function eventDraftReply(draft: EventDraftCard): ComposedReply {
+/** '[일정 초안] 회식, 2026-11-17(화) 19:00~20:00, 장소 강남, 참여자 민지' */
+function draftHistory(draft: EventDraftCard): string {
   const parts = [`[일정 초안] ${draft.title}`, draftWhen(draft)];
   if (draft.place) parts.push(`장소 ${draft.place.text}`);
   if (draft.members.length > 0) parts.push(`참여자 ${names(draft.members)}`);
-  return compose('이렇게 넣을까요?', [{ type: 'eventDraft', draft }], parts.join(', '));
+  return parts.join(', ');
+}
+
+export function eventDraftReply(draft: EventDraftCard): ComposedReply {
+  return eventDraftsReply([draft]);
+}
+
+/**
+ * (#474) 일정 초안 여러 개 (D-280). 카드는 일정마다 하나, 기록 요약은 " / " 로 잇는다.
+ * 600자를 넘으면 compose 가 뒤를 자른다 (앞 일정부터 남는다)
+ */
+export function eventDraftsReply(drafts: readonly EventDraftCard[]): ComposedReply {
+  const reply = drafts.length > 1 ? `일정 ${drafts.length}개를 이렇게 넣을까요?` : '이렇게 넣을까요?';
+  return compose(
+    reply,
+    drafts.map((draft) => ({ type: 'eventDraft' as const, draft })),
+    drafts.map(draftHistory).join(' / '),
+  );
 }
 
 export interface FreeResult {

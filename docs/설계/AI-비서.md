@@ -129,7 +129,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | SDK | 공식 `openai` npm(2026-11 현재 7.x, 구현 때 정확한 버전 고정). `new OpenAI({ apiKey, timeout: 10_000, maxRetries: 0 })` |
 | API | Chat Completions `client.chat.completions.create` (Luna 와 같은 방식) |
 | 모델 | `OPENAI_MODEL` 환경 변수, 기본 `gpt-4.1-mini`(#459, D-278. 실모델 평가 21문장 gpt-4o-mini 14, gpt-4.1-mini 19) |
-| 파라미터 | `temperature: 0`, `max_completion_tokens: 500`(#458, 날짜 표현 객체로 투표 후보 5개 인자가 300 에 닿음), `tool_choice: 'required'`, `parallel_tool_calls: false`, `store: false`, 도구는 모두 `strict: true` |
+| 파라미터 | `temperature: 0`, `max_completion_tokens: 1000`(#458 에서 날짜 표현 객체로 투표 후보 5개 인자가 300 에 닿아 500, #474 에서 일정 초안 5개가 500 을 넘어 1000), `tool_choice: 'required'`, `parallel_tool_calls: false`, `store: false`, 도구는 모두 `strict: true` |
 | 호출 수 | **요청당 1번.** 도구 결과를 모델에 돌려보내지 않는다(답 글자를 서버가 만들어서 필요 없다). 도구 호출이 여러 개 오면 첫 번째만 쓴다. 루프 없음 |
 | 시간 | 호출 10초에서 끊는다(SDK timeout + 요청이 끊기면 `AbortController` 로 취소). 재시도 없음 |
 | 감싸기 | `AssistantModel` 인터페이스(`complete(messages, tools) → { toolCall \| text, usage }`). 운영은 `OpenAiAssistantModel`, `ASSISTANT_FAKE=1` 이면 `FakeAssistantModel`(키워드 규칙, 로컬과 e2e). 장소 검색 공급자(`PLACE_SEARCH_PROVIDER`)와 같은 주입 방식 |
@@ -178,7 +178,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 | 도구 | 인자 (JSON Schema 요약) | 서버가 하는 일 |
 |------|------------------------|---------------|
-| `draft_event` | `title` string 1~50, `date` 날짜 표현, `startTime` "HH:mm"\|null, `endDate` 날짜 표현(여러 날일 때만, 아니면 kind null), `endTime` "HH:mm"\|null, `allDay` boolean, `place` string\|null(≤100), `participants` string[](≤20, 각 ≤20자), `everyone` boolean, `includeMe` boolean | 4-1 정규화 → `eventDraft` 카드 |
+| `draft_event` | (#474) `events` 일정 객체 배열 1~5(말한 순서). 일정 하나: `title` string 1~50, `date` 날짜 표현, `startTime` "HH:mm"\|null, `endDate` 날짜 표현(여러 날일 때만, 아니면 kind null), `endTime` "HH:mm"\|null, `allDay` boolean, `place` string\|null(≤100), `participants` string[](≤20, 각 ≤20자), `everyone` boolean, `includeMe` boolean | 일정마다 4-1 정규화 → `eventDraft` 카드 일정마다 1장 (D-280) |
 | `find_free_time` | `from`, `to` 날짜 표현(from 하나로 기간이 정해지면 to 는 kind null), `days` "all"\|"weekend"\|"weekday", `dayStart` "HH:mm"\|null, `dayEnd` "HH:mm"\|null, `minMinutes` integer\|null, `participants` string[], `everyone` boolean, `includeMe` boolean, `next` "show"\|"poll"(구현 때 `then` 에서 이름만 바꿈, 린트 no-thenable), `purpose` string\|null(≤50) | 기존 빈 시간 계산 → `freeSlots` 카드. `next` 가 poll 이고 2개 이상이면 `pollDraft` 카드도 |
 | `draft_poll` | `title` string 1~50, `options` {`date` 날짜 표현, `startTime`, `endTime`}[] 2~5, `participants` string[], `everyone` boolean | 앞 턴에서 받은 후보로 투표 초안. `pollDraft` 카드 |
 | `list_events` | `from`, `to` 날짜 표현, `member` string\|null | 기존 일정 목록 → `eventList` 카드 |
@@ -191,6 +191,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 - **날짜 표현(when, #458, D-276)**: 평평한 객체 `{ kind, date, days, weekday, which, month, day }`, 모든 키 필수, 안 쓰는 키 null.
   `kind` "date"\|"relativeDays"\|"weekday"\|"weekend"\|"week"\|"month"\|"monthDay"\|null(말하지 않음), `date` "YYYY-MM-DD"\|null, `days` integer\|null(오늘 0, 내일 1, 어제 -1),
   `weekday` "일"~"토"\|null(요일 글자 그대로, 숫자로 바꾸지 않게), `which` "nearest"\|"this"\|"next"\|"after_next"\|null, `month` 1~12\|null, `day` 1~31\|null. 서버 `assistant/when.ts` 가 4-1 규칙으로 날짜를 정한다
+- **일정 여러 개 (#474, D-280)**: 한 글에 일정을 여럿 말하면 `draft_event` 한 번에 `events` 로 모두 받는다. strict 스키마는 도구를 여러 번 부르는 것(`parallel_tool_calls`)과 같이 못 써서 `parallel_tool_calls: false` 는 그대로 두고 배열로 받는다. 5개를 넘게 오면 가드가 앞 5개만 보고 검사한다(넘는 개수로 전부 형식 실패로 버리지 않는다). 지시문: 말한 순서대로, 날짜, 시각, 장소, 사람은 일정마다 그 일정과 같이 말한 것만
 - 어느 도구에도 id(팀, 일정, 사용자) 인자가 없다. 사람은 이름으로만 받고 서버가 지금 팀 멤버 안에서 찾는다
 - 도구 설명(description)은 한 줄씩 한국어. 예: `find_free_time` "이 팀(또는 고른 멤버)이 모두 비는 시간을 찾는다. 기간은 최대 31일"
 
@@ -212,6 +213,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | 참여자 이름 | 아래 순서로 지금 팀 멤버에서 찾는다: ① "나", "저", "내" → 요청자 ② 표시 이름 또는 닉네임과 같음(대소문자, 공백 무시) ③ 끝의 "님" 을 뗀 값 ④ 받침 있는 이름 + "이"(하늘이 → 하늘)의 "이" 를 뗀 값. 한 명만 맞으면 그 사람, 여럿이면 clarify(participant) + `choices`, 없으면 clarify(participant) |
 | 참여자 확인 (#458, D-277) | 모델이 준 이름은 사용자 글(이번 글 + 대화 기록의 사용자 글, 볼까 글은 제외)에 **낱말 첫머리로** 나온 것만 쓴다: 이름(공백 무시), "님", 받침 + "이" 를 뗀 값, 세 글자 이상 한글 이름은 성을 뗀 값("김수경" ← "수경이랑"). 글에 없는 이름은 버린다(되묻지 않음). `everyone`(또는 "모두" 라는 이름)은 글에 "다 같이, 다 함께, 모두, 전원, 다들, 우리, 전체, 둘 다, 셋 다" 가 있을 때만. `list_events` 의 `member` 도 글에 없으면 거르지 않는다 |
 | 서버 안전장치 (#459, D-278) | 실모델 평가에서 남은 실수를 사용자 글로 직접 바로잡는다. ① **이름 첫 글자를 요일로 읽음**: 모델이 준 요일 글자가 사용자 글에서 그 글자로 시작하는 멤버 이름(표시 이름, 닉네임, 세 글자 이상 한글 이름은 성 뗀 값, 두 글자 이상, 낱말 첫머리)에만 나오면(이름을 지우면 그 글자가 남지 않으면) 요일이 아니다. 빈 시간, 일정 찾기는 이번 글의 "이번 주 / 다음 주(담주) / 다다음 주" 주 전체(없으면 모델의 주, 요일만이면 이번 주), 끝이 그런 요일이면 말하지 않은 것으로. 일정, 투표 초안은 날짜를 말하지 않은 것으로 보고 clarify(date). "수요일에 수경이랑"처럼 글자가 남으면 모델을 믿는다. ② **기간 길이**: 이번 글에 "N일, 이틀, 일주일, 한 주, N주, 한 달, N개월" + "동안, 간, 내, 이내, 안에" 가 있고 모델이 끝을 빼먹었거나 끝이 시작과 같은 날이면 끝 = 시작 + 길이 - 1일(달은 다음 달 같은 날 - 1일, 없으면 말일). 시작도 없으면 오늘부터. 빈 시간, 일정 찾기만. ③ **전원 말**: 이번 글(대화 기록 제외)에 "둘 다, 셋 다, 다 같이, 다 함께, 함께 다, 모두, 전원, 다들, 우리 다" 가 있으면 모델 값과 상관없이 전원(일정 초안, 빈 시간, 투표. 개인 팀은 나만). "다음, 다른, 다시, 다녀" 의 "다" 는 아니다. "수경이랑 나 둘 다"처럼 사람 수를 말했고 글의 이름(+ 나)이 꼭 그 수이며 팀보다 적으면 그 사람들만. `list_events` 는 한 사람 거르기라 적용하지 않는다(이름이 글에 없으면 원래 거르지 않음) |
+| 일정 여러 개 (#474, D-280) | 일정마다 위 규칙으로 따로 정규화한다. 이름 확인(D-277)과 요일, 날짜 규칙은 글 전체로 그대로 본다(그 일정과 같이 말한 이름은 버려지지 않는다). 이번 글의 전원 말(D-278 ③)은 어느 일정 말인지 서버가 가를 수 없어서: 모델이 일정 하나에라도 전원을 매겼으면 일정마다 모델 값을 따르고, 아무 일정에도 매기지 않았으면 글에 나온 이름이 있는 일정은 그 이름(+ 나), 이름 없는 일정만 전원. 하나라도 되물어야 하면 카드 없이 처음 걸린 일정의 되묻기만(제목을 앞에 붙임), 형식 실패도 전부 형식 실패. 일정 하나면 예전과 같다 |
 | 참여자 기본 | `everyone` = 지금 멤버 전원 id(D-262, D-263 "모두" 를 저장하지 않음). 아니면 찾은 이름 + `includeMe` 면 요청자. 이름도 everyone 도 없으면 일정 초안은 `[요청자]`(api.md 생성 기본), 빈 시간과 투표는 전원. `includeMe` 는 기본 true 이고 "하늘이만", "하늘이 일정"처럼 나를 빼는 말일 때만 false(지시문) |
 | 빈 시간 | 기간 1~31일(넘으면 clarify(period)), `dayStart`, `dayEnd` 없음 = 09:00, 23:00, `minMinutes` 없음 = 120(30~720 으로 자름) |
 | 투표 | 개인 팀이면 실행하지 않고 unsupported(team_only). 후보는 2~5개, 각 끝 > 시작, 지금 이후, 중복 없음(api.md 2.13 검사와 같은 함수 재사용). 어긋나면 clarify(period) |
@@ -236,12 +238,13 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 | 경우 | `reply` | 카드 | `historyText` 예 |
 |------|---------|------|-----------------|
 | 일정 초안 | "이렇게 넣을까요?" | eventDraft | `[일정 초안] 강남 회식, 2026-11-27(금) 19:00~20:00, 장소 강남, 참여자 민지, 하늘` |
+| 일정 초안 여러 개 (#474) | "일정 {N}개를 이렇게 넣을까요?" | eventDraft × N (말한 순서, 최대 5) | 일정마다 위 줄을 ` / ` 로 잇는다. 600자를 넘으면 뒤를 자른다(앞 일정부터 남는다) |
 | 빈 시간 | "{N}개 찾았어요. 가까운 순으로 {k}개예요" / 0개 "그 조건으로는 다 같이 비는 시간이 없어요. 기간이나 시간대를 넓혀 볼까요?" | freeSlots (0개면 없음) | `[빈 시간] 11-21(토) 18:00~22:00; 11-22(일) 18:00~22:00; ...` |
 | 빈 시간 + 투표 | "{k}개로 투표를 열까요?" | freeSlots + pollDraft | 위 + `[투표 초안] 제목 저녁 약속, 후보 3개` |
 | 투표 초안 | "이 후보로 투표를 열까요?" | pollDraft | `[투표 초안] 저녁 약속, 11-21(토) 18:00~20:00; ...` |
 | 일정 찾기 | "{기간 말}에 일정이 {N}개 있어요" / 0개 "{기간 말}에는 일정이 없어요" | eventList | `[일정 목록 11-15~11-21] 11-21(금) 19:00 강남 회식; ...` (최대 10개, 제목과 시각만) |
 | 기념일, 생일 | 1건 "'{이름}'은 {M월 D일 (요일)}이에요. {D-n / 오늘이에요}" / 여럿 "{N}개 찾았어요" / 0 "찾는 기념일이 없어요" | eventList(`days`) | `[기념일] 하늘 생일 2027-03-04` |
-| 되묻기 | date "언제로 할까요?", time "몇 시로 할까요?", title "무슨 일정인가요?", period "언제쯤으로 찾아볼까요?", which "어떤 일정을 말하는지 알려 주세요", participant(없음) "'{이름}'님을 이 팀에서 찾지 못했어요. 누구를 말하는지 알려 주세요", participant(여럿) "'{이름}'님이 누구인가요?" | clarify | `[되물음] 몇 시로 할까요?` |
+| 되묻기 | (#474) 일정 여러 개 중 하나를 되물으면 앞에 "'{제목}'은/는 "(제목 20자). date "언제로 할까요?", time "몇 시로 할까요?", title "무슨 일정인가요?", period "언제쯤으로 찾아볼까요?", which "어떤 일정을 말하는지 알려 주세요", participant(없음) "'{이름}'님을 이 팀에서 찾지 못했어요. 누구를 말하는지 알려 주세요", participant(여럿) "'{이름}'님이 누구인가요?" | clarify | `[되물음] 몇 시로 할까요?` |
 | 못 하는 일 | 표 4-4 | unsupported | `[안내] 일정 고치기는 못 함` |
 | 거절 | "볼까는 일정 만들기, 빈 시간 찾기, 투표, 일정 묻기만 도와 드려요" | refusal | `[거절]` |
 | 인사 | "무엇을 도와 드릴까요? 일정 만들기, 빈 시간 찾기, 투표, 일정 묻기를 할 수 있어요" | 없음 | `[인사]` |
@@ -431,7 +434,7 @@ AssistantEvent = { id, publicCode, title, startsAt, endsAt, allDay, occurrence: 
 
 ### 7-10 목 모드 (`API_MOCK=1`)
 
-`mocks/handler.ts` 에 `POST /groups/:id/assistant/messages`, `POST /me/assistant-consent`, `/me` 의 `assistant` 를 더한다. 목 규칙(키워드): "잡아", "넣어" → eventDraft(다음 날 19:00~20:00, 나), "빈 시간", "되는" → freeSlots 3개(+ "투표" 면 pollDraft), "뭐 있" → eventList(시드 일정), "생일" → days, "고쳐", "지워" → unsupported, "날씨" 등 그 밖 → refusal, `한도` 가 들어가면 429, `느려` 면 504. 하루 횟수도 목 저장소에서 센다
+`mocks/handler.ts` 에 `POST /groups/:id/assistant/messages`, `POST /me/assistant-consent`, `/me` 의 `assistant` 를 더한다. 목 규칙(키워드): "잡아", "넣어" → eventDraft(다음 날 19:00~20:00, 나. "회식" 과 "영화" 가 같이 있으면 내일 19:00 회식, 토요일 14:00 영화 2장, #474), "빈 시간", "되는" → freeSlots 3개(+ "투표" 면 pollDraft), "뭐 있" → eventList(시드 일정), "생일" → days, "고쳐", "지워" → unsupported, "날씨" 등 그 밖 → refusal, `한도` 가 들어가면 429, `느려` 면 504. 하루 횟수도 목 저장소에서 센다
 
 ## 8. 개인정보처리방침 (D-274)
 
