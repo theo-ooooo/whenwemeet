@@ -3,7 +3,7 @@
 //   "한도" → 429 하루 한도, "느려" → 504, "장애" → 503 (둘은 횟수를 되돌린다)
 //   "고쳐", "바꿔", "수정" → 못 하는 일(고치기), "지워", "삭제" → 못 하는 일(지우기)
 //   "빈 시간", "되는", "비는" → 빈 시간(+ "투표" 면 투표 초안), "생일", "기념일" → 기념일 목록, "뭐 있", "일정 알려" → 일정 목록
-//   "잡아", "넣어", "추가", "만들어" → 일정 초안, "회의" → 시각 되묻기, "누구" → 이름 고르기, "안녕", "고마" → 인사, 그 밖 → 거절
+//   "잡아", "넣어", "추가", "만들어" → 일정 초안("회식" 과 "영화" 가 같이 있으면 초안 2개, #474), "회의" → 시각 되묻기, "누구" → 이름 고르기, "안녕", "고마" → 인사, 그 밖 → 거절
 // 데이터는 목 API 자신(일정, 빈 시간, 팀, 생일, 기념일 경로)을 다시 불러 만든다 (call)
 import { addDays, dateKeyOf, daysBetween, dowOf, kstToIso, parseKey, startOfWeek, todayKey, type DateKey } from "@/lib/date";
 import { errorBody, okBody } from "@/lib/envelope";
@@ -110,7 +110,28 @@ const md = (key: DateKey) => {
 };
 const hm = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 
+/** (#474) 한 글의 일정 2개 → 초안 카드 2장 (내일 19:00 회식, 가까운 토요일 14:00 영화). 참여자는 나만 */
+function multiDraftReply(today: DateKey, userId: number, members: Member[], reply: Reply): Result {
+  const me = members.filter((m) => m.userId === userId);
+  const ids = me.flatMap((m) => (m.userId === null ? [] : [m.userId]));
+  const saturday = addDays(today, (6 - dowOf(today) + 7) % 7 || 7);
+  const plans: { title: string; date: DateKey; time: string }[] = [
+    { title: "회식", date: addDays(today, 1), time: "19:00" },
+    { title: "영화", date: saturday, time: "14:00" },
+  ];
+  const cards: AssistantCard[] = plans.map(({ title, date, time }) => {
+    const startsAt = kstToIso(date, time);
+    const endsAt = new Date(Date.parse(startsAt) + 3_600_000).toISOString();
+    return { type: "eventDraft", draft: { title, startsAt, endsAt, allDay: false, place: null, participants: ids, members: me } };
+  });
+  const lines = cards.flatMap((c) =>
+    c.type === "eventDraft" ? [`[일정 초안] ${c.draft.title}, ${dateKeyOf(c.draft.startsAt)} ${hm(c.draft.startsAt)}~${hm(c.draft.endsAt)}, 참여자 ${me.map((m) => m.displayName).join(", ")}`] : [],
+  );
+  return reply(`일정 ${cards.length}개를 이렇게 넣을까요?`, cards, lines.join(" / "));
+}
+
 function draftReply(text: string, today: DateKey, userId: number, members: Member[], reply: Reply): Result {
+  if (has(text, "회식") && has(text, "영화")) return multiDraftReply(today, userId, members, reply);
   // 날짜: "다음 주 금요일" 은 다음 주(일요일 시작)의 금요일, 그 밖은 내일
   const date = has(text, "다음 주 금요일") ? addDays(startOfWeek(today), 12) : addDays(today, 1);
   const hourMatch = /(\d{1,2})\s*시/.exec(text);

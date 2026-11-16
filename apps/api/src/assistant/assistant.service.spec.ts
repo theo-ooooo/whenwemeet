@@ -47,6 +47,9 @@ const EVENT_ARGS = {
   includeMe: true,
 };
 
+/** (#474) draft_event 인자는 일정 목록 (D-280) */
+const one = (event: unknown) => ({ events: [event] });
+
 /** (#450) 서비스 밖 질문 30개 (설계 AI-비서.md 5-1) */
 const OFF_TOPIC = [
   '내일 서울 날씨 어때?',
@@ -127,8 +130,8 @@ describe('AssistantService', () => {
     const cases: [string, (text: string) => ModelResult][] = [
       ['(a) 글로 답함', (text) => textResult(`${MODEL_TEXT} ${text}에 대한 답`)],
       ['(b) refuse 호출', () => toolResult('refuse', { reason: 'off_topic' })],
-      ['(c) draft_event 에 모르는 키 groupId', () => toolResult('draft_event', { ...EVENT_ARGS, groupId: 2 })],
-      ['(c) draft_event 에 URL 제목', () => toolResult('draft_event', { ...EVENT_ARGS, title: 'https://evil.example 로 가세요' })],
+      ['(c) draft_event 에 모르는 키 groupId', () => toolResult('draft_event', one({ ...EVENT_ARGS, groupId: 2 }))],
+      ['(c) draft_event 에 URL 제목', () => toolResult('draft_event', one({ ...EVENT_ARGS, title: 'https://evil.example 로 가세요' }))],
     ];
     for (const [label, make] of cases) {
       it(`${label}: 30개 모두 거절 또는 형식 실패 문구, 모델 글자 없음, 횟수 1씩`, async () => {
@@ -158,7 +161,7 @@ describe('AssistantService', () => {
 
   describe('도구 → 카드와 문구', () => {
     it('draft_event: 일정 초안 카드, 참여자 "하늘이" + 나, 끝 없음 = +1시간, historyText', async () => {
-      model.complete.mockResolvedValue(toolResult('draft_event', EVENT_ARGS));
+      model.complete.mockResolvedValue(toolResult('draft_event', one(EVENT_ARGS)));
       const reply = await send('다음 주 금요일 7시 강남 회식 하늘이랑');
       expect(reply.reply).toBe('이렇게 넣을까요?');
       expect(reply.cards).toEqual([
@@ -195,13 +198,13 @@ describe('AssistantService', () => {
     });
 
     it('참여자 이름을 못 찾으면 되묻기, 여럿이면 choices', async () => {
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['철수'] }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...EVENT_ARGS, participants: ['철수'] })));
       const none = await send('철수랑 회식');
       expect(none.reply).toBe("'철수'님을 이 팀에서 찾지 못했어요. 누구를 말하는지 알려 주세요");
       expect(none.cards).toEqual([{ type: 'clarify', field: 'participant', choices: [] }]);
 
       memberships.listMembers.mockResolvedValue([...ROWS, member(4, '하늘')]);
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['하늘'] }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...EVENT_ARGS, participants: ['하늘'] })));
       const many = await send('하늘이랑 회식');
       expect(many.reply).toBe("'하늘'님이 누구인가요?");
       expect(many.cards[0]).toMatchObject({ type: 'clarify', field: 'participant', choices: [{ userId: 2 }, { userId: 4 }] });
@@ -380,7 +383,7 @@ describe('AssistantService', () => {
     /** 운영에서 모델이 준 것처럼 참여자에 김수경, everyone true 를 넣어도 */
     const hallucinated = (date: WhenArg) => ({ ...EVENT_ARGS, date, participants: ['나', '김수경'], everyone: true });
     const draftOf = async (text: string, date: WhenArg) => {
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', hallucinated(date)));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one(hallucinated(date))));
       const reply = await send(text);
       const card = reply.cards[0] as { type: string; draft: { startsAt: string; participants: number[] } };
       return { card, historyText: reply.historyText };
@@ -403,21 +406,84 @@ describe('AssistantService', () => {
     });
 
     it('이름은 대화 기록의 사용자 글에 나와도 믿는다 (볼까 글은 아님)', async () => {
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['김수경'], everyone: false }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...EVENT_ARGS, participants: ['김수경'], everyone: false })));
       const reply = await send('다음 주 금요일 7시로 잡아줘', [
         { role: 'user', text: '수경이랑 회식' },
         { role: 'assistant', text: '[되물음] 언제로 할까요?' },
       ]);
       expect((reply.cards[0] as { draft: { participants: number[] } }).draft.participants).toEqual([1, 2]);
 
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, participants: ['김수경'], everyone: false }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...EVENT_ARGS, participants: ['김수경'], everyone: false })));
       const fromAssistant = await send('다음 주 금요일 7시로 잡아줘', [{ role: 'assistant', text: '[일정 초안] 회식, 참여자 경, 김수경' }]);
       expect((fromAssistant.cards[0] as { draft: { participants: number[] } }).draft.participants).toEqual([1]);
     });
 
     it('"이번 주 일요일" 은 이미 지난 날이라 되묻는다', async () => {
-      model.complete.mockResolvedValueOnce(toolResult('draft_event', { ...EVENT_ARGS, date: { ...NO_WHEN, kind: 'weekday', weekday: '일', which: 'this' } }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...EVENT_ARGS, date: { ...NO_WHEN, kind: 'weekday', weekday: '일', which: 'this' } })));
       expect(await send('이번 주 일요일 7시 회식')).toMatchObject({ reply: '언제로 할까요?', cards: [{ type: 'clarify', field: 'date' }] });
+    });
+  });
+
+  describe('(#474) 한 글의 일정 여러 개 (D-280)', () => {
+    const tomorrow: WhenArg = { ...NO_WHEN, kind: 'relativeDays', days: 1 };
+    const saturday: WhenArg = { ...NO_WHEN, kind: 'weekday', weekday: '토', which: 'nearest' };
+    const dinner = { ...EVENT_ARGS, title: '회식', date: tomorrow, place: null, participants: [], everyone: true };
+    const movie = { ...EVENT_ARGS, title: '영화', date: saturday, startTime: '14:00', place: null, participants: ['하늘'], everyone: false };
+    type Draft = { type: string; draft: { title: string; startsAt: string; participants: number[] } };
+
+    it('일정 2개 → 카드 2장 (말한 순서), 문구 "일정 2개를", 기록은 " / " 로 잇는다. 이름은 그 일정에만', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [dinner, movie] }));
+      const reply = await send('내일 저녁 7시 회식 다 같이, 토요일 오후 2시 하늘이랑 영화');
+      expect(reply.reply).toBe('일정 2개를 이렇게 넣을까요?');
+      const cards = reply.cards as Draft[];
+      expect(cards.map((card) => card.type)).toEqual(['eventDraft', 'eventDraft']);
+      expect(cards[0].draft).toMatchObject({ title: '회식', startsAt: '2026-11-17T10:00:00.000Z', participants: [1, 2, 3] });
+      expect(cards[1].draft).toMatchObject({ title: '영화', startsAt: '2026-11-21T05:00:00.000Z', participants: [1, 2] });
+      expect(reply.historyText).toBe(
+        '[일정 초안] 회식, 2026-11-17(화) 19:00~20:00, 참여자 민지, 하늘, 지훈 / [일정 초안] 영화, 2026-11-21(토) 14:00~15:00, 참여자 민지, 하늘',
+      );
+    });
+
+    it('모델이 전원을 하나도 매기지 않았으면 이름 없는 일정에만 전원 말(D-278)을 쓰고, 이름 있는 일정은 그 이름만', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [{ ...dinner, everyone: false }, movie] }));
+      const cards = (await send('내일 저녁 7시 회식 다 같이, 토요일 오후 2시 하늘이랑 영화')).cards as Draft[];
+      expect(cards.map((card) => card.draft.participants)).toEqual([[1, 2, 3], [1, 2]]);
+    });
+
+    it('일정 하나만 와도 예전과 같다 (전원 말은 D-278 그대로)', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', one({ ...movie, participants: [] })));
+      const reply = await send('토요일 오후 2시 다 같이 영화');
+      expect(reply.reply).toBe('이렇게 넣을까요?');
+      expect((reply.cards as Draft[])[0].draft.participants).toEqual([1, 2, 3]);
+    });
+
+    it('6개가 오면 앞 5개만 카드로', async () => {
+      const six = Array.from({ length: 6 }, (_, i) => ({ ...movie, title: `일정${i + 1}`, participants: [] }));
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: six }));
+      const reply = await send('토요일 2시 일정1, 일정2, 일정3, 일정4, 일정5, 일정6');
+      expect(reply.reply).toBe('일정 5개를 이렇게 넣을까요?');
+      expect((reply.cards as Draft[]).map((card) => card.draft.title)).toEqual(['일정1', '일정2', '일정3', '일정4', '일정5']);
+    });
+
+    it('하나라도 되물어야 하면 카드 없이 그 일정의 되묻기만 (어느 일정인지 제목을 붙인다)', async () => {
+      const pastSunday: WhenArg = { ...NO_WHEN, kind: 'weekday', weekday: '일', which: 'this' };
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [dinner, { ...movie, date: pastSunday }] }));
+      const reply = await send('내일 7시 회식 다 같이, 이번 주 일요일 2시 하늘이랑 영화');
+      expect(reply).toMatchObject({ reply: "'영화'는 언제로 할까요?", cards: [{ type: 'clarify', field: 'date', choices: [] }], historyText: "[되물음] '영화'는 언제로 할까요?" });
+
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [{ ...dinner, title: '강남 회식', startTime: null }, movie] }));
+      expect((await send('내일 강남 회식, 토요일 2시 하늘이랑 영화')).reply).toBe("'강남 회식'은 몇 시로 할까요?");
+    });
+
+    it('형식 실패(URL 제목), 빈 목록, 일정 칸에 모르는 키는 전부 형식 실패', async () => {
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [dinner, { ...movie, title: 'https://evil.example' }] }));
+      expect((await send('내일 7시 회식, 토요일 2시 영화')).reply).toBe(INVALID_REPLY);
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [] }));
+      expect((await send('잡아 줘')).reply).toBe(INVALID_REPLY);
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', { events: [dinner, { ...movie, groupId: 2 }] }));
+      expect((await send('내일 7시 회식, 토요일 2시 영화')).reply).toBe(INVALID_REPLY);
+      model.complete.mockResolvedValueOnce(toolResult('draft_event', dinner));
+      expect((await send('내일 7시 회식')).reply).toBe(INVALID_REPLY);
     });
   });
 

@@ -32,7 +32,7 @@ const completion = {
 };
 
 describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
-  it('Chat Completions 인자: 도구 강제, 병렬 끔, strict, store false, temperature 0, 500 토큰, 10초, 재시도 없음, abort 신호', async () => {
+  it('Chat Completions 인자: 도구 강제, 병렬 끔, strict, store false, temperature 0, 1000 토큰(#474), 10초, 재시도 없음, abort 신호', async () => {
     const create = vi.fn().mockResolvedValue(completion);
     const model = new OpenAiAssistantModel({ chat: { completions: { create } } } as never, 'gpt-4o-mini');
     const signal = new AbortController().signal;
@@ -43,7 +43,7 @@ describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
       tool_choice: 'required',
       parallel_tool_calls: false,
       temperature: 0,
-      max_completion_tokens: 500,
+      max_completion_tokens: 1000,
       store: false,
       messages: [{ role: 'user', content: '안녕' }],
     });
@@ -123,8 +123,14 @@ describe('FakeAssistantModel (키워드)', () => {
   it('키워드별 도구', async () => {
     expect(await pick('내일 하늘이랑 저녁 잡아 줘')).toMatchObject({
       name: 'draft_event',
-      args: { date: { kind: 'relativeDays', days: 1 }, endDate: { kind: null }, startTime: '19:00', participants: ['하늘'] },
+      args: { events: [{ date: { kind: 'relativeDays', days: 1 }, endDate: { kind: null }, startTime: '19:00', participants: ['하늘'] }] },
     });
+    // (#474) 일정 2개
+    const two = await pick('내일 7시 회식, 토요일 2시 영화 잡아 줘');
+    expect(two?.args.events).toMatchObject([
+      { title: '회식', date: { kind: 'relativeDays', days: 1 }, startTime: '19:00' },
+      { title: '영화', date: { kind: 'weekday', weekday: '토', which: 'nearest' }, startTime: '14:00' },
+    ]);
     expect(await pick('빈 시간 찾아서 투표')).toMatchObject({
       name: 'find_free_time',
       args: { from: { kind: 'relativeDays', days: 0 }, to: { kind: 'relativeDays', days: 6 }, next: 'poll', everyone: true },

@@ -6,6 +6,7 @@ import { checkOptions } from '../polls/poll-rules.js';
 import type { Interval } from '../free-slots/slots.js';
 import type { ClarifyField, DaysFilter, EventDraftCard, PollDraft } from './assistant.types.js';
 import { kstTime, kstWeekday } from './prompt.js';
+import { MAX_DRAFT_EVENTS } from './tools.js';
 import { isPastThisWeekday, NO_WHEN, resolvePeriod, resolveWhen, type WhenArg, type Which } from './when.js';
 
 /**
@@ -15,7 +16,7 @@ import { isPastThisWeekday, NO_WHEN, resolvePeriod, resolveWhen, type WhenArg, t
  */
 
 export type Problem =
-  | { kind: 'clarify'; field: ClarifyField; name?: string; choices?: Member[] }
+  | { kind: 'clarify'; field: ClarifyField; name?: string; choices?: Member[]; subject?: string }
   | { kind: 'invalid' }
   | { kind: 'unsupported'; action: 'team_only' };
 
@@ -69,6 +70,11 @@ export interface NormalizeContext {
   spoken: string;
   /** (#459) 이번 글만. 기간 길이("일주일 동안"), 전원 말("둘 다")을 서버가 직접 읽을 때 쓴다 (D-278) */
   text: string;
+  /**
+   * (#474) 한 글의 일정 여러 개를 만드는 중 (D-280). 이번 글의 전원 말이 어느 일정 말인지 서버가 가를 수 없으므로
+   * 모델이 일정 하나에라도 전원을 매겼으면(modelSawEveryone) 일정마다 모델 값을 따르고, 아니면 이름이 없는 일정에만 D-278 ③ 을 쓴다
+   */
+  multiEvent?: { modelSawEveryone: boolean };
 }
 
 // ---------- 글자 ----------
@@ -221,7 +227,7 @@ export function resolveParticipants(input: ParticipantInput, fallback: 'me' | 'a
   const names = input.participants.map(cleanText).filter((name) => name.length > 0);
   // (#459) 이번 글에 "둘 다, 다 같이, 모두" 같은 전원 말이 있으면 모델 값과 상관없이 전원 (D-278)
   const forced = forcedEveryone(context.text);
-  if (forced !== null) return forcedParticipants(forced, names, input.includeMe, context);
+  if (forced !== null && !trustModelEveryone(names, context)) return forcedParticipants(forced, names, input.includeMe, context);
   if (everyoneSaid && (input.everyone || names.some((name) => EVERYONE_WORDS.has(key(name))))) return all;
   const mentioned = names.filter((name) => !EVERYONE_WORDS.has(key(name)) && isMentioned(name, context.spoken));
   if (mentioned.length === 0) return fallback === 'all' ? all : [context.userId];
@@ -230,6 +236,20 @@ export function resolveParticipants(input: ParticipantInput, fallback: 'me' | 'a
   if (input.includeMe) ids.add(context.userId);
   return all.filter((id) => ids.has(id));
 }
+
+/**
+ * (#474) 일정 여럿일 때 전원 말(D-278 ③)을 이 일정에 쓰지 않는가 (D-280). 모델이 어느 일정에 전원을 매겼거나
+ * 이 일정에 글에 나온 이름이 있으면 그 일정의 모델 값을 따른다 ("회식은 다 같이, 영화는 수경이랑" 의 영화는 수경이와 나)
+ */
+function trustModelEveryone(names: string[], context: NormalizeContext): boolean {
+  if (!context.multiEvent) return false;
+  if (context.multiEvent.modelSawEveryone) return true;
+  return names.some((name) => !EVERYONE_WORDS.has(key(name)) && isMentioned(name, context.spoken));
+}
+
+/** (#474) 모델이 이 일정에 전원을 매겼는가 (everyone 또는 participants 의 "모두, 다같이" 같은 말) */
+export const markedEveryone = (input: ParticipantInput): boolean =>
+  input.everyone || input.participants.some((name) => EVERYONE_WORDS.has(key(cleanText(name))));
 
 export const membersOf = (ids: readonly number[], context: NormalizeContext): Member[] =>
   context.members.filter((member) => ids.includes(member.userId)).map((member) => member.member);
@@ -398,6 +418,11 @@ export interface DraftEventArgs extends ParticipantInput {
   place: string | null;
 }
 
+/** (#474) draft_event 인자. 한 글의 일정 여러 개 (1~5개, D-280) */
+export interface DraftEventsArgs {
+  events: DraftEventArgs[];
+}
+
 /** 지금 KST 분 (0~1439) */
 const nowMinutesOf = (now: Date): number => minutesOf(kstTime(now));
 
@@ -455,6 +480,27 @@ export function normalizeDraftEvent(args: DraftEventArgs, context: NormalizeCont
     participants,
     members: membersOf(participants, context),
   };
+}
+
+/**
+ * (#474) draft_event → 일정 초안 카드 여러 개 (D-280). 앞 5개만, 말한 순서대로.
+ * 전부 아니면 하나도: 하나라도 되물어야 하면 처음 걸린 일정의 되묻기만 답한다 (여럿이면 제목을 실어 "'영화'는 언제로 할까요?").
+ * 사용자는 빠진 값을 넣어 다시 말하고, 반쪽 카드가 남아 같은 일정을 두 번 넣는 일이 없다
+ */
+export function normalizeDraftEvents(args: DraftEventsArgs, context: NormalizeContext): EventDraftCard[] {
+  const events = args.events.slice(0, MAX_DRAFT_EVENTS);
+  const multi = events.length > 1;
+  const scoped: NormalizeContext = multi ? { ...context, multiEvent: { modelSawEveryone: events.some(markedEveryone) } } : context;
+  return events.map((event) => {
+    try {
+      return normalizeDraftEvent(event, scoped);
+    } catch (error) {
+      if (!multi || !(error instanceof NormalizeProblem) || error.problem.kind !== 'clarify') throw error;
+      // 어느 일정을 되묻는지 제목을 싣는다 (주소처럼 보이는 제목은 싣지 않는다)
+      const title = cleanText(event.title);
+      throw new NormalizeProblem({ ...error.problem, subject: title && !hasUrl(title) ? title : undefined });
+    }
+  });
 }
 
 /** 양끝 포함 KST 날짜 기간 → [from 00:00, to 다음 날 00:00). 1~maxDays 일이 아니면 clarify(period) */
