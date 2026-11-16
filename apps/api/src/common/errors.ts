@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375), LINK_TICKET_INVALID, REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE, LAST_AUTH_ACCOUNT 는 로그인 방법 연결 (#198, D-257) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375), LINK_TICKET_INVALID, REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE, LAST_AUTH_ACCOUNT 는 로그인 방법 연결 (#198, D-257), ASSISTANT_* 는 AI 비서 볼까 (#450, api.md 2.15) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -30,9 +30,11 @@ export const ERROR_STATUS = {
   PROVIDER_ALREADY_LINKED: 409,
   AUTH_ACCOUNT_IN_USE: 409,
   LAST_AUTH_ACCOUNT: 409,
+  ASSISTANT_CONSENT_REQUIRED: 409,
   PAYLOAD_TOO_LARGE: 413,
   EMAIL_RATE_LIMITED: 429,
   RATE_LIMITED: 429,
+  ASSISTANT_DAILY_LIMIT: 429,
   INTERNAL: 500,
   IMPORT_INCOMPLETE: 500,
   KAKAO_ERROR: 502,
@@ -44,6 +46,8 @@ export const ERROR_STATUS = {
   DB_UNAVAILABLE: 503,
   EMAIL_NOT_CONFIGURED: 503,
   PLACE_SEARCH_NOT_CONFIGURED: 503,
+  ASSISTANT_UNAVAILABLE: 503,
+  ASSISTANT_TIMEOUT: 504,
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_STATUS;
@@ -92,6 +96,10 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   EMAIL_NOT_CONFIGURED: '지금은 이메일로 로그인할 수 없어요',
   PLACE_SEARCH_FAILED: '장소를 찾지 못했어요. 잠시 후 다시 시도해 주세요',
   PLACE_SEARCH_NOT_CONFIGURED: '지금은 장소 검색을 쓸 수 없어요. 장소 이름을 직접 적어 주세요',
+  ASSISTANT_CONSENT_REQUIRED: '먼저 안내를 확인해 주세요',
+  ASSISTANT_DAILY_LIMIT: '오늘은 볼까를 30번 다 썼어요. 내일 다시 불러 주세요',
+  ASSISTANT_UNAVAILABLE: '지금은 볼까를 쓸 수 없어요. 잠시 후 다시 해 주세요',
+  ASSISTANT_TIMEOUT: '답이 늦어지고 있어요. 다시 보내 주세요',
 };
 
 /** 검증 실패 시 필드별 위반 항목 (api.md 1장 `error.details`) */

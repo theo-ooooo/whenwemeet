@@ -425,3 +425,16 @@ describe("(#199) 장소", () => {
     expect(body.place).toEqual({ text: "을지로" });
   });
 });
+
+describe("(#450) AI 비서 [고치기] 로 연 새 일정 폼", () => {
+  it("participants(쉼표 id) 와 place(직접 적은 장소, 100자) 를 채운다. 없으면 기본([나], 장소 없음)", () => {
+    const q = new URLSearchParams({ title: "강남 회식", participants: "3,5,x", place: ` ${"강".repeat(120)} `, from: "assistant" });
+    const d = newDraft({ start: kstToIso(D, "19:00"), end: kstToIso(D, "20:00"), query: q });
+    expect(d.pick).toEqual([3, 5]);
+    expect(d.place).toEqual({ text: "강".repeat(100), picked: null });
+    expect(d.title).toBe("강남 회식");
+    const plain = newDraft({ today: D, query: new URLSearchParams() });
+    expect(plain.pick).toBeNull();
+    expect(plain.place).toEqual({ text: "", picked: null });
+  });
+});

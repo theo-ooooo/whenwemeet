@@ -23,6 +23,7 @@ import { consumeMockLinkCode, mockEmailLogin } from "./email-login";
 import { maskEmail, normalizeEmail } from "@/lib/email-login";
 import { applyException, expand, isOccurrenceDate, originalOccurrence, type MockOccurrence, type MockPlace } from "./recurrence";
 import { CLEARED, contains, fakePlaceSearch, placeOut, placeProblem, placeValue, samePlace } from "./places";
+import { mockAssistantConsent, mockAssistantMessage, mockAssistantMeta, type MockCall } from "./assistant";
 
 export type MockResult = { status: number; body: unknown };
 
@@ -1008,7 +1009,15 @@ export function mockHandle(ctx: Ctx): MockResult {
   if (seg[0] === "me" && seg.length === 1) {
     const u = s.users.find((x) => x.id === userId)!;
     if (method === "GET") {
-      return ok({ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, startCalendar: u.startCalendar ?? START_LAST, birthday: birthdayOf(u) });
+      return ok({
+        id: u.id,
+        nickname: u.nickname,
+        profileImageUrl: u.profileImageUrl,
+        createdAt: u.createdAt,
+        startCalendar: u.startCalendar ?? START_LAST,
+        birthday: birthdayOf(u),
+        assistant: mockAssistantMeta(s, u.id),
+      });
     }
     if (method === "PATCH") {
       const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
@@ -1024,6 +1033,9 @@ export function mockHandle(ctx: Ctx): MockResult {
       return ok({ ok: true });
     }
   }
+
+  // (#450) AI 비서 처음 안내 동의 (api.md 2.15, 멱등)
+  if (seg[0] === "me" && seg[1] === "assistant-consent" && seg.length === 2 && method === "POST") return mockAssistantConsent(s, userId);
 
   // (#305) /me/birthday (api.md 2.1, D-230). date 는 'MM-DD'(2월 29일 허용) 또는 null, reminders 생략은 그대로
   if (seg[0] === "me" && seg[1] === "birthday" && seg.length === 2 && method === "PATCH") {
@@ -1818,6 +1830,15 @@ export function mockHandle(ctx: Ctx): MockResult {
     }
 
     if (rest[0] === "free-slots" && method === "GET") return freeSlots(s, groupId, query);
+
+    // (#450) AI 비서. 데이터는 이 목 API 를 다시 불러 만든다 (mocks/assistant.ts)
+    if (rest[0] === "assistant" && rest[1] === "messages" && rest.length === 2 && method === "POST") {
+      const call: MockCall = (m, p, q = {}) => {
+        const r = mockHandle({ method: m, path: p, query: new URLSearchParams(q), body: null, userId });
+        return r.status < 400 ? ((r.body as { data: unknown }).data as never) : null;
+      };
+      return mockAssistantMessage(s, groupId, userId, body, call);
+    }
 
     if (rest[0] === "polls") {
       const pollLog = (e: EventRow) => {

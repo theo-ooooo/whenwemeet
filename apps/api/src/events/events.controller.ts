@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Headers, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
+import { logCreateSource } from '../common/client-source.js';
 import { IdParam } from '../common/id-param.js';
 import { EventInputDto, EventPatchDto, EventRangeQueryDto } from './dto/event.dto.js';
 import { EventsService } from './events.service.js';
@@ -14,9 +15,10 @@ export class EventsController {
     return this.events.list(user.id, groupId, query.from, query.to);
   }
 
+  /** (#450) 볼까 카드에서 만들면 `X-Client-Source` 를 로그에만 남긴다 (D-275) */
   @Post()
-  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: EventInputDto) {
-    return this.events.create(user.id, groupId, dto);
+  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: EventInputDto, @Headers('x-client-source') source?: string) {
+    return logCreateSource('event_create', source, { userId: user.id, groupId }, this.events.create(user.id, groupId, dto));
   }
 
   /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD` 회차. 한 번짜리는 무시 */

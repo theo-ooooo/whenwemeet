@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AssistantModule } from '../assistant/assistant.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AvatarsModule } from '../avatars/avatars.module.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
@@ -7,7 +8,7 @@ import { MeController } from './me.controller.js';
 import { MeService } from './me.service.js';
 
 @Module({
-  imports: [AuthModule, AvatarsModule, UsersModule, MembershipsModule],
+  imports: [AuthModule, AvatarsModule, UsersModule, MembershipsModule, AssistantModule],
   controllers: [MeController],
   providers: [MeService],
 })

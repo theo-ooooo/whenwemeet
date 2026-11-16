@@ -36,8 +36,8 @@ describe('핵심 흐름 (e2e)', () => {
 
   it('GET /me 는 사용자 정보만 (연결 계정 비노출), id 는 숫자', async () => {
     const res = await api(app).get('/v1/me').set(auth(alice)).expect(200);
-    // (#300) 처음 여는 달력 startCalendar, (#305) 내 생일 birthday 가 붙는다
-    expect(Object.keys(res.body.data).sort()).toEqual(['birthday', 'createdAt', 'id', 'nickname', 'profileImageUrl', 'startCalendar']);
+    // (#300) 처음 여는 달력 startCalendar, (#305) 내 생일 birthday, (#450) AI 비서 assistant 가 붙는다
+    expect(Object.keys(res.body.data).sort()).toEqual(['assistant', 'birthday', 'createdAt', 'id', 'nickname', 'profileImageUrl', 'startCalendar']);
     expect(res.body.data).toMatchObject({ id: alice.userId, nickname: '앨리스', profileImageUrl: null });
     expect(Number.isInteger(res.body.data.id)).toBe(true);
   });

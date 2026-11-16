@@ -5,6 +5,7 @@ import { SESSION_COOKIE } from "@/lib/auth";
 import { clientIpOf } from "@/lib/email-login";
 import { errorBody } from "@/lib/envelope";
 import { isMock, upstream } from "@/lib/upstream";
+import { CLIENT_SOURCE_HEADER, clientSourceOf } from "@/lib/assistant";
 
 type Ctx = { params: Promise<{ path: string[] }> };
 
@@ -43,6 +44,8 @@ async function handle(req: NextRequest, ctx: Ctx) {
     token,
     // (#186) API 요청 제한이 사용자 IP 로 세도록. 키가 맞을 때만 API 가 믿는다 (api.md 1장 "요청 제한")
     internal: { clientIp: clientIpOf(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) },
+    // (#450) AI 비서 카드에서 저장한 요청의 출처. 허용 값만 넘긴다 (AI-비서.md 6-1)
+    clientSource: clientSourceOf(req.headers.get(CLIENT_SOURCE_HEADER)),
   });
 
   const res = NextResponse.json(result.body ?? null, { status: result.status });

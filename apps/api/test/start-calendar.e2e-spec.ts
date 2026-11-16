@@ -44,7 +44,7 @@ describe('처음 여는 달력 (e2e)', () => {
 
   it('가입 직후 GET /me 는 LAST, 다른 필드는 그대로', async () => {
     const me = (await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data;
-    expect(Object.keys(me).sort()).toEqual(['birthday', 'createdAt', 'id', 'nickname', 'profileImageUrl', 'startCalendar']);
+    expect(Object.keys(me).sort()).toEqual(['assistant', 'birthday', 'createdAt', 'id', 'nickname', 'profileImageUrl', 'startCalendar']);
     expect(me.startCalendar).toEqual(LAST);
   });
 

@@ -8,6 +8,7 @@ import { addDays, dateKeyOf, kstToIso, timeOf, todayKey, type DateKey } from "./
 import { eventColorBody } from "./colors";
 import { draftPlaceOf, NO_PLACE, pickPlace, placeBody, placeSnapshot, typePlace, type DraftPlace } from "./place";
 import { normalizePick, participantsBody, pickOf, samePick, type ParticipantPick } from "./participants";
+import { participantsParam } from "./assistant";
 import { followingUntil, formRepeatOf, keepsLoadedTimes } from "./recurrence";
 import { reminderAfterAllDayChange, reminderOf, reminderToSend } from "./reminder";
 import type { EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, PlaceCandidate, Repeat } from "./types";
@@ -107,6 +108,9 @@ export function newDraft(o: { start?: string | null; end?: string | null; query?
     endDate: dateKeyOf(end),
     endTime: timeOf(end),
     reminder: reminderAfterAllDayChange(reminderOf(q?.get("reminder") ?? null), allDay),
+    // (#450) AI 비서 [고치기] (D-273): 참여자(쉼표 id, 지금 멤버가 아닌 id 는 폼이 거른다), 직접 적은 장소(100자)
+    pick: participantsParam(q?.get("participants")),
+    place: q?.get("place")?.trim() ? typePlace(q.get("place")!.trim()) : NO_PLACE,
   };
 }
 

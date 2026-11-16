@@ -2,6 +2,7 @@
 // (#189) 약속 투표 자원 훅 (api.md 2.13). 홈 "정하는 중" 목록, 투표 하나, 만들기, 표, 정하기, 취소
 import { useCallback } from "react";
 import { api } from "@/lib/api";
+import { CLIENT_SOURCE_HEADER, type ClientSource } from "@/lib/assistant";
 import type { Poll, PollConfirmResult, PollInput, PollSummary } from "@/lib/types";
 import { useMutation, type MutationOptions } from "./_useMutation";
 import { useQuery, type QueryOptions } from "./_useQuery";
@@ -16,9 +17,14 @@ export function usePoll(code: string, opts?: QueryOptions<Poll>) {
   return useQuery<Poll>(`/polls/${code}`, opts);
 }
 
-/** 만들기 POST /groups/:id/polls */
-export function useCreatePoll(groupId: number, opts?: MutationOptions) {
-  const fn = useCallback((input: PollInput) => api<Poll>(`/groups/${groupId}/polls`, { method: "POST", body: input }), [groupId]);
+/** 만들기 POST /groups/:id/polls. (#450) source 를 주면 X-Client-Source 헤더로 싣는다 (AI 비서 카드, AI-비서.md 6-1) */
+export function useCreatePoll(groupId: number, opts?: MutationOptions & { source?: ClientSource | null }) {
+  const source = opts?.source ?? null;
+  const fn = useCallback(
+    (input: PollInput) =>
+      api<Poll>(`/groups/${groupId}/polls`, { method: "POST", body: input, headers: source ? { [CLIENT_SOURCE_HEADER]: source } : undefined }),
+    [groupId, source],
+  );
   return useMutation(fn, opts);
 }
 

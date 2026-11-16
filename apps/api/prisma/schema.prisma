@@ -63,6 +63,8 @@ model User {
   startGroupId      Int?
   /// (#305) 내 생일 'MM-DD' (연도 없음, 선택). 내가 속한 팀 달력에 "OO 생일" 로 매년 계산해 보인다 (행을 복사하지 않음, D-230)
   birthday          String?   @db.Char(5)
+  /// (#450) AI 비서 처음 쓸 때 안내에 동의한 시각. null = 아직 (D-270)
+  assistantConsentAt DateTime?
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -106,6 +108,19 @@ model User {
   birthdayReminders       BirthdayReminder[]
   /// (#375) 내가 지운 일정의 되돌리기 보관
   eventDeletions          EventDeletion[]
+  /// (#450) AI 비서 하루 사용 횟수
+  assistantUsages         AssistantUsage[]
+}
+
+/// (#450) AI 비서 하루 사용 횟수. 사용자 + KST 날짜당 한 행 (D-269). 대화, 답은 어디에도 저장하지 않는다
+model AssistantUsage {
+  userId Int
+  /// KST 달력 날짜
+  day    DateTime @db.Date
+  count  Int      @default(0)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
 }
 
 /// (#369) 사용자별 알림 종류 (내 정보 > 알림 토글, D-249). 기본값은 코드 표 `notification-preferences/notification-preferences.ts` 하나
