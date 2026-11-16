@@ -160,6 +160,8 @@ export class AssistantService {
         personal: group?.type === 'PERSONAL',
         // (#458) 이름, "모두" 확인용 사용자 글 (이번 글 + 기록의 사용자 글, D-277)
         spoken: [...history.filter((turn) => turn.role === 'user').map((turn) => turn.text), dto.text].join('\n'),
+        // (#459) 이번 글만 (기간 길이, 전원 말, D-278)
+        text: dto.text,
         members: rows.map((row) => {
           const { joinedAt: _joinedAt, ...member } = toMember(row);
           return { userId: row.userId, displayName: member.displayName, nickname: row.user.nickname, member };

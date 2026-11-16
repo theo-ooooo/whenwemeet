@@ -6,7 +6,7 @@ import { checkOptions } from '../polls/poll-rules.js';
 import type { Interval } from '../free-slots/slots.js';
 import type { ClarifyField, DaysFilter, EventDraftCard, PollDraft } from './assistant.types.js';
 import { kstTime, kstWeekday } from './prompt.js';
-import { isPastThisWeekday, resolvePeriod, resolveWhen, type WhenArg } from './when.js';
+import { isPastThisWeekday, NO_WHEN, resolvePeriod, resolveWhen, type WhenArg, type Which } from './when.js';
 
 /**
  * (#450) 모델 인자 검사, 정규화 (설계 AI-비서.md 4-1, D-268). 순수 함수.
@@ -67,6 +67,8 @@ export interface NormalizeContext {
    * 대화 기록의 볼까 글(서버 문구)은 넣지 않는다
    */
   spoken: string;
+  /** (#459) 이번 글만. 기간 길이("일주일 동안"), 전원 말("둘 다")을 서버가 직접 읽을 때 쓴다 (D-278) */
+  text: string;
 }
 
 // ---------- 글자 ----------
@@ -204,6 +206,9 @@ export function resolveParticipants(input: ParticipantInput, fallback: 'me' | 'a
   if (context.personal) return [context.userId];
   const everyoneSaid = saysEveryone(context.spoken);
   const names = input.participants.map(cleanText).filter((name) => name.length > 0);
+  // (#459) 이번 글에 "둘 다, 다 같이, 모두" 같은 전원 말이 있으면 모델 값과 상관없이 전원 (D-278)
+  const forced = forcedEveryone(context.text);
+  if (forced !== null) return forcedParticipants(forced, names, input.includeMe, context);
   if (everyoneSaid && (input.everyone || names.some((name) => EVERYONE_WORDS.has(key(name))))) return all;
   const mentioned = names.filter((name) => !EVERYONE_WORDS.has(key(name)) && isMentioned(name, context.spoken));
   if (mentioned.length === 0) return fallback === 'all' ? all : [context.userId];
@@ -215,6 +220,150 @@ export function resolveParticipants(input: ParticipantInput, fallback: 'me' | 'a
 
 export const membersOf = (ids: readonly number[], context: NormalizeContext): Member[] =>
   context.members.filter((member) => ids.includes(member.userId)).map((member) => member.member);
+
+// ---------- (#459) 서버 안전장치 (D-278) ----------
+// 실모델 평가(gpt-4.1-mini, gpt-4.1)에서 남은 실수를 서버가 사용자 글로 직접 바로잡는다
+
+/**
+ * 이번 글의 전원 말. "둘 다", "셋 다" 처럼 사람 수를 말했으면 그 수, 그 밖("다 같이, 함께 다, 모두, 전원, 다들, 우리 다")은 'all', 없으면 null.
+ * "다" 뒤가 "음, 른, 르, 시, 녀" 면 "다음, 다른, 다시, 다녀" 라서 전원 말이 아니다 ("우리 다음 주")
+ */
+const COUNT_WORDS = ['둘', '셋', '넷', '다섯', '여섯'] as const;
+const DA = '다(?!음|른|르|시|녀)';
+const FORCE_COUNT = new RegExp(`(^|[^\\p{L}])(${COUNT_WORDS.join('|')})\\s*(${DA}|모두)`, 'u');
+const FORCE_ALL = new RegExp(`${DA}\\s*(같이|함께)|함께\\s*${DA}|모두|전원|다들|우리\\s*${DA}`, 'u');
+
+export function forcedEveryone(text: string): number | 'all' | null {
+  const count = FORCE_COUNT.exec(text);
+  if (count) return COUNT_WORDS.indexOf(count[2] as (typeof COUNT_WORDS)[number]) + 2;
+  return FORCE_ALL.test(text) ? 'all' : null;
+}
+
+/**
+ * 전원 말이 있을 때 참여자. 기본은 지금 멤버 전원.
+ * 단, "수경이랑 지훈이 둘 다"처럼 사람 수를 말했고 글에 나온 이름(이나 그 이름 + 나)이 꼭 그 수이며 팀보다 적으면 그 사람들만
+ */
+function forcedParticipants(forced: number | 'all', names: string[], includeMe: boolean, context: NormalizeContext): number[] {
+  const all = context.members.map((member) => member.userId);
+  if (forced === 'all' || forced >= all.length) return all;
+  const ids = new Set<number>();
+  for (const name of names) {
+    if (EVERYONE_WORDS.has(key(name)) || !isMentioned(name, context.spoken)) continue;
+    const match = matchName(name, context);
+    if (match.kind === 'one') ids.add(match.member.userId);
+  }
+  if (ids.size !== forced && (includeMe || ids.size + 1 === forced)) ids.add(context.userId);
+  return ids.size === forced ? all.filter((id) => ids.has(id)) : all;
+}
+
+const WEEKDAY_CHARS = new Set(['일', '월', '화', '수', '목', '금', '토']);
+
+/** 멤버 이름 꼴 (표시 이름, 닉네임, 세 글자 이상 한글 이름은 성 뗀 값). 공백 없이 소문자 */
+function nameForms(members: readonly TeamMember[]): string[] {
+  const forms = new Set<string>();
+  for (const member of members) {
+    for (const raw of [member.displayName, member.nickname]) {
+      const name = key(raw);
+      if (name.length === 0) continue;
+      forms.add(name);
+      const chars = Array.from(name);
+      if (chars.length >= 3 && /^[가-힣]+$/.test(name)) forms.add(chars.slice(1).join(''));
+    }
+  }
+  return [...forms];
+}
+
+/**
+ * 모델이 준 요일이 사실 이름의 첫 글자인가 ("다음 주 수경이 일정" 의 "수"를 수요일로 읽음).
+ * 사용자 글에서 그 요일 글자로 시작하는 멤버 이름(두 글자 이상, 낱말 첫머리)을 지운 뒤 그 글자가 남지 않으면 이름이다.
+ * 글자가 하나라도 남으면("수요일에 수경이랑") 모델을 믿는다
+ */
+export function weekdayIsName(when: WhenArg, context: Pick<NormalizeContext, 'members' | 'spoken'>): boolean {
+  if (when.kind !== 'weekday' || when.weekday === null || !WEEKDAY_CHARS.has(when.weekday)) return false;
+  const char = when.weekday;
+  const all = nameForms(context.members).filter((form) => Array.from(form).length >= 2);
+  // 그 글자로 시작하는 이름(성 뗀 값 포함)이 없으면 이름일 수 없다. 지울 때는 "김수경" 처럼 성 붙은 꼴도 지운다
+  if (!all.some((form) => form.startsWith(char))) return false;
+  const forms = all.filter((form) => form.includes(char));
+  let text = context.spoken.toLowerCase();
+  for (const form of forms.sort((a, b) => b.length - a.length)) {
+    text = text.replace(new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(form)}`, 'gu'), '$1');
+  }
+  return !text.includes(char);
+}
+
+/** 이번 글의 주 말 ("다다음 주", "다음 주, 담주", "이번 주") */
+export function spokenWeek(text: string): Which | null {
+  if (/다다음\s*주/.test(text)) return 'after_next';
+  if (/(다음|담)\s*주/.test(text)) return 'next';
+  if (/이번\s*주/.test(text)) return 'this';
+  return null;
+}
+
+/** 일정, 투표 초안: 이름을 요일로 읽었으면 날짜를 말하지 않은 것으로 본다 (되묻기) */
+const draftWhen = (when: WhenArg, context: NormalizeContext): WhenArg => (weekdayIsName(when, context) ? NO_WHEN : when);
+
+/**
+ * 빈 시간, 일정 찾기: 이름을 요일로 읽었으면 시작은 글의 주(없으면 모델의 주, 요일만이면 이번 주) 전체, 끝은 말하지 않은 것으로
+ */
+function periodWhens(from: WhenArg, to: WhenArg, context: NormalizeContext): { from: WhenArg; to: WhenArg } {
+  let safeFrom = from;
+  if (weekdayIsName(from, context)) {
+    const which = spokenWeek(context.text) ?? (from.which === null || from.which === 'nearest' ? 'this' : from.which);
+    safeFrom = { ...NO_WHEN, kind: 'week', which };
+  }
+  return { from: safeFrom, to: weekdayIsName(to, context) ? NO_WHEN : to };
+}
+
+const NATIVE_DAYS: Record<string, number> = { 하루: 1, 이틀: 2, 사흘: 3, 나흘: 4, 닷새: 5, 엿새: 6, 이레: 7, 열흘: 10, 보름: 15 };
+const NATIVE_COUNT: Record<string, number> = { 한: 1, 두: 2, 세: 3, 네: 4 };
+const SPAN = '\\s*(동안|간|내|이내|안에)';
+const countOf = (word: string): number => NATIVE_COUNT[word] ?? Number(word);
+
+/** 이번 글의 기간 길이 ("3일 동안", "이틀간", "일주일 동안", "한 주", "2주 동안", "한 달 동안"). 일이면 { days }, 달이면 { months } */
+export function spokenDuration(text: string): { days: number } | { months: number } | null {
+  if (new RegExp(`일주일${SPAN}`).test(text)) return { days: 7 };
+  const week = new RegExp(`(^|[^\\p{L}\\p{N}])(\\d{1,2}|한|두|세|네)\\s*주(일)?${SPAN}`, 'u').exec(text);
+  if (week) return { days: countOf(week[2]) * 7 };
+  const month = new RegExp(`(^|[^\\p{L}\\p{N}])(\\d{1,2}|한|두|세)\\s*(달|개월)${SPAN}`, 'u').exec(text);
+  if (month) return { months: countOf(month[2]) };
+  const day = new RegExp(`(^|[^\\p{L}\\p{N}])(\\d{1,3})\\s*일${SPAN}`, 'u').exec(text);
+  if (day) return { days: Number(day[2]) };
+  const native = new RegExp(`(${Object.keys(NATIVE_DAYS).join('|')})${SPAN}`, 'u').exec(text);
+  if (native) return { days: NATIVE_DAYS[native[1]] };
+  return null;
+}
+
+/** 시작 날짜 + 기간 길이 → 끝 날짜 (양끝 포함: 시작 + 길이 - 1일. 달은 다음 달 같은 날 - 1일, 그날이 없으면 말일) */
+export function durationEnd(fromDate: string, duration: { days: number } | { months: number }): string {
+  if ('days' in duration) return addDays(fromDate, Math.max(1, duration.days) - 1);
+  const [year, month, day] = fromDate.split('-').map(Number);
+  const index = month - 1 + duration.months;
+  const y = year + Math.floor(index / 12);
+  const m = (index % 12) + 1;
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const same = `${y}-${String(m).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
+  return addDays(same, day > last ? 0 : -1);
+}
+
+/**
+ * 빈 시간, 일정 찾기의 기간. 이름을 요일로 읽은 값은 바로잡고, 이번 글에 기간 길이가 있는데 모델이 끝을 빼먹었거나(하루로 끝남)
+ * 시작도 없으면(오늘부터) 끝 = 시작 + 길이 - 1일
+ */
+export function spokenPeriodDates(from: WhenArg, to: WhenArg, context: NormalizeContext): { fromDate: string; toDate: string } {
+  const today = kstDate(context.now);
+  const safe = periodWhens(from, to, context);
+  const duration = spokenDuration(context.text);
+  if (duration === null) return periodDates(safe.from, safe.to, today);
+  const start: WhenArg = safe.from.kind === null ? { ...NO_WHEN, kind: 'relativeDays', days: 0 } : safe.from;
+  if (safe.to.kind !== null) {
+    const period = periodDates(start, safe.to, today);
+    return period.toDate !== period.fromDate ? period : { fromDate: period.fromDate, toDate: durationEnd(period.fromDate, duration) };
+  }
+  const fromDate = resolveWhen(start, { today, edge: 'start' });
+  if (fromDate === null) throw clarify('period');
+  return { fromDate, toDate: durationEnd(fromDate, duration) };
+}
 
 // ---------- 도구별 ----------
 
@@ -254,10 +403,11 @@ export function draftDate(when: WhenArg, context: NormalizeContext, startTime: s
 export function normalizeDraftEvent(args: DraftEventArgs, context: NormalizeContext): EventDraftCard {
   const today = kstDate(context.now);
   const title = cardTitle(args.title);
-  const date = draftDate(args.date, context, args.allDay ? null : args.startTime);
+  const date = draftDate(draftWhen(args.date, context), context, args.allDay ? null : args.startTime);
   let endDate: string | null = null;
-  if (args.endDate.kind !== null) {
-    const resolved = resolveWhen(args.endDate, { today, edge: 'end', notBefore: date });
+  const endWhen = draftWhen(args.endDate, context);
+  if (endWhen.kind !== null) {
+    const resolved = resolveWhen(endWhen, { today, edge: 'end', notBefore: date });
     if (resolved === null) throw clarify('date');
     endDate = checkDate(resolved, today);
   }
@@ -351,7 +501,7 @@ function optionalTitle(raw: string | null): string | null {
 /** find_free_time → 계산 조건 (기간 1~31일, 하루 창 기본 09:00~23:00, 최소 길이 기본 120분, 30~720 으로 자름) */
 export function normalizeFreeTime(args: FindFreeTimeArgs, context: NormalizeContext): FreeTimePlan {
   const today = kstDate(context.now);
-  const { fromDate, toDate } = periodDates(args.from, args.to, today);
+  const { fromDate, toDate } = spokenPeriodDates(args.from, args.to, context);
   const period = normalizePeriod(fromDate, toDate, MAX_SEARCH_DAYS, today);
   const dayStart = args.dayStart ?? DEFAULT_DAY_START;
   const dayEnd = args.dayEnd ?? DEFAULT_DAY_END;
@@ -391,7 +541,7 @@ export function normalizeDraftPoll(args: DraftPollArgs, context: NormalizeContex
   if (context.personal) throw new NormalizeProblem({ kind: 'unsupported', action: 'team_only' });
   const title = cardTitle(args.title);
   const raw = args.options.map((option) => {
-    const date = draftDate(option.date, context, option.startTime);
+    const date = draftDate(draftWhen(option.date, context), context, option.startTime);
     return { startsAt: kstToDate(date, option.startTime), endsAt: kstToDate(date, option.endTime), allDay: false as const };
   });
   let options;
@@ -418,7 +568,7 @@ export interface ListEventsArgs {
 /** list_events → 기간(1~31일)과 거를 사람. 사람이 없거나 여럿이면 clarify(participant). 글에 없는 이름은 거르지 않는다 (D-277) */
 export function normalizeListEvents(args: ListEventsArgs, context: NormalizeContext) {
   const today = kstDate(context.now);
-  const { fromDate, toDate } = periodDates(args.from, args.to, today);
+  const { fromDate, toDate } = spokenPeriodDates(args.from, args.to, context);
   const period = normalizePeriod(fromDate, toDate, MAX_SEARCH_DAYS, today);
   const name = args.member === null ? '' : cleanText(args.member);
   const said = name.length > 0 && isMentioned(name, context.spoken);

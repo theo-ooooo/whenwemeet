@@ -92,7 +92,7 @@ describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
 
 describe('모델 고르기 (D-271)', () => {
   it('운영: 키 있으면 OpenAI, 없으면 미설정, ASSISTANT_FAKE 는 무시', () => {
-    expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: ' k ' }))).toEqual({ kind: 'openai', apiKey: 'k', model: 'gpt-4o-mini' });
+    expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: ' k ' }))).toEqual({ kind: 'openai', apiKey: 'k', model: 'gpt-4.1-mini' });
     expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', ASSISTANT_FAKE: '1' })).kind).toBe('unavailable');
     expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: 'k', OPENAI_MODEL: 'gpt-x' })).model).toBe('gpt-x');
   });

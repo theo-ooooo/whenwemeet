@@ -5,7 +5,7 @@
  *
  * 실행 (apps/api 에서, 키는 환경 변수로만. 이 스크립트는 키를 출력하지 않는다):
  *   OPENAI_API_KEY=... pnpm dlx tsx@4 scripts/assistant-live-eval.ts
- *   OPENAI_MODEL=gpt-4o-mini (기본) 로 모델을 바꿀 수 있다
+ *   OPENAI_MODEL=gpt-4o-mini 처럼 (기본 gpt-4.1-mini) 모델을 바꿀 수 있다
  * 하나라도 틀리면 종료 코드 1. 문장 하나당 모델 호출 1번 (약 22번)
  */
 import { OpenAiAssistantModel } from '../src/assistant/openai-model.js';
@@ -116,6 +116,7 @@ function contextFor(text: string): NormalizeContext {
     userId: 1,
     personal: false,
     spoken: text,
+    text,
     members: TEAM.map((m) => ({
       userId: m.userId,
       displayName: m.name,
