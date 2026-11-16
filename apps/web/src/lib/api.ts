@@ -32,6 +32,8 @@ export async function api<T>(
     body?: unknown;
     form?: FormData;
     signal?: AbortSignal;
+    /** (#450) 더 실을 헤더. 지금은 X-Client-Source 하나 (프록시가 허용 값만 API 로 넘긴다) */
+    headers?: Record<string, string>;
     /** false 면 서버 장애여도 점검 화면으로 보내지 않는다. 점검 화면의 health 확인 전용 (무한 이동 방지, #54) */
     outageRedirect?: boolean;
   } = {},
@@ -42,7 +44,7 @@ export async function api<T>(
   try {
     res = await fetch(`/api${path}`, {
       method: init.method ?? "GET",
-      headers: sendsJson ? { "Content-Type": "application/json" } : undefined,
+      headers: sendsJson || init.headers ? { ...(sendsJson ? { "Content-Type": "application/json" } : {}), ...init.headers } : undefined,
       body: init.form ?? (sendsJson ? JSON.stringify(init.body) : undefined),
       signal: init.signal,
       cache: "no-store",

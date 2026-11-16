@@ -2,6 +2,7 @@
 // API_MOCK=1 이면 메모리 목(src/mocks)으로, 아니면 `${API_URL}/v1/<path>` 로 전달한다.
 import { errorBody } from "./envelope";
 import { UPSTREAM_UNAVAILABLE } from "./maintenance";
+import { CLIENT_SOURCE_HEADER, type ClientSource } from "./assistant";
 
 /** retryAfter: (#186) 429 의 Retry-After 헤더 값. 프록시가 브라우저에 그대로 넘긴다 */
 export type UpstreamResult = { status: number; body: unknown; retryAfter?: string };
@@ -49,8 +50,10 @@ export async function upstream(opts: {
   /** 브라우저 사용자의 IP. X-Internal-Key(INTERNAL_API_KEY) 는 항상, 이 IP 는 X-Client-IP 로 싣는다.
    *  이메일 로그인(D-115)과 요청 제한(#186, api.md 1장) 이 쓴다. 없으면 API 는 웹 서버 자신의 호출로 본다 */
   internal?: { clientIp: string };
+  /** (#450) 카드에서 저장한 요청의 출처 (X-Client-Source, 허용 값만). API 는 만들기 로그 줄에만 남긴다 (AI-비서.md 6-1) */
+  clientSource?: ClientSource | null;
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal } = opts;
+  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal, clientSource = null } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
@@ -84,6 +87,7 @@ export async function upstream(opts: {
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers["Content-Type"] = contentType ?? "application/json";
   Object.assign(headers, internalHeaders(internal?.clientIp ?? null));
+  if (clientSource) headers[CLIENT_SOURCE_HEADER] = clientSource;
   try {
     const res = await fetch(`${apiUrl()}/v1${path}${search}`, {
       method,

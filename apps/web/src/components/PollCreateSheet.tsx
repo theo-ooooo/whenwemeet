@@ -29,6 +29,7 @@ import {
   type Slot,
 } from "@/lib/poll";
 import { participantsFromPick, type ParticipantPick } from "@/lib/participants";
+import type { ClientSource } from "@/lib/assistant";
 import type { Member, Poll, PollOptionInput } from "@/lib/types";
 
 type Candidate = { key: string; slot: Slot | null; option: PollOptionInput };
@@ -42,6 +43,9 @@ export function PollCreateSheet({
   slots,
   minMinutes,
   onCreated,
+  initialTitle,
+  initialParticipants,
+  clientSource,
 }: {
   open: boolean;
   onClose: () => void;
@@ -52,11 +56,28 @@ export function PollCreateSheet({
   slots: readonly Slot[];
   minMinutes: number;
   onCreated: (poll: Poll) => void;
+  /** (#450) AI 비서 투표 초안 [고치기]: 제목, 대상을 채워 연다 (빈 시간 화면은 주지 않는다, D-273) */
+  initialTitle?: string;
+  initialParticipants?: number[];
+  /** (#450) 만들기 요청의 X-Client-Source (AI 비서에서 연 경우 assistant-edit) */
+  clientSource?: ClientSource;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="투표 만들기" tone="bg">
       {/* 열 때마다 고른 구간으로 다시 시작한다 */}
-      {open && <Body groupId={groupId} members={members} meId={meId} slots={slots} minMinutes={minMinutes} onCreated={onCreated} />}
+      {open && (
+        <Body
+          groupId={groupId}
+          members={members}
+          meId={meId}
+          slots={slots}
+          minMinutes={minMinutes}
+          onCreated={onCreated}
+          initialTitle={initialTitle}
+          initialParticipants={initialParticipants}
+          clientSource={clientSource}
+        />
+      )}
     </Sheet>
   );
 }
@@ -68,6 +89,9 @@ function Body({
   slots,
   minMinutes,
   onCreated,
+  initialTitle = "",
+  initialParticipants,
+  clientSource,
 }: {
   groupId: number;
   members: readonly Member[];
@@ -75,9 +99,12 @@ function Body({
   slots: readonly Slot[];
   minMinutes: number;
   onCreated: (poll: Poll) => void;
+  initialTitle?: string;
+  initialParticipants?: number[];
+  clientSource?: ClientSource;
 }) {
   const today = todayKey();
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialTitle);
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
     slots.map((slot) => ({ key: slotKey(slot), slot, option: candidateFromSlot(slot, minMinutes) })),
   );
@@ -87,10 +114,15 @@ function Body({
   const [mode, setMode] = useState<DeadlineMode>("none");
   const [custom, setCustom] = useState({ date: addDays(today, 1), time: "21:00" });
   // (#442) 기본은 지금 멤버 전원(id 목록). "ALL" 로 보내지 않는다
-  const [pick, setPick] = useState<ParticipantPick>(() => members.map((m) => m.userId).filter((id): id is number => id !== null));
+  // (#450) AI 비서 초안이면 그 대상 중 지금 멤버만 (남는 게 없으면 전원)
+  const [pick, setPick] = useState<ParticipantPick>(() => {
+    const all = members.map((m) => m.userId).filter((id): id is number => id !== null);
+    const kept = initialParticipants?.filter((id) => all.includes(id)) ?? [];
+    return kept.length ? kept : all;
+  });
   const [pickOpen, setPickOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const create = useCreatePoll(groupId, { keepPendingAfterSuccess: true });
+  const create = useCreatePoll(groupId, { keepPendingAfterSuccess: true, source: clientSource ?? null });
 
   const options = useMemo(() => sortOptions(candidates.map((c) => c.option)), [candidates]);
   const full = candidates.length >= MAX_POLL_OPTIONS;

@@ -15,6 +15,9 @@ const SENSITIVE_KEY = /token|code|email|key|secret|password|state|session|signat
 /** 객체 키 판정. 쿼리보다 좁게 잡는다(`code` 는 Prisma 오류 코드 같은 진단 정보라 객체에서는 남긴다) */
 const SENSITIVE_FIELD = /token|email|secret|password|passwd|authorization|cookie|session|signature|api[-_]?key|private[-_]?key/i;
 
+/** (#450) AI 비서 요청, 응답의 글(사용자 글, 대화 기록, 볼까 답). 어떤 모양이든 통째로 `[Filtered]` (AI-비서.md 6장) */
+const ASSISTANT_FIELD = /^(text|history|historyText|reply)$/;
+
 /** 값이 곧 비밀인 경로 조각. `/join/<초대코드>`, `/invites/<초대코드>`, (#274) `/join/e/<일정 링크 토큰>`, `/event-shares/<토큰>` */
 const SECRET_PATH = /(\/(?:join\/e|join|invites|event-shares)\/)[^/?#\s]+/gi;
 
@@ -77,7 +80,9 @@ function deepRedact(value: unknown, depth = 0): unknown {
   if (depth > 5 || value === null || typeof value !== 'object') return depth > 5 ? FILTERED : value;
   if (Array.isArray(value)) return value.map((v) => deepRedact(v, depth + 1));
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = SENSITIVE_FIELD.test(k) && typeof v === 'string' ? FILTERED : deepRedact(v, depth + 1);
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = ASSISTANT_FIELD.test(k) ? FILTERED : SENSITIVE_FIELD.test(k) && typeof v === 'string' ? FILTERED : deepRedact(v, depth + 1);
+  }
   return out;
 }
 

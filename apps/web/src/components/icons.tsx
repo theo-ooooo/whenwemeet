@@ -169,6 +169,16 @@ export function IconArrowRight(p: IconProps) {
   );
 }
 
+/** (#450) AI 비서 볼까: 큰 반짝임(네 갈래 별) + 오른쪽 위 작은 반짝임. 다른 아이콘과 같은 선(1.8, round), 채움 없음 */
+export function IconSparkle(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 6Q10.9 12.1 17 13Q10.9 13.9 10 20Q9.1 13.9 3 13Q9.1 12.1 10 6Z" />
+      <path d="M18 2.5Q18.4 5.1 21 5.5Q18.4 5.9 18 8.5Q17.6 5.9 15 5.5Q17.6 5.1 18 2.5Z" />
+    </Svg>
+  );
+}
+
 export function IconClose(p: IconProps) {
   return (
     <Svg {...p}>

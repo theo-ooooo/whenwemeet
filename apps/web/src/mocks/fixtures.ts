@@ -186,6 +186,8 @@ export type Store = {
   polls?: PollRow[];
   /** (#375) 되돌릴 수 있게 보관한 일정 삭제. 없으면 빈 목록 */
   deletions?: DeletionRow[];
+  /** (#450) AI 비서: 사용자별 동의 시각, 오늘(KST) 사용 횟수. 없으면 아무도 동의 안 함 */
+  assistant?: { consent: Record<number, string>; usage: Record<number, { day: string; count: number }> };
   seq: number;
 };
 
