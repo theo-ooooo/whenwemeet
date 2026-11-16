@@ -26,8 +26,16 @@ describe('decide (서버 가드, 설계 5장)', () => {
     expect(decide(result([call('greet', { extra: 1 })]))).toEqual({ kind: 'invalid' });
     expect(decide(result([call('refuse', {})]))).toEqual({ kind: 'invalid' });
     expect(decide(result([call('refuse', { reason: 'bored' })]))).toEqual({ kind: 'invalid' });
-    expect(decide(result([call('list_events', { fromDate: '11/16', toDate: '2026-11-20', member: null })]))).toEqual({ kind: 'invalid' });
-    expect(decide(result([call('list_events', { fromDate: '2026-11-16', toDate: '2026-11-20', member: 3 })]))).toEqual({ kind: 'invalid' });
+    const when = { kind: 'date', date: '2026-11-16', days: null, weekday: null, which: null, month: null, day: null };
+    expect(decide(result([call('list_events', { from: { ...when, date: '11/16' }, to: when, member: null })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('list_events', { from: when, to: when, member: 3 })]))).toEqual({ kind: 'invalid' });
+    // (#458) 계산한 날짜만 보내는 옛 모양, 날짜 표현의 모르는 kind, 요일 숫자, 빠진 키
+    expect(decide(result([call('list_events', { fromDate: '2026-11-16', toDate: '2026-11-20', member: null })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('list_events', { from: { ...when, kind: 'tomorrow' }, to: when, member: null })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('list_events', { from: { ...when, kind: 'weekday', weekday: 5 }, to: when, member: null })]))).toEqual({ kind: 'invalid' });
+    const { day: _day, ...missing } = when;
+    expect(decide(result([call('list_events', { from: missing, to: when, member: null })]))).toEqual({ kind: 'invalid' });
+    expect(decide(result([call('list_events', { from: { ...when, days: 1.5 }, to: when, member: null })]))).toEqual({ kind: 'invalid' });
     expect(decide(result([call('constructor', {})]))).toEqual({ kind: 'invalid' });
   });
 
@@ -60,7 +68,8 @@ describe('도구 스키마 (설계 3-2)', () => {
 
   it('checkArgs: 배열 개수, 항목, null 허용', () => {
     const poll = TOOL_SCHEMAS.draft_poll.parameters as Schema;
-    const option = { date: '2026-11-21', startTime: '18:00', endTime: '20:00' };
+    const nowhen = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+    const option = { date: { ...nowhen, kind: 'weekday', weekday: '토', which: 'this' }, startTime: '18:00', endTime: '20:00' };
     expect(checkArgs(poll, { title: 't', options: [option, option], participants: [], everyone: true })).toBe(true);
     expect(checkArgs(poll, { title: 't', options: [option], participants: [], everyone: true })).toBe(false);
     expect(checkArgs(poll, { title: 't', options: Array(6).fill(option), participants: [], everyone: true })).toBe(false);
@@ -68,7 +77,7 @@ describe('도구 스키마 (설계 3-2)', () => {
     expect(checkArgs(poll, { title: 't', options: [option, option], participants: [1], everyone: true })).toBe(false);
     expect(checkArgs(poll, [])).toBe(false);
     const free = TOOL_SCHEMAS.find_free_time.parameters as Schema;
-    const base = { fromDate: '2026-11-16', toDate: '2026-11-22', days: 'all', dayStart: null, dayEnd: '24:00', minMinutes: 90, participants: [], everyone: true, includeMe: true, next: 'show', purpose: null };
+    const base = { from: { ...nowhen, kind: 'week', which: 'next' }, to: nowhen, days: 'all', dayStart: null, dayEnd: '24:00', minMinutes: 90, participants: [], everyone: true, includeMe: true, next: 'show', purpose: null };
     expect(checkArgs(free, base)).toBe(true);
     expect(checkArgs(free, { ...base, minMinutes: 90.5 })).toBe(false);
     expect(checkArgs(free, { ...base, dayStart: '24:00' })).toBe(false);

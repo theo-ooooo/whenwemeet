@@ -3,7 +3,8 @@ import type { ConfigService } from '@nestjs/config';
 /** (#450) 모델 주입 토큰 (설계 AI-비서.md 3장, D-265). 운영 OpenAI, `ASSISTANT_FAKE=1` 가짜, 키 없음 미설정. 장소 검색 공급자와 같은 방식 */
 export const ASSISTANT_MODEL = Symbol('ASSISTANT_MODEL');
 
-export const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+/** (#459) 실모델 평가 21문장 gpt-4o-mini 14, gpt-4.1-mini 19 (남은 2개는 서버 안전장치로 바로잡음). D-278 */
+export const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant';

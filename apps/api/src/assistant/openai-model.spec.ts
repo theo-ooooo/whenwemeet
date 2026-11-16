@@ -32,7 +32,7 @@ const completion = {
 };
 
 describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
-  it('Chat Completions 인자: 도구 강제, 병렬 끔, strict, store false, temperature 0, 300 토큰, 10초, 재시도 없음, abort 신호', async () => {
+  it('Chat Completions 인자: 도구 강제, 병렬 끔, strict, store false, temperature 0, 500 토큰, 10초, 재시도 없음, abort 신호', async () => {
     const create = vi.fn().mockResolvedValue(completion);
     const model = new OpenAiAssistantModel({ chat: { completions: { create } } } as never, 'gpt-4o-mini');
     const signal = new AbortController().signal;
@@ -43,7 +43,7 @@ describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
       tool_choice: 'required',
       parallel_tool_calls: false,
       temperature: 0,
-      max_completion_tokens: 300,
+      max_completion_tokens: 500,
       store: false,
       messages: [{ role: 'user', content: '안녕' }],
     });
@@ -92,7 +92,7 @@ describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
 
 describe('모델 고르기 (D-271)', () => {
   it('운영: 키 있으면 OpenAI, 없으면 미설정, ASSISTANT_FAKE 는 무시', () => {
-    expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: ' k ' }))).toEqual({ kind: 'openai', apiKey: 'k', model: 'gpt-4o-mini' });
+    expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: ' k ' }))).toEqual({ kind: 'openai', apiKey: 'k', model: 'gpt-4.1-mini' });
     expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', ASSISTANT_FAKE: '1' })).kind).toBe('unavailable');
     expect(assistantModelChoice(fakeConfig({ NODE_ENV: 'production', OPENAI_API_KEY: 'k', OPENAI_MODEL: 'gpt-x' })).model).toBe('gpt-x');
   });
@@ -113,7 +113,7 @@ describe('모델 고르기 (D-271)', () => {
 });
 
 describe('FakeAssistantModel (키워드)', () => {
-  const fake = new FakeAssistantModel(() => new Date('2026-11-16T05:05:00.000Z'));
+  const fake = new FakeAssistantModel();
   const pick = async (text: string) => {
     const result = await fake.complete([{ role: 'system', content: 's' }, { role: 'user', content: text }]);
     const call = result.toolCalls[0];
@@ -121,9 +121,15 @@ describe('FakeAssistantModel (키워드)', () => {
   };
 
   it('키워드별 도구', async () => {
-    expect(await pick('내일 하늘이랑 저녁 잡아 줘')).toMatchObject({ name: 'draft_event', args: { date: '2026-11-17', startTime: '19:00', participants: ['하늘'] } });
-    expect(await pick('빈 시간 찾아서 투표')).toMatchObject({ name: 'find_free_time', args: { fromDate: '2026-11-16', toDate: '2026-11-22', next: 'poll', everyone: true } });
-    expect(await pick('이번 주에 뭐 있어?')).toMatchObject({ name: 'list_events', args: { fromDate: '2026-11-15', toDate: '2026-11-21', member: null } });
+    expect(await pick('내일 하늘이랑 저녁 잡아 줘')).toMatchObject({
+      name: 'draft_event',
+      args: { date: { kind: 'relativeDays', days: 1 }, endDate: { kind: null }, startTime: '19:00', participants: ['하늘'] },
+    });
+    expect(await pick('빈 시간 찾아서 투표')).toMatchObject({
+      name: 'find_free_time',
+      args: { from: { kind: 'relativeDays', days: 0 }, to: { kind: 'relativeDays', days: 6 }, next: 'poll', everyone: true },
+    });
+    expect(await pick('이번 주에 뭐 있어?')).toMatchObject({ name: 'list_events', args: { from: { kind: 'week', which: 'this' }, to: { kind: null }, member: null } });
     expect(await pick('하늘 생일')).toMatchObject({ name: 'find_anniversary' });
     expect(await pick('8시로 바꿔 줘')).toMatchObject({ name: 'report_unsupported', args: { action: 'edit_event' } });
     expect(await pick('회식 지워 줘')).toMatchObject({ name: 'report_unsupported', args: { action: 'delete_event' } });
