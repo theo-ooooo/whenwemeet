@@ -1,7 +1,7 @@
 "use client";
 // (#450) AI 비서 대화 몸통 (설계 AI-비서.md 7-2, 7-5, 7-8, 7-9, 승인 시안). 폰 전체 화면(AssistantScreen)과 넓은 화면 오른쪽 패널이 같이 쓴다.
 //   처음 쓸 때 안내 카드(동의 전) → 빈 상태(인사 + 예시 3개) → 대화(내 말 오른쪽 코랄, 볼까 왼쪽 타일 + 카드)
-//   아래 입력 줄: 여러 줄 입력(최대 4줄) + 원형 보내기. 하루 한도면 입력 대신 안내, 남은 5번 이하면 "오늘 N번 남았어요"
+//   아래 입력 줄: 여러 줄 입력(최대 4줄) + 원형 보내기. 하루 한도면 입력 대신 안내, 동의 뒤에는 늘 "오늘 N번 남았어요" (5번 이하는 강조, #470)
 // 읽기: 대화 목록은 role=log(카드까지 읽지 않게 aria-live 끔), 볼까 답 글자만 따로 aria-live 로 읽는다. 보낸 뒤 포커스는 입력에 남는다
 import Link from "next/link";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import { useAssistant } from "./AssistantProvider";
 import { AssistantCardView, type CardTone } from "./AssistantCards";
 import { IconArrowRight, IconChevronRight, IconSparkle } from "./icons";
 import { Button, InlineError } from "./ui";
-import { COUNTER_FROM, examplePrompts, REMAIN_HINT, TEXT_MAX, type ChatMessage } from "@/lib/assistant";
+import { COUNTER_FROM, examplePrompts, REMAIN_HINT, TEXT_MAX, type ChatMessage, type ShowDate } from "@/lib/assistant";
 import { newEventHref } from "@/lib/routes";
 import { useLayout } from "@/lib/useLayout";
 
@@ -20,7 +20,7 @@ type Props = {
   /** screen: 폰 전체 화면(문서가 스크롤, 입력 줄은 바닥에 붙는다). panel: 넓은 화면 오른쪽 패널(안쪽만 스크롤) */
   variant: "screen" | "panel";
   /** 넓은 화면 패널: [추가] 뒤 달력이 그날을 보이게 */
-  onShowDate?: (date: string) => void;
+  onShowDate?: ShowDate;
 };
 
 export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function AssistantChat({ variant, onShowDate }, ref) {
@@ -131,8 +131,11 @@ export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function Ass
           : "shrink-0 border-t border-line px-4 py-3"
       }
     >
-      {a.consented === true && !a.limited && a.remaining !== null && a.remaining <= REMAIN_HINT && (
-        <p className="mb-1.5 text-[12px] leading-4 text-ink-2">오늘 {a.remaining}번 남았어요</p>
+      {a.consented === true && !a.limited && a.remaining !== null && (
+        // (#470) 늘 보인다. 5번 이하는 강조색
+        <p className={`mb-1.5 text-[12px] leading-4 ${a.remaining <= REMAIN_HINT ? "font-semibold text-ink" : "text-ink-2"}`}>
+          오늘 {a.remaining}번 남았어요 (하루 {a.limit}번)
+        </p>
       )}
       {a.limited ? (
         <div role="status" className={`rounded-xl px-4 py-3 ${tone === "paper" ? "bg-paper" : "bg-surface"}`}>
@@ -222,7 +225,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function Ass
   );
 });
 
-function MessageView({ m, tone, onShowDate }: { m: ChatMessage; tone: CardTone; onShowDate?: (date: string) => void }) {
+function MessageView({ m, tone, onShowDate }: { m: ChatMessage; tone: CardTone; onShowDate?: ShowDate }) {
   const { retry, pending } = useAssistant();
   const bubble = tone === "paper" ? "bg-paper" : "bg-surface";
   if (m.role === "user") {

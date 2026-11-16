@@ -212,10 +212,35 @@ describe("AssistantChat (#450)", () => {
     expect(screen.queryByLabelText("볼까에게 보낼 글")).toBeNull();
   });
 
-  it("남은 횟수가 5번 이하면 입력 위에 보인다, 250자부터 글자 수", () => {
+  it("(#470) 넓은 화면 패널: [추가] 직후 그날만 고르고, '달력에서 보기' 는 넣은 일정 상세를 연다", async () => {
+    send.mockResolvedValue(ok(draftReply));
+    createEvent.mockResolvedValue(ok({ id: 9, publicCode: "evnt9xxx", title: "강남 회식", startsAt: kst("2030-11-29T19:00") }));
+    const onShowDate = vi.fn();
+    render(
+      <AssistantProvider groupId={2}>
+        <AssistantChat variant="panel" onShowDate={onShowDate} />
+      </AssistantProvider>,
+    );
+    await type("다음 주 금요일 7시 강남 회식");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "강남 회식 추가" }));
+    });
+    expect(onShowDate).toHaveBeenLastCalledWith("2030-11-29");
+    fireEvent.click(screen.getByRole("button", { name: "달력에서 보기" }));
+    expect(onShowDate).toHaveBeenLastCalledWith("2030-11-29", { publicCode: "evnt9xxx" });
+  });
+
+  it("(#470) 남은 횟수는 늘 입력 위에 보인다 (5번 이하는 강조)", () => {
+    me = { assistant: { available: true, consented: true, dailyLimit: 30, usedToday: 14 } };
+    renderChat();
+    const line = screen.getByText("오늘 16번 남았어요 (하루 30번)");
+    expect(line.className).toContain("text-ink-2");
+  });
+
+  it("남은 횟수가 5번 이하면 강조, 250자부터 글자 수", () => {
     me = { assistant: { available: true, consented: true, dailyLimit: 30, usedToday: 26 } };
     renderChat();
-    expect(screen.getByText("오늘 4번 남았어요")).toBeTruthy();
+    expect(screen.getByText("오늘 4번 남았어요 (하루 30번)").className).toContain("font-semibold");
     fireEvent.change(input(), { target: { value: "가".repeat(250) } });
     expect(screen.getByText("250/300")).toBeTruthy();
   });

@@ -677,9 +677,11 @@ export function CalendarScreen({ initialEvent = null }: Props) {
     aiButton.current?.focus({ preventScroll: true });
   }, [clearAi, setAiOpen]);
   /** 카드 [추가] 뒤: 달력을 다시 받고 그날을 고른다 (보는 달도 그 달로) */
-  function showAddedDate(date: DateKey) {
+  /** 볼까 패널: [추가] 직후는 그날을 고르기만, "달력에서 보기" 는 그 일정 상세를 연다 (#470) */
+  function showAddedDate(date: DateKey, event?: { publicCode: string }) {
     reload();
-    pick(date);
+    if (event) openDay(date, { publicCode: event.publicCode, occurrence: null });
+    else pick(date);
   }
   const titleId = useId();
 
