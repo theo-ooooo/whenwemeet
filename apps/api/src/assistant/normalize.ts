@@ -5,7 +5,8 @@ import { addDays, dateToDay, kstDate, kstMidnight } from '../events/recurrence.j
 import { checkOptions } from '../polls/poll-rules.js';
 import type { Interval } from '../free-slots/slots.js';
 import type { ClarifyField, DaysFilter, EventDraftCard, PollDraft } from './assistant.types.js';
-import { kstWeekday } from './prompt.js';
+import { kstTime, kstWeekday } from './prompt.js';
+import { isPastThisWeekday, resolvePeriod, resolveWhen, type WhenArg } from './when.js';
 
 /**
  * (#450) 모델 인자 검사, 정규화 (설계 AI-비서.md 4-1, D-268). 순수 함수.
@@ -61,6 +62,11 @@ export interface NormalizeContext {
   /** 지금 팀 멤버, 가입순 */
   members: TeamMember[];
   personal: boolean;
+  /**
+   * (#458) 사용자가 실제로 쓴 글 (이번 글 + 대화 기록의 사용자 글). 모델이 준 이름, "모두" 를 이 글에 나온 것만 믿는다 (D-277).
+   * 대화 기록의 볼까 글(서버 문구)은 넣지 않는다
+   */
+  spoken: string;
 }
 
 // ---------- 글자 ----------
@@ -105,6 +111,8 @@ export const minutesOf = (time: string): number => (time === '24:00' ? 24 * 60 :
 
 const SELF_WORDS = new Set(['나', '저', '내', '내가', '제가']);
 const EVERYONE_WORDS = new Set(['모두', '다같이', '전원', '우리', '다']);
+/** 사용자 글에서 "전원" 을 뜻하는 말 (D-277). "회식" 처럼 모임 말만으로는 전원이 아니다 */
+const EVERYONE_SPOKEN = /(다\s*(같이|함께)|모두|전원|다들|우리|전체|(둘|셋|넷|다섯|여섯)\s*(다|모두))/;
 const key = (text: string): string => text.replace(/\s+/g, '').toLowerCase();
 
 /** 받침이 있는 한글 글자인가 */
@@ -112,6 +120,16 @@ function hasFinalConsonant(char: string | undefined): boolean {
   if (!char) return false;
   const code = char.charCodeAt(0);
   return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0;
+}
+
+/** 이름에서 "님", 받침 + "이" 를 뗀 후보들 (긴 것부터) */
+function nameStems(name: string): string[] {
+  const candidates: string[] = [name];
+  if (name.endsWith('님') && name.length > 1) candidates.push(name.slice(0, -1));
+  const last = candidates[candidates.length - 1];
+  const chars = Array.from(last);
+  if (chars.length > 1 && chars[chars.length - 1] === '이' && hasFinalConsonant(chars[chars.length - 2])) candidates.push(chars.slice(0, -1).join(''));
+  return candidates;
 }
 
 export type NameMatch = { kind: 'one'; member: TeamMember } | { kind: 'many'; members: TeamMember[] } | { kind: 'none' };
@@ -126,12 +144,7 @@ export function matchName(raw: string, context: Pick<NormalizeContext, 'userId' 
     const me = context.members.find((member) => member.userId === context.userId);
     return me ? { kind: 'one', member: me } : { kind: 'none' };
   }
-  const candidates: string[] = [name];
-  if (name.endsWith('님') && name.length > 1) candidates.push(name.slice(0, -1));
-  const last = candidates[candidates.length - 1];
-  const chars = Array.from(last);
-  if (chars.length > 1 && chars[chars.length - 1] === '이' && hasFinalConsonant(chars[chars.length - 2])) candidates.push(chars.slice(0, -1).join(''));
-  for (const candidate of candidates) {
+  for (const candidate of nameStems(name)) {
     const hits = context.members.filter((member) => key(member.displayName) === candidate || key(member.nickname) === candidate);
     if (hits.length === 1) return { kind: 'one', member: hits[0] };
     if (hits.length > 1) return { kind: 'many', members: hits };
@@ -139,8 +152,35 @@ export function matchName(raw: string, context: Pick<NormalizeContext, 'userId' 
   return { kind: 'none' };
 }
 
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * (#458) 모델이 준 이름이 사용자 글에 실제로 나왔는가 (D-277). 이름(공백 무시) 또는 "님", "이" 를 뗀 값, 세 글자 이상 한글 이름은
+ * 성을 뗀 값("김수경" → "수경")이 **낱말 첫머리**에 있어야 한다. 낱말 첫머리여야 "강남" 속 "남" 같은 우연을 거른다
+ */
+export function isMentioned(raw: string, spoken: string): boolean {
+  const name = key(raw);
+  if (name.length === 0) return false;
+  if (SELF_WORDS.has(name)) return true;
+  const stems = new Set(nameStems(name));
+  // 늘리는 동안 새로 넣은 값을 다시 돌지 않게 사본으로 돈다
+  for (const stem of Array.from(stems)) {
+    const chars = Array.from(stem);
+    if (chars.length >= 3 && /^[\uac00-\ud7a3]+$/.test(stem)) stems.add(chars.slice(1).join(''));
+  }
+  const text = spoken.toLowerCase();
+  return [...stems].some((stem) => {
+    // 이름 글자 사이 공백은 무시 ("하 늘")
+    const pattern = Array.from(stem).map(escapeRegExp).join('\\s*');
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${pattern}`, 'u').test(text);
+  });
+}
+
+/** 사용자 글에 "다 같이, 모두, 전원, 다들, 우리, 셋 다" 같은 전원 말이 있는가 */
+export const saysEveryone = (spoken: string): boolean => EVERYONE_SPOKEN.test(spoken);
+
 /** 이름 하나를 멤버 한 명으로. 없거나 여럿이면 clarify(participant) */
-export function resolveName(raw: string, context: NormalizeContext): TeamMember {
+export function resolveName(raw: string, context: Pick<NormalizeContext, 'userId' | 'members'>): TeamMember {
   const name = truncate(cleanText(raw), MAX_NAME);
   const match = matchName(name, context);
   if (match.kind === 'one') return match.member;
@@ -156,16 +196,19 @@ export interface ParticipantInput {
 
 /**
  * 참여자 id (가입순). everyone = 지금 멤버 전원 (D-263). 아니면 찾은 이름 + includeMe 면 요청자.
- * 이름도 everyone 도 없으면 fallback: 일정 초안은 요청자만(api.md 생성 기본), 빈 시간과 투표는 전원. 개인 팀은 늘 나만
+ * 이름도 everyone 도 없으면 fallback: 일정 초안은 요청자만(api.md 생성 기본), 빈 시간과 투표는 전원. 개인 팀은 늘 나만.
+ * (#458) 모델이 준 이름과 everyone 은 사용자 글(spoken)에 나온 것만 믿는다. 글에 없는 이름은 버리고, 전원 말이 없으면 everyone 은 false (D-277)
  */
 export function resolveParticipants(input: ParticipantInput, fallback: 'me' | 'all', context: NormalizeContext): number[] {
   const all = context.members.map((member) => member.userId);
   if (context.personal) return [context.userId];
+  const everyoneSaid = saysEveryone(context.spoken);
   const names = input.participants.map(cleanText).filter((name) => name.length > 0);
-  if (input.everyone || names.some((name) => EVERYONE_WORDS.has(key(name)))) return all;
-  if (names.length === 0) return fallback === 'all' ? all : [context.userId];
+  if (everyoneSaid && (input.everyone || names.some((name) => EVERYONE_WORDS.has(key(name))))) return all;
+  const mentioned = names.filter((name) => !EVERYONE_WORDS.has(key(name)) && isMentioned(name, context.spoken));
+  if (mentioned.length === 0) return fallback === 'all' ? all : [context.userId];
   const ids = new Set<number>();
-  for (const name of names) ids.add(resolveName(name, context).userId);
+  for (const name of mentioned) ids.add(resolveName(name, context).userId);
   if (input.includeMe) ids.add(context.userId);
   return all.filter((id) => ids.has(id));
 }
@@ -185,20 +228,39 @@ function cardTitle(raw: string): string {
 
 export interface DraftEventArgs extends ParticipantInput {
   title: string;
-  date: string;
+  date: WhenArg;
   startTime: string | null;
-  endDate: string | null;
+  endDate: WhenArg;
   endTime: string | null;
   allDay: boolean;
   place: string | null;
+}
+
+/** 지금 KST 분 (0~1439) */
+const nowMinutesOf = (now: Date): number => minutesOf(kstTime(now));
+
+/**
+ * (#458) 일정, 투표 초안의 날짜 표현 → KST 날짜 (D-276). 없거나 풀 수 없거나 범위 밖이면 clarify(date).
+ * "이번 주 X요일" 이 이미 지난 날이면 지난 일정을 몰래 만들지도, 다음 주로 몰래 옮기지도 않고 되묻는다
+ */
+export function draftDate(when: WhenArg, context: NormalizeContext, startTime: string | null): string {
+  const today = kstDate(context.now);
+  const date = resolveWhen(when, { today, nowMinutes: nowMinutesOf(context.now), startMinutes: startTime === null ? null : minutesOf(startTime) });
+  if (date === null || isPastThisWeekday(when, date, today)) throw clarify('date');
+  return checkDate(date, today);
 }
 
 /** draft_event → 일정 초안 카드 (끝 없음 +1시간, 끝 <= 시작 = 다음 날, 종일은 KST 자정 경계, 30일 상한) */
 export function normalizeDraftEvent(args: DraftEventArgs, context: NormalizeContext): EventDraftCard {
   const today = kstDate(context.now);
   const title = cardTitle(args.title);
-  const date = checkDate(args.date, today);
-  const endDate = args.endDate === null ? null : checkDate(args.endDate, today);
+  const date = draftDate(args.date, context, args.allDay ? null : args.startTime);
+  let endDate: string | null = null;
+  if (args.endDate.kind !== null) {
+    const resolved = resolveWhen(args.endDate, { today, edge: 'end', notBefore: date });
+    if (resolved === null) throw clarify('date');
+    endDate = checkDate(resolved, today);
+  }
   let startsAt: Date;
   let endsAt: Date;
   if (args.allDay) {
@@ -246,9 +308,16 @@ function checkPeriodDate(date: string, today: string): void {
   if (date < addDays(today, -365) || date > addDays(today, 730)) throw clarify('period');
 }
 
+/** (#458) 기간 표현 → 양끝 포함 KST 날짜 (D-276). 없거나 풀 수 없으면 clarify(period) */
+export function periodDates(from: WhenArg, to: WhenArg, today: string): { fromDate: string; toDate: string } {
+  const period = resolvePeriod(from, to, today);
+  if (period === null) throw clarify('period');
+  return period;
+}
+
 export interface FindFreeTimeArgs extends ParticipantInput {
-  fromDate: string;
-  toDate: string;
+  from: WhenArg;
+  to: WhenArg;
   days: DaysFilter;
   dayStart: string | null;
   dayEnd: string | null;
@@ -281,7 +350,9 @@ function optionalTitle(raw: string | null): string | null {
 
 /** find_free_time → 계산 조건 (기간 1~31일, 하루 창 기본 09:00~23:00, 최소 길이 기본 120분, 30~720 으로 자름) */
 export function normalizeFreeTime(args: FindFreeTimeArgs, context: NormalizeContext): FreeTimePlan {
-  const period = normalizePeriod(args.fromDate, args.toDate, MAX_SEARCH_DAYS, kstDate(context.now));
+  const today = kstDate(context.now);
+  const { fromDate, toDate } = periodDates(args.from, args.to, today);
+  const period = normalizePeriod(fromDate, toDate, MAX_SEARCH_DAYS, today);
   const dayStart = args.dayStart ?? DEFAULT_DAY_START;
   const dayEnd = args.dayEnd ?? DEFAULT_DAY_END;
   if (minutesOf(dayStart) >= minutesOf(dayEnd)) throw clarify('period');
@@ -310,7 +381,7 @@ export function filterByDays(slots: readonly Interval[], days: DaysFilter): Inte
 
 export interface DraftPollArgs {
   title: string;
-  options: { date: string; startTime: string; endTime: string }[];
+  options: { date: WhenArg; startTime: string; endTime: string }[];
   participants: string[];
   everyone: boolean;
 }
@@ -319,9 +390,8 @@ export interface DraftPollArgs {
 export function normalizeDraftPoll(args: DraftPollArgs, context: NormalizeContext): PollDraft {
   if (context.personal) throw new NormalizeProblem({ kind: 'unsupported', action: 'team_only' });
   const title = cardTitle(args.title);
-  const today = kstDate(context.now);
   const raw = args.options.map((option) => {
-    const date = checkDate(option.date, today);
+    const date = draftDate(option.date, context, option.startTime);
     return { startsAt: kstToDate(date, option.startTime), endsAt: kstToDate(date, option.endTime), allDay: false as const };
   });
   let options;
@@ -340,29 +410,45 @@ export function normalizeDraftPoll(args: DraftPollArgs, context: NormalizeContex
 }
 
 export interface ListEventsArgs {
-  fromDate: string;
-  toDate: string;
+  from: WhenArg;
+  to: WhenArg;
   member: string | null;
 }
 
-/** list_events → 기간(1~31일)과 거를 사람. 사람이 없거나 여럿이면 clarify(participant) */
+/** list_events → 기간(1~31일)과 거를 사람. 사람이 없거나 여럿이면 clarify(participant). 글에 없는 이름은 거르지 않는다 (D-277) */
 export function normalizeListEvents(args: ListEventsArgs, context: NormalizeContext) {
-  const period = normalizePeriod(args.fromDate, args.toDate, MAX_SEARCH_DAYS, kstDate(context.now));
+  const today = kstDate(context.now);
+  const { fromDate, toDate } = periodDates(args.from, args.to, today);
+  const period = normalizePeriod(fromDate, toDate, MAX_SEARCH_DAYS, today);
   const name = args.member === null ? '' : cleanText(args.member);
-  return { ...period, memberId: name.length === 0 ? null : resolveName(name, context).userId };
+  const said = name.length > 0 && isMentioned(name, context.spoken);
+  return { ...period, memberId: said ? resolveName(name, context).userId : null };
 }
 
 export interface FindAnniversaryArgs {
   keyword: string | null;
-  fromDate: string | null;
-  toDate: string | null;
+  from: WhenArg;
+  to: WhenArg;
 }
 
-/** find_anniversary → 기간(없으면 오늘부터 1년)과 검색어 (20자) */
+/** 그 자체로 기간인 표현 (주, 주말, 달) */
+const RANGE_KINDS = new Set<WhenArg['kind']>(['week', 'weekend', 'month']);
+
+/** find_anniversary → 기간(없으면 오늘부터 1년, 하루 표현 하나면 그날부터 1년, 주나 달이면 그 기간)과 검색어 (20자) */
 export function normalizeFindAnniversary(args: FindAnniversaryArgs, context: NormalizeContext) {
   const today = kstDate(context.now);
-  const fromDate = args.fromDate ?? today;
-  const toDate = args.toDate ?? addDays(fromDate, 365);
+  let fromDate = today;
+  let toDate = addDays(today, 365);
+  if (args.from.kind !== null) {
+    if (args.to.kind !== null || RANGE_KINDS.has(args.from.kind)) {
+      ({ fromDate, toDate } = periodDates(args.from, args.to, today));
+    } else {
+      const start = resolveWhen(args.from, { today });
+      if (start === null) throw clarify('period');
+      fromDate = start;
+      toDate = addDays(start, 365);
+    }
+  }
   const period = normalizePeriod(fromDate, toDate, MAX_ANNIVERSARY_DAYS, today);
   const keyword = args.keyword === null ? '' : truncate(cleanText(args.keyword), MAX_KEYWORD);
   return { ...period, keyword: keyword.length === 0 ? null : keyword };

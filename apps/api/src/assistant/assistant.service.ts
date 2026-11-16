@@ -34,7 +34,7 @@ import {
   normalizeFindAnniversary,
   normalizeFreeTime,
   normalizeListEvents,
-  resolveParticipants,
+  matchName,
   truncate,
 } from './normalize.js';
 import { buildMessages } from './prompt.js';
@@ -158,6 +158,8 @@ export class AssistantService {
         now,
         userId,
         personal: group?.type === 'PERSONAL',
+        // (#458) 이름, "모두" 확인용 사용자 글 (이번 글 + 기록의 사용자 글, D-277)
+        spoken: [...history.filter((turn) => turn.role === 'user').map((turn) => turn.text), dto.text].join('\n'),
         members: rows.map((row) => {
           const { joinedAt: _joinedAt, ...member } = toMember(row);
           return { userId: row.userId, displayName: member.displayName, nickname: row.user.nickname, member };
@@ -366,7 +368,7 @@ const compact = (text: string): string => text.replace(/\s+/g, '').toLowerCase()
 export function filterAnniversaries<T extends { name: string; kind: 'ANNIVERSARY' | 'BIRTHDAY'; userId: number | null }>(
   list: readonly T[],
   keyword: string | null,
-  context: NormalizeContext,
+  context: Pick<NormalizeContext, 'userId' | 'members'>,
 ): T[] {
   if (keyword === null) return [...list];
   const word = compact(keyword).replace(/^우리/, '');
@@ -375,13 +377,9 @@ export function filterAnniversaries<T extends { name: string; kind: 'ANNIVERSARY
   const byName = list.filter((item) => compact(item.name).includes(word));
   if (byName.length > 0) return byName;
   // "하늘이 생일" → 멤버 이름 규칙(받침 + 이)으로 사람을 찾는다
-  const person = word.replace(/생일$/, '');
-  try {
-    const [id] = resolveParticipants({ participants: [person], everyone: false, includeMe: false }, 'me', { ...context, personal: false });
-    return list.filter((item) => item.kind === 'BIRTHDAY' && item.userId === id);
-  } catch {
-    return [];
-  }
+  const match = matchName(word.replace(/생일$/, ''), context);
+  if (match.kind !== 'one') return [];
+  return list.filter((item) => item.kind === 'BIRTHDAY' && item.userId === match.member.userId);
 }
 
 /** [fromDate, toDate] 안에서 처음 보이는 날과 라벨 ("300일", "1주년") */

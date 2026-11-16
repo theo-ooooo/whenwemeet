@@ -1,8 +1,10 @@
 import type { ModelTool } from './assistant-model.js';
+import { WEEKDAY_WORDS, WHEN_KINDS, WHICH_WORDS } from './when.js';
 
 /**
  * (#450) 볼까 도구 9개 (설계 AI-비서.md 3-2, D-266). 모두 strict: 모든 키 필수, 없으면 null, 모르는 키 금지.
  * 어느 도구에도 id(팀, 일정, 사용자) 인자가 없다. 사람은 이름으로만 받고 서버가 지금 팀 멤버 안에서 찾는다.
+ * (#458) 날짜는 계산한 값이 아니라 사용자가 말한 표현(`when`)으로 받고 서버가 when.ts 로 정한다 (D-276).
  * 같은 스키마로 서버가 인자를 다시 검사한다 (checkArgs). 길이 상한은 OpenAI strict 가 받지 않는 키라 normalize.ts 가 본다
  */
 
@@ -26,6 +28,7 @@ export const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
 /** 하루 창 끝은 24:00 도 받는다 (빈 시간 api.md 2.5 dayEnd) */
 export const END_TIME_PATTERN = '^(([01]\\d|2[0-3]):[0-5]\\d|24:00)$';
 
+const nullableInt = (description?: string): Schema => ({ type: ['integer', 'null'], ...(description ? { description } : {}) });
 const str = (description?: string): Schema => ({ type: 'string', ...(description ? { description } : {}) });
 const nullableStr = (description?: string): Schema => ({ type: ['string', 'null'], ...(description ? { description } : {}) });
 const date = (nullable = false): Schema => ({ type: nullable ? ['string', 'null'] : 'string', pattern: DATE_PATTERN });
@@ -39,6 +42,32 @@ const obj = (properties: Record<string, Schema>): Schema => ({
   additionalProperties: false,
 });
 
+/**
+ * 날짜 표현 (when.ts WhenArg). 한 단계 평평한 객체라 strict 와 checkArgs 가 그대로 본다.
+ * 모델은 날짜를 셈하지 않고 말한 표현만 옮긴다. 쓰지 않는 키는 null, 말하지 않은 날짜는 kind 까지 모두 null
+ */
+const when = (description: string): Schema => ({
+  ...obj({
+    kind: {
+      type: ['string', 'null'],
+      enum: [...WHEN_KINDS, null],
+      description:
+        'date=연도까지 말한 날짜나 앞 대화의 날짜, relativeDays=오늘/내일/모레/글피/어제, weekday=요일, weekend=주말, week=주, month=달, monthDay=몇 월 며칠(연도 없음). 말하지 않았으면 null',
+    },
+    date: date(true),
+    days: nullableInt('relativeDays: 오늘 0, 내일 1, 모레 2, 글피 3, 어제 -1'),
+    weekday: { type: ['string', 'null'], enum: [...WEEKDAY_WORDS, null], description: 'weekday: 말한 요일 글자 그대로' },
+    which: {
+      type: ['string', 'null'],
+      enum: [...WHICH_WORDS, null],
+      description: 'weekday, weekend, week, month: "이번" this, "다음" next, "다다음" after_next, 요일만 말함 nearest',
+    },
+    month: nullableInt('month, monthDay: 말한 월 1~12. 월을 말하지 않았으면 null'),
+    day: nullableInt('monthDay: 말한 일 1~31'),
+  }),
+  description,
+});
+
 export const CLARIFY_FIELDS = ['date', 'time', 'title', 'period', 'which'] as const;
 export type ModelClarifyField = (typeof CLARIFY_FIELDS)[number];
 export const UNSUPPORTED_ACTIONS = ['edit_event', 'delete_event', 'repeat', 'reminder', 'anniversary_create', 'todo', 'team', 'other_team', 'other'] as const;
@@ -50,9 +79,9 @@ export const TOOL_SCHEMAS = {
     description: '일정 초안을 만든다. 저장하지 않고 사용자가 확인한다',
     parameters: obj({
       title: str('일정 제목 1~50자'),
-      date: date(),
+      date: when('시작 날짜 표현'),
       startTime: time(),
-      endDate: date(true),
+      endDate: when('끝 날짜 표현 (여러 날일 때만, 아니면 kind null)'),
       endTime: time(),
       allDay: bool('여행, 휴가, 출장처럼 날 단위면 true'),
       place: nullableStr('장소 글자 100자 이하'),
@@ -64,8 +93,8 @@ export const TOOL_SCHEMAS = {
   find_free_time: {
     description: '이 팀(또는 고른 멤버)이 모두 비는 시간을 찾는다. 기간은 최대 31일',
     parameters: obj({
-      fromDate: date(),
-      toDate: date(),
+      from: when('찾을 기간의 시작 표현 ("다음 주"면 week next 하나만)'),
+      to: when('기간 끝 표현. from 하나로 기간이 정해지면 kind null'),
       days: { type: 'string', enum: ['all', 'weekend', 'weekday'] },
       dayStart: time(),
       dayEnd: time(true, END_TIME_PATTERN),
@@ -85,7 +114,7 @@ export const TOOL_SCHEMAS = {
         type: 'array',
         minItems: 2,
         maxItems: 5,
-        items: obj({ date: date(), startTime: time(false), endTime: time(false) }),
+        items: obj({ date: when('후보 날짜 표현'), startTime: time(false), endTime: time(false) }),
       },
       participants: names,
       everyone: bool(),
@@ -93,11 +122,11 @@ export const TOOL_SCHEMAS = {
   },
   list_events: {
     description: '이 팀 달력의 일정을 기간으로 찾는다. 기간은 최대 31일',
-    parameters: obj({ fromDate: date(), toDate: date(), member: nullableStr('그 사람이 참여하는 일정만') }),
+    parameters: obj({ from: when('기간 시작 표현'), to: when('기간 끝 표현. from 하나로 정해지면 kind null'), member: nullableStr('그 사람이 참여하는 일정만') }),
   },
   find_anniversary: {
     description: '이 팀 기념일과 멤버 생일을 찾는다',
-    parameters: obj({ keyword: nullableStr('이름 일부 20자 이하'), fromDate: date(true), toDate: date(true) }),
+    parameters: obj({ keyword: nullableStr('이름 일부 20자 이하'), from: when('기간 시작 표현, 없으면 kind null'), to: when('기간 끝 표현, 없으면 kind null') }),
   },
   ask_clarification: {
     description: '필요한 값이 없어 되묻는다',

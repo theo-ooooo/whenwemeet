@@ -2,6 +2,7 @@ import {
   cleanText,
   filterByDays,
   hasUrl,
+  isMentioned,
   isRealDate,
   kstToDate,
   matchName,
@@ -14,8 +15,10 @@ import {
   normalizeListEvents,
   normalizePeriod,
   resolveParticipants,
+  saysEveryone,
   truncate,
 } from './normalize.js';
+import { NO_WHEN, type WhenArg } from './when.js';
 
 /** 2026-11-16 (월) 14:05 KST */
 const NOW = new Date('2026-11-16T05:05:00.000Z');
@@ -30,21 +33,29 @@ const context = (overrides: Partial<NormalizeContext> = {}): NormalizeContext =>
   userId: 1,
   personal: false,
   members: [person(1, '민지'), person(2, '하늘'), person(3, '지훈', 'Jihoon'), person(4, '은', '은')],
+  // 이름 확인(D-277)과 상관없는 시험은 모든 이름과 전원 말이 나온 글로 본다
+  spoken: '민지 하늘이 지훈 jihoon 은 철수 다 같이',
   ...overrides,
 });
 
+/** 날짜 표현 (#458). 글자를 주면 연도까지 말한 날짜(kind date) */
+const on = (date: string): WhenArg => ({ ...NO_WHEN, kind: 'date', date });
+const asWhen = (value: unknown): unknown => (typeof value === 'string' ? on(value) : value === null ? NO_WHEN : value);
+const withWhen = (overrides: Record<string, unknown>, keys: string[]) =>
+  Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, keys.includes(k) ? asWhen(v) : v]));
+
 const event = (overrides: Record<string, unknown> = {}) => ({
   title: '회식',
-  date: '2026-11-27',
+  date: on('2026-11-27'),
   startTime: '19:00',
-  endDate: null,
+  endDate: NO_WHEN,
   endTime: null,
   allDay: false,
   place: null,
   participants: [],
   everyone: false,
   includeMe: true,
-  ...overrides,
+  ...withWhen(overrides, ['date', 'endDate']),
 });
 
 /** 던진 문제 */
@@ -168,8 +179,8 @@ describe('draft_event', () => {
 
 describe('기간, 빈 시간', () => {
   const free = (overrides: Record<string, unknown> = {}) => ({
-    fromDate: '2026-11-16',
-    toDate: '2026-11-22',
+    from: on('2026-11-16'),
+    to: on('2026-11-22'),
     days: 'all' as const,
     dayStart: null,
     dayEnd: null,
@@ -179,7 +190,7 @@ describe('기간, 빈 시간', () => {
     includeMe: true,
     next: 'show' as const,
     purpose: null,
-    ...overrides,
+    ...withWhen(overrides, ['from', 'to']),
   });
 
   it('기간 1~31일, 거꾸로나 너무 먼 날짜는 clarify(period)', () => {
@@ -213,9 +224,10 @@ describe('기간, 빈 시간', () => {
 
 describe('draft_poll, list_events, find_anniversary', () => {
   const options = [
-    { date: '2026-11-22', startTime: '18:00', endTime: '20:00' },
-    { date: '2026-11-21', startTime: '18:00', endTime: '20:00' },
+    { date: on('2026-11-22'), startTime: '18:00', endTime: '20:00' },
+    { date: on('2026-11-21'), startTime: '18:00', endTime: '20:00' },
   ];
+  const list = (fromDate: string, toDate: string, member: string | null) => ({ from: on(fromDate), to: on(toDate), member });
 
   it('투표: 시작 순 정렬, 대상 기본 전원, 개인 팀은 team_only, 중복이나 끝 <= 시작은 clarify(period)', () => {
     const draft = normalizeDraftPoll({ title: '약속', options, participants: [], everyone: false }, context());
@@ -231,14 +243,117 @@ describe('draft_poll, list_events, find_anniversary', () => {
   });
 
   it('일정 찾기: 사람 이름은 id 로, 없으면 null, 못 찾으면 clarify(participant)', () => {
-    expect(normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: '하늘이' }, context())).toMatchObject({ memberId: 2, fromDate: '2026-11-15' });
-    expect(normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: ' ' }, context()).memberId).toBeNull();
-    expect(problemOf(() => normalizeListEvents({ fromDate: '2026-11-15', toDate: '2026-11-21', member: '철수' }, context()))).toMatchObject({ field: 'participant' });
+    expect(normalizeListEvents(list('2026-11-15', '2026-11-21', '하늘이'), context())).toMatchObject({ memberId: 2, fromDate: '2026-11-15' });
+    expect(normalizeListEvents(list('2026-11-15', '2026-11-21', ' '), context()).memberId).toBeNull();
+    expect(problemOf(() => normalizeListEvents(list('2026-11-15', '2026-11-21', '철수'), context()))).toMatchObject({ field: 'participant' });
   });
 
   it('기념일: 기간 없으면 오늘부터 1년, 검색어 20자', () => {
-    expect(normalizeFindAnniversary({ keyword: null, fromDate: null, toDate: null }, context())).toMatchObject({ fromDate: '2026-11-16', toDate: '2027-11-16', keyword: null });
-    expect(normalizeFindAnniversary({ keyword: '가'.repeat(30), fromDate: '2026-12-01', toDate: null }, context())).toMatchObject({ toDate: '2027-12-01', keyword: '가'.repeat(20) });
-    expect(normalizeFindAnniversary({ keyword: ' ', fromDate: null, toDate: null }, context()).keyword).toBeNull();
+    expect(normalizeFindAnniversary({ keyword: null, from: NO_WHEN, to: NO_WHEN }, context())).toMatchObject({ fromDate: '2026-11-16', toDate: '2027-11-16', keyword: null });
+    expect(normalizeFindAnniversary({ keyword: '가'.repeat(30), from: on('2026-12-01'), to: NO_WHEN }, context())).toMatchObject({ toDate: '2027-12-01', keyword: '가'.repeat(20) });
+    expect(normalizeFindAnniversary({ keyword: ' ', from: NO_WHEN, to: NO_WHEN }, context()).keyword).toBeNull();
+  });
+});
+
+describe('(#458) 운영 재현: 날짜 표현과 말한 사람만 (D-276, D-277)', () => {
+  // 2인 팀 "경"(나), "김수경". 2026-11-16 (월) 14:05
+  const team = (spoken: string) =>
+    context({ userId: 1, members: [person(1, '경'), person(2, '김수경')], spoken });
+  const weekdayWhen = (weekday: WhenArg['weekday'], which: WhenArg['which']): WhenArg => ({ ...NO_WHEN, kind: 'weekday', weekday, which });
+  const draft = (date: WhenArg, extra: Record<string, unknown> = {}) => ({
+    ...event({ title: '강남 회식', place: '강남' }),
+    date,
+    participants: ['나', '김수경'],
+    everyone: true,
+    ...extra,
+  });
+
+  it('"다음 주 금요일 7시 강남 회식 잡아줘" → 11-27 (금) 19:00, 모델이 김수경과 everyone 을 넣어도 나만', () => {
+    const card = normalizeDraftEvent(draft(weekdayWhen('금', 'next')), team('다음 주 금요일 7시 강남 회식 잡아줘'));
+    expect(card).toMatchObject({ startsAt: '2026-11-27T10:00:00.000Z', endsAt: '2026-11-27T11:00:00.000Z', participants: [1] });
+  });
+
+  it('"이번 주 금요일 저녁 7시 강남 회식" → 11-20 (금), 나만', () => {
+    const card = normalizeDraftEvent(draft(weekdayWhen('금', 'this')), team('이번 주 금요일 저녁 7시 강남 회식'));
+    expect(card).toMatchObject({ startsAt: '2026-11-20T10:00:00.000Z', participants: [1] });
+  });
+
+  it('"11월 27일 금요일 저녁 7시 강남 회식" → 11-27, 나만', () => {
+    const when: WhenArg = { ...NO_WHEN, kind: 'monthDay', month: 11, day: 27, weekday: '금' };
+    expect(normalizeDraftEvent(draft(when), team('11월 27일 금요일 저녁 7시 강남 회식'))).toMatchObject({ startsAt: '2026-11-27T10:00:00.000Z', participants: [1] });
+  });
+
+  it('이름을 말하면 그 사람 + 나: "수경이랑" 은 성 뗀 이름으로 김수경, "다 같이" 면 전원', () => {
+    expect(normalizeDraftEvent(draft(weekdayWhen('금', 'next'), { everyone: false }), team('다음 주 금요일 7시 수경이랑 회식')).participants).toEqual([1, 2]);
+    expect(normalizeDraftEvent(draft(weekdayWhen('금', 'next'), { participants: [] }), team('다음 주 금요일 7시 다 같이 회식')).participants).toEqual([1, 2]);
+  });
+
+  it('"이번 주 일요일"(이미 지난 날)은 초안에서 되묻는다, 날짜를 말하지 않으면 되묻는다', () => {
+    expect(problemOf(() => normalizeDraftEvent(draft(weekdayWhen('일', 'this')), team('이번 주 일요일 7시')))).toEqual({ kind: 'clarify', field: 'date' });
+    expect(problemOf(() => normalizeDraftEvent(draft(NO_WHEN), team('7시 회식')))).toEqual({ kind: 'clarify', field: 'date' });
+  });
+
+  it('요일만 말하고 오늘이 그 요일이면 시각이 지났을 때 다음 주 (월 09:00 → 11-23, 월 19:00 → 오늘)', () => {
+    expect(normalizeDraftEvent(draft(weekdayWhen('월', 'nearest'), { startTime: '09:00' }), team('월요일 9시')).startsAt).toBe('2026-11-23T00:00:00.000Z');
+    expect(normalizeDraftEvent(draft(weekdayWhen('월', 'nearest'), { startTime: '19:00' }), team('월요일 7시')).startsAt).toBe('2026-11-16T10:00:00.000Z');
+  });
+
+  it('끝 날짜 표현: 주말 여행(종일)은 토~일, 시작보다 앞이면 되묻기', () => {
+    const weekend: WhenArg = { ...NO_WHEN, kind: 'weekend', which: 'this' };
+    expect(normalizeDraftEvent(draft(weekend, { allDay: true, endDate: weekend, participants: [] }), team('이번 주말 여행'))).toMatchObject({
+      startsAt: '2026-11-20T15:00:00.000Z',
+      endsAt: '2026-11-22T15:00:00.000Z',
+    });
+    expect(problemOf(() => normalizeDraftEvent(draft(on('2026-11-27'), { endDate: on('2026-11-26'), endTime: '10:00' }), team('x')))).toEqual({ kind: 'clarify', field: 'time' });
+  });
+
+  it('isMentioned: 낱말 첫머리만, 님, 받침 + 이, 성 뗀 이름, 나', () => {
+    expect(isMentioned('하늘', '다음 주 하늘이랑')).toBe(true);
+    expect(isMentioned('하늘님', '하늘님이랑')).toBe(true);
+    expect(isMentioned('김수경', '수경이랑 저녁')).toBe(true);
+    expect(isMentioned('김수경', '강남 회식')).toBe(false);
+    expect(isMentioned('남', '강남 회식')).toBe(false);
+    expect(isMentioned('Jihoon', 'jihoon 이랑')).toBe(true);
+    expect(isMentioned('나', '')).toBe(true);
+    expect(isMentioned(' ', '아무 글')).toBe(false);
+    expect(saysEveryone('셋 다 되는 저녁')).toBe(true);
+    expect(saysEveryone('우리 회식')).toBe(true);
+    expect(saysEveryone('강남 회식')).toBe(false);
+  });
+
+  it('빈 시간: 글에 없는 이름은 버리고 기본(전원), list_events 의 글에 없는 사람은 거르지 않음', () => {
+    const free = {
+      from: { ...NO_WHEN, kind: 'week' as const, which: 'next' as const },
+      to: NO_WHEN,
+      days: 'all' as const,
+      dayStart: null,
+      dayEnd: null,
+      minMinutes: null,
+      participants: ['김수경'],
+      everyone: false,
+      includeMe: false,
+      next: 'show' as const,
+      purpose: null,
+    };
+    expect(normalizeFreeTime(free, team('다음 주 빈 시간'))).toMatchObject({ fromDate: '2026-11-22', toDate: '2026-11-28', participants: [1, 2] });
+    expect(normalizeFreeTime(free, team('다음 주 수경이만 빈 시간')).participants).toEqual([2]);
+    const thisWeek = { ...NO_WHEN, kind: 'week' as const, which: 'this' as const };
+    expect(normalizeListEvents({ from: thisWeek, to: NO_WHEN, member: '김수경' }, team('이번 주 뭐 있어?'))).toMatchObject({ fromDate: '2026-11-15', toDate: '2026-11-21', memberId: null });
+    expect(normalizeListEvents({ from: thisWeek, to: NO_WHEN, member: '김수경' }, team('이번 주 수경이 일정')).memberId).toBe(2);
+  });
+
+  it('기념일 기간 표현: 다음 달이면 그 달, 하루면 그날부터 1년, 풀 수 없으면 되묻기', () => {
+    expect(normalizeFindAnniversary({ keyword: null, from: { ...NO_WHEN, kind: 'month', which: 'next' }, to: NO_WHEN }, team(''))).toMatchObject({ fromDate: '2026-12-01', toDate: '2026-12-31' });
+    expect(normalizeFindAnniversary({ keyword: null, from: { ...NO_WHEN, kind: 'relativeDays', days: 1 }, to: NO_WHEN }, team(''))).toMatchObject({ fromDate: '2026-11-17', toDate: '2027-11-17' });
+    expect(problemOf(() => normalizeFindAnniversary({ keyword: null, from: { ...NO_WHEN, kind: 'weekday' }, to: NO_WHEN }, team('')))).toEqual({ kind: 'clarify', field: 'period' });
+  });
+
+  it('투표 후보의 날짜 표현도 서버가 정한다', () => {
+    const options = [
+      { date: weekdayWhen('토', 'this'), startTime: '18:00', endTime: '20:00' },
+      { date: weekdayWhen('일', 'next'), startTime: '18:00', endTime: '20:00' },
+    ];
+    const draftPoll = normalizeDraftPoll({ title: '약속', options, participants: [], everyone: false }, team('이번 주 토요일이랑 다음 주 일요일로 투표'));
+    expect(draftPoll.options.map((o) => o.startsAt)).toEqual(['2026-11-21T09:00:00.000Z', '2026-11-22T09:00:00.000Z']);
   });
 });

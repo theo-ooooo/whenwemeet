@@ -16,18 +16,24 @@ export const FIXED_INSTRUCTIONS = `너는 일정 공유 서비스 "언제볼까"
 - 인사, 고마움 표시만 있으면 greet.
 - 필요한 값이 없으면 지어내지 말고 ask_clarification. 단 끝 시각, 장소, 참여자는 없어도 된다.
 날짜와 시간 규칙:
-- 시간대는 한국 시간(KST)만. 날짜는 YYYY-MM-DD, 시각은 HH:mm 24시간.
-- "오늘, 내일, 모레, 이번 주, 다음 주, 이번 달, 주말"은 <data> 의 날짜표와 기간을 그대로 쓴다. 한 주는 일요일 시작.
-- 요일만 말하면 오늘 이후 가장 가까운 그 요일. "다음 주 금요일"은 다음 주 기간 안의 금요일.
+- 시간대는 한국 시간(KST)만. 시각은 HH:mm 24시간.
+- 날짜는 네가 셈하지 않는다. 사용자가 말한 날짜 표현을 when 칸에 그대로 옮기면 서버가 달력으로 정한다. 쓰지 않는 칸은 null.
+- "오늘, 내일, 모레, 글피, 어제" → relativeDays, days 0, 1, 2, 3, -1.
+- 요일: "금요일" → weekday 금, which nearest. "이번 주 금요일" → which this. "다음 주 금요일" → which next. "다다음 주" → after_next.
+- "11월 27일" → monthDay, month 11, day 27. "27일" → monthDay, month null, day 27. "11월 27일 금요일"처럼 요일을 같이 말해도 monthDay. 연도까지 말했을 때만 date(YYYY-MM-DD).
+- "이번 주, 다음 주" → week. "주말, 이번 주말, 다음 주말" → weekend. "이번 달, 다음 달" → month, "12월" → month, month 12.
+- 앞 대화 볼까 글의 날짜("11-21(토)")를 가리키면 monthDay 로 옮긴다.
+- 기간은 from 하나로 정해지면("다음 주", "이번 주말", "이번 달") to 의 kind 를 null. "오늘부터 일주일" → from relativeDays 0, to relativeDays 6.
+- 말하지 않은 날짜는 kind 까지 null. 일정에 날짜가 없으면 ask_clarification(date).
 - 오전, 오후 없이 1~6시는 오후. 7~11시는 저녁, 회식, 술, 약속이면 오후, 그 밖은 오전. "12시"는 낮 12시.
 - 저녁 = 18:00~22:00, 점심 = 11:00~14:00, 오전 = 09:00~12:00, 오후 = 13:00~18:00, 밤 = 20:00~24:00.
 - 시각이 없고 종일이 아닌 일정이면 ask_clarification(time). 여행, 휴가, 출장처럼 날 단위면 allDay.
-- 사람은 이름을 들은 그대로 적는다(조사, "님" 빼고). "나, 저, 내가"는 "나". "다 같이, 모두, 전원, 우리"는 everyone=true.
+사람 규칙:
+- participants 에는 사용자 글에 이름이 나온 사람만 들은 그대로 적는다(조사, "님" 빼고). 이름을 말하지 않았으면 []. <data> 의 멤버 목록으로 채우지 않는다.
+- "나, 저, 내가"는 "나". "다 같이, 모두, 전원, 다들, 우리"라고 말했을 때만 everyone=true. "회식, 모임" 같은 말만으로는 everyone 이 아니다.
 - "하늘이랑"처럼 나도 함께면 includeMe=true(기본). "하늘이만", "하늘이 일정"처럼 나를 빼는 뜻일 때만 false.`;
 
 export const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'] as const;
-/** 날짜표 길이 (6주) */
-export const DATE_TABLE_DAYS = 42;
 
 /** KST 날짜의 요일 번호 (0 = 일요일) */
 export function kstWeekday(date: string): number {
@@ -66,14 +72,6 @@ export function dateRanges(today: string): DateRanges {
   };
 }
 
-/** 'MM-DD 요일' 42일 (오늘부터) */
-export function dateTable(today: string): string[] {
-  return Array.from({ length: DATE_TABLE_DAYS }, (_, i) => {
-    const date = addDays(today, i);
-    return `${date.slice(5)} ${WEEKDAYS[kstWeekday(date)]}`;
-  });
-}
-
 export interface PromptContext {
   now: Date;
   /** 지금 팀 멤버의 표시 이름, 요청자는 me */
@@ -81,15 +79,16 @@ export interface PromptContext {
   personalTeam: boolean;
 }
 
-/** 그날 값. 멤버 이름은 JSON 문자열로 넣어 이름 속 글자가 지시처럼 읽히지 않게 한다. id, 이메일, 팀 이름은 보내지 않는다 */
+/**
+ * 그날 값. 멤버 이름은 JSON 문자열로 넣어 이름 속 글자가 지시처럼 읽히지 않게 한다. id, 이메일, 팀 이름은 보내지 않는다.
+ * (#458) 날짜표와 기간은 보내지 않는다. 모델이 표에서 요일을 잘못 골랐다. 날짜는 서버가 표현으로 정한다 (D-276)
+ */
 export function buildData(context: PromptContext): string {
   const today = kstDate(context.now);
   const data = {
     today,
     weekday: WEEKDAYS[kstWeekday(today)],
     now: kstTime(context.now),
-    ranges: dateRanges(today),
-    days: dateTable(today),
     members: context.members.map((member) => (member.me ? `${member.displayName}(나)` : member.displayName)),
     personalTeam: context.personalTeam,
   };
