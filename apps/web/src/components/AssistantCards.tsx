@@ -36,6 +36,7 @@ import { memberColor } from "@/lib/colors";
 import { dateKeyOf, formatDateKo, todayKey } from "@/lib/date";
 import { MUTE } from "@/lib/participants";
 import { calendarHref, pollHref } from "@/lib/routes";
+import { hasBatchim } from "@/lib/text";
 import type { Event, Member } from "@/lib/types";
 
 /** 카드 면. 폰 화면은 바탕(--bg) 위 타일, 넓은 화면 패널은 타일(--tile) 위라 바탕색 면 */
@@ -151,7 +152,7 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
         {!personal && <MemberLine members={d.members} meId={meId} />}
         {done?.kind === "event" ? (
           <DoneLine
-            text={`'${done.title}'을 넣었어요.`}
+            text={`'${done.title}'${hasBatchim(done.title) ? "을" : "를"} 넣었어요.`}
             link={
               onShowDate ? (
                 <button type="button" onClick={() => onShowDate(done.date, { publicCode: done.publicCode })} className={linkCls}>
