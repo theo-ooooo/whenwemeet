@@ -9,7 +9,7 @@ import type { ActivityActor } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import type { PushPayload } from '../push/push-copy.js';
-import { PushRepository } from '../push/push.repository.js';
+import { PushNotificationsRepository } from '../push/push-notifications.repository.js';
 import type { OptionInput, PollRow } from './poll-rules.js';
 
 const POLL_SELECT = {
@@ -69,7 +69,7 @@ export class PollsRepository {
     private readonly urls: FileUrlBuilder,
     private readonly events: EventsRepository,
     private readonly activities: GroupActivitiesRepository,
-    private readonly push: PushRepository,
+    private readonly push: PushNotificationsRepository,
   ) {}
 
   /** 진행 중 투표 전부 (상한 10개라 페이지 없음) */

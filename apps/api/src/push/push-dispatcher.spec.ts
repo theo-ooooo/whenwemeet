@@ -2,7 +2,9 @@ import { mockRepository, type RepositoryMock } from '../testing/repository-mock.
 import type { ExpoPushClient, ExpoSendResult } from './expo-push.client.js';
 import { PushDispatcher } from './push-dispatcher.js';
 import type { PushPayload } from './push-copy.js';
-import { type ClaimedDelivery, type DueNotification, PushRepository } from './push.repository.js';
+import { type ClaimedDelivery, type DueNotification, PushDeliveryRepository } from './push-delivery.repository.js';
+import { PushDevicesRepository } from './push-devices.repository.js';
+import { PushRecipientsRepository } from './push-recipients.repository.js';
 
 const NOW = new Date('2026-11-12T08:00:00.000Z');
 const MIN = 60 * 1000;
@@ -36,15 +38,15 @@ const claimed = (id: number, overrides: Partial<ClaimedDelivery> = {}): ClaimedD
 });
 
 describe('PushDispatcher', () => {
-  let push: RepositoryMock<PushRepository>;
+  let push: RepositoryMock<PushDeliveryRepository> & RepositoryMock<PushRecipientsRepository> & RepositoryMock<PushDevicesRepository>;
   let expo: { send: ReturnType<typeof vi.fn>; getReceipts: ReturnType<typeof vi.fn> };
   let dispatcher: PushDispatcher;
   let build: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    push = mockRepository(PushRepository);
+    push = { ...mockRepository(PushDeliveryRepository), ...mockRepository(PushRecipientsRepository), ...mockRepository(PushDevicesRepository) };
     expo = { send: vi.fn(), getReceipts: vi.fn() };
-    dispatcher = new PushDispatcher(push as never, expo as unknown as ExpoPushClient, { build: (build = vi.fn()) } as never);
+    dispatcher = new PushDispatcher(push as never, push as never, push as never, expo as unknown as ExpoPushClient, { build: (build = vi.fn()) } as never);
     push.markCancelled.mockImplementation(async (ids) => ids.length);
     push.markSkipped.mockImplementation(async (ids) => ids.length);
     push.dispatchTx.mockResolvedValue(true);

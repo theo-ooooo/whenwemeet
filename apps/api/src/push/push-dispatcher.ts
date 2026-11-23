@@ -3,7 +3,10 @@ import { isBirthdayOn } from '../anniversaries/birthdays.js';
 import { birthdayTargetOf } from './anniversary-planner.js';
 import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
 import { changePayload, DELETED_MEMBER_NAME, joinPayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
-import { type ClaimedDelivery, type DueNotification, parsePollDedupeKey, PushRepository, type Recipient } from './push.repository.js';
+import { type ClaimedDelivery, type DueNotification, PushDeliveryRepository } from './push-delivery.repository.js';
+import { PushDevicesRepository } from './push-devices.repository.js';
+import { parsePollDedupeKey } from './push-notifications.repository.js';
+import { PushRecipientsRepository, type Recipient } from './push-recipients.repository.js';
 import { mondayOfKey, WEEKLY_CATCH_UP_MS, WeeklyPlanner } from './weekly-planner.js';
 
 /** 예약 시각이 이만큼 넘게 지난 알림은 보내지 않는다 (D-88) */
@@ -49,7 +52,9 @@ export class PushDispatcher {
   private readonly logger = new Logger('Push');
 
   constructor(
-    private readonly push: PushRepository,
+    private readonly delivery: PushDeliveryRepository,
+    private readonly recipients: PushRecipientsRepository,
+    private readonly devices: PushDevicesRepository,
     private readonly expo: ExpoPushClient,
     private readonly weekly: WeeklyPlanner,
   ) {}
@@ -57,9 +62,9 @@ export class PushDispatcher {
   /** A. 예약 시각이 된 PENDING 을 받을 기기로 펼친다. 10분(WEEKLY 3시간) 넘게 늦은 것은 SKIPPED */
   async expandDue(now: Date): Promise<ExpandStats> {
     const stats: ExpandStats = { dispatched: 0, skipped: 0, deliveries: 0, cancelled: 0 };
-    const due = await this.push.listDuePending(now, EXPAND_LIMIT);
+    const due = await this.delivery.listDuePending(now, EXPAND_LIMIT);
     const late = due.filter((row) => isLate(row, now));
-    stats.skipped += await this.push.markSkipped(late.map((row) => row.id));
+    stats.skipped += await this.delivery.markSkipped(late.map((row) => row.id));
 
     for (const row of due) {
       if (isLate(row, now)) continue;
@@ -73,7 +78,7 @@ export class PushDispatcher {
       }
       const payload = await this.payloadFor(row, now);
       if (!payload) {
-        stats.skipped += await this.push.markSkipped([row.id]);
+        stats.skipped += await this.delivery.markSkipped([row.id]);
         continue;
       }
       // (#248) 일정 알림은 그 일정의 참여자에게만 (D-138).
@@ -81,7 +86,7 @@ export class PushDispatcher {
       const reportsPast = row.kind === 'CHANGE' || row.kind === 'JOIN';
       // (#305) 생일 알림은 생일인 사람(actorId)에게 보내지 않는다 (D-232)
       const excludesActor = reportsPast || row.kind === 'ANNIVERSARY';
-      let recipients = await this.push.listRecipients(
+      let recipients = await this.recipients.listRecipients(
         row.groupId,
         row.kind,
         excludesActor ? row.actorId : null,
@@ -89,8 +94,8 @@ export class PushDispatcher {
         reportsPast ? row.createdAt : null,
       );
       // (#190) 그 회차에 불참으로 답한 사람에게는 일정 알림을 보내지 않는다 (Q3, D-228)
-      if (row.kind === 'REMINDER' && row.eventId !== null) recipients = await this.push.withoutNotGoing(recipients, row.eventId, row.occurrence);
-      if (await this.push.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
+      if (row.kind === 'REMINDER' && row.eventId !== null) recipients = await this.recipients.withoutNotGoing(recipients, row.eventId, row.occurrence);
+      if (await this.delivery.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
         stats.dispatched += 1;
         stats.deliveries += recipients.length;
       }
@@ -106,13 +111,13 @@ export class PushDispatcher {
     const monday = mondayOfKey(row.dedupeKey);
     const built = monday ? await this.weekly.build(row.groupId, monday, now) : null;
     const recipients = built
-      ? await this.push.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'WEEKLY_NUDGE' : 'WEEKLY')
+      ? await this.recipients.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'WEEKLY_NUDGE' : 'WEEKLY')
       : [];
     if (!built || recipients.length === 0) {
-      stats.cancelled += await this.push.markCancelled([row.id]);
+      stats.cancelled += await this.delivery.markCancelled([row.id]);
       return;
     }
-    if (await this.push.dispatchTx(row.id, now, built.payload, recipients)) {
+    if (await this.delivery.dispatchTx(row.id, now, built.payload, recipients)) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }
@@ -125,21 +130,21 @@ export class PushDispatcher {
    */
   private async expandPoll(row: DueNotification, now: Date, stats: ExpandStats): Promise<void> {
     const key = parsePollDedupeKey(row.dedupeKey);
-    const poll = key ? await this.push.findPollTargets(key.pollId) : null;
+    const poll = key ? await this.recipients.findPollTargets(key.pollId) : null;
     let recipients: Recipient[] | null = null;
     if (key && poll && row.payload) {
       const targets = poll.allMembers ? null : poll.participantIds;
-      if (key.stage === 'OPEN' && poll.status === 'OPEN') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, null);
-      if (key.stage === 'CLOSED') recipients = await this.push.listPollRecipients(row.groupId, targets, row.actorId, row.createdAt);
+      if (key.stage === 'OPEN' && poll.status === 'OPEN') recipients = await this.recipients.listPollRecipients(row.groupId, targets, row.actorId, null);
+      if (key.stage === 'CLOSED') recipients = await this.recipients.listPollRecipients(row.groupId, targets, row.actorId, row.createdAt);
       if (key.stage === 'DEADLINE' && poll.status === 'OPEN' && poll.creatorId !== null) {
-        recipients = await this.push.listPollRecipients(row.groupId, [poll.creatorId], null, null);
+        recipients = await this.recipients.listPollRecipients(row.groupId, [poll.creatorId], null, null);
       }
     }
     if (recipients === null) {
-      stats.skipped += await this.push.markSkipped([row.id]);
+      stats.skipped += await this.delivery.markSkipped([row.id]);
       return;
     }
-    if (await this.push.dispatchTx(row.id, now, null, recipients)) {
+    if (await this.delivery.dispatchTx(row.id, now, null, recipients)) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }
@@ -148,7 +153,7 @@ export class PushDispatcher {
   /** B. QUEUED 를 SENDING 으로 바꿔 100개씩 Expo 로 (최대 한 번, D-89) */
   async sendQueued(now: Date): Promise<SendStats> {
     const stats: SendStats = { sent: 0, failed: {}, requeued: 0 };
-    const claimed = await this.push.claimQueued(SEND_LIMIT);
+    const claimed = await this.delivery.claimQueued(SEND_LIMIT);
     for (let i = 0; i < claimed.length; i += EXPO_SEND_CHUNK) {
       await this.sendChunk(claimed.slice(i, i + EXPO_SEND_CHUNK), now, stats);
     }
@@ -157,7 +162,7 @@ export class PushDispatcher {
 
   /** 보낸 지 15분 지난 티켓의 영수증 (설계 5-7). 확인한 수 */
   async checkReceipts(now: Date): Promise<number> {
-    const candidates = await this.push.listReceiptCandidates(now, EXPO_RECEIPT_CHUNK);
+    const candidates = await this.delivery.listReceiptCandidates(now, EXPO_RECEIPT_CHUNK);
     if (candidates.length === 0) return 0;
     const receipts = await this.expo.getReceipts(candidates.map((row) => row.ticketId));
     if (!receipts) return 0;
@@ -168,8 +173,8 @@ export class PushDispatcher {
       byReceipt.set(receipt, [...(byReceipt.get(receipt) ?? []), row.id]);
       if (receipt === DEVICE_GONE) goneTokens.push(row.token);
     }
-    for (const [receipt, ids] of byReceipt) await this.push.saveReceipts(ids, receipt, now);
-    await this.push.deleteDevicesByTokens(goneTokens);
+    for (const [receipt, ids] of byReceipt) await this.delivery.saveReceipts(ids, receipt, now);
+    await this.devices.deleteDevicesByTokens(goneTokens);
     return candidates.length;
   }
 
@@ -177,14 +182,14 @@ export class PushDispatcher {
   private async payloadFor(row: DueNotification, now: Date): Promise<PushPayload | null> {
     if (row.kind === 'REMINDER') {
       // 원본이 사라졌으면 보내지 않는다 (예약과 펼치기가 같은 틱이라 드묾)
-      if (row.eventId === null || !(await this.push.eventExists(row.eventId))) return null;
+      if (row.eventId === null || !(await this.recipients.eventExists(row.eventId))) return null;
       return row.payload;
     }
     if (row.kind === 'ANNIVERSARY') {
       // (#305) 생일: 그 사이 팀을 나갔거나, 이 팀에 안 보이게 했거나, 생일을 지우거나 바꿨으면 보내지 않는다
       const target = birthdayTargetOf(row.dedupeKey);
       if (target !== null && row.actorId !== null) {
-        const birthday = await this.push.findShownBirthday(row.groupId, row.actorId);
+        const birthday = await this.recipients.findShownBirthday(row.groupId, row.actorId);
         if (birthday === null || !isBirthdayOn(birthday, target)) return null;
       }
       return row.payload;
@@ -192,15 +197,15 @@ export class PushDispatcher {
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 
-    const group = await this.push.findGroupRef(row.groupId);
+    const group = await this.recipients.findGroupRef(row.groupId);
     if (group === null) return null;
     const groupName = group.name;
-    const actorName = row.actorId === null ? DELETED_MEMBER_NAME : ((await this.push.findPersonName(row.groupId, row.actorId)) ?? DELETED_MEMBER_NAME);
+    const actorName = row.actorId === null ? DELETED_MEMBER_NAME : ((await this.recipients.findPersonName(row.groupId, row.actorId)) ?? DELETED_MEMBER_NAME);
     if (row.kind === 'JOIN') return joinPayload(group.publicCode, groupName, actorName, now);
 
     // CHANGE: 묶음이 가리키는 로그 스냅샷 (원본이 지워졌어도 로그는 남는다)
     if (row.eventLogId === null || row.changeAction === null) return null;
-    const log = await this.push.findChangeLog(row.eventLogId);
+    const log = await this.recipients.findChangeLog(row.eventLogId);
     if (!log) return null;
     return changePayload({ groupId: row.groupId, groupName, groupCode: group.publicCode, actorName, action: row.changeAction, log }, now);
   }
@@ -249,10 +254,10 @@ export class PushDispatcher {
       if (CREDENTIAL_ERRORS.has(ticket.code)) this.logger.error(`push.credentials ${ticket.code} ${row.platform} ${tokenPrefix(row.token)}`);
       failed.set(ticket.code, [...(failed.get(ticket.code) ?? []), row.id]);
     });
-    await this.push.markSent(sent, now);
+    await this.delivery.markSent(sent, now);
     stats.sent += sent.length;
     for (const [code, ids] of failed) await this.fail(ids, code, stats);
-    await this.push.deleteDevicesByTokens(goneTokens);
+    await this.devices.deleteDevicesByTokens(goneTokens);
     await this.requeueOrExpire(retry, now, stats);
   }
 
@@ -261,13 +266,13 @@ export class PushDispatcher {
     const expired = rows.filter((row) => row.attempts >= MAX_ATTEMPTS || isLate(row.notification, now));
     const again = rows.filter((row) => !expired.includes(row));
     await this.fail(expired.map((row) => row.id), 'EXPIRED', stats);
-    await this.push.requeue(again.map((row) => row.id));
+    await this.delivery.requeue(again.map((row) => row.id));
     stats.requeued += again.length;
   }
 
   private async fail(ids: number[], code: string, stats: SendStats): Promise<void> {
     if (ids.length === 0) return;
-    await this.push.markFailed(ids, code);
+    await this.delivery.markFailed(ids, code);
     stats.failed[code] = (stats.failed[code] ?? 0) + ids.length;
   }
 }

@@ -7,13 +7,9 @@ import {
   planBirthdays,
 } from '../src/push/anniversary-planner.js';
 import { PushDevicesService } from '../src/push/push-devices.service.js';
-import {
-  type AnniversaryPlanRow,
-  type BirthdayPlanRow,
-  type NotificationSettings,
-  PushRepository,
-  type SettingKind,
-} from '../src/push/push.repository.js';
+import type { NotificationSettings } from '../src/push/push-devices.repository.js';
+import { type AnniversaryPlanRow, type BirthdayPlanRow, PushPlanningRepository } from '../src/push/push-planning.repository.js';
+import { PushRecipientsRepository, type SettingKind } from '../src/push/push-recipients.repository.js';
 import { createTestApp, devLogin, resetDb, type TestApp } from './helpers.js';
 
 /**
@@ -78,7 +74,8 @@ const flags = (offsets: readonly OffsetName[]) => ({
 describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   let app: TestApp;
   let prisma: PrismaService;
-  let push: PushRepository;
+  let planning: PushPlanningRepository;
+  let recipients: PushRecipientsRepository;
   const groupIds: number[] = [];
   const userIds: number[] = [];
   /** 넣은 값 (행이 없으면 기본값) */
@@ -177,8 +174,8 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
         const expected = await sqlRecipients(groupId, kind);
         const actual =
           kind === 'POLL'
-            ? await push.listPollRecipients(groupId, null, null, null)
-            : await push.listRecipients(
+            ? await recipients.listPollRecipients(groupId, null, null, null)
+            : await recipients.listRecipients(
                 groupId,
                 kind === 'WEEKLY_NUDGE' ? 'WEEKLY' : kind,
                 null,
@@ -193,7 +190,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
         });
       }
     }
-    expect(await push.listWeeklyGroupIds()).toEqual(await sqlWeeklyGroupIds());
+    expect(await planning.listWeeklyGroupIds()).toEqual(await sqlWeeklyGroupIds());
 
     const settings = app.get(PushDevicesService);
     const me = app.get(MeService);
@@ -218,7 +215,8 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   beforeAll(async () => {
     app = await createTestApp();
     prisma = app.get(PrismaService);
-    push = app.get(PushRepository);
+    planning = app.get(PushPlanningRepository);
+    recipients = app.get(PushRecipientsRepository);
     await resetDb(app);
     const random = rng(369);
     const flip = () => random() < 0.5;
@@ -401,7 +399,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   });
 
   it('기념일 알림: 시점 8조합 모두 2년 매일 예약이 행과 같다', async () => {
-    const actual = await push.listAnniversaries();
+    const actual = await planning.listAnniversaries();
     const expected = await sqlAnniversaries();
     expect(actual).toEqual(expected);
     expect(actual).toHaveLength(42);
@@ -411,7 +409,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   });
 
   it('생일 알림: 2년 매일 예약이 행과 같다', async () => {
-    const actual = await push.listBirthdays();
+    const actual = await planning.listBirthdays();
     const expected = await sqlBirthdays();
     expect(actual).toEqual(expected);
     const planned = planAll(actual, planBirthdays);
@@ -462,7 +460,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
     expectedBirthday.set(id, { date: null, reminders: kept });
 
     await expectSameAsRows();
-    expect(await push.listBirthdays()).toEqual(await sqlBirthdays());
+    expect(await planning.listBirthdays()).toEqual(await sqlBirthdays());
   });
 
   it('가입하면 생일 알림 시점은 당일 하나, 알림 종류는 행 없이 기본값', async () => {

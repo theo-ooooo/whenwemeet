@@ -7,7 +7,7 @@ import { CalendarFeedsRepository } from '../calendar-feed/calendar-feeds.reposit
 import { deleteMemberResponsesTx } from '../event-responses/event-responses.repository.js';
 import { EventSharesRepository } from '../event-shares/event-shares.repository.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
-import { PushRepository } from '../push/push.repository.js';
+import { PushNotificationsRepository } from '../push/push-notifications.repository.js';
 
 export const MEMBERSHIP_WITH_USER = {
   select: {
@@ -72,7 +72,7 @@ export class MembershipsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
-    private readonly push: PushRepository,
+    private readonly push: PushNotificationsRepository,
     private readonly activities: GroupActivitiesRepository,
     private readonly eventShares: EventSharesRepository,
     private readonly calendarFeeds: CalendarFeedsRepository,

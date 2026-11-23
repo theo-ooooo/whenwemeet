@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { pollDeadlinePayload } from './push-copy.js';
-import { PushRepository } from './push.repository.js';
+import { PushNotificationsRepository } from './push-notifications.repository.js';
+import { PushPlanningRepository } from './push-planning.repository.js';
 
 /** 한 틱에 집는 마감 투표 수 */
 export const POLL_DEADLINE_LIMIT = 200;
@@ -12,15 +13,18 @@ export const POLL_DEADLINE_LIMIT = 200;
  */
 @Injectable()
 export class PollPlanner {
-  constructor(private readonly push: PushRepository) {}
+  constructor(
+    private readonly planning: PushPlanningRepository,
+    private readonly notifications: PushNotificationsRepository,
+  ) {}
 
   /** 이번 틱에 예약한 마감 알림 수 */
   async plan(now: Date): Promise<number> {
-    const due = await this.push.listDuePollDeadlines(now, POLL_DEADLINE_LIMIT);
+    const due = await this.planning.listDuePollDeadlines(now, POLL_DEADLINE_LIMIT);
     let scheduled = 0;
     for (const poll of due) {
       const payload = pollDeadlinePayload({ groupName: poll.groupName, groupCode: poll.groupCode, pollCode: poll.pollCode, title: poll.title }, now);
-      if (await this.push.schedulePollDeadline(poll, payload, now)) scheduled += 1;
+      if (await this.notifications.schedulePollDeadline(poll, payload, now)) scheduled += 1;
     }
     return scheduled;
   }

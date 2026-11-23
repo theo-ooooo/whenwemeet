@@ -4,7 +4,8 @@ import { addDays, DAY_MS, dayToDate } from '../events/recurrence.js';
 import { type AnniversaryItem, anniversaryItemsOn, type AnniversaryLike } from './anniversary-items.js';
 import { anniversaryPayload, type ReminderOffsetDays } from './push-copy.js';
 import { birthdayTitle, isBirthdayOn } from '../anniversaries/birthdays.js';
-import { type AnniversaryPlanRow, type BirthdayPlanRow, type PlannedNotification, PushRepository } from './push.repository.js';
+import type { PlannedNotification } from './push-notifications.repository.js';
+import { type AnniversaryPlanRow, type BirthdayPlanRow, PushPlanningRepository } from './push-planning.repository.js';
 
 /**
  * 창 (lo, hi] 안에 KST 09:00 (= 날짜 D 의 00:00 UTC) 이 있으면 그 날짜 D. 창은 10분 이하라 많아야 하루 (설계 5-5)
@@ -112,7 +113,7 @@ export function planBirthdays(rows: BirthdayPlanRow[], day: string): PlannedNoti
 /** 기념일 예약 계산 (설계 5-5. #269 부터 당일, 하루 전, 일주일 전. #305 팀원 생일도 같은 틱에) */
 @Injectable()
 export class AnniversaryPlanner {
-  constructor(private readonly push: PushRepository) {}
+  constructor(private readonly push: PushPlanningRepository) {}
 
   async plan(lo: Date, hi: Date): Promise<PlannedNotification[]> {
     const day = anniversaryDayInWindow(lo, hi);
