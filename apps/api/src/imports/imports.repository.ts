@@ -7,7 +7,7 @@ import type { ActivityActor } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { PushPayload } from '../push/push-copy.js';
-import { PushRepository } from '../push/push.repository.js';
+import { PushNotificationsRepository } from '../push/push-notifications.repository.js';
 import type { PlannedEvent } from './import-plan.js';
 
 /** IN 절 하나에 넣는 해시 수 */
@@ -22,7 +22,7 @@ export class ImportsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activities: GroupActivitiesRepository,
-    private readonly push: PushRepository,
+    private readonly push: PushNotificationsRepository,
   ) {}
 
   async findGroup(groupId: number): Promise<{ type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string } | null> {

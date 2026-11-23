@@ -1,6 +1,6 @@
 import { anniversaryItemsOn, type AnniversaryKind } from './anniversary-items.js';
 import { anniversaryDayInWindow, itemsForOffset, planAnniversaries } from './anniversary-planner.js';
-import type { AnniversaryPlanRow } from './push.repository.js';
+import type { AnniversaryPlanRow } from './push-planning.repository.js';
 
 /** 그날의 첫 항목 라벨 (없으면 undefined, 이름만이면 null) */
 const first = (date: string, kind: AnniversaryKind, day: string) => anniversaryItemsOn({ date, kind }, day)[0];

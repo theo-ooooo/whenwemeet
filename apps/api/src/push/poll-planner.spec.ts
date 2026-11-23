@@ -1,6 +1,7 @@
 import { mockRepository, type RepositoryMock } from '../testing/repository-mock.js';
 import { PollPlanner } from './poll-planner.js';
-import { type DuePollDeadline, parsePollDedupeKey, pollDedupeKey, PushRepository } from './push.repository.js';
+import { parsePollDedupeKey, pollDedupeKey, PushNotificationsRepository } from './push-notifications.repository.js';
+import { type DuePollDeadline, PushPlanningRepository } from './push-planning.repository.js';
 
 const NOW = new Date('2026-11-13T03:00:00.000Z');
 
@@ -16,12 +17,12 @@ const due = (id: number): DuePollDeadline => ({
 });
 
 describe('(#189) PollPlanner', () => {
-  let push: RepositoryMock<PushRepository>;
+  let push: RepositoryMock<PushPlanningRepository> & RepositoryMock<PushNotificationsRepository>;
   let planner: PollPlanner;
 
   beforeEach(() => {
-    push = mockRepository(PushRepository);
-    planner = new PollPlanner(push as never);
+    push = { ...mockRepository(PushPlanningRepository), ...mockRepository(PushNotificationsRepository) };
+    planner = new PollPlanner(push as never, push as never);
   });
 
   it('마감이 지난 투표마다 마감 문구로 한 번 예약하고 예약한 수를 센다 (이미 표시된 것은 저장소가 거른다)', async () => {
