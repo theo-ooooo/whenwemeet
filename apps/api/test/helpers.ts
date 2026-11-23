@@ -11,6 +11,7 @@ import { EmailLoginConfig } from '../src/email-login/email-login.config.js';
 import { MAIL_CLIENT, type MailClient } from '../src/email-login/mail-client.js';
 import { FileUrlBuilder } from '../src/files/file-url.builder.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
+import { WeeklyPlanner } from '../src/push/weekly-planner.js';
 import { RateLimitSettings } from '../src/rate-limit/rate-limit.guard.js';
 import { StorageService } from '../src/storage/storage.service.js';
 import { fakeConfig } from '../src/testing/fake-config.js';
@@ -35,6 +36,11 @@ export interface TestAppOptions {
   rateLimit?: { now?: () => number };
   /** (#450) AI 비서 모델 (목). 없으면 test-env 의 ASSISTANT_FAKE=1 로 가짜 모델 */
   assistantModel?: unknown;
+  /**
+   * (#480) 주간 요약 예약(WeeklyPlanner). 기본은 끔: 다른 e2e 는 실제 시계 근처로 tick 을 부르므로
+   * 월요일 09:00 ~ 12:00 KST 에 돌면 "이번 주 일정" 푸시가 끼어 개수가 어긋났다. weekly-push e2e 만 켠다
+   */
+  weeklyPush?: boolean;
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -55,6 +61,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);
   await app.init();
+  if (!options.weeklyPush) app.get(WeeklyPlanner).plan = () => Promise.resolve(0);
   return app;
 }
 
