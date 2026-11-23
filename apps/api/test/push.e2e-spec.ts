@@ -3,7 +3,8 @@ import { kstDate } from '../src/events/recurrence.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AnniversaryPlanner } from '../src/push/anniversary-planner.js';
 import { PushDispatcher } from '../src/push/push-dispatcher.js';
-import { PushRepository } from '../src/push/push.repository.js';
+import { PushLeaseRepository } from '../src/push/push-lease.repository.js';
+import { PushNotificationsRepository } from '../src/push/push-notifications.repository.js';
 import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
@@ -360,7 +361,7 @@ describe('푸시 알림 (e2e)', () => {
 
     it('6. 프로세스 둘(holder 둘) 이 같은 틱 → 임대 하나만, 발송 1벌. 임대가 넘어가도 중복 없음', async () => {
       await createEvent(minji, timed('저녁', '18:00:00', '19:00:00', { reminder: 'HOUR_1' }));
-      const other = new PushScheduler(app.get(ConfigService), app.get(PushRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher), app.get(PollPlanner), app.get(EventDeletionsRepository));
+      const other = new PushScheduler(app.get(ConfigService), app.get(PushLeaseRepository), app.get(PushNotificationsRepository), app.get(ReminderPlanner), app.get(AnniversaryPlanner), app.get(WeeklyPlanner), app.get(PushDispatcher), app.get(PollPlanner), app.get(EventDeletionsRepository));
       const now = at('17:00:10');
       const results = await Promise.all([scheduler.tick(now), other.tick(now)]);
       expect(results.filter((result) => result.ran)).toHaveLength(1);

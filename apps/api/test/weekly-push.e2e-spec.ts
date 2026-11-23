@@ -3,7 +3,8 @@ import { addDays, kstDate } from '../src/events/recurrence.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { AnniversaryPlanner } from '../src/push/anniversary-planner.js';
 import { PushDispatcher } from '../src/push/push-dispatcher.js';
-import { PushRepository } from '../src/push/push.repository.js';
+import { PushLeaseRepository } from '../src/push/push-lease.repository.js';
+import { PushNotificationsRepository } from '../src/push/push-notifications.repository.js';
 import { PushScheduler } from '../src/push/push.scheduler.js';
 import { ReminderPlanner } from '../src/push/reminder-planner.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
@@ -153,7 +154,8 @@ describe('주간 알림 (e2e, #277)', () => {
 
     const restarted = new PushScheduler(
       app.get(ConfigService),
-      app.get(PushRepository),
+      app.get(PushLeaseRepository),
+      app.get(PushNotificationsRepository),
       app.get(ReminderPlanner),
       app.get(AnniversaryPlanner),
       app.get(WeeklyPlanner),

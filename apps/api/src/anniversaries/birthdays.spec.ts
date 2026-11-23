@@ -1,6 +1,6 @@
 import { birthdayEvents } from '../calendar-feed/feed-items.js';
 import { birthdayDedupeKey, birthdayTargetOf, planBirthdays } from '../push/anniversary-planner.js';
-import type { BirthdayPlanRow } from '../push/push.repository.js';
+import type { BirthdayPlanRow } from '../push/push-planning.repository.js';
 import { flagsFromRows, rowsFromFlags } from './anniversary-reminders.js';
 import { birthdayAnniversary, birthdayTitle, isBirthday, isBirthdayOn } from './birthdays.js';
 

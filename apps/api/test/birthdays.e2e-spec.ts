@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { kstDate } from '../src/events/recurrence.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
-import { PushRepository } from '../src/push/push.repository.js';
+import { PushPlanningRepository } from '../src/push/push-planning.repository.js';
 import { PushScheduler } from '../src/push/push.scheduler.js';
 import { FakeExpo } from './fake-expo.js';
 import { api, auth, createTestApp, devLogin, resetDb, type Session, type TestApp } from './helpers.js';
@@ -166,7 +166,7 @@ describe('멤버 생일 (e2e)', () => {
       await setBirthday(alice, { date: '03-05' }).expect(200);
       await setBirthday(bob, { date: '12-24' }).expect(200);
       await api(app).patch(`/v1/groups/${teamId}/me`).set(auth(bob)).send({ showBirthday: false }).expect(200);
-      expect(await app.get(PushRepository).listGroupAnniversaries(teamId)).toEqual([{ name: '앨리스 생일', date: '2000-03-05', kind: 'YEARLY' }]);
+      expect(await app.get(PushPlanningRepository).listGroupAnniversaries(teamId)).toEqual([{ name: '앨리스 생일', date: '2000-03-05', kind: 'YEARLY' }]);
     });
 
     it('예약 뒤 팀을 나가면 펼칠 때 SKIPPED', async () => {
