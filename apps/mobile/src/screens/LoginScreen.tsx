@@ -3,23 +3,20 @@
 // "언제 / 볼까?" 제목, 설명, 버튼(높이 48, 모서리 12, 15/700, 아이콘 20 칸, 간격 8), 약관 안내. 값을 바꾸면 웹도 같이 바꾼다.
 // (#245) 맨 아래 [이메일로 계속하기](테두리 보조 버튼). 누르면 이 화면을 닫고 웹뷰가 웹 이메일 로그인 화면을 연다
 // (이메일-로그인.md 7장, D-116). JS 와 PNG 만 바뀌어 eas update 로 1.1.0 에 간다
-import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   type ImageSourcePropType,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   type TextStyle,
   View,
 } from "react-native";
-import * as AppleAuthentication from "expo-apple-authentication";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AuthApiError } from "../auth/api";
-import { LoginCancelled, kakaoAvailable, loginWithApple, loginWithKakao } from "../auth/login";
+import { kakaoAvailable } from "../auth/login";
+import { useAppleSignInAvailable, useSocialLogin } from "../hooks/useSocialLogin";
 import { env } from "../config/env";
 import { fontStyle, usePretendard } from "../ui/fonts";
 import { useTheme } from "../ui/theme";
@@ -45,31 +42,9 @@ export function LoginScreen({ next, reason, onSuccess, onEmail }: Props) {
   const fonts = usePretendard();
   const f = (w: 400 | 500 | 700) => fontStyle(w, fonts);
   const insets = useSafeAreaInsets();
-  const [busy, setBusy] = useState<"kakao" | "apple" | null>(null);
-  const [error, setError] = useState<string | null>(reason === "expired" ? "다시 로그인해 주세요" : null);
-  const [appleNative, setAppleNative] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === "ios") AppleAuthentication.isAvailableAsync().then(setAppleNative, () => setAppleNative(false));
-  }, []);
-
-  async function run(kind: "kakao" | "apple") {
-    if (busy) return;
-    setBusy(kind);
-    setError(null);
-    try {
-      // 애플은 iOS expo-apple-authentication signInAsync (auth/login.ts)
-      const url = kind === "kakao" ? await loginWithKakao(next) : await loginWithApple(next);
-      onSuccess(url);
-    } catch (e) {
-      if (!(e instanceof LoginCancelled)) {
-        setError(e instanceof AuthApiError ? e.message : "로그인하지 못했어요. 잠시 후 다시 시도해 주세요");
-        console.warn("[login]", kind, e);
-      }
-    } finally {
-      setBusy(null);
-    }
-  }
+  // (#478) 로그인 실행 상태와 애플 지원 여부는 hooks/useSocialLogin.ts
+  const { busy, error, run } = useSocialLogin(next, reason, onSuccess);
+  const appleNative = useAppleSignInAvailable();
 
   function openWeb(path: "/terms" | "/privacy") {
     WebBrowser.openBrowserAsync(`${env.webOrigin}${path}`).catch((e: unknown) => console.warn("[login] 약관 열기 실패", e));
@@ -124,7 +99,7 @@ export function LoginScreen({ next, reason, onSuccess, onEmail }: Props) {
               busy={busy === "kakao"}
               disabled={!kakaoAvailable() || busy !== null}
               fontFamily={f(700)}
-              onPress={() => run("kakao")}
+              onPress={() => void run("kakao")}
             />
             {showApple ? (
               <SocialButton
@@ -138,7 +113,7 @@ export function LoginScreen({ next, reason, onSuccess, onEmail }: Props) {
                 busy={busy === "apple"}
                 disabled={busy !== null}
                 fontFamily={f(700)}
-                onPress={() => run("apple")}
+                onPress={() => void run("apple")}
               />
             ) : null}
             <SocialButton

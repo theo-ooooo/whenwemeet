@@ -1,31 +1,17 @@
-// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄우고 브리지 메시지를 처리한다 (5종 + 푸시 3종, 푸시-알림.md 2-2 + 카카오톡 공유, #195)
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  AppState,
-  BackHandler,
-  Linking,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  Share,
-  StyleSheet,
-  View,
-} from "react-native";
-import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
-import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
-import * as Haptics from "expo-haptics";
-import * as Network from "expo-network";
-import { flushCookies } from "../../modules/cookie-flush/src";
+// 웹뷰 (docs/설계/앱.md 4장). whenwemeet.day 만 띄운다. 상태와 효과는 src/hooks 의 훅이 맡고 여기는 그리기만 한다 (#478)
+import { useRef } from "react";
+import { Platform, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { WebView } from "react-native-webview";
 import { env } from "../config/env";
-import { type BridgeMessage, parseBridgeMessage, shareContent } from "../bridge/messages";
-import { type AppEventDetail, buildAppEventScript } from "../bridge/reply";
-import { buildUserAgentSuffix, decideNavigation, isWebOrigin } from "../links/urls";
-import { readPushStatus, requestPush } from "../push/notifications";
-import { clearNativeSessions, kakaoAvailable } from "../auth/login";
-import { shareKakaoFeed } from "../share/kakao";
-import { clearWidget, publishWidgetSnapshot } from "../widget/native";
+import { buildUserAgentSuffix } from "../links/urls";
+import { kakaoAvailable } from "../auth/login";
+import { useAndroidBackButton } from "../hooks/useAndroidBackButton";
+import { useAndroidCookieFlush } from "../hooks/useAndroidCookieFlush";
+import { useBridgeMessages } from "../hooks/useBridgeMessages";
+import { usePullRefresh } from "../hooks/usePullRefresh";
+import { useWebLoadState } from "../hooks/useWebLoadState";
+import { useWebNavigation } from "../hooks/useWebNavigation";
 import { OfflineScreen } from "./OfflineScreen";
-import { PULL_REFRESH_INITIAL, pullEnabled, pullOnScroll, pullOnTouchStart, pullOnWebAllow, type PullRefresh } from "./pull-refresh";
 import { useTheme } from "../ui/theme";
 
 /** 웹 앱 감지용 UA 접미사 (4.1). 웹은 이 값 하나로만 판정한다. 버전은 app.config.ts VERSION (1.1.0 이상이면 푸시 지원, D-81).
@@ -44,162 +30,12 @@ type Props = {
 export function WebScreen({ url, navKey, onLoginRequested }: Props) {
   const t = useTheme();
   const ref = useRef<WebView<object>>(null);
-  const canGoBack = useRef(false);
-  // 지금 웹뷰 주소. 셸 → 웹 응답은 이 주소가 웹 오리진일 때만 보낸다 (2-2)
-  const currentUrl = useRef(url);
-  useEffect(() => {
-    currentUrl.current = url;
-  }, [url, navKey]);
-  // 실패한 navKey. 새 주소(navKey 증가)로 바뀌면 자동으로 실패 상태가 풀린다
-  const [failedAt, setFailedAt] = useState<number | null>(null);
-  const failed = failedAt === navKey;
-  const setFailed = useCallback((v: boolean) => setFailedAt(v ? navKey : null), [navKey]);
-  // (#415) 손가락을 댈 때 이미 맨 위였을 때만 당겨서 새로고침 (pull-refresh.ts)
-  const [pull, setPull] = useState<PullRefresh>(PULL_REFRESH_INITIAL);
-  const [refreshing, setRefreshing] = useState(false);
-  const net = Network.useNetworkState();
-  const offline = net.isConnected === false || net.isInternetReachable === false;
-
-  // 연결이 돌아오면 오류 화면에서 자동 복구
-  const wasOffline = useRef(offline);
-  useEffect(() => {
-    if (wasOffline.current && !offline && failed) {
-      setFailed(false);
-      ref.current?.reload();
-    }
-    wasOffline.current = offline;
-  }, [offline, failed, setFailed]);
-
-  // Android 하드웨어 뒤로가기: 웹뷰 history 우선, 없으면 기본 동작(백그라운드)
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (canGoBack.current && !failed) {
-        ref.current?.goBack();
-        return true;
-      }
-      return false;
-    });
-    return () => sub.remove();
-  }, [failed]);
-
-  // Android: 백그라운드 진입 시 쿠키를 디스크로 (강제 종료에도 wwm_session 유지, 기획 4.5)
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const sub = AppState.addEventListener("change", (s) => {
-      if (s === "background") flushCookies().catch((e: unknown) => console.warn("[cookie] flush 실패", e));
-    });
-    return () => sub.remove();
-  }, []);
-
-  /** 셸 → 웹 응답 (wwm:app 이벤트). 권한 창을 기다리는 사이 다른 사이트로 갔으면 버린다 */
-  const sendToWeb = useCallback((detail: AppEventDetail) => {
-    if (!isWebOrigin(currentUrl.current, env.webOrigin)) return;
-    ref.current?.injectJavaScript(buildAppEventScript(detail));
-  }, []);
-
-  const handleMessage = useCallback(
-    (msg: BridgeMessage) => {
-      switch (msg.type) {
-        case "login":
-          onLoginRequested(msg.next, msg.reason);
-          return;
-        case "logout":
-          void clearNativeSessions();
-          // (#197) 이전 사용자 일정이 홈 화면에 남지 않게 위젯을 로그인 안내로
-          clearWidget();
-          return;
-        case "accountDeleted":
-          void clearNativeSessions();
-          clearWidget();
-          onLoginRequested("/");
-          return;
-        case "share":
-          Share.share(shareContent(msg, Platform.OS === "ios" ? "ios" : "android")).catch((e: unknown) =>
-            console.warn("[share]", e),
-          );
-          return;
-        case "kakaoShare": {
-          // 카카오톡(없으면 SDK 의 웹 공유 창) → 실패하면 OS 공유 시트 (D-169)
-          const os = Platform.OS === "ios" ? "ios" : "android";
-          const fallback = { url: msg.template.content.link.webUrl, text: msg.text };
-          shareKakaoFeed(msg.template).catch((e: unknown) => {
-            console.warn("[kakao-share] OS 공유로", e);
-            Share.share(shareContent(fallback, os)).catch((err: unknown) => console.warn("[share]", err));
-          });
-          return;
-        }
-        case "haptic":
-          if (msg.kind === "light") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          else
-            void Haptics.notificationAsync(
-              msg.kind === "success" ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
-            );
-          return;
-        case "pushStatus":
-        case "pushRequest":
-          // 실패해도 답하지 않는다. 웹은 시간 초과(5초, 권한 창 60초)로 null 처리 (2-2)
-          (msg.type === "pushStatus" ? readPushStatus(msg.id) : requestPush(msg.id))
-            .then(sendToWeb)
-            .catch((e: unknown) => console.warn("[push]", msg.type, e));
-          return;
-        case "openSettings":
-          Linking.openSettings().catch((e: unknown) => console.warn("[push] 설정 열기 실패", e));
-          return;
-        // (#197) 홈 화면 위젯 (앱.md 4.7). 기기 안에만 두고 서버로 보내지 않는다
-        case "widgetSnapshot":
-          publishWidgetSnapshot(msg.snapshot);
-          return;
-        case "widgetClear":
-          clearWidget();
-          return;
-        case "pullRefresh":
-          setPull((p) => pullOnWebAllow(p, msg.allow));
-          return;
-      }
-    },
-    [onLoginRequested, sendToWeb],
-  );
-
-  const onMessage = useCallback(
-    (e: WebViewMessageEvent) => {
-      const msg = parseBridgeMessage(e.nativeEvent.data, e.nativeEvent.url, env.webOrigin);
-      if (msg) handleMessage(msg);
-    },
-    [handleMessage],
-  );
-
-  const onShouldStart = useCallback(
-    (req: ShouldStartLoadRequest) => {
-      // iframe 같은 하위 프레임은 판정하지 않는다 (최상위 이동만, 4.4)
-      if (req.isTopFrame === false) return true;
-      const d = decideNavigation(req.url, env.webOrigin);
-      switch (d.kind) {
-        case "allow":
-          return true;
-        case "nativeLogin":
-          // /auth/kakao, /auth/apple 이동과 (D-178) /login 문서 이동. 웹 로그인 화면을 그리지 않고 네이티브 화면으로
-          onLoginRequested(d.next, d.reason);
-          return false;
-        case "external":
-          Linking.openURL(d.url).catch((err: unknown) => console.warn("[link] 열 수 없음", d.url, err));
-          return false;
-        default:
-          return false;
-      }
-    },
-    [onLoginRequested],
-  );
-
-  const onNav = useCallback((s: WebViewNavigation) => {
-    canGoBack.current = s.canGoBack;
-    if (s.url) currentUrl.current = s.url;
-  }, []);
-
-  const retry = useCallback(() => {
-    setFailed(false);
-    ref.current?.reload();
-  }, [setFailed]);
+  const { canGoBack, currentUrl, onShouldStart, onNav } = useWebNavigation(url, navKey, onLoginRequested);
+  const { failed, setFailed, offline, retry } = useWebLoadState(ref, navKey);
+  const pull = usePullRefresh(ref);
+  const onMessage = useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRefreshAllow: pull.onWebAllow });
+  useAndroidBackButton(ref, canGoBack, failed);
+  useAndroidCookieFlush();
 
   const webview = (
     // react-native-webview 14 의 타입은 기본 제네릭(undefined)이 strict 에서 never 가 되어 object 를 명시한다
@@ -214,7 +50,7 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       onShouldStartLoadWithRequest={onShouldStart}
       onMessage={onMessage}
       onNavigationStateChange={onNav}
-      onLoadEnd={() => setRefreshing(false)}
+      onLoadEnd={pull.onLoadEnd}
       onError={() => setFailed(true)}
       onHttpError={(e) => {
         // onHttpError 는 메인 프레임 응답에만 온다. 4xx(404 등)는 웹이 그린 화면을 그대로 둔다
@@ -222,14 +58,14 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
       }}
       onContentProcessDidTerminate={() => ref.current?.reload()}
       onRenderProcessGone={() => ref.current?.reload()}
-      onScroll={(e: { nativeEvent: { contentOffset: { y: number } } }) => setPull((s) => pullOnScroll(s, e.nativeEvent.contentOffset.y))}
+      onScroll={(e: { nativeEvent: { contentOffset: { y: number } } }) => pull.onScroll(e.nativeEvent.contentOffset.y)}
       sharedCookiesEnabled
       thirdPartyCookiesEnabled={false}
       domStorageEnabled
       javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       allowsBackForwardNavigationGestures
-      pullToRefreshEnabled={pullEnabled(pull)}
+      pullToRefreshEnabled={pull.enabled}
       // iOS 전용. Android 네이티브 정의는 Double 인데 "normal" 문자열을 그대로 넘겨 실행 직후 강제 종료됐다 (ClassCastException)
       {...(Platform.OS === "ios" ? { decelerationRate: "normal" as const } : {})}
       bounces
@@ -239,21 +75,14 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
   );
 
   return (
-    <View style={[styles.root, { backgroundColor: t.bg }]} onTouchStart={() => setPull(pullOnTouchStart)}>
+    <View style={[styles.root, { backgroundColor: t.bg }]} onTouchStart={pull.onTouchStart}>
       {Platform.OS === "android" ? (
         // Android 웹뷰에는 당겨서 새로고침이 없어 RefreshControl 로 감싼다. 손짓을 맨 위에서 시작했을 때만 켠다 (4.4, #415)
         <ScrollView
           contentContainerStyle={styles.root}
           nestedScrollEnabled
           refreshControl={
-            <RefreshControl
-              enabled={pullEnabled(pull)}
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                ref.current?.reload();
-              }}
-            />
+            <RefreshControl enabled={pull.enabled} refreshing={pull.refreshing} onRefresh={pull.onRefresh} />
           }
         >
           {webview}
