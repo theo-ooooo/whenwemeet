@@ -65,7 +65,7 @@ describe('주간 알림 (e2e, #277)', () => {
   beforeAll(async () => {
     await fake.start();
     process.env.EXPO_PUSH_URL = fake.url;
-    app = await createTestApp();
+    app = await createTestApp({ weeklyPush: true });
     prisma = app.get(PrismaService);
     scheduler = app.get(PushScheduler);
   });
