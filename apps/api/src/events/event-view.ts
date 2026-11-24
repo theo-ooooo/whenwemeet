@@ -7,7 +7,7 @@ import {
   type RsvpSummary,
   occurrenceKey,
 } from '../event-responses/responses.js';
-import type { EventRow } from './events.repository.js';
+import type { EventRow } from './event-rows.js';
 import { type ParticipantSet, type ParticipantsView, toParticipantsView } from './participants.js';
 import type { MatchedField } from './event-search.js';
 import { type PlaceView, toPlaceView } from './place.js';

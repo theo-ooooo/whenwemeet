@@ -15,7 +15,7 @@ import {
 
 /**
  * (#375) 일정 삭제 되돌리기 보관 (D-251).
- * 보관(capture*)과 복원(restore*)은 일정 삭제, 되돌리기 트랜잭션 안에서 부르는 함수다 (EventsRepository 가 트랜잭션을 연다).
+ * 보관(capture*)과 복원(restore*)은 일정 삭제, 되돌리기 트랜잭션 안에서 부르는 함수다 (EventRemovalsRepository, EventSeriesRepository 가 트랜잭션을 연다).
  * 클래스는 하루 청소만 (푸시 틱이 부른다)
  */
 
@@ -36,7 +36,7 @@ export interface DeletionRecord {
 /** 복원 결과. CONFLICT 는 그 사이 일정이 바뀌어(다시 지움, 회차 수정, 종료일 변경 등) 그대로 되돌릴 수 없음 */
 export type RestoreOutcome = 'RESTORED' | 'CONFLICT';
 
-// events.repository 와 같은 변환 (그쪽이 이 파일을 import 하므로 순환을 피해 여기 둔다). UTC 자정 고정
+// events/event-rows 와 같은 변환 (그쪽이 이 파일을 import 하므로 순환을 피해 여기 둔다). UTC 자정 고정
 const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);
 const addDaysToDate = (value: string, days: number): string => dbToDate(new Date(dateToDb(value).getTime() + days * 86_400_000));

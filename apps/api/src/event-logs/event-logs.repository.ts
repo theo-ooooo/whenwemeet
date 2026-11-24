@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
-import { dbToDate } from '../events/events.repository.js';
+import { dbToDate } from '../events/event-rows.js';
 import type { Repeat } from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -44,7 +44,7 @@ export interface EventLogRow {
   actor: UserRow | null;
 }
 
-/** 새 소식 조회. 쓰기는 일정 변경과 한 트랜잭션이라 EventsRepository 의 `...WithLogTx` 가 맡는다 */
+/** 새 소식 조회. 쓰기는 일정 변경과 한 트랜잭션이라 일정 쓰기 저장소들(EventWritesRepository, EventSeriesRepository, EventRemovalsRepository)의 `...WithLogTx` 가 맡는다 */
 @Injectable()
 export class EventLogsRepository {
   constructor(

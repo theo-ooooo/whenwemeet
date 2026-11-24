@@ -43,7 +43,7 @@ export interface ReactionWrite extends OccurrenceRef {
 /** 쓰기 결과. 멤버나 참여자 확인은 쓰기 트랜잭션 안에서 한다 (참여자 변경, 나가기와 경합) */
 export type WriteOutcome = 'SAVED' | 'UNCHANGED' | 'NOT_MEMBER' | 'NOT_PARTICIPANT';
 
-// events.repository 의 같은 함수 (그쪽이 이 파일을 import 하므로 순환을 피해 여기 둔다). UTC 자정 고정
+// events/event-rows 의 같은 함수 (그쪽이 이 파일을 import 하므로 순환을 피해 여기 둔다). UTC 자정 고정
 const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);
 

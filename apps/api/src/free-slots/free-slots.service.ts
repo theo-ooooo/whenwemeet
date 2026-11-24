@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
-import { EventsRepository } from '../events/events.repository.js';
+import { EventBusyRepository } from '../events/event-busy.repository.js';
 import { parseRange } from '../events/event-input.js';
 import { expand } from '../events/recurrence.js';
 import { MembershipService } from '../groups/membership.service.js';
@@ -29,7 +29,7 @@ export interface FreeSlotsResult {
 export class FreeSlotsService {
   constructor(
     private readonly membershipsRepo: MembershipsRepository,
-    private readonly events: EventsRepository,
+    private readonly events: EventBusyRepository,
     private readonly memberships: MembershipService,
   ) {}
 
