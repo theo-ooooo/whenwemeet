@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
-import { EventsService, type ResponseTarget } from '../events/events.service.js';
+import type { ResponseTarget } from '../events/event-view.js';
+import { EventsService } from '../events/events.service.js';
 import { EventResponsesRepository, type WriteOutcome } from './event-responses.repository.js';
 import {
   NOT_PARTICIPANT_MESSAGE,

@@ -2,6 +2,7 @@ import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { EventRow, EventsRepository, SeriesRow } from '../events/events.repository.js';
+import { EventSeriesService } from '../events/event-series.service.js';
 import { EventsService } from '../events/events.service.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { emptyResponses } from '../testing/responses-mock.js';
@@ -52,7 +53,7 @@ describe('EventResponsesService (#190)', () => {
     membershipsRepo = mockRepository(MembershipsRepository);
     responses = emptyResponses();
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    eventsService = new EventsService(events as never, memberships, responses as never);
+    eventsService = new EventsService(events as never, memberships, responses as never, new EventSeriesService(events as never, memberships));
     service = new EventResponsesService(eventsService, responses as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([
