@@ -2,6 +2,8 @@ import type { EventTarget } from './assistant.types.js';
 import { type NormalizeContext, NormalizeProblem } from './normalize.js';
 import { eventChoiceReply, eventDeleteReply, eventEditReply, HISTORY_MAX, targetNotFoundReply, alreadyReply, clarifyReply } from './replies.js';
 import {
+  dropEchoedTime,
+  dropEchoedWhen,
   type EditChangesArgs,
   firstTargets,
   hasChanges,
@@ -241,5 +243,26 @@ describe('(#511) 고치기, 지우기 문구 틀', () => {
     expect(reply.historyText.startsWith(`[일정 고르기] 지울 일정 후보 11-20(금) 19:00 ${'회'.repeat(50)}; 11-21(토)`)).toBe(true);
     expect(Array.from(reply.historyText).length).toBeLessThanOrEqual(HISTORY_MAX);
     expect(eventChoiceReply('edit', options.slice(0, 2), 2).reply).toBe('일정이 2개 있어요. 어느 일정을 고칠까요?');
+  });
+});
+
+describe('(#511) dropEchoedWhen: 대상 날짜가 바꿀 날짜와 같으면 대상 날짜를 지운다 (D-283)', () => {
+  const thu = { ...NO_WHEN, kind: 'weekday' as const, weekday: '목' as const, which: 'nearest' as const };
+  const fri = { ...NO_WHEN, kind: 'weekday' as const, weekday: '금' as const, which: 'nearest' as const };
+  it('같은 표현이면 NO_WHEN', () => {
+    expect(dropEchoedWhen({ title: '병원 예약', when: thu, time: null }, thu).when).toEqual(NO_WHEN);
+  });
+  it('다르거나 바꿀 날짜가 없으면 그대로', () => {
+    expect(dropEchoedWhen({ title: '회식', when: fri, time: null }, thu).when).toEqual(fri);
+    expect(dropEchoedWhen({ title: '회식', when: fri, time: null }, NO_WHEN).when).toEqual(fri);
+    expect(dropEchoedWhen({ title: '회식', when: fri, time: null }, null).when).toEqual(fri);
+  });
+});
+
+describe('(#511) dropEchoedTime: 대상 시각이 바꿀 시작 시각과 같으면 지운다 (D-283)', () => {
+  it('같으면 null, 다르거나 없으면 그대로', () => {
+    expect(dropEchoedTime({ title: '회식', when: NO_WHEN, time: '19:30' }, '19:30').time).toBeNull();
+    expect(dropEchoedTime({ title: '회의', when: NO_WHEN, time: '19:00' }, '20:00').time).toBe('19:00');
+    expect(dropEchoedTime({ title: '회의', when: NO_WHEN, time: '19:00' }, null).time).toBe('19:00');
   });
 });

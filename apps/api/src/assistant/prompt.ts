@@ -23,6 +23,8 @@ export const FIXED_INSTRUCTIONS = `너는 일정 공유 서비스 "언제볼까"
 - "7시 회의를 8시로"의 7시는 대상의 time, 8시는 changes.startTime. "금요일 회식 7시 반으로"의 금요일은 대상의 when.
 - changes 에는 사용자가 바꾸라고 한 것만 넣고 나머지는 null. 새 날짜는 changes.date, 대상 날짜는 when.
 - 일정 여러 개를 한 번에 고치거나 지우라고 하면 ask_clarification(which).
+- 제목 말만 있어도(날짜 없이) 되묻지 말고 바로 find_event_to_edit, find_event_to_delete 를 부른다. 같은 제목이 여럿이어도 서버가 후보를 보여 준다.
+- "병원 예약 목요일로 옮겨줘"처럼 옮길 날짜만 말했으면 그 날짜는 changes.date 이고 대상 when 은 null.
 날짜와 시간 규칙:
 - 시간대는 한국 시간(KST)만. 시각은 HH:mm 24시간.
 - 날짜는 네가 셈하지 않는다. 사용자가 말한 날짜 표현을 when 칸에 그대로 옮기면 서버가 달력으로 정한다. 쓰지 않는 칸은 null.

@@ -56,7 +56,7 @@ import {
   targetNotFoundReply,
   unsupportedReply,
 } from './replies.js';
-import { type FindEditArgs, type TargetArgs, firstTargets, hasChanges, matchTargets, normalizeEdit, targetKeyword, targetSearch, toTarget } from './targets.js';
+import { type FindEditArgs, type TargetArgs, editTargetArgs, firstTargets, hasChanges, matchTargets, normalizeEdit, targetKeyword, targetSearch, toTarget } from './targets.js';
 import { ASSISTANT_TOOLS, type ModelUnsupportedAction, type ModelClarifyField } from './tools.js';
 import { AssistantUsageRepository } from './usage.repository.js';
 
@@ -311,7 +311,8 @@ export class AssistantService {
   /**
    * (#511) 고치기: 바꿀 값이 없으면 되묻기 → 대상 찾기(0개 못 찾음) → 후보마다 고친 뒤 값 → 이미 같은 후보는 빼고 1개면 확인 카드, 여럿이면 고르기
    */
-  private async findEventToEdit(args: FindEditArgs, userId: number, groupId: number, context: NormalizeContext): Promise<ComposedReply> {
+  private async findEventToEdit(raw: FindEditArgs, userId: number, groupId: number, context: NormalizeContext): Promise<ComposedReply> {
+    const args = editTargetArgs(raw);
     const keyword = targetKeyword(args.title);
     if (!hasChanges(args.changes)) return clarifyReply('change', keyword ? { subject: keyword } : {});
     const targets = await this.findTargets(args, userId, groupId, context);

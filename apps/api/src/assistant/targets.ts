@@ -256,3 +256,29 @@ export function normalizeEdit(target: EventTarget, changes: EditChangesArgs, con
     (after.place?.text ?? null) === (target.place?.text ?? null);
   return same ? null : after;
 }
+
+const WHEN_FIELDS = ['kind', 'date', 'days', 'weekday', 'which', 'month', 'day'] as const;
+
+/**
+ * (#511) 대상 날짜가 바꿀 날짜와 똑같은 표현이면 대상 날짜는 말하지 않은 것으로 (D-283).
+ * 실모델이 "병원 예약 목요일로 옮겨줘"의 목요일을 대상 when 과 changes.date 둘 다에 넣어 옮기기 전 날에서 찾지 못했다.
+ * 한 글에 같은 날짜 표현이 두 번 나오는 일은 "목요일 일정 목요일로" 처럼 바꿀 것이 없는 경우뿐이다
+ */
+export function dropEchoedWhen<T extends { when: WhenArg }>(args: T, changeDate: WhenArg | null | undefined): T {
+  if (!changeDate || changeDate.kind === null || args.when.kind === null) return args;
+  const same = WHEN_FIELDS.every((key) => args.when[key] === changeDate[key]);
+  return same ? { ...args, when: NO_WHEN } : args;
+}
+
+/**
+ * (#511) 대상 시각이 바꿀 시작 시각과 같으면 대상 시각은 말하지 않은 것으로 (D-283).
+ * 실모델이 "금요일 회식 7시 반으로 바꿔줘"의 19:30 을 대상 time 과 changes.startTime 둘 다에 넣어 찾지 못했다
+ */
+export function dropEchoedTime<T extends { time: string | null }>(args: T, changeStart: string | null | undefined): T {
+  return args.time !== null && changeStart && args.time === changeStart ? { ...args, time: null } : args;
+}
+
+/** (#511) 고치기 대상 인자 정리: 바꿀 날짜, 시각을 대상에도 넣은 것을 지운다. 서비스와 실모델 평가가 같이 쓴다 (D-283) */
+export function editTargetArgs<T extends { when: WhenArg; time: string | null; changes: { date: WhenArg | null; startTime: string | null } }>(raw: T): T {
+  return dropEchoedTime(dropEchoedWhen(raw, raw.changes.date), raw.changes.startTime);
+}

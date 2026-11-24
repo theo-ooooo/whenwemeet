@@ -27,7 +27,7 @@ import {
   type NormalizeContext,
 } from '../src/assistant/normalize.js';
 import { buildMessages } from '../src/assistant/prompt.js';
-import { type FindEditArgs, hasChanges, matchTargets, normalizeEdit, type TargetArgs, targetSearch, toTarget } from '../src/assistant/targets.js';
+import { editTargetArgs, type FindEditArgs, hasChanges, matchTargets, normalizeEdit, type TargetArgs, targetSearch, toTarget } from '../src/assistant/targets.js';
 import { ASSISTANT_TOOLS } from '../src/assistant/tools.js';
 
 /** 2026-11-16 (월) 14:05 KST */
@@ -230,7 +230,7 @@ function summarize(
         return `days ${plan.fromDate}~${plan.toDate}`;
       }
       case 'find_event_to_edit': {
-        const args = outcome.args as unknown as FindEditArgs;
+        const args = editTargetArgs(outcome.args as unknown as FindEditArgs);
         if (!hasChanges(args.changes)) return 'clarify change';
         const targets = matchTargets(FIXTURE, targetSearch(args, context), NOW).map(toTarget);
         const drafts = targets.flatMap((target) => {
