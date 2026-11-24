@@ -9,14 +9,10 @@
 //                본문 바깥 여백 28 32. D-58 의 레일(600~1199)과 PC 사이드바(≥1200)를 대신한다
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { messageOf, useGroup, useGroupGone, useGroups, type ApiFailure } from "@/hooks";
-import { forgetGroup, readGroupCookie, rememberGroup } from "@/lib/group-cookie";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, parsePublicCode, pollCodeOf, routeInfo, stripTeam, TEAM_PARAM, type PendingNav } from "@/lib/routes";
-import { trackInputModality } from "@/lib/input-modality";
-import { pickStartGroupId } from "@/lib/start-calendar";
-import type { GroupDetail, GroupSummary } from "@/lib/types";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, pollCodeOf, routeInfo } from "@/lib/routes";
+import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
@@ -27,47 +23,18 @@ import { AssistantPill } from "./AssistantPill";
 import { DockTabs } from "./PhoneDock";
 import { Sidebar } from "./Sidebar";
 import { Avatar, Sheet, Skeleton } from "./ui";
-import { useLayout } from "@/lib/useLayout";
-import { useSidebarFold } from "@/lib/useSidebarFold";
 import { SIDEBAR_EXPANDED_W, SIDEBAR_RAIL_W } from "@/lib/sidebar-fold";
-import { usePushSync } from "@/lib/usePushSync";
-import { useWidgetSync } from "@/lib/useWidgetSync";
-import { maybeOpenPushPrompt } from "@/lib/push";
+import { Ctx, useGroupContext } from "./app-shell/context";
+import { useCurrentGroup } from "./app-shell/useCurrentGroup";
+import { useGroupContextValue } from "./app-shell/useGroupContextValue";
+import { usePendingNav } from "./app-shell/usePendingNav";
+import { useShellAppEffects } from "./app-shell/useShellAppEffects";
+import { useShellSidebar } from "./app-shell/useShellSidebar";
+import { useTeamSelection } from "./app-shell/useTeamSelection";
 
-type GroupCtx = {
-  groupId: number;
-  groups: GroupSummary[] | null;
-  group: GroupDetail | null;
-  error: string | null;
-  refresh: () => Promise<void>;
-  setGroup: (g: GroupDetail) => void;
-  clearUnread: () => void;
-  /** 팀 전환 시트 열기 */
-  openSwitcher: () => void;
-  /** (#311) 지금 보는 팀을 바꾼다 (쿠키 포함). `/events/<코드>` 페이지처럼 주소가 가리키는 팀이 따로 있을 때 (TeamScope) */
-  setGroupId: (id: number) => void;
-  /** 일정이 바뀌었음 (달력의 빠른 추가, 삭제). 넓은 화면 사이드바의 다가오는 일정을 다시 받는다 */
-  eventsChanged: () => void;
-  /** (#375) 지운 일정을 되돌렸음. 달력 화면이 restoredVersion 이 바뀌면 다시 받는다 (일정 화면에서 지우고 달력으로 옮긴 뒤 되돌려도) */
-  eventsRestored: () => void;
-  restoredVersion: number;
-  /** 화면별 + 동작 (#170). 화면이 정하면 폰 + 가 일정 추가 대신 이것을 부른다. null 이면 일정 추가 */
-  setFabAction: (a: FabAction | null) => void;
-};
-
-export type FabAction = { label: string; run: () => void };
-
-const Ctx = createContext<GroupCtx | null>(null);
-
-/** AppShell 이 받은 팀 정보(목록 + 현재 팀). 데이터 훅 useGroup(id) 과 구분해 이름을 붙였다 */
-export function useGroupContext() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("AppShell 안에서만 쓸 수 있어요");
-  return ctx;
-}
-
-/** 이 팀에 더 이상 접근할 수 없음(403 멤버 아님, 404 팀 없음) */
-const isGone = (f: ApiFailure | null) => f !== null && (f.status === 403 || f.status === 404);
+// (#490) 컨텍스트와 `?team=` 풀이는 app-shell/ 로 옮겼다. 바깥은 지금처럼 이 파일에서 가져다 쓴다
+export { useGroupContext, type FabAction } from "./app-shell/context";
+export { resolveTeamParam } from "./app-shell/useTeamSelection";
 
 /** 사이드바 팀 점 색: 개인 달력은 먹색, 팀은 목록 순서대로 멤버 색 순환 (목업 PC) */
 function teamDotColors(groups: GroupSummary[]): Map<number, string> {
@@ -75,11 +42,6 @@ function teamDotColors(groups: GroupSummary[]): Map<number, string> {
   let i = 0;
   for (const g of groups) map.set(g.id, g.type === "PERSONAL" ? "var(--ink)" : cycleColor(i++));
   return map;
-}
-
-/** `?team=` 코드 → 내 팀. 목록에 없으면 null (멤버가 아니거나 없는 팀) */
-export function resolveTeamParam(groups: readonly Pick<GroupSummary, "id" | "publicCode">[], code: string): number | null {
-  return groups.find((g) => g.publicCode === code)?.id ?? null;
 }
 
 type Props = {
@@ -94,142 +56,17 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [groupId, setGroupIdState] = useState<number | null>(initialGroupId);
-  const setGroupId = useCallback((id: number) => {
-    rememberGroup(id);
-    setGroupIdState(id);
-  }, []);
-
-  const groupsQ = useGroups({ initialData: initialGroups ?? undefined });
-  const groupQ = useGroup(groupId);
-  // 자식 화면(일정, 기념일, 새 소식 등)의 호출이 403 을 받아도 같은 안내로 바꾼다. 어느 팀을 보던 중이었는지 같이 둔다:
-  // 쿠키의 옛 팀(내 팀이 아님)이 403 을 내고 아래에서 다른 팀으로 바꾼 뒤에는 그 안내를 보이지 않는다
-  const [goneFor, setGoneFor] = useState<number | null>(null);
-  const markGone = useCallback(() => setGoneFor(groupId), [groupId]);
-  useGroupGone(markGone);
-  const goneByEvent = goneFor !== null && goneFor === groupId;
+  const { groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent } = useCurrentGroup(initialGroupId, initialGroups);
   const [switcher, setSwitcher] = useState(false);
-  // (#188) 푸시 지원 앱이면 이 기기 토큰을 등록, 정리 (처음 그릴 때와 앱이 앞으로 올 때)
-  usePushSync();
-  // (#197) 홈 화면 위젯 스냅샷 (위젯을 아는 앱 셸에서만)
-  useWidgetSync();
-  // (#291) 앱을 열면 알림 안내를 띄운다. 첫 화면이 그려진 뒤 잠깐 두고 묻는다 (웹, 1.0.x 앱, 이미 답한 기기는 아무것도 안 함)
-  useEffect(() => {
-    const t = window.setTimeout(() => void maybeOpenPushPrompt(), 800);
-    return () => window.clearTimeout(t);
-  }, []);
-  // (#339) 키보드로 연 패널만 제목 포커스 테두리를 그리게 마지막 입력 방식을 지켜본다
-  useEffect(() => trackInputModality(), []);
-  // (#339) 메뉴(폰 독, 사이드바)를 누른 순간 칩을 옮긴다. 주소가 바뀌면 navTab 이 주소를 따른다
-  const [pendingNav, setPendingNav] = useState<PendingNav | null>(null);
-  const onMenuNavigate = useCallback((href: string) => setPendingNav({ from: window.location.pathname, to: href }), []);
-  // 도착 전에 뒤로 가기 등으로 떠나면 누른 칩을 버린다
-  useEffect(() => {
-    const drop = () => setPendingNav(null);
-    window.addEventListener("popstate", drop);
-    return () => window.removeEventListener("popstate", drop);
-  }, []);
+  const openSwitcher = useCallback(() => setSwitcher(true), []);
+  useShellAppEffects();
+  const { pendingNav, onMenuNavigate } = usePendingNav();
 
   const groups = groupsQ.data;
-
-  // (#311) `?team=<코드>`: 내 팀 목록으로 코드를 찾아 그 팀으로 바꾸고 주소에서 뗀다. 목록을 받기 전에는 자식 화면을 그리지 않는다
-  // (쿠키 팀의 데이터가 잠깐 비치지 않게). 없는 팀이면 "이 팀을 열 수 없어요"
-  const teamParam = parsePublicCode(searchParams.get(TEAM_PARAM));
-  const teamId = teamParam !== null && groups !== null ? resolveTeamParam(groups, teamParam) : null;
-  const teamGone = teamParam !== null && groups !== null && teamId === null;
-  useEffect(() => {
-    if (teamId === null) return;
-    // 효과 본문에서 바로 setState 하지 않도록 마이크로태스크로 미룬다 (hooks/_useQuery 와 같은 규칙)
-    queueMicrotask(() => {
-      setGroupId(teamId);
-      // router.replace 는 페이지를 다시 받아 화면 상태(달력의 날짜 상세 등)가 날아간다. Next 가 주소만 맞추게 history 로 (#57)
-      window.history.replaceState(null, "", `${window.location.pathname}${stripTeam(window.location.search)}${window.location.hash}`);
-    });
-  }, [teamId, setGroupId]);
-  const resolvingTeam = teamParam !== null && !teamGone;
-
-  // 뒤로가기 복원 등으로 서버가 넘긴 처음 값이 쿠키보다 오래됐으면 쿠키를 따른다 (다른 탭, 다른 화면에서 팀을 바꾼 경우)
-  useEffect(() => {
-    if (teamParam !== null) return;
-    const remembered = readGroupCookie();
-    if (remembered !== null && remembered !== initialGroupId) queueMicrotask(() => setGroupIdState(remembered));
-    // 마운트 때 한 번만
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 쿠키의 팀이 내 팀이 아니거나(나갔거나 삭제된 팀, 목 모드 잔여값) 팀이 정해지지 않았으면 목록에서 고른다 (#18, LAST 규칙).
-  // 팀이 하나도 없으면 새 팀 만들기로
-  const stale = groups !== null && teamParam === null && (groupId === null || !groups.some((g) => g.id === groupId));
-  useEffect(() => {
-    if (!stale) return;
-    const fallback = pickStartGroupId(groups, null, null);
-    if (fallback === null) router.replace("/groups/new");
-    else queueMicrotask(() => setGroupId(fallback));
-  }, [stale, groups, setGroupId, router]);
-
-  // 이 팀에 더 이상 접근할 수 없음. 남은 wwm_group 쿠키를 지우고 안내 화면으로 (#18)
-  const groupsError = groupsQ.error;
-  const groupError = groupQ.error;
-  // 팀 상세만 403/404 인 경우는 목록에 있는 팀일 때만 (목록에 없으면 위에서 다른 팀으로 바꾼다)
-  const detailGone = isGone(groupError) && groups !== null && groups.some((g) => g.id === groupId);
-  const gone = goneByEvent || teamGone || detailGone || isGone(groupsError);
-  useEffect(() => {
-    if (gone) forgetGroup();
-  }, [gone]);
-
+  const { gone, resolvingTeam, error } = useTeamSelection({ initialGroupId, groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent, searchParams, router });
   const group = groupQ.data;
-  useEffect(() => {
-    if (group && group.id === groupId) rememberGroup(groupId);
-  }, [group, groupId]);
-
-  const failure = gone ? null : (groupError ?? groupsError);
-  const error = failure ? messageOf(failure, "팀 정보를 불러오지 못했어요") : null;
-
-  const refreshGroups = groupsQ.refetch;
-  const refreshGroup = groupQ.refetch;
-  const refresh = useCallback(async () => {
-    await Promise.all([refreshGroups(), refreshGroup()]);
-  }, [refreshGroups, refreshGroup]);
-
-  const setGroups = groupsQ.setData;
-  const setGroupData = groupQ.setData;
-
-  const clearUnread = useCallback(() => {
-    setGroups((prev) => prev?.map((g) => (g.id === groupId ? { ...g, unreadNewsCount: 0 } : g)) ?? prev);
-  }, [groupId, setGroups]);
-
-  const setGroup = useCallback(
-    (g: GroupDetail) => {
-      setGroupData(g);
-      setGroups((prev) => prev?.map((x) => (x.id === g.id ? { ...x, name: g.name, memberCount: g.members.length, me: { color: g.me.color, displayName: g.me.displayName } } : x)) ?? prev);
-    },
-    [setGroupData, setGroups],
-  );
-
-  const openSwitcher = useCallback(() => setSwitcher(true), []);
-  const [eventsVersion, setEventsVersion] = useState(0);
-  const eventsChanged = useCallback(() => setEventsVersion((v) => v + 1), []);
-  const [restoredVersion, setRestoredVersion] = useState(0);
-  const eventsRestored = useCallback(() => setRestoredVersion((v) => v + 1), []);
-  // 화면별 + 동작은 건 팀과 함께 둔다. 팀이 바뀌면 자식 화면이 다시 마운트되며 다시 걸고, 그 전까지는 일정 추가
-  const [fab, setFab] = useState<{ groupId: number | null; action: FabAction | null }>({ groupId: null, action: null });
-  const setFabAction = useCallback((action: FabAction | null) => setFab({ groupId, action }), [groupId]);
-  const fabAction = fab.groupId === groupId ? fab.action : null;
-  const value = useMemo<GroupCtx | null>(
-    () =>
-      groupId === null
-        ? null
-        : { groupId, groups, group: group && group.id === groupId ? group : null, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction },
-    [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction],
-  );
-  const wide = useLayout() !== "phone";
-  // (#315) 사이드바 접기. 처음 그린 뒤에만 너비 전환을 켠다 (저장값을 읽어 첫 화면이 바로 접힌 폭이 될 때 애니메이션이 보이지 않게)
-  const fold = useSidebarFold();
-  const [animate, setAnimate] = useState(false);
-  useEffect(() => {
-    const id = window.requestAnimationFrame(() => setAnimate(true));
-    return () => window.cancelAnimationFrame(id);
-  }, []);
+  const { value, eventsVersion, fabAction } = useGroupContextValue({ groupId, groupsQ, groupQ, error, setGroupId, openSwitcher });
+  const { wide, fold, animate } = useShellSidebar();
 
   const tab = activeTab(pathname);
   const menuTab = navTab(pathname, pendingNav);
