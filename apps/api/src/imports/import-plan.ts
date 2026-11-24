@@ -19,7 +19,7 @@ import {
   type SeriesRule,
   withinShiftLimit,
 } from '../events/recurrence.js';
-import { MAX_EVENT_DAYS } from '../events/events.service.js';
+import { MAX_EVENT_DAYS } from '../events/event-input.js';
 import { hasFixedOffset, INVALID_START, instantOf, type IcsEvent, type IcsTime, type ParsedCalendar } from './ics-parse.js';
 
 /** future 오늘 이후, year 지난 1년부터, all 파일 전체 (#314) */
