@@ -15,6 +15,7 @@ import { canGoBack } from "@/lib/back-nav";
 import { useLeaveGuard } from "@/lib/useLeaveGuard";
 import { maybeOpenPushPrompt } from "@/lib/push";
 import { newDraft } from "@/lib/event-draft";
+import { dateKeyOf } from "@/lib/date";
 import { calendarHref } from "@/lib/routes";
 import type { EventDetailData, EventScope } from "@/lib/types";
 import { DateRangeGroup } from "./event-form/DateRangeGroup";
@@ -116,6 +117,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
     touch: form.touch,
     payload: values.payload,
     series,
+    loadedDate: loadedEvent ? (loadedEvent.occurrence ?? dateKeyOf(loadedEvent.startsAt)) : null,
     canSave,
     showParticipants: values.showParticipants,
     currentPick,
