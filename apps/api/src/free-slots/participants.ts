@@ -1,4 +1,4 @@
-import type { BusyParticipants } from '../events/events.repository.js';
+import type { BusyParticipants } from '../events/event-busy.repository.js';
 
 /**
  * (#248) 일정 하나가 요청 팀 멤버 중 누군가를 바쁘게 하는지 (설계 4장, D-137). 일정은 그 일정의 참여자만 바쁘게 한다.

@@ -232,6 +232,17 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
     expect(/(?:^|\s)EmailLogin\/1(?:\s|$)/.test(buildUserAgentSuffix("1.1.1", "ios", true))).toBe(true);
   });
 
+  it("(#198) 카카오 키가 있는 빌드만 UA 끝에 AccountLink/1 (웹 appSupportsAccountLink 와 같은 식)", () => {
+    expect(buildUserAgentSuffix("1.2.0", "ios", true, true)).toBe("WhenwemeetApp/1.2.0 (ios) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1");
+    expect(buildUserAgentSuffix("1.2.0", "android", false, false)).toBe("WhenwemeetApp/1.2.0 (android) EmailLogin/1 Widget/1");
+    expect(buildUserAgentSuffix("1.2.0", "ios", true)).not.toContain("AccountLink");
+    const re = /(?:^|\s)AccountLink\/1(?:\s|$)/;
+    expect(re.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.2.0", "android", true, true)}`)).toBe(true);
+    expect(re.test(`Mozilla/5.0 ${buildUserAgentSuffix("1.2.0", "android", true, false)}`)).toBe(false);
+    // 다른 토큰 판정을 깨지 않는다
+    expect(/(?:^|\s)Widget\/1(?:\s|$)/.test(buildUserAgentSuffix("1.2.0", "ios", true, true))).toBe(true);
+  });
+
   it("UA 접미사 끝에 EmailLogin/1, 앞부분은 웹 APP_UA 정규식 그대로", () => {
     const ua = buildUserAgentSuffix("1.1.0", "ios");
     expect(ua).toBe("WhenwemeetApp/1.1.0 (ios) EmailLogin/1 Widget/1");

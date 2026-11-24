@@ -2,8 +2,8 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { PushPayload } from './push-copy.js';
 
 /**
- * `YYYY-MM-DD` ↔ `@db.Date` (events.repository 의 같은 이름 함수와 같은 규칙).
- * EventsRepository 가 푸시 저장소를 주입받으므로 순환 import 를 피하려고 여기 둔다. (#485) 푸시 저장소들이 같이 쓴다
+ * `YYYY-MM-DD` ↔ `@db.Date` (events/event-rows 의 같은 이름 함수와 같은 규칙).
+ * 일정 쓰기 저장소들이 푸시 저장소를 주입받으므로 순환 import 를 피하려고 여기 둔다. (#485) 푸시 저장소들이 같이 쓴다
  */
 export const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 export const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);

@@ -43,7 +43,13 @@ import {
   toEventView,
   toOccurrenceView,
 } from './event-view.js';
-import { EventRow, EventsRepository, type EventUpdateInput, likePattern, type LogSnapshot, type ScopeLog } from './events.repository.js';
+import { EventReadsRepository } from './event-reads.repository.js';
+import { EventRemovalsRepository } from './event-removals.repository.js';
+import type { EventRow } from './event-rows.js';
+import { EventSearchRepository, likePattern } from './event-search.repository.js';
+import { EventSeriesRepository } from './event-series.repository.js';
+import type { EventUpdateInput, LogSnapshot, ScopeLog } from './event-write-data.js';
+import { EventWritesRepository } from './event-writes.repository.js';
 import { type ParticipantsInput, parseParticipants, participantsFailed, PARTICIPANTS_THIS_SCOPE_MESSAGE, resolveParticipants, sameParticipants } from './participants.js';
 import { compareSearchItems, type MatchedField, matchedFields, parseSearchQuery, representativeOccurrence, SEARCH_SERIES_CAP } from './event-search.js';
 import { parsePlace } from './place.js';
@@ -52,7 +58,11 @@ import { applyException, expand, isOccurrenceDate, kstDate, originalOccurrence }
 @Injectable()
 export class EventsService {
   constructor(
-    private readonly events: EventsRepository,
+    private readonly events: EventReadsRepository,
+    private readonly eventSearch: EventSearchRepository,
+    private readonly writes: EventWritesRepository,
+    private readonly removals: EventRemovalsRepository,
+    private readonly seriesWrites: EventSeriesRepository,
     private readonly memberships: MembershipService,
     private readonly responses: EventResponsesRepository,
     private readonly series: EventSeriesService,
@@ -147,8 +157,8 @@ export class EventsService {
     const groupIds = scoped.map((group) => group.id);
     const pattern = likePattern(query.q);
     const [once, found] = await Promise.all([
-      this.events.searchOnce(groupIds, pattern, now, query.limit + 1),
-      this.events.searchSeries(groupIds, pattern, SEARCH_SERIES_CAP),
+      this.eventSearch.searchOnce(groupIds, pattern, now, query.limit + 1),
+      this.eventSearch.searchSeries(groupIds, pattern, SEARCH_SERIES_CAP),
     ]);
 
     const resolvers = new Map<number, MemberResolver>();
@@ -247,7 +257,7 @@ export class EventsService {
     const resolver = await this.memberships.resolverFor(groupId);
     const participants = resolveParticipants(parseParticipants(dto.participants), null, userId, true, resolver.userIds());
 
-    const row = await this.events.createWithLogTx(
+    const row = await this.writes.createWithLogTx(
       {
         groupId,
         title: dto.title,
@@ -310,7 +320,7 @@ export class EventsService {
     await this.memberships.assertMember(userId, groupId);
     const current = await this.findInGroup(groupId, eventId);
     if (!current.repeat) {
-      return { ok: true, deletionId: await this.events.deleteWithLogTx(current, userId) };
+      return { ok: true, deletionId: await this.removals.deleteWithLogTx(current, userId) };
     }
 
     const { scope, occurrence: date } = parseScopeQuery(query);
@@ -320,11 +330,11 @@ export class EventsService {
     const log: ScopeLog = { actorId: userId, scope: scope === 'this' ? 'THIS' : 'FOLLOWING', occurrence: date };
     let deletionId: number;
     if (scope === 'this') {
-      deletionId = await this.events.cancelOccurrenceWithLogTx(current, date, log, snapshot);
+      deletionId = await this.removals.cancelOccurrenceWithLogTx(current, date, log, snapshot);
     } else if (date === kstDate(current.startsAt)) {
-      deletionId = await this.events.deleteSeriesWithLogTx(current, log, snapshot);
+      deletionId = await this.removals.deleteSeriesWithLogTx(current, log, snapshot);
     } else {
-      deletionId = await this.events.splitSeriesTx(current, date, log, null, snapshot);
+      deletionId = await this.seriesWrites.splitSeriesTx(current, date, log, null, snapshot);
     }
     return { ok: true, deletionId };
   }
@@ -335,7 +345,7 @@ export class EventsService {
    */
   async restore(userId: number, groupId: number, deletionId: number, now: Date = new Date()): Promise<{ ok: true; eventId: number; occurrence: string | null }> {
     await this.memberships.assertMember(userId, groupId);
-    const result = await this.events.restoreDeletionTx(groupId, deletionId, now);
+    const result = await this.removals.restoreDeletionTx(groupId, deletionId, now);
     if (result === 'NOT_FOUND') throw new ApiException('NOT_FOUND', '되돌릴 수 있는 기간이 지났어요');
     if (result === 'CONFLICT') throw new ApiException('EVENT_RESTORE_CONFLICT');
     return { ok: true, ...result };
@@ -360,12 +370,12 @@ export class EventsService {
 
     const unchanged = !repeat && !participantsChanged && isUnchanged(current, next);
     // (#343) 색만 바꾸면 로그, 새 소식, 푸시 없이 색만 저장 (D-215)
-    if (unchanged) return toEventView(colorChanged ? await this.events.updateColor(current.id, color) : current, resolver);
+    if (unchanged) return toEventView(colorChanged ? await this.writes.updateColor(current.id, color) : current, resolver);
     if (colorChanged) next.color = color;
     // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
     next.remindAt = storedRemindAt(next, repeat);
     if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();
-    const row = await this.events.updateWithLogTx(current, next, userId);
+    const row = await this.writes.updateWithLogTx(current, next, userId);
     return toEventView(row, resolver);
   }
 

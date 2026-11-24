@@ -2,12 +2,12 @@ import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
+import type { EventExceptionRow, EventRow, SeriesRow } from './event-rows.js';
 import { assertRepeatRule, inheritedUntil } from './event-input.js';
-import { EventSeriesService } from './event-series.service.js';
 import { EventsService } from './events.service.js';
 import { expand, kstDate, type Repeat } from './recurrence.js';
 import type { Mock } from 'vitest';
+import { eventsServiceWith, type EventsRepositoryMock, mockEventsRepositories } from '../testing/events-mock.js';
 import { emptyResponses } from '../testing/responses-mock.js';
 
 /** 반복 일정 (#187, 설계 4장) 서비스 단위 테스트. Repository 는 목 */
@@ -16,7 +16,7 @@ import { emptyResponses } from '../testing/responses-mock.js';
  * splitSeriesTx 는 오버로드(수정 → EventRow, 삭제 → number)라 RepositoryMock 이 마지막 시그니처(number)로만 잡는다.
  * 테스트는 두 형태를 다 쓰므로 이 목만 구현 시그니처 기준으로 넓힌다 (타입만, 동작 같음)
  */
-type EventsMock = Omit<RepositoryMock<EventsRepository>, 'splitSeriesTx'> & {
+type EventsMock = Omit<EventsRepositoryMock, 'splitSeriesTx'> & {
   splitSeriesTx: Mock<(...args: unknown[]) => Promise<EventRow | number>>;
 };
 
@@ -69,10 +69,10 @@ describe('EventsService 반복 일정', () => {
   let service: EventsService;
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository) as unknown as EventsMock;
+    events = mockEventsRepositories() as unknown as EventsMock;
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
+    service = eventsServiceWith(events, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listInRange.mockResolvedValue([]);
@@ -647,10 +647,10 @@ describe('EventsService 반복 일정 참여자', () => {
   const PICKED: EventRow = { ...SERIES, allMembers: false, participantIds: [2] };
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository) as unknown as EventsMock;
+    events = mockEventsRepositories() as unknown as EventsMock;
     const membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
+    service = eventsServiceWith(events, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listExceptions.mockResolvedValue([]);

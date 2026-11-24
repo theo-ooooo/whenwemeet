@@ -44,7 +44,7 @@ export function parsePollDedupeKey(key: string): { stage: PollPushStage; pollId:
   return { stage, pollId: Number(match[2]) };
 }
 
-/** EventsRepository 의 `...WithLogTx` 가 막 만든 로그 */
+/** 일정 쓰기 저장소들의 `...WithLogTx` 가 막 만든 로그 */
 /** (#375) 삭제 하나가 팀원 변경 알림 묶음에 한 일. 되돌리면 거꾸로 한다 (revertChangeTx, D-251) */
 export type ChangeRevert =
   | { type: 'create'; notificationId: number }

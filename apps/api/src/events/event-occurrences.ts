@@ -1,6 +1,6 @@
 import { ApiException } from '../common/errors.js';
 import type { EventValues } from './event-input.js';
-import type { EventExceptionRow, EventRow } from './events.repository.js';
+import type { EventExceptionRow, EventRow } from './event-rows.js';
 import { toPlaceView } from './place.js';
 import { applyException, isOccurrenceDate, kstDate, type Occurrence, originalOccurrence, type Repeat, type SeriesRule } from './recurrence.js';
 

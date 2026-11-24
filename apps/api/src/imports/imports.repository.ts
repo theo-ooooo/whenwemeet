@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { generatePublicCode } from '../common/public-code.js';
-import { dateToDb, assertParticipantsTx } from '../events/events.repository.js';
+import { dateToDb } from '../events/event-rows.js';
+import { assertParticipantsTx } from '../events/event-write-data.js';
 import type { ParticipantSet } from '../events/participants.js';
 import type { ActivityActor } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';

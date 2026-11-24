@@ -5,7 +5,10 @@ import type { EventPatchDto } from './dto/event.dto.js';
 import { assertEventRange, assertRepeatRule, colorInput, inheritedUntil, isUnchanged, mergeValues, reminderTimingChanged, sameOccurrenceValues, storedRemindAt } from './event-input.js';
 import { followingAnchor, occurrenceValues, seriesRule } from './event-occurrences.js';
 import { type EventView, participantsOf, toEventView, toOccurrenceView } from './event-view.js';
-import { EventCreateInput, EventExceptionRow, EventRow, EventsRepository, type ExceptionFields, type ScopeLog } from './events.repository.js';
+import type { EventExceptionRow, EventRow } from './event-rows.js';
+import { EventSeriesRepository } from './event-series.repository.js';
+import type { EventCreateInput, ExceptionFields, ScopeLog } from './event-write-data.js';
+import { EventWritesRepository } from './event-writes.repository.js';
 import { type ParticipantsInput, resolveParticipants, sameParticipants } from './participants.js';
 import { CLEARED_PLACE, samePlace } from './place.js';
 import { anchorMatchesStart, applyException, kstDate, type Occurrence, originalOccurrence, withinShiftLimit } from './recurrence.js';
@@ -14,7 +17,8 @@ import { anchorMatchesStart, applyException, kstDate, type Occurrence, originalO
 @Injectable()
 export class EventSeriesService {
   constructor(
-    private readonly events: EventsRepository,
+    private readonly writes: EventWritesRepository,
+    private readonly seriesWrites: EventSeriesRepository,
     private readonly memberships: MembershipService,
   ) {}
 
@@ -45,7 +49,7 @@ export class EventSeriesService {
       place: samePlace(next.place, series.place) ? null : (next.place ?? CLEARED_PLACE),
     };
     const isEmpty = Object.values(fields).every((value) => value === null);
-    await this.events.saveExceptionWithLogTx(
+    await this.seriesWrites.saveExceptionWithLogTx(
       series,
       occurrence.occurrence,
       isEmpty ? null : fields,
@@ -99,12 +103,12 @@ export class EventSeriesService {
       if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) {
         // (#343) 색만 바꾸면 원본 색만 저장. 로그, 새 소식, 푸시 없음 (D-215)
         if (!colorChanged) return toOccurrenceView(series, occurrence, resolver);
-        const row = await this.events.updateColor(series.id, color);
+        const row = await this.writes.updateColor(series.id, color);
         return toOccurrenceView(row, occurrence, resolver);
       }
       // (#188) 예외를 모두 지우면 옮긴 회차의 시각도 바뀌므로 반복 규칙, 예외 유무까지 기준 시각 대상 (D-86)
       const timing = !sameRule || exceptions.length > 0 || reminderTimingChanged(series, next);
-      const row = await this.events.updateSeriesFromStartTx(
+      const row = await this.seriesWrites.updateSeriesFromStartTx(
         series,
         {
           ...next,
@@ -141,8 +145,8 @@ export class EventSeriesService {
     };
     // (#343) 색만 바꾸면 나누되 로그, 새 소식, 푸시 없음 (D-215)
     const row = onlyColor
-      ? await this.events.splitSeriesQuietTx(series, occurrence.occurrence, created)
-      : await this.events.splitSeriesTx(series, occurrence.occurrence, log, created);
+      ? await this.seriesWrites.splitSeriesQuietTx(series, occurrence.occurrence, created)
+      : await this.seriesWrites.splitSeriesTx(series, occurrence.occurrence, log, created);
     return toEventView(row, resolver);
   }
 }

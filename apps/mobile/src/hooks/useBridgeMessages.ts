@@ -1,14 +1,14 @@
-// (#478) 웹 → 셸 브리지 메시지 처리 (docs/설계/앱.md 4장, 푸시-알림.md 2-2, #195 카카오톡 공유, #197 위젯). WebScreen 에서 분리
+// (#478) 웹 → 셸 브리지 메시지 처리 (docs/설계/앱.md 4장, 푸시-알림.md 2-2, #195 카카오톡 공유, #197 위젯, #198 로그인 방법 연결). WebScreen 에서 분리
 import { type RefObject, useCallback } from "react";
 import { Linking, Platform, Share } from "react-native";
 import type { WebView, WebViewMessageEvent } from "react-native-webview";
 import * as Haptics from "expo-haptics";
 import { env } from "../config/env";
 import { type BridgeMessage, parseBridgeMessage, shareContent } from "../bridge/messages";
-import { type AppEventDetail, buildAppEventScript } from "../bridge/reply";
+import { type AppEventDetail, buildAppEventScript, buildLinkAccountReply, linkFailureReason } from "../bridge/reply";
 import { isWebOrigin } from "../links/urls";
 import { readPushStatus, requestPush } from "../push/notifications";
-import { clearNativeSessions } from "../auth/login";
+import { clearNativeSessions, nativeLinkCredentials } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
 import { clearWidget, publishWidgetSnapshot } from "../widget/native";
 
@@ -21,6 +21,9 @@ type Options = {
   /** 웹이 당겨서 새로고침을 허용하거나 막음 (#415) */
   onPullRefreshAllow: (allow: boolean) => void;
 };
+
+/** (#198) 네이티브 로그인 시트가 떠 있는 동안 다른 linkAccount 는 바로 error 로 답한다 (SDK 로그인을 겹쳐 띄우지 않는다). 웹뷰는 하나라 모듈 값 */
+let linking = false;
 
 /** 웹뷰 onMessage. 웹 오리진에서 온 정해진 메시지만 처리한다 */
 export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRefreshAllow }: Options): (e: WebViewMessageEvent) => void {
@@ -91,6 +94,26 @@ export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRef
         case "pullRefresh":
           onPullRefreshAllow(msg.allow);
           return;
+        // (#198) 로그인 방법 연결 (앱.md 4.8, D-282). 네이티브 로그인 결과만 웹으로. 토큰은 로그에 남기지 않는다
+        case "linkAccount": {
+          // 이미 떠 있으면 새 시트를 띄우지 않고 error 로 답한다 (먼저 띄운 쪽의 linking 은 건드리지 않는다)
+          const busy = linking;
+          linking = true;
+          (busy ? Promise.reject(new Error("busy")) : nativeLinkCredentials(msg.provider))
+            .then(
+              (cred) => buildLinkAccountReply(msg.id, cred),
+              (e: unknown) => {
+                const reason = linkFailureReason(e);
+                if (reason !== "cancelled") console.warn("[link]", msg.provider, reason, (e as { code?: unknown })?.code ?? "");
+                return buildLinkAccountReply(msg.id, { reason });
+              },
+            )
+            .then(sendToWeb)
+            .finally(() => {
+              if (!busy) linking = false;
+            });
+          return;
+        }
       }
     },
     [onLoginRequested, onPullRefreshAllow, sendToWeb],
