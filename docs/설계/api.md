@@ -783,7 +783,7 @@ PlaceCandidate = { provider: 'kakao'|'naver',
 - 요청 제한: 검색 사용자당 분당 60회 (`placeSearch`), 다시 찾기 분당 120회 (`placeResolve`). 출처와 상관없이 같은 묶음
 - 웹은 내 정보의 지도 선택(네이버 지도 기본, D-258)으로 `provider` 를 고른다. `provider` 가 없는 옛 웹은 카카오
 
-### 2.15 AI 비서 "볼까" (#450, 설계 `AI-비서.md`, D-264 ~ D-275)
+### 2.15 AI 비서 "볼까" (#450, 설계 `AI-비서.md`, D-264 ~ D-275, (#511) D-283)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -793,16 +793,17 @@ PlaceCandidate = { provider: 'kakao'|'naver',
 ```ts
 AssistantRequest = { text: string(1~300), history?: { role: 'user'|'assistant', text: string(1~600) }[] /* ≤10, 합계 ≤4,000자 */ }
 AssistantReply   = { reply: string, cards: AssistantCard[] /* 0~5. 일정 초안은 한 글의 일정마다 1장(최대 5장, #474), 그 밖 0~2 */, historyText: string /* ≤600 */, usage: { used, limit } }
-AssistantCard    = eventDraft | freeSlots | pollDraft | eventList | clarify | unsupported | refusal   // 모양은 AI-비서.md 2장
+AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice | freeSlots | pollDraft | eventList | clarify | unsupported | refusal   // 모양은 AI-비서.md 2장
 ```
 
 - 서버는 아무것도 쓰지 않는다(일정, 투표, 새 소식, 알림 없음). 카드의 저장은 웹이 2.3 `POST /events`, 2.13 `POST /polls` 로 한다
+- (#511, D-283) "금요일 회식 7시 반으로 바꿔줘", "내일 영화 취소해줘" 는 서버가 이 팀 일정(2.3 목록과 같은 권한, 반복은 회차로 펼침)에서 대상을 찾아 1개면 `eventEditDraft` / `eventDeleteDraft`, 여럿이면 `eventChoice`(앞 5개), 0개면 카드 없이 "그 일정을 찾지 못했어요. 날짜나 제목을 넣어 다시 말해 주세요". 반영은 웹이 기존 2.3 `PATCH`, `DELETE /groups/:id/events/:eventId` 로 하고, 반복 회차는 늘 `?occurrence=&scope=this`("이후 모두" 는 [고치기] 로 연 수정 화면에서). 삭제는 기존 되돌리기(`deletionId`, 7초 토스트)
 - (#474, D-280) 한 글에 일정을 여럿 말하면("내일 저녁 7시 회식, 토요일 오후 2시 영화") `eventDraft` 카드가 말한 순서대로 여러 장(최대 5장) 온다. `reply` 는 1장이면 "이렇게 넣을까요?", N장이면 "일정 N개를 이렇게 넣을까요?". 하나라도 되물어야 하면 카드 없이 그 되묻기만(제목을 붙여 "'영화'는 언제로 할까요?"). 웹은 카드마다 [추가] 를 따로 한다
 - OpenAI `gpt-4.1-mini`(D-278) 를 요청당 한 번(도구 호출 강제) 부르고 `reply` 는 항상 서버 문구 틀이다. 모델 글자는 내보내지 않는다 (D-267)
 - 하루 30번(KST, 사용자 단위, `AssistantUsage`): 모델로 보낸 메시지는 거절이어도 센다. 503, 504, 500 은 되돌린다. 400, 403, 409, 분당 429 는 세지 않는다 (D-269)
 - 오류: 400 VALIDATION_FAILED(`text`, `history`), 403, 409 ASSISTANT_CONSENT_REQUIRED, 429 RATE_LIMITED, 429 ASSISTANT_DAILY_LIMIT, 503 ASSISTANT_UNAVAILABLE, 504 ASSISTANT_TIMEOUT
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
-- 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음)
+- 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
 ## 3. 기획 기능 → API 추적
 
@@ -835,7 +836,7 @@ AssistantCard    = eventDraft | freeSlots | pollDraft | eventList | clarify | un
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
 | 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
-| AI 비서 볼까 (#450) | 2.15 전부, `GET /me` 의 `assistant`, 저장은 `POST /groups/:id/events`, `POST /groups/:id/polls` |
+| AI 비서 볼까 (#450) | 2.15 전부, `GET /me` 의 `assistant`, 저장은 `POST /groups/:id/events`, `POST /groups/:id/polls`, (#511) 고치기, 지우기는 `PATCH`, `DELETE /groups/:id/events/:eventId` |
 
 ## 4. 개발 전용
 

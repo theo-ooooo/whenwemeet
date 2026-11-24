@@ -2,7 +2,7 @@ import type { ModelTool } from './assistant-model.js';
 import { WEEKDAY_WORDS, WHEN_KINDS, WHICH_WORDS } from './when.js';
 
 /**
- * (#450) 볼까 도구 9개 (설계 AI-비서.md 3-2, D-266). 모두 strict: 모든 키 필수, 없으면 null, 모르는 키 금지.
+ * (#450) 볼까 도구 9개 (설계 AI-비서.md 3-2, D-266). (#511) 일정 고치기, 지우기 대상 찾기 2개를 더해 11개 (D-283). 모두 strict: 모든 키 필수, 없으면 null, 모르는 키 금지.
  * 어느 도구에도 id(팀, 일정, 사용자) 인자가 없다. 사람은 이름으로만 받고 서버가 지금 팀 멤버 안에서 찾는다.
  * (#458) 날짜는 계산한 값이 아니라 사용자가 말한 표현(`when`)으로 받고 서버가 when.ts 로 정한다 (D-276).
  * 같은 스키마로 서버가 인자를 다시 검사한다 (checkArgs). 길이 상한은 OpenAI strict 가 받지 않는 키라 normalize.ts 가 본다
@@ -34,6 +34,7 @@ const nullableStr = (description?: string): Schema => ({ type: ['string', 'null'
 const date = (nullable = false): Schema => ({ type: nullable ? ['string', 'null'] : 'string', pattern: DATE_PATTERN });
 const time = (nullable = true, pattern = TIME_PATTERN): Schema => ({ type: nullable ? ['string', 'null'] : 'string', pattern });
 const bool = (description?: string): Schema => ({ type: 'boolean', ...(description ? { description } : {}) });
+const nullableBool = (description?: string): Schema => ({ type: ['boolean', 'null'], ...(description ? { description } : {}) });
 const names: Schema = { type: 'array', items: { type: 'string' }, maxItems: 20, description: '사람 이름(들은 그대로, 조사와 "님" 뺌). 나는 "나"' };
 const obj = (properties: Record<string, Schema>): Schema => ({
   type: 'object',
@@ -68,12 +69,24 @@ const when = (description: string): Schema => ({
   description,
 });
 
+/** (#511) 고치기, 지우기 대상: 말한 제목 말, 날짜 표현, 지금 시각. 지어내지 않는다 */
+function targetProperties(): Record<string, Schema> {
+  return {
+    title: nullableStr('대상 일정 제목으로 말한 말 20자 이하 (조사 빼고). 말하지 않았으면 null'),
+    when: when('대상 일정의 날짜 표현. 말하지 않았으면 kind null'),
+    time: { ...time(), description: '대상 일정의 지금 시작 시각. "7시 회의"처럼 시각으로 가리켰을 때만 (새 시각은 changes)' },
+  };
+}
+
 export const CLARIFY_FIELDS = ['date', 'time', 'title', 'period', 'which'] as const;
 export type ModelClarifyField = (typeof CLARIFY_FIELDS)[number];
-export const UNSUPPORTED_ACTIONS = ['edit_event', 'delete_event', 'repeat', 'reminder', 'anniversary_create', 'todo', 'team', 'other_team', 'other'] as const;
+/** (#511) 고치기, 지우기는 find_event_to_edit, find_event_to_delete 로 한다 (D-283) */
+export const UNSUPPORTED_ACTIONS = ['repeat', 'reminder', 'anniversary_create', 'todo', 'team', 'other_team', 'other'] as const;
 export type ModelUnsupportedAction = (typeof UNSUPPORTED_ACTIONS)[number];
 /** (#474) draft_event 한 번에 받는 일정 수 상한 (D-280) */
 export const MAX_DRAFT_EVENTS = 5;
+/** (#511) 고치기, 지우기 대상 일정 후보 상한 (D-283) */
+export const MAX_TARGETS = 5;
 export const REFUSE_REASONS = ['off_topic', 'role_change', 'other_person', 'unsafe'] as const;
 
 export const TOOL_SCHEMAS = {
@@ -100,6 +113,25 @@ export const TOOL_SCHEMAS = {
         }),
       },
     }),
+  },
+  // (#511) 이미 있는 일정 고치기, 지우기 (D-283). 대상은 사용자가 말한 제목 말, 날짜 표현, 지금 시각으로만 받고 서버가 이 팀 일정에서 찾는다
+  find_event_to_edit: {
+    description: '이 팀의 이미 있는 일정 하나를 고치는 초안을 만든다. 저장하지 않고 사용자가 확인한다. 대상은 말한 제목, 날짜, 지금 시각으로 서버가 찾는다',
+    parameters: obj({
+      ...targetProperties(),
+      changes: obj({
+        title: nullableStr('새 제목 1~50자. 제목을 바꾸라고 했을 때만'),
+        date: when('새 날짜 표현. 날짜를 옮기라고 했을 때만, 아니면 kind null'),
+        startTime: { ...time(), description: '새 시작 시각. 시각을 바꾸라고 했을 때만' },
+        endTime: { ...time(), description: '새 끝 시각. 끝을 말했을 때만' },
+        allDay: nullableBool('하루 종일로 바꾸면 true, 시각을 정하면 false. 말하지 않았으면 null'),
+        place: nullableStr('새 장소 100자 이하. 장소를 바꾸라고 했을 때만'),
+      }),
+    }),
+  },
+  find_event_to_delete: {
+    description: '이 팀의 이미 있는 일정 하나를 지우는 초안을 만든다. 저장하지 않고 사용자가 확인한다. 대상은 말한 제목, 날짜, 지금 시각으로 서버가 찾는다',
+    parameters: obj(targetProperties()),
   },
   find_free_time: {
     description: '이 팀(또는 고른 멤버)이 모두 비는 시간을 찾는다. 기간은 최대 31일',
@@ -144,7 +176,7 @@ export const TOOL_SCHEMAS = {
     parameters: obj({ field: { type: 'string', enum: CLARIFY_FIELDS } }),
   },
   report_unsupported: {
-    description: '볼까가 못 하는 일정 관련 요청(고치기, 지우기, 반복, 알림, 기념일이나 할 일 만들기, 팀 관리, 다른 팀)',
+    description: '볼까가 못 하는 일정 관련 요청(반복 규칙, 알림, 기념일이나 할 일 만들기, 팀 관리, 다른 팀)',
     parameters: obj({ action: { type: 'string', enum: UNSUPPORTED_ACTIONS }, keyword: nullableStr('일정 이름 20자 이하') }),
   },
   refuse: {

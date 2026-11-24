@@ -5,6 +5,7 @@ import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.j
 import { ApiException } from '../common/errors.js';
 import { toMember } from '../common/member.js';
 import { EventsService } from '../events/events.service.js';
+import { MAX_RANGE_DAYS } from '../events/event-input.js';
 import { addDays, dateToDay, kstDate, kstMidnight } from '../events/recurrence.js';
 import { FreeSlotsService } from '../free-slots/free-slots.service.js';
 import { MembershipService } from '../groups/membership.service.js';
@@ -13,7 +14,7 @@ import { reportError } from '../monitoring/sentry.js';
 import { anniversaryItemsOn, type AnniversaryLike } from '../push/anniversary-items.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { ASSISTANT_MODEL, AssistantModelError, type AssistantModel, type ModelResult } from './assistant-model.js';
-import type { AssistantDay, AssistantEvent, AssistantReply, ComposedReply } from './assistant.types.js';
+import type { AssistantDay, AssistantEvent, AssistantReply, ComposedReply, EventEditDraft, EventTarget } from './assistant.types.js';
 import type { AssistantRequestDto } from './dto/assistant-request.dto.js';
 import { decide } from './guard.js';
 import {
@@ -24,9 +25,7 @@ import {
   type ListEventsArgs,
   type NormalizeContext,
   NormalizeProblem,
-  cleanText,
   filterByDays,
-  MAX_KEYWORD,
   membersOf,
   minutesOf,
   normalizeDraftEvents,
@@ -35,14 +34,17 @@ import {
   normalizeFreeTime,
   normalizeListEvents,
   matchName,
-  truncate,
 } from './normalize.js';
 import { buildMessages } from './prompt.js';
 import {
   anniversaryReply,
+  alreadyReply,
   clarifyReply,
   DAYS_MAX,
+  eventChoiceReply,
+  eventDeleteReply,
   eventDraftsReply,
+  eventEditReply,
   eventListReply,
   freeSlotsReply,
   greetReply,
@@ -51,8 +53,10 @@ import {
   pollDraftReply,
   refusalReply,
   SLOTS_MAX,
+  targetNotFoundReply,
   unsupportedReply,
 } from './replies.js';
+import { type FindEditArgs, type TargetArgs, editTargetArgs, firstTargets, hasChanges, matchTargets, normalizeEdit, targetKeyword, targetSearch, toTarget } from './targets.js';
 import { ASSISTANT_TOOLS, type ModelUnsupportedAction, type ModelClarifyField } from './tools.js';
 import { AssistantUsageRepository } from './usage.repository.js';
 
@@ -246,7 +250,7 @@ export class AssistantService {
       if (!(error instanceof NormalizeProblem)) throw error;
       const problem = error.problem;
       if (problem.kind === 'invalid') return { reply: invalidReply(), outcome: 'invalid' };
-      if (problem.kind === 'unsupported') return { reply: unsupportedReply(problem.action, null), outcome: `unsupported:${problem.action}` };
+      if (problem.kind === 'unsupported') return { reply: unsupportedReply(problem.action), outcome: `unsupported:${problem.action}` };
       return { reply: clarifyReply(problem.field, problem), outcome: `clarify:${problem.field}` };
     }
   }
@@ -267,14 +271,72 @@ export class AssistantService {
         return this.findAnniversary(args as unknown as FindAnniversaryArgs, userId, groupId, context);
       case 'ask_clarification':
         return clarifyReply((args as { field: ModelClarifyField }).field);
-      case 'report_unsupported': {
-        const { action, keyword } = args as { action: ModelUnsupportedAction; keyword: string | null };
-        const word = keyword === null ? '' : truncate(cleanText(keyword), MAX_KEYWORD);
-        return unsupportedReply(action, word || null);
-      }
+      case 'find_event_to_edit':
+        return this.findEventToEdit(args as unknown as FindEditArgs, userId, groupId, context);
+      case 'find_event_to_delete':
+        return this.findEventToDelete(args as unknown as TargetArgs, userId, groupId, context);
+      case 'report_unsupported':
+        return unsupportedReply((args as { action: ModelUnsupportedAction }).action);
       default:
         return invalidReply();
     }
+  }
+
+  /**
+   * (#511) 고치기, 지우기 대상 후보 (D-283). 기존 일정 목록(멤버 검사, 반복 회차 펼치기 포함)을 기간으로 읽고
+   * 제목 말, 지금 시각으로 거른 뒤 지금과 가까운 순. 목록 한도(62일)를 넘는 기간은 나눠 읽는다
+   */
+  private async findTargets(args: TargetArgs, userId: number, groupId: number, context: NormalizeContext): Promise<EventTarget[]> {
+    const search = targetSearch(args, context);
+    const views = await this.listWindow(userId, groupId, search.fromDate, search.toDate);
+    return matchTargets(views, search, context.now).map(toTarget);
+  }
+
+  /** [fromDate, toDate] (양끝 포함 KST 날짜) 일정. 62일씩 나눠 읽고 같은 일정(회차)은 한 번만 */
+  private async listWindow(userId: number, groupId: number, fromDate: string, toDate: string) {
+    const seen = new Set<string>();
+    const views: Awaited<ReturnType<EventsService['list']>> = [];
+    for (let start = fromDate; start <= toDate; start = addDays(start, MAX_RANGE_DAYS)) {
+      const end = addDays(start, MAX_RANGE_DAYS - 1) < toDate ? addDays(start, MAX_RANGE_DAYS - 1) : toDate;
+      for (const view of await this.events.list(userId, groupId, kstMidnight(start).toISOString(), kstMidnight(addDays(end, 1)).toISOString())) {
+        const key = `${view.id}:${view.occurrence ?? ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        views.push(view);
+      }
+    }
+    return views;
+  }
+
+  /**
+   * (#511) 고치기: 바꿀 값이 없으면 되묻기 → 대상 찾기(0개 못 찾음) → 후보마다 고친 뒤 값 → 이미 같은 후보는 빼고 1개면 확인 카드, 여럿이면 고르기
+   */
+  private async findEventToEdit(raw: FindEditArgs, userId: number, groupId: number, context: NormalizeContext): Promise<ComposedReply> {
+    const args = editTargetArgs(raw);
+    const keyword = targetKeyword(args.title);
+    if (!hasChanges(args.changes)) return clarifyReply('change', keyword ? { subject: keyword } : {});
+    const targets = await this.findTargets(args, userId, groupId, context);
+    if (targets.length === 0) return targetNotFoundReply(keyword);
+    const drafts: EventEditDraft[] = [];
+    for (const target of targets) {
+      const after = normalizeEdit(target, args.changes, context);
+      if (after) drafts.push({ target, after });
+    }
+    if (drafts.length === 0) return alreadyReply(targets[0]);
+    if (drafts.length === 1) return eventEditReply(drafts[0]);
+    return eventChoiceReply('edit', firstTargets(drafts), drafts.length);
+  }
+
+  /** (#511) 지우기: 대상 찾기 → 0개 못 찾음, 1개 확인 카드, 여럿 고르기 (앞 5개) */
+  private async findEventToDelete(args: TargetArgs, userId: number, groupId: number, context: NormalizeContext): Promise<ComposedReply> {
+    const targets = await this.findTargets(args, userId, groupId, context);
+    if (targets.length === 0) return targetNotFoundReply(targetKeyword(args.title));
+    if (targets.length === 1) return eventDeleteReply(targets[0]);
+    return eventChoiceReply(
+      'delete',
+      firstTargets(targets).map((target) => ({ target, after: null })),
+      targets.length,
+    );
   }
 
   /** 고른 멤버로 빈 시간 → 요일 거르기 → 앞 5개. 투표면 앞 k개를 최소 길이 후보로 */

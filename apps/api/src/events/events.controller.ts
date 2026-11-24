@@ -1,7 +1,7 @@
 import { Body, Controller, Headers, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
-import { logCreateSource } from '../common/client-source.js';
+import { logChangeSource, logCreateSource } from '../common/client-source.js';
 import { IdParam } from '../common/id-param.js';
 import { EventInputDto, EventPatchDto, EventRangeQueryDto } from './dto/event.dto.js';
 import { EventsService } from './events.service.js';
@@ -32,7 +32,7 @@ export class EventsController {
     return this.events.get(user.id, groupId, eventId, occurrence);
   }
 
-  /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD&scope=this|following` 필수. 한 번짜리는 무시 */
+  /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD&scope=this|following` 필수. 한 번짜리는 무시. (#511) 볼까 카드면 `X-Client-Source` 로그 */
   @Patch(':eventId')
   update(
     @CurrentUser() user: AuthUser,
@@ -41,11 +41,12 @@ export class EventsController {
     @Body() dto: EventPatchDto,
     @Query('occurrence') occurrence: unknown,
     @Query('scope') scope: unknown,
+    @Headers('x-client-source') source?: string,
   ) {
-    return this.events.update(user.id, groupId, eventId, dto, { occurrence, scope });
+    return logChangeSource('event_update', source, { userId: user.id, groupId, id: eventId }, this.events.update(user.id, groupId, eventId, dto, { occurrence, scope }));
   }
 
-  /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD&scope=this|following` 필수. 한 번짜리는 무시 */
+  /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD&scope=this|following` 필수. 한 번짜리는 무시. (#511) 볼까 카드면 `X-Client-Source` 로그 */
   @Delete(':eventId')
   remove(
     @CurrentUser() user: AuthUser,
@@ -53,8 +54,9 @@ export class EventsController {
     @IdParam('eventId') eventId: number,
     @Query('occurrence') occurrence: unknown,
     @Query('scope') scope: unknown,
+    @Headers('x-client-source') source?: string,
   ) {
-    return this.events.remove(user.id, groupId, eventId, { occurrence, scope });
+    return logChangeSource('event_delete', source, { userId: user.id, groupId, id: eventId }, this.events.remove(user.id, groupId, eventId, { occurrence, scope }));
   }
 }
 

@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildHistory,
   canPollFrom,
+  cardOfChoice,
+  editChanges,
+  eventPatchOf,
+  targetScope,
+  type EventTarget,
   clientSourceOf,
   dailyLimited,
   ddayText,
@@ -205,5 +210,45 @@ describe("하루 한도", () => {
   });
   it("다음 KST 자정", () => {
     expect(nextKstMidnight(Date.parse(kst("2030-11-29T23:59")))).toBe(kst("2030-11-30T00:00"));
+  });
+});
+
+describe("(#511) 고치기, 지우기 카드 → 요청 (D-283)", () => {
+  const target: EventTarget = {
+    id: 7,
+    publicCode: "abc123",
+    occurrence: null,
+    repeat: false,
+    title: "회식",
+    startsAt: kst("2030-11-29T19:00"),
+    endsAt: kst("2030-11-29T21:00"),
+    allDay: false,
+    place: { text: "홍대" },
+    members: [],
+  };
+  const after = { title: "회식", startsAt: kst("2030-11-29T19:30"), endsAt: kst("2030-11-29T21:30"), allDay: false, place: { text: "홍대" } };
+
+  it("editChanges: 바뀐 칸만", () => {
+    expect(editChanges({ target, after })).toEqual({ title: false, time: true, place: false });
+    expect(editChanges({ target, after: { ...target, title: "송년회" } })).toEqual({ title: true, time: false, place: false });
+    expect(editChanges({ target, after: { ...target, allDay: true } }).time).toBe(true);
+    expect(editChanges({ target, after: { ...target, place: null } }).place).toBe(true);
+  });
+
+  it("eventPatchOf: 제목, 시각, 종일은 늘, 장소는 바뀌었을 때만(없앴으면 null), 참여자 반복 알림 색은 싣지 않는다", () => {
+    expect(eventPatchOf({ target, after })).toEqual({ title: "회식", startsAt: after.startsAt, endsAt: after.endsAt, allDay: false });
+    expect(eventPatchOf({ target, after: { ...after, place: { text: "강남" } } }).place).toEqual({ text: "강남" });
+    expect(eventPatchOf({ target, after: { ...after, place: null } }).place).toBeNull();
+  });
+
+  it("targetScope: 반복 회차는 이 회차만, 한 번짜리는 생략", () => {
+    expect(targetScope(target)).toEqual({});
+    expect(targetScope({ occurrence: "2030-11-29" })).toEqual({ occurrence: "2030-11-29", scope: "this" });
+  });
+
+  it("cardOfChoice: 고른 후보 → 확인 카드", () => {
+    expect(cardOfChoice("delete", { target, after: null })).toEqual({ type: "eventDeleteDraft", target });
+    expect(cardOfChoice("edit", { target, after })).toEqual({ type: "eventEditDraft", draft: { target, after } });
+    expect(cardOfChoice("edit", { target, after: null })).toBeNull();
   });
 });

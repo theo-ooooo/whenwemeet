@@ -3,9 +3,10 @@
 // - 카드 → 기존 저장 본문(EventInput, PollInput), [고치기] 주소(/events/new?...&from=assistant)
 // - 빈 시간 카드에서 웹이 만드는 투표 초안 (서버 요청 없음, D-273)
 // - 카드 글자 (날짜 시각 한 줄, 빈 시간 조건 한 줄), 예시 문장
+// - (#511) 고치기, 지우기 카드 → PATCH 본문과 범위, 고르기 후보 → 확인 카드 (D-283)
 import { addDays, clockRangeText, clockText, dateKeyOf, formatDateKo, formatMinutes, kstToIso, type DateKey } from "./date";
 import { newEventHref } from "./routes";
-import type { Event, EventInput, Member, PollInput, PollOptionInput } from "./types";
+import type { Event, EventInput, EventPatchInput, EventScope, Member, PollInput, PollOptionInput } from "./types";
 
 /* ---------- 서버 계약 (api.md 2.15, AI-비서.md 2장) ---------- */
 
@@ -50,10 +51,10 @@ export type AssistantEvent = {
 
 export type AssistantDay = { name: string; date: DateKey; kind: "ANNIVERSARY" | "BIRTHDAY"; dday: number };
 
-export type ClarifyField = "date" | "time" | "title" | "period" | "which" | "participant";
+/** change: (#511) 고칠 일정은 찾았는데 바꿀 값을 말하지 않음 */
+export type ClarifyField = "date" | "time" | "title" | "period" | "which" | "participant" | "change";
+/** (#511) 고치기, 지우기는 확인 카드라 여기 없다 (D-283) */
 export type UnsupportedAction =
-  | "edit_event"
-  | "delete_event"
   | "repeat"
   | "reminder"
   | "anniversary_create"
@@ -63,8 +64,31 @@ export type UnsupportedAction =
   | "team_only"
   | "other";
 
+/** (#511) 고치기, 지우기 대상 일정. 반복이면 그 회차(occurrence)이고 이 회차만(scope this) 고치고 지운다 */
+export type EventTarget = {
+  id: number;
+  publicCode: string;
+  occurrence: string | null;
+  repeat: boolean;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  place: { text: string } | null;
+  members: Member[];
+};
+
+/** (#511) 고친 뒤 값 */
+export type EventAfter = { title: string; startsAt: string; endsAt: string; allDay: boolean; place: { text: string } | null };
+export type EventEditDraft = { target: EventTarget; after: EventAfter };
+/** (#511) 고르기 후보. 고치기는 after 가 있고 지우기는 null */
+export type EventChoiceOption = { target: EventTarget; after: EventAfter | null };
+
 export type AssistantCard =
   | { type: "eventDraft"; draft: EventDraftCard }
+  | { type: "eventEditDraft"; draft: EventEditDraft }
+  | { type: "eventDeleteDraft"; target: EventTarget }
+  | { type: "eventChoice"; action: "edit" | "delete"; options: EventChoiceOption[]; more: number }
   | { type: "freeSlots"; query: FreeQuery; slots: { startsAt: string; endsAt: string }[]; total: number; pollTitle: string | null }
   | { type: "pollDraft"; draft: PollDraft; members: Member[] }
   | { type: "eventList"; from: string; to: string; events: AssistantEvent[]; more: number; days: AssistantDay[] }
@@ -129,6 +153,36 @@ export function eventInputOf(d: EventDraftCard): EventInput {
   const input: EventInput = { title: d.title, startsAt: d.startsAt, endsAt: d.endsAt, allDay: d.allDay, participants: [...d.participants] };
   if (d.place?.text.trim()) input.place = { text: d.place.text.trim() };
   return input;
+}
+
+/* ---------- (#511) 고치기, 지우기 (D-283) ---------- */
+
+/** 고친 뒤 값이 지금 값과 다른 칸 */
+export function editChanges(d: EventEditDraft): { title: boolean; time: boolean; place: boolean } {
+  const { target: t, after: a } = d;
+  return {
+    title: a.title !== t.title,
+    time: a.startsAt !== t.startsAt || a.endsAt !== t.endsAt || a.allDay !== t.allDay,
+    place: (a.place?.text ?? null) !== (t.place?.text ?? null),
+  };
+}
+
+/** [수정] 본문 (PATCH /groups/:id/events/:eventId). 제목, 시각, 종일은 늘 싣고 장소는 바뀌었을 때만. 참여자, 반복, 알림, 색은 싣지 않는다 */
+export function eventPatchOf(d: EventEditDraft): EventPatchInput {
+  const input: EventPatchInput = { title: d.after.title, startsAt: d.after.startsAt, endsAt: d.after.endsAt, allDay: d.after.allDay };
+  if (editChanges(d).place) input.place = d.after.place ? { text: d.after.place.text } : null;
+  return input;
+}
+
+/** 반복 회차면 이 회차만 (scope this). "이후 모두" 는 [고치기] 로 연 폼에서만. 한 번짜리는 둘 다 생략 */
+export function targetScope(t: Pick<EventTarget, "occurrence">): { occurrence?: string; scope?: EventScope } {
+  return t.occurrence ? { occurrence: t.occurrence, scope: "this" } : {};
+}
+
+/** 고르기 후보 → 확인 카드 (웹이 만든다, 서버 요청 없음) */
+export function cardOfChoice(action: "edit" | "delete", option: EventChoiceOption): AssistantCard | null {
+  if (action === "delete") return { type: "eventDeleteDraft", target: option.target };
+  return option.after ? { type: "eventEditDraft", draft: { target: option.target, after: option.after } } : null;
 }
 
 /** [투표 열기] 본문 (POST /groups/:id/polls). 마감 없음 */

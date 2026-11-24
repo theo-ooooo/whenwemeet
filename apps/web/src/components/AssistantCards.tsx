@@ -5,7 +5,11 @@
 //   pollDraft   제목 + 후보 줄 + 대상 아바타 / [고치기](PollCreateSheet) [투표 열기]
 //   eventList   공통 일정 줄(EventRow) 최대 10개 + "외 N개" + 기념일, 생일 줄
 //   clarify     이름 알약(누르면 그 이름을 보낸다), unsupported 링크 알약. refusal 은 말풍선만
-// 저장은 기존 훅(useCreateEvent, useCreatePoll)으로만 하고 X-Client-Source 를 싣는다 (6-1). 같은 카드의 저장은 한 번만
+//   (#511) eventEditDraft   바꾸기 전 → 후 (바뀐 칸만 전 값을 지운 줄로) / [고치기](수정 화면) [수정]
+//          eventDeleteDraft 지울 일정 / [취소] [삭제] (되돌리기 7초 토스트)
+//          eventChoice      후보 줄(최대 5개). 누르면 그 후보의 확인 카드를 웹이 만든다 (서버 요청 없음)
+// 저장은 기존 훅(useCreateEvent, useCreatePoll, (#511) useUpdateEvent, useDeleteEvent)으로만 하고 X-Client-Source 를 싣는다 (6-1). 같은 카드의 저장은 한 번만.
+// (#511) 반복 일정은 그 회차만(scope this) 고치고 지운다. "이후 모두" 는 [고치기] 로 연 수정 화면에서 (D-283)
 import Link from "next/link";
 import { useState } from "react";
 import { useGroupContext } from "./AppShell";
@@ -15,9 +19,14 @@ import { IconCheck, IconChevronRight, IconClock, IconHeart, IconPin } from "./ic
 import { PollCreateSheet } from "./PollCreateSheet";
 import { useToast } from "./Toast";
 import { Avatar, Button } from "./ui";
-import { messageOf, useCreateEvent, useCreatePoll } from "@/hooks";
+import { useEventDeleteToast } from "./useEventDeleteToast";
+import { messageOf, useCreateEvent, useCreatePoll, useDeleteEvent, useUpdateEvent } from "@/hooks";
 import {
   canPollFrom,
+  cardOfChoice,
+  editChanges,
+  eventPatchOf,
+  targetScope,
   ddayText,
   draftWhenText,
   eventEditHref,
@@ -30,12 +39,13 @@ import {
   slotEditHref,
   slotTimeText,
   type AssistantCard,
+  type EventTarget,
   type ShowDate,
 } from "@/lib/assistant";
 import { memberColor } from "@/lib/colors";
 import { dateKeyOf, formatDateKo, todayKey } from "@/lib/date";
 import { MUTE } from "@/lib/participants";
-import { calendarHref, pollHref } from "@/lib/routes";
+import { calendarHref, eventEditHref as eventEditPageHref, pollHref } from "@/lib/routes";
 import { hasBatchim } from "@/lib/text";
 import type { Event, Member } from "@/lib/types";
 
@@ -59,6 +69,12 @@ export function AssistantCardView({ card, ...rest }: CardProps & { card: Assista
   switch (card.type) {
     case "eventDraft":
       return <EventDraftCardView card={card} {...rest} />;
+    case "eventEditDraft":
+      return <EventEditDraftCardView card={card} {...rest} />;
+    case "eventDeleteDraft":
+      return <EventDeleteDraftCardView card={card} {...rest} />;
+    case "eventChoice":
+      return <EventChoiceCardView card={card} {...rest} />;
     case "freeSlots":
       return <FreeSlotsCardView card={card} {...rest} />;
     case "pollDraft":
@@ -152,18 +168,8 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
         {!personal && <MemberLine members={d.members} meId={meId} />}
         {done?.kind === "event" ? (
           <DoneLine
-            text={`'${done.title}'${hasBatchim(done.title) ? "을" : "를"} 넣었어요.`}
-            link={
-              onShowDate ? (
-                <button type="button" onClick={() => onShowDate(done.date, { publicCode: done.publicCode })} className={linkCls}>
-                  달력에서 보기
-                </button>
-              ) : (
-                <Link href={calendarHref({ date: done.date })} className={linkCls}>
-                  달력에서 보기
-                </Link>
-              )
-            }
+            text={`'${done.title}'${eulReulOf(done.title)} 넣었어요.`}
+            link={<ShowInCalendar date={done.date} publicCode={done.publicCode} onShowDate={onShowDate} />}
           />
         ) : (
           <div className="mt-3 flex gap-2">
@@ -180,6 +186,231 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
           </div>
         )}
       </div>
+    </article>
+  );
+}
+
+/** (#511) "을/를" */
+const eulReulOf = (word: string) => (hasBatchim(word) ? "을" : "를");
+
+/** 달력에서 보기 (넓은 화면 패널은 그 일정 상세, 폰은 그날 달력) */
+function ShowInCalendar({ date, publicCode, onShowDate }: { date: string; publicCode: string; onShowDate?: ShowDate }) {
+  return onShowDate ? (
+    <button type="button" onClick={() => onShowDate(date, { publicCode })} className={linkCls}>
+      달력에서 보기
+    </button>
+  ) : (
+    <Link href={calendarHref({ date })} className={linkCls}>
+      달력에서 보기
+    </Link>
+  );
+}
+
+/** (#511) 고치기, 지우기 카드 머리: "일정 고치기", 반복이면 "(이 일정만)" */
+function TargetLabel({ text, target }: { text: string; target: EventTarget }) {
+  return (
+    <p className="text-[12px] leading-4 text-ink-2">
+      {text}
+      {target.repeat ? " (이 일정만)" : ""}
+    </p>
+  );
+}
+
+/** 바뀐 칸: 전 값(지운 줄) 아래 새 값. 안 바뀐 칸은 새 값만 */
+function ChangeLine({ icon, before, after, changed }: { icon: React.ReactNode; before: string; after: string; changed: boolean }) {
+  return (
+    <div className="mt-1 flex items-start gap-1.5 text-[14px] leading-5 text-ink">
+      <span className="mt-0.5 shrink-0 text-ink-2">{icon}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">
+        {changed && (
+          <span className="block text-ink-2 line-through">
+            <span className="sr-only">바꾸기 전: </span>
+            {before}
+          </span>
+        )}
+        <span className={changed ? "block font-bold" : "block"}>
+          {changed && <span className="sr-only">바꾼 뒤: </span>}
+          {after}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function EventEditDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & { card: Extract<AssistantCard, { type: "eventEditDraft" }> }) {
+  const { target, after } = card.draft;
+  const { groupId, group, eventsChanged } = useGroupContext();
+  const { results, setResult } = useAssistant();
+  const toast = useToast();
+  const update = useUpdateEvent(groupId, { source: "assistant" });
+  const done = results[resultKey];
+  const changed = editChanges(card.draft);
+  const personal = group?.type === "PERSONAL";
+  const meId = group?.me.userId ?? null;
+  const bar = target.members[0] ? memberColor(target.members[0].color) : MUTE;
+
+  async function save() {
+    if (done || update.isPending) return;
+    const r = await update.mutate({ eventId: target.id, input: eventPatchOf(card.draft), ...targetScope(target) });
+    if (!r.ok) {
+      toast.show(r.error.status === 404 ? "이미 삭제된 일정이에요" : messageOf(r.error, "고치지 못했어요. 다시 시도해 주세요"));
+      return;
+    }
+    const date = dateKeyOf(r.data.startsAt);
+    setResult(resultKey, { kind: "edited", title: r.data.title, date, publicCode: r.data.publicCode, occurrence: r.data.occurrence ?? null });
+    toast.show(`'${r.data.title}'${eulReulOf(r.data.title)} 고쳤어요`);
+    eventsChanged();
+    onShowDate?.(date);
+  }
+
+  return (
+    <article aria-label={`일정 고치기 ${target.title}`} className={`flex gap-3 rounded-xl p-4 ${toneClass(tone)}`}>
+      <span aria-hidden="true" className="w-1 shrink-0 self-stretch rounded-full" style={{ background: bar }} />
+      <div className="min-w-0 flex-1">
+        <TargetLabel text="일정 고치기" target={target} />
+        <h3 className="mt-0.5 text-[17px] font-bold leading-6 tracking-[-0.01em] [overflow-wrap:anywhere]">{after.title}</h3>
+        {changed.title && (
+          <p className="text-[13px] leading-5 text-ink-2 line-through [overflow-wrap:anywhere]">
+            <span className="sr-only">바꾸기 전 제목: </span>
+            {target.title}
+          </p>
+        )}
+        <ChangeLine icon={<IconClock size={16} />} before={draftWhenText(target)} after={draftWhenText(after)} changed={changed.time} />
+        {(after.place || target.place) && (
+          <ChangeLine icon={<IconPin size={16} />} before={target.place?.text ?? "장소 없음"} after={after.place?.text ?? "장소 없음"} changed={changed.place} />
+        )}
+        {!personal && <MemberLine members={target.members} meId={meId} />}
+        {done?.kind === "edited" ? (
+          <DoneLine
+            text={`'${done.title}'${eulReulOf(done.title)} 고쳤어요.`}
+            link={<ShowInCalendar date={done.date} publicCode={done.publicCode} onShowDate={onShowDate} />}
+          />
+        ) : (
+          <div className="mt-3 flex gap-2">
+            <Link
+              href={eventEditPageHref(target, target.occurrence ? "this" : null)}
+              aria-label={`${target.title} 수정 화면에서 고치기`}
+              className={`flex h-11 flex-1 items-center justify-center rounded-md text-[14px] font-bold text-ink hover:brightness-95 ${subtleClass(tone)}`}
+            >
+              고치기
+            </Link>
+            <Button size="lg" className="flex-[2]" loading={update.isPending} onClick={() => void save()} aria-label={`${target.title} 수정`}>
+              수정
+            </Button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function EventDeleteDraftCardView({ card, resultKey, tone }: CardProps & { card: Extract<AssistantCard, { type: "eventDeleteDraft" }> }) {
+  const { target } = card;
+  const { groupId, group, eventsChanged } = useGroupContext();
+  const { results, setResult } = useAssistant();
+  const toast = useToast();
+  const remove = useDeleteEvent(groupId, { source: "assistant" });
+  const deletedToast = useEventDeleteToast(groupId);
+  const done = results[resultKey];
+  const personal = group?.type === "PERSONAL";
+  const meId = group?.me.userId ?? null;
+  const bar = target.members[0] ? memberColor(target.members[0].color) : MUTE;
+
+  async function del() {
+    if (done || remove.isPending) return;
+    const r = await remove.mutate({ eventId: target.id, ...targetScope(target) });
+    if (!r.ok) {
+      toast.show(r.error.status === 404 ? "이미 삭제된 일정이에요" : messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
+      return;
+    }
+    setResult(resultKey, { kind: "deleted", title: target.title });
+    eventsChanged();
+    // (#375) 7초 안 되돌리기 (D-251)
+    deletedToast(r.data.deletionId);
+  }
+
+  return (
+    <article aria-label={`일정 지우기 ${target.title}`} className={`flex gap-3 rounded-xl p-4 ${toneClass(tone)}`}>
+      <span aria-hidden="true" className="w-1 shrink-0 self-stretch rounded-full" style={{ background: bar }} />
+      <div className="min-w-0 flex-1">
+        <TargetLabel text="일정 지우기" target={target} />
+        <h3 className="mt-0.5 text-[17px] font-bold leading-6 tracking-[-0.01em] [overflow-wrap:anywhere]">{target.title}</h3>
+        <p className="mt-1 flex items-center gap-1.5 text-[14px] leading-5 text-ink">
+          <IconClock size={16} className="shrink-0 text-ink-2" />
+          {draftWhenText(target)}
+        </p>
+        {target.place?.text && (
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[14px] leading-5 text-ink">
+            <IconPin size={16} className="shrink-0 text-ink-2" />
+            <span className="min-w-0 truncate">{target.place.text}</span>
+          </p>
+        )}
+        {!personal && <MemberLine members={target.members} meId={meId} />}
+        {done?.kind === "deleted" ? (
+          <DoneLine text={`'${done.title}'${eulReulOf(done.title)} 지웠어요.`} link={null} />
+        ) : done?.kind === "kept" ? (
+          <p className="mt-3 flex min-h-11 items-center text-[14px] font-semibold leading-5 text-ink-2">지우지 않았어요.</p>
+        ) : (
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setResult(resultKey, { kind: "kept" })}
+              disabled={remove.isPending}
+              aria-label={`${target.title} 지우기 취소`}
+              className={`flex h-11 flex-1 items-center justify-center rounded-md text-[14px] font-bold text-ink hover:brightness-95 disabled:text-ink-2 ${subtleClass(tone)}`}
+            >
+              취소
+            </button>
+            <Button size="lg" variant="dangerFill" className="flex-[2]" loading={remove.isPending} onClick={() => void del()} aria-label={`${target.title} 삭제`}>
+              삭제
+            </Button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function EventChoiceCardView({ card, resultKey, tone }: CardProps & { card: Extract<AssistantCard, { type: "eventChoice" }> }) {
+  const { addLocal, results, setResult } = useAssistant();
+  const done = results[resultKey];
+  const picked = done?.kind === "picked" ? done.index : null;
+  const verb = card.action === "edit" ? "고칠" : "지울";
+  return (
+    <article aria-label={`${verb} 일정 고르기`} className={`rounded-xl px-4 pb-3 pt-3.5 ${toneClass(tone)}`}>
+      <p className="text-[12px] leading-4 text-ink-2">{verb} 일정을 골라 주세요</p>
+      <ul className="mt-1 divide-y divide-line">
+        {card.options.map((option, i) => {
+          const t = option.target;
+          return (
+            <li key={`${t.id}:${t.occurrence ?? ""}`}>
+              <button
+                type="button"
+                disabled={picked !== null}
+                onClick={() => {
+                  const next = cardOfChoice(card.action, option);
+                  if (!next) return;
+                  setResult(resultKey, { kind: "picked", index: i });
+                  addLocal(next);
+                }}
+                aria-label={`${t.title} ${draftWhenText(t)} 고르기`}
+                className="flex min-h-14 w-full items-center gap-3 py-1.5 text-left disabled:cursor-default"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-bold leading-5">{t.title}</span>
+                  <span className="block text-[13px] leading-[18px] text-ink-2">{draftWhenText(t)}</span>
+                </span>
+                {picked === i ? (
+                  <IconCheck size={18} className="shrink-0 text-acc-ink" />
+                ) : (
+                  <span className={`shrink-0 text-[13px] font-bold ${picked === null ? "text-btn" : "text-ink-2"}`}>고르기</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {card.more > 0 && <p className="mt-1 text-[12px] leading-4 text-ink-2">외 {card.more}개는 날짜를 넣어 다시 말해 주세요</p>}
     </article>
   );
 }

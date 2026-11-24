@@ -10,7 +10,7 @@ const relative = (days: number): WhenArg => ({ ...NO_WHEN, kind: 'relativeDays',
  * - "잡아", "넣어" → draft_event (내일 19:00, "OO이랑/랑/하고" 의 OO 를 참여자로). "회식" 과 "영화" 가 같이 있으면 일정 2개 (#474)
  * - "빈 시간", "되는" → find_free_time (오늘부터 7일, "투표" 면 poll)
  * - "뭐 있" → list_events (이번 주), "생일", "기념일" → find_anniversary
- * - "고쳐", "바꿔" → 고치기 안내, "지워" → 지우기 안내, "안녕", "고마워" → 인사
+ * - (#511) "고쳐", "바꿔" → find_event_to_edit (내일 "약속" 을 20:00 으로), "지워" → find_event_to_delete (내일 "약속"). "안녕", "고마워" → 인사
  * - 그 밖(날씨 등)은 도구 없이 글로 답한다 → 서버 가드가 거절로 바꾼다
  */
 export class FakeAssistantModel implements AssistantModel {
@@ -33,8 +33,15 @@ export class FakeAssistantModel implements AssistantModel {
   private pick(text: string): ModelToolCall | null {
     const call = (name: string, args: Record<string, unknown>): ModelToolCall => ({ name, arguments: JSON.stringify(args) });
     const person = /(\S+?)(?:이랑|랑|하고)(?=\s|$)/.exec(text)?.[1] ?? null;
-    if (text.includes('고쳐') || text.includes('바꿔')) return call('report_unsupported', { action: 'edit_event', keyword: null });
-    if (text.includes('지워')) return call('report_unsupported', { action: 'delete_event', keyword: null });
+    if (text.includes('고쳐') || text.includes('바꿔')) {
+      return call('find_event_to_edit', {
+        title: '약속',
+        when: relative(1),
+        time: null,
+        changes: { title: null, date: NO_WHEN, startTime: '20:00', endTime: null, allDay: null, place: null },
+      });
+    }
+    if (text.includes('지워')) return call('find_event_to_delete', { title: '약속', when: relative(1), time: null });
     if (text.includes('잡아') || text.includes('넣어')) {
       const event = (title: string, date: WhenArg, startTime: string, endTime: string, participants: string[]) => ({
         title,
