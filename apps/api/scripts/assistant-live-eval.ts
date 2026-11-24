@@ -6,8 +6,10 @@
  * 실행 (apps/api 에서, 키는 환경 변수로만. 이 스크립트는 키를 출력하지 않는다):
  *   OPENAI_API_KEY=... pnpm dlx tsx@4 scripts/assistant-live-eval.ts
  *   OPENAI_MODEL=gpt-4o-mini 처럼 (기본 gpt-4.1-mini) 모델을 바꿀 수 있다
- * 하나라도 틀리면 종료 코드 1. 문장 하나당 모델 호출 1번 (약 24번).
+ * 하나라도 틀리면 종료 코드 1. 문장 하나당 모델 호출 1번 (약 30번).
  * (#474) 일정 초안은 events 의 일정마다 "event 날짜 시각 [참여자]" 를 말한 순서대로 " | " 로 잇는다 (일정 하나면 예전과 같은 한 줄)
+ * (#511) 고치기, 지우기는 DB 대신 아래 FIXTURE 일정(반복은 회차로 펼친 것)에서 서비스와 같은 규칙으로 찾는다 (D-283).
+ *   고치기 1개 "edit 제목@대상날짜 → 제목 날짜 시각~시각", 지우기 1개 "delete 제목@날짜[ 회차]", 여럿 "choice edit|delete N", 못 찾음 "notfound"
  */
 import { OpenAiAssistantModel } from '../src/assistant/openai-model.js';
 import { DEFAULT_OPENAI_MODEL } from '../src/assistant/assistant-model.js';
@@ -25,6 +27,7 @@ import {
   type NormalizeContext,
 } from '../src/assistant/normalize.js';
 import { buildMessages } from '../src/assistant/prompt.js';
+import { type FindEditArgs, hasChanges, matchTargets, normalizeEdit, type TargetArgs, targetSearch, toTarget } from '../src/assistant/targets.js';
 import { ASSISTANT_TOOLS } from '../src/assistant/tools.js';
 
 /** 2026-11-16 (월) 14:05 KST */
@@ -32,6 +35,29 @@ const NOW = new Date('2026-11-16T05:05:00.000Z');
 const TEAM = [
   { userId: 1, name: '경' },
   { userId: 2, name: '김수경' },
+];
+
+/** (#511) 고치기, 지우기 대상 일정 (DB 대신). 반복 "주간 회의" 는 매주 월 10:00 회차로 펼쳐 둔다 */
+const at = (text: string): Date => new Date(`${text.replace(' ', 'T')}:00.000+09:00`);
+const fixture = (id: number, title: string, start: string, end: string, occurrence: string | null = null) => ({
+  id,
+  publicCode: `code${id}`,
+  occurrence,
+  repeat: occurrence ? 'WEEKLY' : null,
+  title,
+  startsAt: at(start),
+  endsAt: at(end),
+  allDay: false,
+  place: null,
+  participants: { members: [] },
+});
+const FIXTURE = [
+  fixture(1, '회식', '2026-11-20 19:00', '2026-11-20 21:00'),
+  fixture(2, '영화', '2026-11-17 20:00', '2026-11-17 22:00'),
+  fixture(3, '병원', '2026-11-18 15:00', '2026-11-18 16:00'),
+  fixture(4, '점심', '2026-11-19 12:00', '2026-11-19 13:00'),
+  fixture(5, '점심', '2026-11-24 12:00', '2026-11-24 13:00'),
+  ...['2026-11-16', '2026-11-23', '2026-11-30', '2026-12-07'].map((date) => fixture(6, '주간 회의', `${date} 10:00`, `${date} 11:00`, date)),
 ];
 
 interface Case {
@@ -108,6 +134,25 @@ const CASES: Case[] = [
     expected:
       'event 2026-11-17 12:00 [경, 김수경] | event 2026-11-20 19:00 [경] | event 2026-11-23 10:00 [경]',
   },
+  // (#511) 고치기, 지우기 (D-283). 대상은 FIXTURE 에서 찾는다
+  {
+    text: '금요일 회식 7시 반으로 바꿔줘',
+    expected: 'edit 회식@2026-11-20 → 회식 2026-11-20 19:30~21:30',
+  },
+  {
+    text: '병원 예약 목요일로 옮겨줘',
+    expected: 'edit 병원@2026-11-18 → 병원 2026-11-19 15:00~16:00',
+  },
+  {
+    text: '내일 영화 제목을 심야 영화로 바꿔줘',
+    expected: 'edit 영화@2026-11-17 → 심야 영화 2026-11-17 20:00~22:00',
+  },
+  { text: '내일 영화 취소해줘', expected: 'delete 영화@2026-11-17' },
+  {
+    text: '다음 주 월요일 주간 회의 지워줘',
+    expected: 'delete 주간 회의@2026-11-23 회차',
+  },
+  { text: '점심 약속 지워줘', expected: 'choice delete 2' },
 ];
 
 const nameOf = (ids: readonly number[]): string =>
@@ -183,6 +228,27 @@ function summarize(
           context,
         );
         return `days ${plan.fromDate}~${plan.toDate}`;
+      }
+      case 'find_event_to_edit': {
+        const args = outcome.args as unknown as FindEditArgs;
+        if (!hasChanges(args.changes)) return 'clarify change';
+        const targets = matchTargets(FIXTURE, targetSearch(args, context), NOW).map(toTarget);
+        const drafts = targets.flatMap((target) => {
+          const after = normalizeEdit(target, args.changes, context);
+          return after ? [{ target, after }] : [];
+        });
+        if (targets.length === 0) return 'notfound';
+        if (drafts.length !== 1) return drafts.length === 0 ? 'already' : `choice edit ${drafts.length}`;
+        const { target, after } = drafts[0];
+        const start = kst(after.startsAt);
+        const end = kst(after.endsAt);
+        return `edit ${target.title}@${kst(target.startsAt).date} → ${after.title} ${start.date} ${after.allDay ? '종일' : `${start.time}~${end.time}`}`;
+      }
+      case 'find_event_to_delete': {
+        const targets = matchTargets(FIXTURE, targetSearch(outcome.args as unknown as TargetArgs, context), NOW).map(toTarget);
+        if (targets.length === 0) return 'notfound';
+        if (targets.length > 1) return `choice delete ${targets.length}`;
+        return `delete ${targets[0].title}@${kst(targets[0].startsAt).date}${targets[0].occurrence ? ' 회차' : ''}`;
       }
       case 'ask_clarification':
         return `clarify ${(outcome.args as { field: string }).field}`;

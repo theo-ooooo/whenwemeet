@@ -47,7 +47,7 @@ describe('OpenAiAssistantModel (SDK 목, 실제 호출 없음)', () => {
       store: false,
       messages: [{ role: 'user', content: '안녕' }],
     });
-    expect(body.tools).toHaveLength(9);
+    expect(body.tools).toHaveLength(11);
     expect(body.tools.every((tool: { type: string; function: { strict: boolean } }) => tool.type === 'function' && tool.function.strict === true)).toBe(true);
     expect(options).toEqual({ signal, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
     expect(result).toEqual({
@@ -137,8 +137,9 @@ describe('FakeAssistantModel (키워드)', () => {
     });
     expect(await pick('이번 주에 뭐 있어?')).toMatchObject({ name: 'list_events', args: { from: { kind: 'week', which: 'this' }, to: { kind: null }, member: null } });
     expect(await pick('하늘 생일')).toMatchObject({ name: 'find_anniversary' });
-    expect(await pick('8시로 바꿔 줘')).toMatchObject({ name: 'report_unsupported', args: { action: 'edit_event' } });
-    expect(await pick('회식 지워 줘')).toMatchObject({ name: 'report_unsupported', args: { action: 'delete_event' } });
+    // (#511) 고치기, 지우기는 대상 찾기 도구 (D-283)
+    expect(await pick('8시로 바꿔 줘')).toMatchObject({ name: 'find_event_to_edit', args: { title: '약속', when: { kind: 'relativeDays', days: 1 }, changes: { startTime: '20:00' } } });
+    expect(await pick('회식 지워 줘')).toMatchObject({ name: 'find_event_to_delete', args: { title: '약속', when: { kind: 'relativeDays', days: 1 }, time: null } });
     expect(await pick('고마워')).toMatchObject({ name: 'greet' });
     expect(await pick('날씨 어때')).toBeNull();
     await expect(fake.complete([{ role: 'user', content: '느려' }])).rejects.toMatchObject({ kind: 'timeout' });

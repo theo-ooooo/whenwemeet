@@ -92,9 +92,21 @@ describe('(#474) kind 만 빠진 날짜 표현 채우기 (D-281)', () => {
 });
 
 describe('도구 스키마 (설계 3-2)', () => {
-  it('도구 9개, 모두 strict 규칙: object, 모든 키 필수, additionalProperties false, id 인자 없음', () => {
-    expect(TOOL_NAMES).toEqual(['draft_event', 'find_free_time', 'draft_poll', 'list_events', 'find_anniversary', 'ask_clarification', 'report_unsupported', 'refuse', 'greet']);
-    expect(ASSISTANT_TOOLS).toHaveLength(9);
+  it('도구 11개(#511 고치기, 지우기 더함), 모두 strict 규칙: object, 모든 키 필수, additionalProperties false, id 인자 없음', () => {
+    expect(TOOL_NAMES).toEqual([
+      'draft_event',
+      'find_event_to_edit',
+      'find_event_to_delete',
+      'find_free_time',
+      'draft_poll',
+      'list_events',
+      'find_anniversary',
+      'ask_clarification',
+      'report_unsupported',
+      'refuse',
+      'greet',
+    ]);
+    expect(ASSISTANT_TOOLS).toHaveLength(11);
     const walk = (schema: Schema, path: string) => {
       if (schema.type === 'object') {
         expect(schema.additionalProperties, path).toBe(false);
@@ -137,5 +149,41 @@ describe('도구 스키마 (설계 3-2)', () => {
     expect(checkArgs(free, base)).toBe(true);
     expect(checkArgs(free, { ...base, minMinutes: 90.5 })).toBe(false);
     expect(checkArgs(free, { ...base, dayStart: '24:00' })).toBe(false);
+  });
+
+  it('(#511) find_event_to_edit, find_event_to_delete 스키마: 대상(title, when, time) + 바꿀 값(changes), id 없음', () => {
+    const nowhen = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+    const friday = { ...nowhen, kind: 'weekday', weekday: '금', which: 'nearest' };
+    const edit = TOOL_SCHEMAS.find_event_to_edit.parameters as Schema;
+    const changes = { title: null, date: nowhen, startTime: '19:30', endTime: null, allDay: null, place: null };
+    expect(checkArgs(edit, { title: '회식', when: friday, time: null, changes })).toBe(true);
+    expect(checkArgs(edit, { title: null, when: nowhen, time: '19:00', changes: { ...changes, allDay: true } })).toBe(true);
+    expect(checkArgs(edit, { title: '회식', when: friday, time: null, changes: { ...changes, allDay: 'yes' } })).toBe(false);
+    expect(checkArgs(edit, { title: '회식', when: friday, time: '7pm', changes })).toBe(false);
+    expect(checkArgs(edit, { title: '회식', when: friday, time: null, changes: { ...changes, eventId: 3 } })).toBe(false);
+    expect(checkArgs(edit, { title: '회식', when: friday, time: null })).toBe(false);
+    const del = TOOL_SCHEMAS.find_event_to_delete.parameters as Schema;
+    expect(checkArgs(del, { title: '영화', when: friday, time: null })).toBe(true);
+    expect(checkArgs(del, { title: '영화', when: friday, time: null, changes })).toBe(false);
+    expect(checkArgs(del, { title: '영화', when: friday })).toBe(false);
+    // report_unsupported 에서 고치기, 지우기는 빠졌다 (D-283)
+    const unsupported = TOOL_SCHEMAS.report_unsupported.parameters as Schema;
+    expect(checkArgs(unsupported, { action: 'edit_event', keyword: null })).toBe(false);
+    expect(checkArgs(unsupported, { action: 'repeat', keyword: null })).toBe(true);
+  });
+
+  it('(#511) 가드: 대상 when, changes.date 의 빠진 kind 도 채운다 (D-281)', () => {
+    const nowhen = { kind: null, date: null, days: null, weekday: null, which: null, month: null, day: null };
+    const outcome = decide(
+      result([
+        call('find_event_to_edit', {
+          title: '회식',
+          when: { ...nowhen, weekday: '금', which: 'nearest' },
+          time: null,
+          changes: { title: null, date: { ...nowhen, days: 1 }, startTime: null, endTime: null, allDay: null, place: null },
+        }),
+      ]),
+    );
+    expect(outcome).toMatchObject({ kind: 'tool', name: 'find_event_to_edit', args: { when: { kind: 'weekday' }, changes: { date: { kind: 'relativeDays', days: 1 } } } });
   });
 });

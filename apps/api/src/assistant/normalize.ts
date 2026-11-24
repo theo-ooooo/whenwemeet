@@ -401,7 +401,7 @@ export function spokenPeriodDates(from: WhenArg, to: WhenArg, context: Normalize
 // ---------- 도구별 ----------
 
 /** 카드에 나가는 모델 글자 (제목). URL 이면 형식 실패, 비면 clarify(title) */
-function cardTitle(raw: string): string {
+export function cardTitle(raw: string): string {
   const title = cleanText(raw);
   if (hasUrl(title)) throw invalid();
   if (title.length === 0) throw clarify('title');

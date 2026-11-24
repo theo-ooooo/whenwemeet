@@ -72,16 +72,14 @@ describe('문구 틀 (설계 4-3, 4-4)', () => {
   });
 
   it('못 하는 일 링크', () => {
-    expect(unsupportedLink('edit_event', null)).toEqual({ label: '달력 열기', href: '/calendar' });
-    expect(unsupportedLink('edit_event', '강남 회식')).toEqual({ label: '일정 찾기', href: '/search?q=%EA%B0%95%EB%82%A8%20%ED%9A%8C%EC%8B%9D' });
-    expect(unsupportedLink('repeat', null)).toEqual({ label: '일정 추가', href: '/events/new' });
-    expect(unsupportedLink('reminder', null)?.href).toBe('/events/new');
-    expect(unsupportedLink('anniversary_create', null)?.href).toBe('/anniversaries');
-    expect(unsupportedLink('todo', null)?.href).toBe('/todos');
-    expect(unsupportedLink('team', null)?.href).toBe('/team');
-    expect(unsupportedLink('other_team', null)).toBeNull();
-    expect(unsupportedLink('team_only', null)).toBeNull();
-    expect(unsupportedLink('other', null)).toBeNull();
-    expect(unsupportedReply('other_team', null)).toMatchObject({ reply: '볼까는 지금 보는 팀 일정만 알아요. 팀을 바꾸고 물어봐 주세요', historyText: '[안내] 다른 팀은 못 봄' });
+    expect(unsupportedLink('repeat')).toEqual({ label: '일정 추가', href: '/events/new' });
+    expect(unsupportedLink('reminder')?.href).toBe('/events/new');
+    expect(unsupportedLink('anniversary_create')?.href).toBe('/anniversaries');
+    expect(unsupportedLink('todo')?.href).toBe('/todos');
+    expect(unsupportedLink('team')?.href).toBe('/team');
+    expect(unsupportedLink('other_team')).toBeNull();
+    expect(unsupportedLink('team_only')).toBeNull();
+    expect(unsupportedLink('other')).toBeNull();
+    expect(unsupportedReply('other_team')).toMatchObject({ reply: '볼까는 지금 보는 팀 일정만 알아요. 팀을 바꾸고 물어봐 주세요', historyText: '[안내] 다른 팀은 못 봄' });
   });
 });

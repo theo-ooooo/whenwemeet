@@ -72,15 +72,44 @@ describe("목 AI 비서 (#450)", () => {
       if (types.length > 1) expect(types[1]).toBe("pollDraft");
     });
 
-    it("일정 목록, 기념일, 못 하는 일, 되묻기, 인사, 거절", () => {
+    it("일정 목록, 기념일, 되묻기, 인사, 거절", () => {
       expect(cardsOf(say("이번 주에 뭐 있어?"))[0].type).toBe("eventList");
       expect(cardsOf(say("하늘 생일 언제야?"))[0].type).toBe("eventList");
-      expect(cardsOf(say("회식 일정 지워 줘"))[0]).toMatchObject({ type: "unsupported", action: "delete_event" });
       expect(cardsOf(say("금요일에 회의"))[0]).toMatchObject({ type: "clarify", field: "time" });
       expect(cardsOf(say("고마워"))).toEqual([]);
       const refused = say("내일 서울 날씨 어때?");
       expect((refused.body.data as { reply: string }).reply).toBe("볼까는 일정 만들기, 빈 시간 찾기, 투표, 일정 묻기만 도와 드려요");
       expect(cardsOf(refused)).toEqual([{ type: "refusal" }]);
+    });
+
+    it("(#511) 고치기: 제목 낱말로 찾아 시작 시각만 바꾼 확인 카드(길이 그대로), 시각이 없으면 무엇으로 바꿀지 되묻기", () => {
+      const r = say("영화 8시로 바꿔 줘");
+      const d = r.body.data as { reply: string; historyText: string; cards: { type: string; draft: { target: { title: string; startsAt: string; endsAt: string }; after: { startsAt: string; endsAt: string } } }[] };
+      expect(d.reply).toBe("이렇게 고칠까요?");
+      expect(d.cards[0].type).toBe("eventEditDraft");
+      const { target, after } = d.cards[0].draft;
+      expect(target.title).toBe("영화");
+      expect(new Date(after.startsAt).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })).toBe("20:00");
+      expect(Date.parse(after.endsAt) - Date.parse(after.startsAt)).toBe(Date.parse(target.endsAt) - Date.parse(target.startsAt));
+      expect(d.historyText.startsWith("[일정 수정 초안] 영화, ")).toBe(true);
+      const ask = say("영화 고쳐 줘");
+      expect((ask.body.data as { reply: string }).reply).toBe("'영화'는 무엇으로 바꿀까요?");
+      expect(cardsOf(ask)[0]).toMatchObject({ type: "clarify", field: "change" });
+    });
+
+    it("(#511) 지우기: 1개는 확인 카드, 반복 일정은 회차 여럿이라 고르기, 없으면 못 찾음", () => {
+      const one = say("영화 지워 줘");
+      expect((one.body.data as { reply: string }).reply).toBe("이 일정을 지울까요?");
+      expect(cardsOf(one)[0]).toMatchObject({ type: "eventDeleteDraft", target: { title: "영화", repeat: false, occurrence: null } });
+      const many = say("요리하기 취소해 줘");
+      const card = cardsOf(many)[0] as unknown as { type: string; action: string; options: { target: { repeat: boolean; occurrence: string | null }; after: null }[] };
+      expect(card).toMatchObject({ type: "eventChoice", action: "delete" });
+      expect(card.options.length).toBeGreaterThan(1);
+      expect(card.options.length).toBeLessThanOrEqual(5);
+      expect(card.options.every((o) => o.target.repeat && o.target.occurrence !== null && o.after === null)).toBe(true);
+      expect((many.body.data as { reply: string }).reply).toMatch(/^일정이 \d+개 있어요\. 어느 일정을 지울까요\?$/);
+      const none = say("없는약속 삭제");
+      expect(none.body.data).toMatchObject({ reply: "그 일정을 찾지 못했어요. 날짜나 제목을 넣어 다시 말해 주세요", cards: [] });
     });
 
     it("504, 503 은 횟수를 되돌리고 '한도' 는 429 ASSISTANT_DAILY_LIMIT", () => {
