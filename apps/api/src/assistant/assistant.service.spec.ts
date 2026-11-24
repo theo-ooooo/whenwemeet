@@ -1,6 +1,7 @@
 import { ApiException } from '../common/errors.js';
 import { membershipRow } from '../testing/repository-mock.js';
 import { AssistantModelError, type ModelResult } from './assistant-model.js';
+import { FakeAssistantModel } from './fake-model.js';
 import { AssistantService, DAILY_LIMIT, filterAnniversaries, firstOccurrence } from './assistant.service.js';
 import type { AssistantRequestDto } from './dto/assistant-request.dto.js';
 import { GREET_REPLY, INVALID_REPLY, REFUSAL_REPLY } from './replies.js';
@@ -183,7 +184,7 @@ describe('AssistantService', () => {
       expect(model.complete).toHaveBeenCalledTimes(1);
     });
 
-    it('모델에는 system → history → 이번 글 순서, 도구 9개, 멤버 이름(나 표시)만 보낸다', async () => {
+    it('모델에는 system → history → 이번 글 순서, 도구 11개(#511), 멤버 이름(나 표시)만 보낸다', async () => {
       model.complete.mockResolvedValue(toolResult('greet', {}));
       await send('고마워', [
         { role: 'user', text: '이번 주에 뭐 있어?' },
@@ -194,7 +195,7 @@ describe('AssistantService', () => {
       expect(messages[3].content).toBe('고마워');
       expect(messages[0].content).toContain('"members":["민지(나)","하늘","지훈"]');
       expect(messages[0].content).not.toContain('userId');
-      expect(tools).toHaveLength(9);
+      expect(tools).toHaveLength(11);
     });
 
     it('참여자 이름을 못 찾으면 되묻기, 여럿이면 choices', async () => {
@@ -364,11 +365,14 @@ describe('AssistantService', () => {
     it('ask_clarification, report_unsupported(링크), 모르는 도구, 깨진 JSON', async () => {
       model.complete.mockResolvedValueOnce(toolResult('ask_clarification', { field: 'time' }));
       expect(await send('금요일에 회의')).toMatchObject({ reply: '몇 시로 할까요?', cards: [{ type: 'clarify', field: 'time', choices: [] }], historyText: '[되물음] 몇 시로 할까요?' });
-      model.complete.mockResolvedValueOnce(toolResult('report_unsupported', { action: 'delete_event', keyword: '회식' }));
-      expect(await send('회식 일정 지워 줘')).toMatchObject({
-        reply: '일정 지우기는 아직 못 해요. 일정을 눌러 지울 수 있어요',
-        cards: [{ type: 'unsupported', action: 'delete_event', link: { label: '일정 찾기', href: '/search?q=%ED%9A%8C%EC%8B%9D' } }],
+      model.complete.mockResolvedValueOnce(toolResult('report_unsupported', { action: 'repeat', keyword: '회식' }));
+      expect(await send('회식 매주 반복으로 해 줘')).toMatchObject({
+        reply: '반복과 알림은 일정 화면에서 넣을 수 있어요',
+        cards: [{ type: 'unsupported', action: 'repeat', link: { label: '일정 추가', href: '/events/new' } }],
       });
+      // (#511) 고치기, 지우기는 더 이상 못 하는 일이 아니다 (형식 실패)
+      model.complete.mockResolvedValueOnce(toolResult('report_unsupported', { action: 'delete_event', keyword: '회식' }));
+      expect((await send('회식 일정 지워 줘')).reply).toBe(INVALID_REPLY);
       model.complete.mockResolvedValueOnce(toolResult('delete_event', {}));
       expect((await send('지워')).reply).toBe(INVALID_REPLY);
       model.complete.mockResolvedValueOnce(toolResult('draft_event', '{"title":'));
@@ -484,6 +488,132 @@ describe('AssistantService', () => {
       expect((await send('내일 7시 회식, 토요일 2시 영화')).reply).toBe(INVALID_REPLY);
       model.complete.mockResolvedValueOnce(toolResult('draft_event', dinner));
       expect((await send('내일 7시 회식')).reply).toBe(INVALID_REPLY);
+    });
+  });
+
+  describe('(#511) 일정 고치기, 지우기 (D-283)', () => {
+    /** KST 'YYYY-MM-DD HH:mm' → Date */
+    const at = (text: string) => new Date(`${text.replace(' ', 'T')}:00.000+09:00`);
+    const view = (id: number, title: string, start: string, end: string, extra: Record<string, unknown> = {}) => ({
+      id,
+      publicCode: `code${id}`,
+      title,
+      startsAt: at(start),
+      endsAt: at(end),
+      allDay: false,
+      occurrence: null,
+      repeat: null,
+      place: null,
+      memo: '메모는 내보내지 않는다',
+      participants: { all: false, members: [{ userId: 1, displayName: '민지', color: '#F26D6D', profileImageUrl: null }] },
+      ...extra,
+    });
+    const friday: WhenArg = { ...NO_WHEN, kind: 'weekday', weekday: '금', which: 'nearest' };
+    const changes = (extra: Record<string, unknown> = {}) => ({ title: null, date: NO_WHEN, startTime: null, endTime: null, allDay: null, place: null, ...extra });
+    const dinner = view(1, '강남 회식', '2026-11-20 19:00', '2026-11-20 21:00');
+
+    it('고치기 1개: 그날 일정에서 제목 말로 찾아 고친 뒤 값(길이 그대로) 카드, 기록은 전 → 후', async () => {
+      events.list.mockResolvedValue([dinner, view(2, '영화', '2026-11-20 20:00', '2026-11-20 22:00')]);
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_edit', { title: '회식', when: friday, time: null, changes: changes({ startTime: '19:30' }) }));
+      const reply = await send('금요일 회식 7시 반으로 바꿔줘');
+      expect(events.list).toHaveBeenCalledWith(1, 10, '2026-11-19T15:00:00.000Z', '2026-11-20T15:00:00.000Z');
+      expect(reply.reply).toBe('이렇게 고칠까요?');
+      expect(reply.cards).toEqual([
+        {
+          type: 'eventEditDraft',
+          draft: {
+            target: {
+              id: 1,
+              publicCode: 'code1',
+              occurrence: null,
+              repeat: false,
+              title: '강남 회식',
+              startsAt: '2026-11-20T10:00:00.000Z',
+              endsAt: '2026-11-20T12:00:00.000Z',
+              allDay: false,
+              place: null,
+              members: [expect.objectContaining({ userId: 1 })],
+            },
+            after: { title: '강남 회식', startsAt: '2026-11-20T10:30:00.000Z', endsAt: '2026-11-20T12:30:00.000Z', allDay: false, place: null },
+          },
+        },
+      ]);
+      expect(reply.historyText).toBe('[일정 수정 초안] 강남 회식, 2026-11-20(금) 19:00~21:00 → 2026-11-20(금) 19:30~21:30');
+      expect(JSON.stringify(reply)).not.toContain('메모');
+      expect(JSON.stringify(reply)).not.toContain(MODEL_TEXT);
+    });
+
+    it('날짜를 말하지 않으면 오늘 7일 전 ~ 60일 뒤를 62일씩 나눠 읽고 같은 일정은 한 번만', async () => {
+      events.list.mockResolvedValue([dinner]);
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: '회식', when: NO_WHEN, time: null }));
+      const reply = await send('회식 지워 줘');
+      expect(events.list.mock.calls).toEqual([
+        [1, 10, '2026-11-08T15:00:00.000Z', '2027-01-09T15:00:00.000Z'],
+        [1, 10, '2027-01-09T15:00:00.000Z', '2027-01-15T15:00:00.000Z'],
+      ]);
+      expect(reply).toMatchObject({ reply: '이 일정을 지울까요?', cards: [{ type: 'eventDeleteDraft', target: { id: 1, title: '강남 회식' } }] });
+      expect(reply.historyText).toBe('[일정 삭제 초안] 강남 회식, 2026-11-20(금) 19:00~21:00');
+    });
+
+    it('지우기: 반복 일정은 그 회차(occurrence)를 대상으로', async () => {
+      events.list.mockResolvedValue([
+        view(5, '주간 회의', '2026-11-23 10:00', '2026-11-23 11:00', { occurrence: '2026-11-23', repeat: 'WEEKLY', place: { text: '3층', query: null } }),
+      ]);
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: '주간 회의', when: { ...NO_WHEN, kind: 'weekday', weekday: '월', which: 'next' }, time: null }));
+      const reply = await send('다음 주 월요일 주간 회의 지워줘');
+      expect(reply.cards[0]).toMatchObject({ type: 'eventDeleteDraft', target: { id: 5, occurrence: '2026-11-23', repeat: true, place: { text: '3층' } } });
+    });
+
+    it('여럿이면 고르기 카드 (가까운 순, 앞 5개, 고치기는 후보마다 고친 뒤 값), 시각으로 거르기', async () => {
+      const lunches = [1, 2, 3, 4, 5, 6].map((i) => view(10 + i, '점심', `2026-11-${String(16 + i).padStart(2, '0')} 12:00`, `2026-11-${String(16 + i).padStart(2, '0')} 13:00`));
+      events.list.mockResolvedValue([...lunches].reverse());
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: '점심 약속', when: NO_WHEN, time: null }));
+      const del = await send('점심 약속 지워 줘');
+      expect(del.reply).toBe('일정이 6개 있어요. 어느 일정을 지울까요?');
+      const card = del.cards[0] as { type: string; action: string; options: { target: { id: number }; after: unknown }[]; more: number };
+      expect(card).toMatchObject({ type: 'eventChoice', action: 'delete', more: 1 });
+      expect(card.options.map((o) => o.target.id)).toEqual([11, 12, 13, 14, 15]);
+      expect(card.options.every((o) => o.after === null)).toBe(true);
+      expect(del.historyText.startsWith('[일정 고르기] 지울 일정 후보 11-17(화) 12:00 점심; 11-18(수) 12:00 점심')).toBe(true);
+
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_edit', { title: '점심', when: NO_WHEN, time: null, changes: changes({ startTime: '12:30' }) }));
+      const edit = await send('점심 12시 반으로');
+      const editCard = edit.cards[0] as { options: { after: { startsAt: string } }[] };
+      expect(edit.reply).toBe('일정이 6개 있어요. 어느 일정을 고칠까요?');
+      expect(editCard.options[0].after.startsAt).toBe('2026-11-17T03:30:00.000Z');
+
+      events.list.mockResolvedValue([dinner, view(3, '회식', '2026-11-20 18:00', '2026-11-20 20:00')]);
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: '회식', when: friday, time: '18:00' }));
+      expect((await send('금요일 6시 회식 지워')).cards[0]).toMatchObject({ type: 'eventDeleteDraft', target: { id: 3 } });
+    });
+
+    it('못 찾음, 바꿀 값 없음(되묻기, 읽지 않음), 이미 같음, 제목도 날짜도 없음(which)', async () => {
+      events.list.mockResolvedValue([dinner]);
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: '영화', when: friday, time: null }));
+      expect(await send('금요일 영화 취소')).toMatchObject({ reply: '그 일정을 찾지 못했어요. 날짜나 제목을 넣어 다시 말해 주세요', cards: [], historyText: '[일정 못 찾음] 영화' });
+
+      events.list.mockClear();
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_edit', { title: '회식', when: friday, time: null, changes: changes() }));
+      expect(await send('금요일 회식 고쳐 줘')).toMatchObject({ reply: "'회식'은 무엇으로 바꿀까요?", cards: [{ type: 'clarify', field: 'change', choices: [] }] });
+      expect(events.list).not.toHaveBeenCalled();
+
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_edit', { title: '회식', when: friday, time: null, changes: changes({ startTime: '19:00' }) }));
+      expect(await send('금요일 회식 7시로')).toMatchObject({ reply: '이미 그렇게 되어 있어요', cards: [] });
+
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_delete', { title: null, when: NO_WHEN, time: null }));
+      expect((await send('그거 지워')).cards).toEqual([{ type: 'clarify', field: 'which', choices: [] }]);
+
+      model.complete.mockResolvedValueOnce(toolResult('find_event_to_edit', { title: '회식', when: friday, time: null, changes: changes({ title: 'http://evil.example' }) }));
+      expect((await send('제목 바꿔')).reply).toBe(INVALID_REPLY);
+    });
+
+    it('가짜 모델(ASSISTANT_FAKE)도 고치기, 지우기 도구를 부른다', async () => {
+      const fake = new FakeAssistantModel();
+      model.complete.mockImplementation((messages: Parameters<FakeAssistantModel['complete']>[0]) => fake.complete(messages));
+      events.list.mockResolvedValue([view(9, '약속', '2026-11-17 19:00', '2026-11-17 20:00')]);
+      expect((await send('내일 약속 바꿔 줘')).cards[0]).toMatchObject({ type: 'eventEditDraft', draft: { after: { startsAt: '2026-11-17T11:00:00.000Z', endsAt: '2026-11-17T12:00:00.000Z' } } });
+      expect((await send('내일 약속 지워 줘')).cards[0]).toMatchObject({ type: 'eventDeleteDraft', target: { id: 9 } });
+      model.complete.mockReset();
     });
   });
 

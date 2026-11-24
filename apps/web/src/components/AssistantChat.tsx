@@ -84,7 +84,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function Ass
           무엇을 도와 드릴까요?
         </h2>
         <p className="mt-2 text-[14px] leading-[21px] text-ink-2">
-          일정을 만들고, 다 같이 되는 시간을 찾고, 투표도 열어 드려요. 말로 해도 돼요. 일정 말고 다른 질문에는 답하지 않아요
+          일정을 만들고 고치고, 다 같이 되는 시간을 찾고, 투표도 열어 드려요. 말로 해도 돼요. 일정 말고 다른 질문에는 답하지 않아요
         </p>
         <ul aria-label="이렇게 물어보세요" className="mt-5 space-y-2">
           {examples.map((ex) => (
@@ -285,7 +285,7 @@ function ConsentCard({ tone }: { tone: CardTone }) {
       <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[13px] leading-[19px] text-ink marker:text-ink-2">
         <li>내가 쓴 글과 팀 멤버 이름을 OpenAI(미국)로 보내 뜻을 알아내요. 일정을 물을 때는 그 기간 일정의 제목과 시각도 보내요</li>
         <li>대화는 언제볼까에 저장하지 않아요. 화면을 닫으면 사라져요</li>
-        <li>볼까는 저장하지 않고 카드로 보여 줘요. [추가] 를 눌러야 들어가요</li>
+        <li>볼까는 저장하지 않고 카드로 보여 줘요. [추가], [수정], [삭제] 를 눌러야 반영돼요</li>
         <li>하루 {a.limit}번까지 쓸 수 있어요</li>
       </ul>
       <Link href="/privacy#assistant" className="mt-3 inline-flex min-h-11 items-center text-[13px] font-semibold text-ink-2 underline underline-offset-2">

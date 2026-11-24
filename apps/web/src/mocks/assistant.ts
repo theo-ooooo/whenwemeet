@@ -1,13 +1,15 @@
 // (#450) API_MOCK=1 AI 비서 "볼까" (설계 AI-비서.md 7-10, api.md 2.15). 모델 대신 키워드 규칙으로 늘 같은 답을 만든다.
 // 서버 문구 틀(4-3, 4-4)과 카드 모양, 오류 코드, 하루 횟수(30번, KST 날짜)를 실제 API 와 같게 둔다. 화면 확인과 단위 시험용.
 //   "한도" → 429 하루 한도, "느려" → 504, "장애" → 503 (둘은 횟수를 되돌린다)
-//   "고쳐", "바꿔", "수정" → 못 하는 일(고치기), "지워", "삭제" → 못 하는 일(지우기)
+//   (#511) "고쳐", "바꿔", "수정", "옮겨" → 고치기 카드, "지워", "삭제", "취소" → 지우기 카드. 대상은 오늘 7일 전 ~ 54일 뒤 일정 중 글의 낱말이 제목에 든 것
+//     (1개 확인 카드, 여럿 고르기, 0개 못 찾음). 고치기는 "N시(반)" 로 시작 시각만 바꾼다(길이 그대로), 시각이 없으면 "무엇으로 바꿀까요?"
 //   "빈 시간", "되는", "비는" → 빈 시간(+ "투표" 면 투표 초안), "생일", "기념일" → 기념일 목록, "뭐 있", "일정 알려" → 일정 목록
 //   "잡아", "넣어", "추가", "만들어" → 일정 초안("회식" 과 "영화" 가 같이 있으면 초안 2개, #474), "회의" → 시각 되묻기, "누구" → 이름 고르기, "안녕", "고마" → 인사, 그 밖 → 거절
 // 데이터는 목 API 자신(일정, 빈 시간, 팀, 생일, 기념일 경로)을 다시 불러 만든다 (call)
 import { addDays, dateKeyOf, daysBetween, dowOf, kstToIso, parseKey, startOfWeek, todayKey, type DateKey } from "@/lib/date";
 import { errorBody, okBody } from "@/lib/envelope";
-import type { AssistantCard, AssistantDay, AssistantEvent, AssistantReply, FreeQuery } from "@/lib/assistant";
+import { hasBatchim } from "@/lib/text";
+import type { AssistantCard, AssistantDay, AssistantEvent, AssistantReply, EventAfter, EventTarget, FreeQuery } from "@/lib/assistant";
 import type { Event, GroupDetail, Member } from "@/lib/types";
 import type { Store } from "./fixtures";
 
@@ -84,12 +86,8 @@ export function mockAssistantMessage(s: Store, groupId: number, userId: number, 
   const reply = (r: string, cards: AssistantCard[], historyText: string): Result =>
     ok({ reply: r, cards, historyText: historyText.slice(0, 600), usage: { used: count, limit: MOCK_ASSISTANT_LIMIT } } satisfies AssistantReply);
 
-  if (has(text, "지워", "삭제")) {
-    return reply("일정 지우기는 아직 못 해요. 일정을 눌러 지울 수 있어요", [{ type: "unsupported", action: "delete_event", link: { label: "달력 열기", href: "/calendar" } }], "[안내] 일정 지우기는 못 함");
-  }
-  if (has(text, "고쳐", "바꿔", "수정")) {
-    return reply("일정 고치기는 아직 못 해요. 일정을 눌러 고칠 수 있어요", [{ type: "unsupported", action: "edit_event", link: { label: "달력 열기", href: "/calendar" } }], "[안내] 일정 고치기는 못 함");
-  }
+  if (has(text, "지워", "삭제", "취소")) return targetReply("delete", text, today, groupId, call, reply);
+  if (has(text, "고쳐", "바꿔", "수정", "옮겨")) return targetReply("edit", text, today, groupId, call, reply);
   if (has(text, "빈 시간", "되는", "비는")) return freeReply(text, today, groupId, members, personal, call, reply);
   if (has(text, "생일", "기념일")) return daysReply(today, groupId, call, reply);
   if (has(text, "뭐 있", "일정 알려", "무슨 일정")) return listReply(text, today, groupId, call, reply);
@@ -111,6 +109,80 @@ const md = (key: DateKey) => {
 const hm = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
 
 /** (#474) 한 글의 일정 2개 → 초안 카드 2장 (내일 19:00 회식, 가까운 토요일 14:00 영화). 참여자는 나만 */
+/** 고치기, 지우기 글에서 대상 찾기에 쓰지 않는 낱말 (동사 낱말은 통째로, 날짜 말, "일정") */
+const ACTION_VERB = /(지워|삭제|취소|고쳐|바꿔|수정|옮겨)/;
+const STOP_WORDS = new Set(["내일", "오늘", "모레", "일정"]);
+
+/** 일정 → 고치기, 지우기 대상 (반복이면 그 회차) */
+function targetOf(e: Event): EventTarget {
+  const place = (e.place?.text ?? e.place?.query ?? "").trim();
+  return {
+    id: e.id,
+    publicCode: e.publicCode,
+    occurrence: e.occurrence,
+    repeat: Boolean(e.repeat),
+    title: e.title,
+    startsAt: e.startsAt,
+    endsAt: e.endsAt,
+    allDay: e.allDay,
+    place: place ? { text: place } : null,
+    members: e.participants?.members ?? [e.creator],
+  };
+}
+
+/** "8시", "7시 반" → 시작 시각 (오전, 오후 없이 1~6시와 저녁 말 7~11시는 오후). 없으면 null */
+function spokenStart(text: string): string | null {
+  const m = /(\d{1,2})\s*시(\s*반)?/.exec(text);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  if (hour <= 6 || (hour <= 11 && has(text, "회식", "저녁", "술", "약속", "영화"))) hour += 12;
+  return `${String(hour % 24).padStart(2, "0")}:${m[2] ? "30" : "00"}`;
+}
+
+const whenLine = (t: { startsAt: string; endsAt: string; allDay: boolean }) => `${dateKeyOf(t.startsAt)} ${t.allDay ? "하루 종일" : `${hm(t.startsAt)}~${hm(t.endsAt)}`}`;
+
+/** (#511) 고치기, 지우기 (서버 문구 틀과 같은 문구, D-283) */
+function targetReply(action: "edit" | "delete", text: string, today: DateKey, groupId: number, call: MockCall, reply: Reply): Result {
+  const words = text
+    .split(/\s+/)
+    .filter((w) => !ACTION_VERB.test(w))
+    .map((w) => w.replace(/(을|를|은|는|으로|로)$/, ""))
+    .filter((w) => w.length >= 2 && !/\d/.test(w) && !STOP_WORDS.has(w));
+  const start = spokenStart(text);
+  if (action === "edit" && start === null) {
+    const subject = words[0] ? `'${words[0]}'${hasBatchim(words[0]) ? "은" : "는"} ` : "";
+    const r = `${subject}무엇으로 바꿀까요?`;
+    return reply(r, [{ type: "clarify", field: "change", choices: [] }], `[되물음] ${r}`);
+  }
+  const evs = call<Event[]>("GET", `/groups/${groupId}/events`, { from: kstToIso(addDays(today, -7)), to: kstToIso(addDays(today, 55)) }) ?? [];
+  const day = has(text, "내일") ? addDays(today, 1) : has(text, "오늘") ? today : null;
+  const targets = evs
+    .filter((e) => words.some((w) => e.title.includes(w)) && (day === null || dateKeyOf(e.startsAt) === day))
+    .sort((a, b) => Math.abs(Date.parse(a.startsAt) - Date.now()) - Math.abs(Date.parse(b.startsAt) - Date.now()))
+    .map(targetOf);
+  if (targets.length === 0) return reply("그 일정을 찾지 못했어요. 날짜나 제목을 넣어 다시 말해 주세요", [], `[일정 못 찾음] ${words[0] ?? ""}`.trimEnd());
+  const afterOf = (t: EventTarget): EventAfter | null => {
+    if (start === null) return null;
+    const date = dateKeyOf(t.startsAt);
+    const startsAt = kstToIso(date, start);
+    const length = t.allDay ? 3_600_000 : Date.parse(t.endsAt) - Date.parse(t.startsAt);
+    return { title: t.title, startsAt, endsAt: new Date(Date.parse(startsAt) + length).toISOString(), allDay: false, place: t.place };
+  };
+  if (targets.length > 1) {
+    const shown = targets.slice(0, 5);
+    const verb = action === "edit" ? "고칠" : "지울";
+    return reply(
+      `일정이 ${targets.length}개 있어요. 어느 일정을 ${verb}까요?`,
+      [{ type: "eventChoice", action, options: shown.map((t) => ({ target: t, after: action === "edit" ? afterOf(t) : null })), more: targets.length - shown.length }],
+      `[일정 고르기] ${verb} 일정 후보 ${shown.map((t) => `${md(dateKeyOf(t.startsAt))} ${t.allDay ? "하루 종일" : hm(t.startsAt)} ${t.title}`).join("; ")}`,
+    );
+  }
+  const t = targets[0];
+  if (action === "delete") return reply("이 일정을 지울까요?", [{ type: "eventDeleteDraft", target: t }], `[일정 삭제 초안] ${t.title}, ${whenLine(t)}`);
+  const after = afterOf(t) as EventAfter;
+  return reply("이렇게 고칠까요?", [{ type: "eventEditDraft", draft: { target: t, after } }], `[일정 수정 초안] ${t.title}, ${whenLine(t)} → ${whenLine(after)}`);
+}
+
 function multiDraftReply(today: DateKey, userId: number, members: Member[], reply: Reply): Result {
   const me = members.filter((m) => m.userId === userId);
   const ids = me.flatMap((m) => (m.userId === null ? [] : [m.userId]));

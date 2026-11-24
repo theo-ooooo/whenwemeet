@@ -11,10 +11,18 @@ import { buildHistory, dailyLimited, nextKstMidnight, type AssistantCard, type C
 export type SendResult = "sent" | "invalid" | "skipped";
 
 /**
- * 카드에서 한 번 한 일 (같은 카드의 [추가], [투표 열기], "투표 열기 초안" 은 한 번만, 7-6).
+ * 카드에서 한 번 한 일 (같은 카드의 [추가], [투표 열기], "투표 열기 초안", (#511) [수정], [삭제], 후보 고르기는 한 번만, 7-6).
  * 카드 컴포넌트가 다시 그려져도(패널을 닫았다 열기, 폼에 갔다 돌아오기) 남게 대화와 같이 둔다. 키 = `${메시지 id}:${카드 순번}`
  */
-export type CardResult = { kind: "event"; title: string; date: string; publicCode: string } | { kind: "poll"; href: string } | { kind: "drafted" };
+export type CardResult =
+  | { kind: "event"; title: string; date: string; publicCode: string }
+  | { kind: "poll"; href: string }
+  | { kind: "drafted" }
+  // (#511) 고치기 [수정] 뒤, 지우기 [삭제] 뒤, 지우기 [취소] 뒤, 고르기에서 하나 고른 뒤
+  | { kind: "edited"; title: string; date: string; publicCode: string; occurrence: string | null }
+  | { kind: "deleted"; title: string }
+  | { kind: "kept" }
+  | { kind: "picked"; index: number };
 
 type AssistantCtx = {
   /** /me 를 받았는지 (실패도 받은 것으로 본다) */

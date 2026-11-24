@@ -325,13 +325,13 @@ describe("AssistantChat (#450)", () => {
     renderChat();
     await type("민이랑 저녁");
     send.mockResolvedValueOnce(
-      ok({ reply: "일정 지우기는 아직 못 해요. 일정을 눌러 지울 수 있어요", cards: [{ type: "unsupported", action: "delete_event", link: { label: "달력 열기", href: "/calendar" } }], historyText: "[안내]", usage: { used: 2, limit: 30 } }),
+      ok({ reply: "기념일은 기념일 화면에서 넣을 수 있어요", cards: [{ type: "unsupported", action: "anniversary_create", link: { label: "기념일 열기", href: "/anniversaries" } }], historyText: "[안내]", usage: { used: 2, limit: 30 } }),
     );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "하늘" }));
     });
     expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ text: "하늘" }));
-    expect(screen.getByRole("link", { name: "달력 열기" }).getAttribute("href")).toBe("/calendar");
+    expect(screen.getByRole("link", { name: "기념일 열기" }).getAttribute("href")).toBe("/anniversaries");
   });
 
   it("답 글자는 따로 읽어 준다(aria-live), 대화 목록은 role=log", async () => {

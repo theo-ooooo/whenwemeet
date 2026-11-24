@@ -7,7 +7,10 @@ import type {
   AssistantEvent,
   ClarifyField,
   ComposedReply,
+  EventChoiceOption,
   EventDraftCard,
+  EventEditDraft,
+  EventTarget,
   FreeQuery,
   PollDraft,
   UnsupportedAction,
@@ -83,6 +86,7 @@ const CLARIFY_TEXT: Record<Exclude<ClarifyField, 'participant'>, string> = {
   title: '무슨 일정인가요?',
   period: '언제쯤으로 찾아볼까요?',
   which: '어떤 일정을 말하는지 알려 주세요',
+  change: '무엇으로 바꿀까요?',
 };
 
 /** (#474) 되묻는 일정 이름 머리말 "'영화'는 " (일정 여럿 중 하나를 되물을 때, D-280) */
@@ -104,8 +108,6 @@ export function clarifyReply(field: ClarifyField, extra: { name?: string; choice
 }
 
 const UNSUPPORTED: Record<UnsupportedAction, { reply: string; history: string }> = {
-  edit_event: { reply: '일정 고치기는 아직 못 해요. 일정을 눌러 고칠 수 있어요', history: '일정 고치기는 못 함' },
-  delete_event: { reply: '일정 지우기는 아직 못 해요. 일정을 눌러 지울 수 있어요', history: '일정 지우기는 못 함' },
   repeat: { reply: '반복과 알림은 일정 화면에서 넣을 수 있어요', history: '반복 넣기는 못 함' },
   reminder: { reply: '반복과 알림은 일정 화면에서 넣을 수 있어요', history: '알림 넣기는 못 함' },
   anniversary_create: { reply: '기념일은 기념일 화면에서 넣을 수 있어요', history: '기념일 만들기는 못 함' },
@@ -116,12 +118,9 @@ const UNSUPPORTED: Record<UnsupportedAction, { reply: string; history: string }>
   other: { reply: '그건 아직 못 해요', history: '못 하는 일' },
 };
 
-/** 못 하는 일 안내의 링크 (4-4). 고치기, 지우기는 검색어가 있으면 일정 찾기 */
-export function unsupportedLink(action: UnsupportedAction, keyword: string | null): { label: string; href: string } | null {
+/** 못 하는 일 안내의 링크 (4-4). (#511) 고치기, 지우기는 이제 확인 카드라 여기 없다 (D-283) */
+export function unsupportedLink(action: UnsupportedAction): { label: string; href: string } | null {
   switch (action) {
-    case 'edit_event':
-    case 'delete_event':
-      return keyword ? { label: '일정 찾기', href: `/search?q=${encodeURIComponent(keyword)}` } : { label: '달력 열기', href: '/calendar' };
     case 'repeat':
     case 'reminder':
       return { label: '일정 추가', href: '/events/new' };
@@ -136,13 +135,13 @@ export function unsupportedLink(action: UnsupportedAction, keyword: string | nul
   }
 }
 
-export function unsupportedReply(action: UnsupportedAction, keyword: string | null): ComposedReply {
+export function unsupportedReply(action: UnsupportedAction): ComposedReply {
   const text = UNSUPPORTED[action];
-  return compose(text.reply, [{ type: 'unsupported', action, link: unsupportedLink(action, keyword) }], `[안내] ${text.history}`);
+  return compose(text.reply, [{ type: 'unsupported', action, link: unsupportedLink(action) }], `[안내] ${text.history}`);
 }
 
 /** '2026-11-27(금) 19:00~20:00', 종일은 '2026-11-30(일) 하루 종일' 또는 '2026-11-30(일)~2026-12-01(월) 하루 종일' */
-function draftWhen(draft: EventDraftCard): string {
+function draftWhen(draft: Pick<EventDraftCard, 'startsAt' | 'endsAt' | 'allDay'>): string {
   const startsAt = new Date(draft.startsAt);
   const endsAt = new Date(draft.endsAt);
   const start = kstDate(startsAt);
@@ -274,3 +273,56 @@ export function anniversaryReply(result: AnniversaryResult): ComposedReply {
   const card: AssistantCard = { type: 'eventList', from: result.from.toISOString(), to: result.to.toISOString(), events: [], more: 0, days };
   return compose(reply, [card], `[기념일] ${days.map((day) => `${day.name} ${day.date}`).join('; ')}`);
 }
+
+// ---------- (#511) 일정 고치기, 지우기 (D-283) ----------
+
+export const TARGET_NOT_FOUND_REPLY = '그 일정을 찾지 못했어요. 날짜나 제목을 넣어 다시 말해 주세요';
+export const ALREADY_REPLY = '이미 그렇게 되어 있어요';
+
+/** '회식, 2026-11-20(금) 19:00~21:00' */
+const targetLine = (event: Pick<EventTarget, 'title' | 'startsAt' | 'endsAt' | 'allDay'>): string => `${event.title}, ${draftWhen(event)}`;
+
+/** '11-20(금) 19:00 회식' (고르기 후보 한 줄) */
+const optionLine = (target: EventTarget): string => {
+  const startsAt = new Date(target.startsAt);
+  return `${shortDate(kstDate(startsAt))} ${target.allDay ? '하루 종일' : hm(startsAt)} ${target.title}`;
+};
+
+/** '[일정 수정 초안] 회식, 2026-11-20(금) 19:00~21:00 → 2026-11-20(금) 19:30~21:30, 제목 → 팀 회식, 장소 → 강남' */
+function editHistory(draft: EventEditDraft): string {
+  const { target, after } = draft;
+  const parts = [`[일정 수정 초안] ${targetLine(target)}`];
+  const before = draftWhen(target);
+  const next = draftWhen(after);
+  if (before !== next) parts[0] += ` → ${next}`;
+  if (after.title !== target.title) parts.push(`제목 → ${after.title}`);
+  if ((after.place?.text ?? null) !== (target.place?.text ?? null)) parts.push(`장소 → ${after.place?.text ?? '없음'}`);
+  return parts.join(', ');
+}
+
+/** 대상을 찾지 못함. 제목 말이 있으면 기록에 남긴다 */
+export function targetNotFoundReply(keyword: string | null): ComposedReply {
+  return compose(TARGET_NOT_FOUND_REPLY, [], `[일정 못 찾음]${keyword ? ` ${userWord(keyword)}` : ''}`);
+}
+
+/** 바꾸라는 값이 이미 그 일정의 값과 같다 */
+export const alreadyReply = (target: EventTarget): ComposedReply => compose(ALREADY_REPLY, [], `[이미 같음] ${targetLine(target)}`);
+
+export function eventEditReply(draft: EventEditDraft): ComposedReply {
+  return compose('이렇게 고칠까요?', [{ type: 'eventEditDraft', draft }], editHistory(draft));
+}
+
+export function eventDeleteReply(target: EventTarget): ComposedReply {
+  return compose('이 일정을 지울까요?', [{ type: 'eventDeleteDraft', target }], `[일정 삭제 초안] ${targetLine(target)}`);
+}
+
+/** 후보 여럿 (앞 5개 + 넘는 개수). 웹이 누른 후보로 확인 카드를 만든다 */
+export function eventChoiceReply(action: 'edit' | 'delete', options: EventChoiceOption[], total: number): ComposedReply {
+  const verb = action === 'edit' ? '고칠' : '지울';
+  return compose(
+    `일정이 ${total}개 있어요. 어느 일정을 ${verb}까요?`,
+    [{ type: 'eventChoice', action, options, more: Math.max(0, total - options.length) }],
+    `[일정 고르기] ${verb} 일정 후보 ${options.map((option) => optionLine(option.target)).join('; ')}`,
+  );
+}
+
