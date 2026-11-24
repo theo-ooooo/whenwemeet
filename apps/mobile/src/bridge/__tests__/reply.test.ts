@@ -1,4 +1,4 @@
-import { buildAppEventScript, buildPushStatusReply, toPushPermission, validExpoToken } from "../reply";
+import { buildAppEventScript, buildLinkAccountReply, buildPushStatusReply, linkFailureReason, toPushPermission, validExpoToken } from "../reply";
 
 const TOKEN = "ExponentPushToken[abc_DEF-123]";
 
@@ -120,5 +120,48 @@ describe("buildAppEventScript", () => {
       },
     );
     expect(got).toEqual(detail);
+  });
+});
+
+describe("(#198) linkAccount 응답 (앱.md 4.8)", () => {
+  it("카카오 성공: accessToken 만 싣는다", () => {
+    const cred = { provider: "KAKAO" as const, credentials: { accessToken: "kakao-at", refreshToken: "secret" } as { accessToken: string } };
+    expect(buildLinkAccountReply("l1", cred)).toEqual({
+      v: 1,
+      type: "linkAccount",
+      id: "l1",
+      ok: true,
+      provider: "KAKAO",
+      credentials: { accessToken: "kakao-at" },
+    });
+  });
+  it("Apple 성공: identityToken, authorizationCode, 원문 nonce 만 싣는다 (이름 등 다른 칸은 버린다)", () => {
+    const credentials = { identityToken: "id.tok", authorizationCode: "code", nonce: "a".repeat(64), fullName: { givenName: "길동" } };
+    expect(buildLinkAccountReply("l2", { provider: "APPLE", credentials })).toEqual({
+      v: 1,
+      type: "linkAccount",
+      id: "l2",
+      ok: true,
+      provider: "APPLE",
+      credentials: { identityToken: "id.tok", authorizationCode: "code", nonce: "a".repeat(64) },
+    });
+  });
+  it("실패: reason 만", () => {
+    expect(buildLinkAccountReply("l3", { reason: "cancelled" })).toEqual({ v: 1, type: "linkAccount", id: "l3", ok: false, reason: "cancelled" });
+  });
+  it("예외 → 이유: 취소는 cancelled, 키 없는 빌드와 Apple 못 쓰는 기기는 unavailable, 그 밖은 error", () => {
+    const cancelled = Object.assign(new Error("cancelled"), { name: "LoginCancelled" });
+    expect(linkFailureReason(cancelled)).toBe("cancelled");
+    expect(linkFailureReason({ code: "KAKAO_NOT_CONFIGURED" })).toBe("unavailable");
+    expect(linkFailureReason({ code: "APPLE_UNSUPPORTED" })).toBe("unavailable");
+    expect(linkFailureReason({ code: "KAKAO_SDK" })).toBe("error");
+    expect(linkFailureReason({ code: "APPLE_SDK" })).toBe("error");
+    expect(linkFailureReason(new Error("x"))).toBe("error");
+    expect(linkFailureReason(null)).toBe("error");
+  });
+  it("웹으로 보내는 스크립트에 응답이 JSON 으로 실린다", () => {
+    const script = buildAppEventScript(buildLinkAccountReply("l1", { provider: "KAKAO", credentials: { accessToken: "t</script>" } }));
+    expect(script).toContain('"type":"linkAccount"');
+    expect(script).not.toContain("</script>");
   });
 });

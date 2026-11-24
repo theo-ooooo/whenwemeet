@@ -220,3 +220,25 @@ describe("(#419) pullRefresh", () => {
     expect(p({ v: 1, type: "pullRefresh", allow: false }, "https://evil.com/")).toBeNull();
   });
 });
+
+describe("(#198) linkAccount (앱.md 4.8)", () => {
+  it("id 1~40자, provider 는 KAKAO 또는 APPLE 만", () => {
+    expect(p({ v: 1, type: "linkAccount", id: "l1", provider: "KAKAO" })).toEqual({ v: 1, type: "linkAccount", id: "l1", provider: "KAKAO" });
+    expect(p({ v: 1, type: "linkAccount", id: "l2", provider: "APPLE", extra: "x" })).toEqual({ v: 1, type: "linkAccount", id: "l2", provider: "APPLE" });
+  });
+  it("모양이 틀리면 버린다 (이메일, 소문자, 제공자 없음, id 없음, 41자 id, 제어문자 id)", () => {
+    expect(p({ v: 1, type: "linkAccount", id: "l1", provider: "EMAIL" })).toBeNull();
+    expect(p({ v: 1, type: "linkAccount", id: "l1", provider: "kakao" })).toBeNull();
+    expect(p({ v: 1, type: "linkAccount", id: "l1" })).toBeNull();
+    expect(p({ v: 1, type: "linkAccount", provider: "KAKAO" })).toBeNull();
+    expect(p({ v: 1, type: "linkAccount", id: "x".repeat(41), provider: "KAKAO" })).toBeNull();
+    expect(p({ v: 1, type: "linkAccount", id: "a\nb", provider: "KAKAO" })).toBeNull();
+    expect(p({ v: 2, type: "linkAccount", id: "l1", provider: "KAKAO" })).toBeNull();
+  });
+  it("웹 오리진이 아닌 페이지가 보낸 요청은 버린다 (남의 페이지가 토큰을 받아 가지 못하게)", () => {
+    const msg = { v: 1, type: "linkAccount", id: "l1", provider: "KAKAO" };
+    expect(p(msg, "https://evil.com/me/accounts")).toBeNull();
+    expect(p(msg, "http://whenwemeet.day/me/accounts")).toBeNull();
+    expect(p(msg, "https://whenwemeet.day.evil.com/")).toBeNull();
+  });
+});

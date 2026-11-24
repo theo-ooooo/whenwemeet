@@ -3,7 +3,8 @@
 //   "연결된 방법" 줄마다 이름 + 표시(가린 이메일 등) + [해제](확인 창, 마지막 하나는 숨김)
 //   "다른 방법 연결" 줄: 카카오, Apple 은 form POST /me/link/start → 제공자 화면 → /me/link 가 연결하고 결과를 주소에 싣고 돌아온다.
 //   이메일은 시트에서 주소 → 코드 메일 → 6자리 코드. 결과는 토스트
-//   앱 셸 안에서 카카오, Apple 버튼은 셸이 AccountLink/1 을 알 때만 (지금 앱에는 없다). 이메일 연결은 앱에서도 된다
+//   앱 셸 안에서 카카오, Apple 버튼은 셸이 AccountLink/1 을 알 때만. 앱에서는 form POST 대신 셸 브리지 linkAccount 로
+//   네이티브 로그인 결과를 받아 세션으로 POST /me/auth-accounts (앱.md 4.8, D-282). 이메일 연결은 앱에서도 같은 시트
 //   보안을 위해 최근 로그인(10분)이 아니면 다시 로그인을 권한다(REAUTH_REQUIRED). 다시 로그인하면 이 화면으로 돌아온다
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -12,15 +13,28 @@ import { IconPlus } from "@/components/icons";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, ErrorState, InlineError, RowGroup, rowClass, Sheet, Skeleton, inputClass } from "@/components/ui";
-import { messageOf, useAuthAccounts, useLinkEmail, useRequestLinkEmail, useUnlinkAccount, type ApiFailure } from "@/hooks";
+import {
+  messageOf,
+  useAuthAccounts,
+  useCheckAppLink,
+  useLinkAppAccount,
+  useLinkEmail,
+  useRequestLinkEmail,
+  useUnlinkAccount,
+  type ApiFailure,
+} from "@/hooks";
 import {
   ACCOUNTS_PATH,
+  appLinkFailureMessage,
+  type AppLinkCredentials,
+  type AppLinkProvider,
   LINK_START_PATH,
   linkableProviders,
   linkedMessage,
   linkErrorMessage,
   PROVIDER_NAME,
   readLinkResult,
+  requestAppLink,
   unlinkConfirmBody,
   type LinkProvider,
 } from "@/lib/account-link";
@@ -82,6 +96,65 @@ function OAuthLinkRow({ provider }: { provider: "KAKAO" | "APPLE" }) {
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{going ? `${name}로 이동 중…` : `${name} 연결`}</span>
       </button>
     </form>
+  );
+}
+
+/**
+ * (#198) 앱 셸 안의 카카오, Apple 연결 줄 (앱.md 4.8, D-282).
+ * 최근 로그인 확인(link-start) → 셸 브리지 linkAccount 로 네이티브 로그인 → 세션으로 POST /me/auth-accounts.
+ * 사용자가 시트를 닫으면(cancelled) 아무것도 띄우지 않는다
+ */
+function AppLinkRow({
+  provider,
+  onLinked,
+  onFailed,
+  onReauth,
+}: {
+  provider: AppLinkProvider;
+  onLinked: (absorbed: boolean) => void;
+  onFailed: (message: string, refresh: boolean) => void;
+  onReauth: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const check = useCheckAppLink();
+  const link = useLinkAppAccount();
+  const name = PROVIDER_NAME[provider];
+
+  function fail(e: ApiFailure): void {
+    if (e.code === "REAUTH_REQUIRED") return onReauth();
+    onFailed(linkErrorMessage(e.code, provider) || messageOf(e, "연결하지 못했어요"), e.code === "PROVIDER_ALREADY_LINKED");
+  }
+
+  async function start() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      // 네이티브 로그인 시트를 띄우기 전에 다시 로그인이 필요한지부터 (시트를 두 번 거치지 않게)
+      const pre = await check.mutate(provider);
+      if (!pre.ok) return fail(pre.error);
+      const native = await requestAppLink(provider);
+      if (!native.ok) {
+        const message = appLinkFailureMessage(native.reason, provider);
+        if (message) onFailed(message, false);
+        return;
+      }
+      const cred: AppLinkCredentials =
+        native.provider === "KAKAO" ? { provider: "KAKAO", credentials: native.credentials } : { provider: "APPLE", credentials: native.credentials };
+      const r = await link.mutate(cred);
+      if (r.ok) return onLinked(r.data.absorbed);
+      fail(r.error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button type="button" className={`${rowClass} disabled:opacity-45`} disabled={busy} onClick={() => void start()}>
+      <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center text-ink-2">
+        <IconPlus size={16} strokeWidth={2.2} />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{busy ? `${name}로 연결 중…` : `${name} 연결`}</span>
+    </button>
   );
 }
 
@@ -249,6 +322,22 @@ export function SignInMethodsScreen({ inApp, appLink, appleEnabled, emailEnabled
     [refetch, toast],
   );
 
+  const onLinkedApp = useCallback(
+    (provider: AppLinkProvider, absorbed: boolean) => {
+      toast.show(linkedMessage(provider, absorbed));
+      void refetch();
+    },
+    [refetch, toast],
+  );
+
+  const onAppLinkFailed = useCallback(
+    (message: string, refresh: boolean) => {
+      toast.show(message);
+      if (refresh) void refetch();
+    },
+    [refetch, toast],
+  );
+
   async function confirmUnlink() {
     if (!target) return;
     const r = await unlink.mutate(target.id);
@@ -305,6 +394,15 @@ export function SignInMethodsScreen({ inApp, appLink, appleEnabled, emailEnabled
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">이메일 연결</span>
                 </button>
+              ) : inApp && appLink ? (
+                // 앱 안: 셸이 /auth/kakao 이동을 가로채므로 웹 OAuth 대신 브리지 (linkableProviders 가 AccountLink/1 일 때만 넘긴다)
+                <AppLinkRow
+                  key={p}
+                  provider={p}
+                  onLinked={(absorbed) => onLinkedApp(p, absorbed)}
+                  onFailed={onAppLinkFailed}
+                  onReauth={() => setReauthOpen(true)}
+                />
               ) : (
                 <OAuthLinkRow key={p} provider={p} />
               ),

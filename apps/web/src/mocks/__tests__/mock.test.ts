@@ -698,4 +698,22 @@ describe("(#198) 목 로그인 방법", () => {
     for (const a of list().slice(1)) expect(call("DELETE", `/me/auth-accounts/${a.id}`).status).toBe(200);
     expect(call("DELETE", `/me/auth-accounts/${list()[0].id}`).status).toBe(409);
   });
+
+  it("앱 토큰 연결 (앱.md 4.8): 카카오 accessToken, Apple identityToken + authorizationCode + nonce", () => {
+    (globalThis as unknown as { __wwmMockStore?: unknown }).__wwmMockStore = undefined;
+    const list = () => (call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[]);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO"]);
+    // nonce 가 짧거나 칸이 빠지면 400
+    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", authorizationCode: "c", nonce: "short" }).status).toBe(400);
+    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", nonce: "n".repeat(64) }).status).toBe(400);
+    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "mock-inuse", authorizationCode: "c", nonce: "n".repeat(64) }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", authorizationCode: "c", nonce: "n".repeat(64) }).status).toBe(200);
+    // 카카오는 이미 있어 409, 해제 뒤 토큰으로 다시 연결
+    expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "at" }).status).toBe(409);
+    expect(call("DELETE", `/me/auth-accounts/${list()[0].id}`).status).toBe(200);
+    expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "mock-inuse" }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "" }).status).toBe(400);
+    expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "at" }).status).toBe(200);
+    expect(list().map((a) => a.provider)).toEqual(["KAKAO", "APPLE"]);
+  });
 });
