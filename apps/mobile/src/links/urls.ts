@@ -154,11 +154,21 @@ export const KAKAO_SHARE_UA_TOKEN = "KakaoShare/1";
 export const WIDGET_UA_TOKEN = "Widget/1";
 
 /**
- * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1 Widget/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
- * KakaoShare/1 은 카카오 네이티브 앱 키가 있는 빌드만 (키 없는 빌드는 SDK 를 못 써서 웹이 지금 share 브리지를 쓰게 둔다)
+ * (#198) 로그인 방법 연결 브리지(linkAccount)를 처리한다는 표시 (앱.md 4.8, D-282). 웹 lib/account-link.ts ACCOUNT_LINK_UA_TOKEN 과 같은 값.
+ * 토큰 하나가 카카오와 Apple 을 같이 뜻하므로 둘 중 늘 되는 쪽인 카카오(키 있는 빌드)를 조건으로 붙인다.
+ * Apple 은 웹이 Android 앱에서 이미 숨기고(#145), iPhone 에서 Sign in with Apple 을 못 쓰는 드문 기기는 셸이 unavailable 로 답한다
  */
-export function buildUserAgentSuffix(version: string, os: string, kakaoShare = false): string {
-  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}${kakaoShare ? ` ${KAKAO_SHARE_UA_TOKEN}` : ""} ${WIDGET_UA_TOKEN}`;
+export const ACCOUNT_LINK_UA_TOKEN = "AccountLink/1";
+
+/**
+ * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
+ * KakaoShare/1 은 카카오 네이티브 앱 키가 있는 빌드만 (키 없는 빌드는 SDK 를 못 써서 웹이 지금 share 브리지를 쓰게 둔다).
+ * AccountLink/1 도 카카오 키가 있는 빌드만 (위 ACCOUNT_LINK_UA_TOKEN 설명)
+ */
+export function buildUserAgentSuffix(version: string, os: string, kakaoShare = false, accountLink = false): string {
+  return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}${kakaoShare ? ` ${KAKAO_SHARE_UA_TOKEN}` : ""} ${WIDGET_UA_TOKEN}${
+    accountLink ? ` ${ACCOUNT_LINK_UA_TOKEN}` : ""
+  }`;
 }
 
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */

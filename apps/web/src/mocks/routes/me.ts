@@ -112,7 +112,8 @@ export function meRoutes(req: AuthedReq): MockResult | null {
   }
 
   // (#198) /me/auth-accounts (D-257). 화면 확인용 티켓: mock-KAKAO, mock-APPLE 연결, mock-inuse 409 AUTH_ACCOUNT_IN_USE,
-  // mock-absorb 빈 계정 흡수. 이메일은 연결 메일(purpose LINK) 뒤 코드 000000. 해제 실패 확인은 label 에 "fail" 이 든 계정
+  // mock-absorb 빈 계정 흡수. 이메일은 연결 메일(purpose LINK) 뒤 코드 000000. 해제 실패 확인은 label 에 "fail" 이 든 계정.
+  // 앱 토큰(앱.md 4.8): 카카오 accessToken, Apple identityToken + authorizationCode + nonce(32~128자) 면 연결. 토큰 "mock-inuse" 는 409
   if (seg[0] === "me" && seg[1] === "auth-accounts") {
     if (!s.authAccounts) s.authAccounts = [{ id: 9001, userId: ME_ID, provider: "KAKAO", label: "카카오 계정", createdAt: "2026-05-01T00:00:00.000Z" }];
     const order = { KAKAO: 0, APPLE: 1, EMAIL: 2 } as const;
@@ -139,6 +140,20 @@ export function meRoutes(req: AuthedReq): MockResult | null {
         if (ticket === "mock-absorb") return add("APPLE", "Apple ID", true);
         if (ticket === "mock-inuse") return err(409, "AUTH_ACCOUNT_IN_USE", "이 로그인으로 만든 다른 계정이 있어요");
         return err(400, "LINK_TICKET_INVALID", "연결 시간이 지났어요. 다시 시도해 주세요");
+      }
+      const filled = (v: unknown, max: number) => typeof v === "string" && v.length >= 1 && v.length <= max;
+      if (body?.provider === "KAKAO" && filled(body.accessToken, 512)) {
+        return body.accessToken === "mock-inuse" ? err(409, "AUTH_ACCOUNT_IN_USE", "이 로그인으로 만든 다른 계정이 있어요") : add("KAKAO", "카카오 계정");
+      }
+      if (
+        body?.provider === "APPLE" &&
+        filled(body.identityToken, 4096) &&
+        filled(body.authorizationCode, 512) &&
+        typeof body.nonce === "string" &&
+        body.nonce.length >= 32 &&
+        body.nonce.length <= 128
+      ) {
+        return body.identityToken === "mock-inuse" ? err(409, "AUTH_ACCOUNT_IN_USE", "이 로그인으로 만든 다른 계정이 있어요") : add("APPLE", "Apple ID");
       }
       if (body?.provider === "EMAIL" && typeof body.email === "string" && typeof body.code === "string") {
         const failed = consumeMockLinkCode(body.email, body.code);

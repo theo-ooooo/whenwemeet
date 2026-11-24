@@ -1,6 +1,7 @@
 "use client";
 // (#198) 내 정보 > 로그인 방법 (D-257). 화면은 이 훅만 쓴다
 import { useCallback } from "react";
+import type { AppLinkCredentials, AppLinkProvider } from "@/lib/account-link";
 import { api } from "@/lib/api";
 import type { AuthAccount, LinkResult } from "@/lib/types";
 import { useMutation } from "./_useMutation";
@@ -24,6 +25,27 @@ export function useRequestLinkEmail() {
 export function useLinkEmail() {
   const fn = useCallback(
     (input: { email: string; code: string }) => api<LinkResult>("/me/auth-accounts", { method: "POST", body: { provider: "EMAIL", ...input } }),
+    [],
+  );
+  return useMutation(fn);
+}
+
+/**
+ * (#198) 앱 연결 앞 확인 (POST /me/auth-accounts/link-start). 최근 로그인(REAUTH_REQUIRED), 이미 연결, 제공자 미설정을
+ * 네이티브 로그인 시트를 띄우기 전에 걸러 낸다. 돌려받는 시작 표식은 웹 OAuth 용이라 쓰지 않는다
+ */
+export function useCheckAppLink() {
+  const fn = useCallback(
+    (provider: AppLinkProvider) => api<{ intent: string; expiresIn: number }>("/me/auth-accounts/link-start", { method: "POST", body: { provider } }),
+    [],
+  );
+  return useMutation(fn);
+}
+
+/** (#198) 앱 셸이 돌려준 네이티브 로그인 결과로 연결 (POST /me/auth-accounts { provider: KAKAO, accessToken } | { provider: APPLE, identityToken, authorizationCode, nonce }) */
+export function useLinkAppAccount() {
+  const fn = useCallback(
+    (input: AppLinkCredentials) => api<LinkResult>("/me/auth-accounts", { method: "POST", body: { provider: input.provider, ...input.credentials } }),
     [],
   );
   return useMutation(fn);

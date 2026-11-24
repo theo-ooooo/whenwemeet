@@ -1,4 +1,4 @@
-// 셸 → 웹 응답 (푸시-알림.md 2-2, D-80). RN 을 import 하지 않는다.
+// 셸 → 웹 응답 (푸시-알림.md 2-2, D-80, #198 로그인 방법 연결 앱.md 4.8). RN 을 import 하지 않는다.
 // webview.injectJavaScript 로 window.dispatchEvent(new CustomEvent('wwm:app', { detail })) 를 실행한다.
 // 웹뷰 현재 주소가 웹 오리진일 때만 보낸다 (WebScreen 이 판정).
 
@@ -19,7 +19,23 @@ export type PushStatusReply = {
   appVersion: string;
 };
 
-export type AppEventDetail = PushStatusReply;
+/** (#198) 연결할 수 있는 제공자 (앱.md 4.8). 이메일은 웹 화면만으로 끝나 셸을 거치지 않는다 */
+export type LinkProvider = "KAKAO" | "APPLE";
+
+/** (#198) 네이티브 로그인 결과. API POST /me/auth-accounts 본문의 provider 밖 칸과 같은 이름 */
+export type LinkCredentials =
+  | { provider: "KAKAO"; credentials: { accessToken: string } }
+  | { provider: "APPLE"; credentials: { identityToken: string; authorizationCode: string; nonce: string } };
+
+/** (#198) 실패 이유. cancelled 는 사용자가 닫음(웹은 아무것도 띄우지 않음), unavailable 은 이 빌드나 기기에서 못 씀 */
+export type LinkFailureReason = "cancelled" | "unavailable" | "error";
+
+/** (#198) linkAccount 응답 detail. 웹 lib/account-link.ts decodeLinkAccountReply 와 같은 모양 */
+export type LinkAccountReply =
+  | ({ v: 1; type: "linkAccount"; id: string; ok: true } & LinkCredentials)
+  | { v: 1; type: "linkAccount"; id: string; ok: false; reason: LinkFailureReason };
+
+export type AppEventDetail = PushStatusReply | LinkAccountReply;
 
 /**
  * OS 권한 응답(expo-notifications)을 브리지 값으로. iOS 임시(provisional) 허용도 알림이 오므로 granted.
@@ -64,6 +80,31 @@ export function buildPushStatusReply(input: {
     platform: input.os === "ios" ? "IOS" : "ANDROID",
     appVersion: input.appVersion,
   };
+}
+
+/** (#198) 네이티브 로그인이 "이 빌드나 기기에서 못 씀" 으로 끝난 코드 (auth/login.ts) */
+const LINK_UNAVAILABLE_CODES: readonly string[] = ["KAKAO_NOT_CONFIGURED", "APPLE_UNSUPPORTED"];
+
+/**
+ * (#198) 네이티브 로그인 예외 → 실패 이유. auth/login.ts 의 LoginCancelled 는 cancelled,
+ * 키 없는 빌드(카카오)와 iPhone 이 아니거나 Apple 로그인을 못 쓰는 기기는 unavailable, 그 밖은 error.
+ * login.ts 는 RN 을 import 하므로 클래스 대신 name, code 로 본다
+ */
+export function linkFailureReason(e: unknown): LinkFailureReason {
+  const o = (e && typeof e === "object" ? e : {}) as { name?: unknown; code?: unknown };
+  if (o.name === "LoginCancelled") return "cancelled";
+  if (typeof o.code === "string" && LINK_UNAVAILABLE_CODES.includes(o.code)) return "unavailable";
+  return "error";
+}
+
+/** (#198) linkAccount 응답. 성공이면 쓰는 칸만 새 객체로 옮긴다 (SDK 응답의 다른 칸이 웹으로 새지 않게) */
+export function buildLinkAccountReply(id: string, result: LinkCredentials | { reason: LinkFailureReason }): LinkAccountReply {
+  if ("reason" in result) return { v: 1, type: "linkAccount", id, ok: false, reason: result.reason };
+  if (result.provider === "KAKAO") {
+    return { v: 1, type: "linkAccount", id, ok: true, provider: "KAKAO", credentials: { accessToken: result.credentials.accessToken } };
+  }
+  const { identityToken, authorizationCode, nonce } = result.credentials;
+  return { v: 1, type: "linkAccount", id, ok: true, provider: "APPLE", credentials: { identityToken, authorizationCode, nonce } };
 }
 
 /**

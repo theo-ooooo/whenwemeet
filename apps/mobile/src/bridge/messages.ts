@@ -1,6 +1,7 @@
-// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53, 푸시-알림.md 2-2, 위젯 4.7). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
+// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53, 푸시-알림.md 2-2, 위젯 4.7, 로그인 방법 연결 4.8). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
 // 목록에 없는 type, v 불일치, 출처가 웹 오리진이 아닌 메시지는 버린다. RN 을 import 하지 않는다.
 import { isWebOrigin, safeNext } from "../links/urls";
+import type { LinkProvider } from "./reply";
 import { parseWidgetSnapshot, WIDGET_MESSAGE_MAX, type WidgetSnapshot } from "../widget/snapshot";
 
 export const BRIDGE_VERSION = 1;
@@ -32,7 +33,9 @@ export type BridgeMessage =
   | { v: 1; type: "widgetSnapshot"; snapshot: WidgetSnapshot }
   | { v: 1; type: "widgetClear" }
   // (#419) 손가락을 댈 때마다 웹이 알린다: 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false (당겨서 새로고침 금지)
-  | { v: 1; type: "pullRefresh"; allow: boolean };
+  | { v: 1; type: "pullRefresh"; allow: boolean }
+  // (#198) 로그인 방법 연결 (앱.md 4.8, D-282). 셸은 네이티브 로그인 결과만 wwm:app 으로 돌려주고 API 는 부르지 않는다
+  | { v: 1; type: "linkAccount"; id: string; provider: LinkProvider };
 
 /** 위젯 스냅샷 밖 메시지의 최대 길이 */
 const MESSAGE_MAX = 4096;
@@ -188,6 +191,11 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
       return { v: 1, type: "widgetClear" };
     case "pullRefresh":
       return typeof o.allow === "boolean" ? { v: 1, type: "pullRefresh", allow: o.allow } : null;
+    case "linkAccount": {
+      const id = requestId(o.id);
+      if (id === null || (o.provider !== "KAKAO" && o.provider !== "APPLE")) return null;
+      return { v: 1, type: "linkAccount", id, provider: o.provider };
+    }
     default:
       return null;
   }

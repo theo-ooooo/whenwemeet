@@ -25,7 +25,9 @@ export type BridgeMessage =
   | { type: "widgetSnapshot"; snapshot: WidgetSnapshot }
   | { type: "widgetClear" }
   // (#419) 손가락을 댈 때 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false. 옛 셸은 모르는 type 이라 버린다
-  | { type: "pullRefresh"; allow: boolean };
+  | { type: "pullRefresh"; allow: boolean }
+  // (#198) 로그인 방법 연결. appSupportsAccountLink() 일 때만 보낸다 (앱.md 4.8, D-282). 응답은 wwm:app (lib/account-link.ts)
+  | { type: "linkAccount"; id: string; provider: "KAKAO" | "APPLE" };
 
 /** 셸이 WebView applicationNameForUserAgent 로 붙이는 접미사: `WhenwemeetApp/<버전> (<ios|android>)` */
 const APP_UA = /\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/;
