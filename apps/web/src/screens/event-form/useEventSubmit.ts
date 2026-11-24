@@ -25,6 +25,8 @@ type Args = {
   touch: () => void;
   payload: EventInput | null;
   series: EventDetailData | null;
+  /** (#500) 불러온 일정의 원래 날짜 (반복 회차면 그 회차). 삭제 뒤 달력은 폼에서 고친 날이 아니라 이 날로 간다 */
+  loadedDate: string | null;
   canSave: boolean;
   showParticipants: boolean;
   currentPick: ParticipantPick | null;
@@ -54,6 +56,7 @@ export function useEventSubmit({
   touch,
   payload,
   series,
+  loadedDate,
   canSave,
   showParticipants,
   currentPick,
@@ -145,7 +148,7 @@ export function useEventSubmit({
       setDone(true);
       // (#375) 7초 안 되돌리기. 달력으로 옮긴 뒤 되돌려도 달력이 다시 받는다 (D-251)
       deletedToast(r.data.deletionId);
-      router.replace(calendarHref({ date: startDate }));
+      router.replace(calendarHref({ date: loadedDate ?? startDate }));
       return;
     }
     setSaveError(messageOf(r.error, "삭제하지 못했어요. 다시 시도해 주세요"));
