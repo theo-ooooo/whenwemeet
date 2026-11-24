@@ -4,7 +4,9 @@ import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventsRepository } from './events.repository.js';
-import { assertEventRange, EventsService, isUnchanged, parseRange } from './events.service.js';
+import { assertEventRange, isUnchanged, parseRange } from './event-input.js';
+import { EventSeriesService } from './event-series.service.js';
+import { EventsService } from './events.service.js';
 import { participantsFailed } from './participants.js';
 import { emptyResponses } from '../testing/responses-mock.js';
 
@@ -59,7 +61,7 @@ describe('EventsService', () => {
     events = mockRepository(EventsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never);
+    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     events.listSeriesForRange.mockResolvedValue([]);
@@ -237,7 +239,7 @@ describe('EventsService 참여자', () => {
     events = mockRepository(EventsRepository);
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never);
+    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([
       membershipRow(),
