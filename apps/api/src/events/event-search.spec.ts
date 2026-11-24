@@ -1,5 +1,5 @@
 import { compareSearchItems, containsText, matchedFields, parseSearchQuery, representativeOccurrence } from './event-search.js';
-import { likePattern } from './events.repository.js';
+import { likePattern } from './event-search.repository.js';
 import type { SeriesRule } from './recurrence.js';
 
 /** (#199) 일정 검색 순수 함수 (D-245, D-246) */

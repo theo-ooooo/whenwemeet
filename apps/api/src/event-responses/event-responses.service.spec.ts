@@ -1,10 +1,10 @@
 import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
-import { EventRow, EventsRepository, SeriesRow } from '../events/events.repository.js';
-import { EventSeriesService } from '../events/event-series.service.js';
+import type { EventRow, SeriesRow } from '../events/event-rows.js';
 import { EventsService } from '../events/events.service.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
+import { eventsServiceWith, type EventsRepositoryMock, mockEventsRepositories } from '../testing/events-mock.js';
 import { emptyResponses } from '../testing/responses-mock.js';
 import { EventResponsesRepository } from './event-responses.repository.js';
 import { EventResponsesService } from './event-responses.service.js';
@@ -42,18 +42,18 @@ const ONCE: EventRow = {
 const SERIES: Omit<SeriesRow, 'exceptions'> = { ...ONCE, id: 200, publicCode: 'srescode', title: '주간 모임', repeat: 'WEEKLY', startsAt: kst('2026-11-11T19:00:00'), endsAt: kst('2026-11-11T21:00:00'), allMembers: true, participantIds: [] };
 
 describe('EventResponsesService (#190)', () => {
-  let events: RepositoryMock<EventsRepository>;
+  let events: EventsRepositoryMock;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let responses: RepositoryMock<EventResponsesRepository>;
   let eventsService: EventsService;
   let service: EventResponsesService;
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository);
+    events = mockEventsRepositories();
     membershipsRepo = mockRepository(MembershipsRepository);
     responses = emptyResponses();
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    eventsService = new EventsService(events as never, memberships, responses as never, new EventSeriesService(events as never, memberships));
+    eventsService = eventsServiceWith(events, memberships, responses as never);
     service = new EventResponsesService(eventsService, responses as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([

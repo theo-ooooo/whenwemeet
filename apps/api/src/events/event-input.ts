@@ -3,7 +3,7 @@ import { paletteColorOf } from '../common/member.js';
 import { isCalendarDate, parseIsoDate } from '../common/validation.js';
 import { type EventReminder, remindAt, reminderFits, reminderMismatchMessage } from '../push/remind-at.js';
 import type { EventPatchDto } from './dto/event.dto.js';
-import type { EventUpdateInput } from './events.repository.js';
+import type { EventUpdateInput } from './event-write-data.js';
 import { parsePlace, samePlace } from './place.js';
 import { fitsInPeriod, kstDate, type Repeat } from './recurrence.js';
 

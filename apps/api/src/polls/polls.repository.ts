@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT } from '../common/member.js';
 import { generatePublicCode } from '../common/public-code.js';
-import { assertParticipantsTx, type EventCreateInput, EventsRepository, type EventRow } from '../events/events.repository.js';
+import type { EventRow } from '../events/event-rows.js';
+import { assertParticipantsTx, type EventCreateInput } from '../events/event-write-data.js';
+import { EventWritesRepository } from '../events/event-writes.repository.js';
 import type { ParticipantSet } from '../events/participants.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import type { ActivityActor } from '../group-activities/activity.js';
@@ -60,14 +62,14 @@ class LimitReached extends Error {}
 
 /**
  * (#189) 약속 투표 저장소 (설계 약속-투표.md). 만들기와 정하기는 새 소식 기록, 알림 예약과 한 트랜잭션.
- * 정하기는 일정 생성(EventsRepository.createWithLogInTx)과 같은 트랜잭션에서 OPEN → CLOSED 조건부로 하나만 성공한다
+ * 정하기는 일정 생성(EventWritesRepository.createWithLogInTx)과 같은 트랜잭션에서 OPEN → CLOSED 조건부로 하나만 성공한다
  */
 @Injectable()
 export class PollsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
-    private readonly events: EventsRepository,
+    private readonly events: EventWritesRepository,
     private readonly activities: GroupActivitiesRepository,
     private readonly push: PushNotificationsRepository,
   ) {}

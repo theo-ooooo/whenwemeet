@@ -29,7 +29,7 @@ export interface EventShareCreateInput {
   expiresAt: Date;
 }
 
-/** `@db.Date` ↔ 'YYYY-MM-DD' (events.repository 의 dateToDb, dbToDate 와 같은 규칙) */
+/** `@db.Date` ↔ 'YYYY-MM-DD' (events/event-rows 의 dateToDb, dbToDate 와 같은 규칙) */
 const dateToDb = (value: string): Date => new Date(`${value}T00:00:00.000Z`);
 const dbToDate = (value: Date): string => value.toISOString().slice(0, 10);
 
