@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import { isCalendarDate } from '../common/validation.js';
-import { EventsRepository } from '../events/events.repository.js';
+import { EventReadsRepository } from '../events/event-reads.repository.js';
 import type { Repeat } from '../events/recurrence.js';
 import { GroupsRepository } from '../groups/groups.repository.js';
 import { GroupsService } from '../groups/groups.service.js';
@@ -80,7 +80,7 @@ function validationFailed(field: string, message: string): ApiException {
 export class EventSharesService {
   constructor(
     private readonly shares: EventSharesRepository,
-    private readonly events: EventsRepository,
+    private readonly events: EventReadsRepository,
     private readonly groupsRepo: GroupsRepository,
     private readonly groups: GroupsService,
     private readonly memberships: MembershipService,

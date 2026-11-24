@@ -3,11 +3,10 @@ import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { EventsRepository } from './events.repository.js';
 import { assertEventRange, isUnchanged, parseRange } from './event-input.js';
-import { EventSeriesService } from './event-series.service.js';
 import { EventsService } from './events.service.js';
 import { participantsFailed } from './participants.js';
+import { eventsServiceWith, type EventsRepositoryMock, mockEventsRepositories } from '../testing/events-mock.js';
 import { emptyResponses } from '../testing/responses-mock.js';
 
 const config = { getOrThrow: () => 'http://web' } as never;
@@ -53,15 +52,15 @@ describe('assertEventRange / parseRange', () => {
 });
 
 describe('EventsService', () => {
-  let events: RepositoryMock<EventsRepository>;
+  let events: EventsRepositoryMock;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let service: EventsService;
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository);
+    events = mockEventsRepositories();
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
+    service = eventsServiceWith(events, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
     events.listSeriesForRange.mockResolvedValue([]);
@@ -229,17 +228,17 @@ describe('EventsService', () => {
 
 /** (#248) 참여자 입력, 저장, 변경 판정, 응답 (설계 3장) */
 describe('EventsService 참여자', () => {
-  let events: RepositoryMock<EventsRepository>;
+  let events: EventsRepositoryMock;
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
   let service: EventsService;
   const input = { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false };
   const PICKED = { ...ROW, allMembers: false, participantIds: [2] };
 
   beforeEach(() => {
-    events = mockRepository(EventsRepository);
+    events = mockEventsRepositories();
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
+    service = eventsServiceWith(events, memberships, emptyResponses() as never);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([
       membershipRow(),

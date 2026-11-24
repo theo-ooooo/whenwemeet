@@ -1,5 +1,5 @@
 import { ApiException } from '../common/errors.js';
-import { EventsRepository } from '../events/events.repository.js';
+import { EventBusyRepository } from '../events/event-busy.repository.js';
 import { GroupsRepository } from '../groups/groups.repository.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
@@ -9,7 +9,7 @@ import { FreeSlotsService } from './free-slots.service.js';
 
 describe('FreeSlotsService', () => {
   let membershipsRepo: RepositoryMock<MembershipsRepository>;
-  let events: RepositoryMock<EventsRepository>;
+  let events: RepositoryMock<EventBusyRepository>;
   let service: FreeSlotsService;
   const now = new Date('2026-11-09T00:00:00.000Z');
 
@@ -18,7 +18,7 @@ describe('FreeSlotsService', () => {
 
   beforeEach(() => {
     membershipsRepo = mockRepository(MembershipsRepository);
-    events = mockRepository(EventsRepository);
+    events = mockRepository(EventBusyRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, { getOrThrow: () => 'http://web' } as never);
     service = new FreeSlotsService(membershipsRepo as never, events as never, memberships);
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());

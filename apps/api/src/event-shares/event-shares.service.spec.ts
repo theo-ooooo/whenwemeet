@@ -1,4 +1,4 @@
-import { EventsRepository } from '../events/events.repository.js';
+import { EventReadsRepository } from '../events/event-reads.repository.js';
 import { GroupsRepository } from '../groups/groups.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventSharesRepository } from './event-shares.repository.js';
@@ -38,7 +38,7 @@ const SHARE = {
 
 describe('EventSharesService (#274)', () => {
   let shares: RepositoryMock<EventSharesRepository>;
-  let events: RepositoryMock<EventsRepository>;
+  let events: RepositoryMock<EventReadsRepository>;
   let groupsRepo: RepositoryMock<GroupsRepository>;
   let groups: { joinGroup: ReturnType<typeof vi.fn> };
   let memberships: { assertMember: ReturnType<typeof vi.fn>; listMembers: ReturnType<typeof vi.fn> };
@@ -46,7 +46,7 @@ describe('EventSharesService (#274)', () => {
 
   beforeEach(() => {
     shares = mockRepository(EventSharesRepository);
-    events = mockRepository(EventsRepository);
+    events = mockRepository(EventReadsRepository);
     groupsRepo = mockRepository(GroupsRepository);
     groups = { joinGroup: vi.fn().mockResolvedValue({ id: 10 }) };
     memberships = { assertMember: vi.fn().mockResolvedValue(membershipRow()), listMembers: vi.fn() };
