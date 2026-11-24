@@ -1,5 +1,7 @@
 import { mockRepository, type RepositoryMock } from '../testing/repository-mock.js';
-import { PushRepository, type WeeklyEventRow, type WeeklyGroup, type WeeklySeriesRow } from './push.repository.js';
+import { PushLeaseRepository } from './push-lease.repository.js';
+import { PushNotificationsRepository } from './push-notifications.repository.js';
+import { PushPlanningRepository, type WeeklyEventRow, type WeeklyGroup, type WeeklySeriesRow } from './push-planning.repository.js';
 import {
   decideWeekly,
   mondayOfKey,
@@ -187,13 +189,13 @@ describe('깨우기 빈 시간 (빈 시간 찾기 규칙)', () => {
 });
 
 describe('WeeklyPlanner', () => {
-  let push: RepositoryMock<PushRepository>;
+  let push: RepositoryMock<PushPlanningRepository> & RepositoryMock<PushNotificationsRepository> & RepositoryMock<PushLeaseRepository>;
   let planner: WeeklyPlanner;
   const group: WeeklyGroup = { name: '우리', publicCode: 'abcd2345', type: 'TEAM', createdAt: new Date(NOW.getTime() - 60 * DAY_MS), memberIds: [1, 2] };
 
   beforeEach(() => {
-    push = mockRepository(PushRepository);
-    planner = new WeeklyPlanner(push as never);
+    push = { ...mockRepository(PushPlanningRepository), ...mockRepository(PushNotificationsRepository), ...mockRepository(PushLeaseRepository) };
+    planner = new WeeklyPlanner(push as never, push as never, push as never);
     push.createNotifications.mockImplementation(async (rows) => rows.length);
     push.setWeeklyDoneOn.mockResolvedValue(undefined);
     push.listWeeklyGroupIds.mockResolvedValue([3, 4]);

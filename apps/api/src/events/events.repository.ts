@@ -4,7 +4,7 @@ import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRo
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { generatePublicCode } from '../common/public-code.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
-import { type CreatedLog, PushRepository } from '../push/push.repository.js';
+import { type CreatedLog, PushNotificationsRepository } from '../push/push-notifications.repository.js';
 import {
   captureEventTx,
   captureFollowingTx,
@@ -326,7 +326,7 @@ export class EventsRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly urls: FileUrlBuilder,
-    private readonly push: PushRepository,
+    private readonly push: PushNotificationsRepository,
   ) {}
 
   /** 한 번짜리 일정. 겹침 조건 `startsAt < to AND endsAt > from`, startsAt 오름차순 */

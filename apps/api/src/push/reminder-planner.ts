@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { addDays, expand, kstDate, type SeriesRule } from '../events/recurrence.js';
 import { reminderPayload } from './push-copy.js';
-import { type OnceReminderRow, type PlannedNotification, PushRepository, type ReminderSeriesRow } from './push.repository.js';
+import type { PlannedNotification } from './push-notifications.repository.js';
+import { type OnceReminderRow, PushPlanningRepository, type ReminderSeriesRow } from './push-planning.repository.js';
 import { remindAt, type EventReminder } from './remind-at.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -104,10 +105,10 @@ export function planSeriesReminders(series: ReminderSeriesRow, lo: Date, hi: Dat
   return planned;
 }
 
-/** 일정 알림 예약 계산 (설계 5-3). DB 는 PushRepository, 계산은 위 순수 함수 */
+/** 일정 알림 예약 계산 (설계 5-3). DB 는 PushPlanningRepository, 계산은 위 순수 함수 */
 @Injectable()
 export class ReminderPlanner {
-  constructor(private readonly push: PushRepository) {}
+  constructor(private readonly push: PushPlanningRepository) {}
 
   async plan(lo: Date, hi: Date, now: Date): Promise<PlannedNotification[]> {
     const from = new Date(lo.getTime() - SERIES_LEAD_MS);

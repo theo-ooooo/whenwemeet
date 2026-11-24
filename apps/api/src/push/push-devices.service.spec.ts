@@ -1,14 +1,14 @@
 import { mockRepository, type RepositoryMock } from '../testing/repository-mock.js';
 import { PushDevicesService } from './push-devices.service.js';
-import { PushRepository } from './push.repository.js';
+import { PushDevicesRepository } from './push-devices.repository.js';
 
 describe('PushDevicesService (설계 7-1)', () => {
-  let push: RepositoryMock<PushRepository>;
+  let push: RepositoryMock<PushDevicesRepository>;
   let service: PushDevicesService;
   const settings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true };
 
   beforeEach(() => {
-    push = mockRepository(PushRepository);
+    push = mockRepository(PushDevicesRepository);
     service = new PushDevicesService(push as never);
     push.registerDevice.mockResolvedValue(undefined);
     push.removeDevice.mockResolvedValue(undefined);

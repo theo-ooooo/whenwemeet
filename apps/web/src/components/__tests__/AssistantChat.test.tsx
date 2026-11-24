@@ -165,7 +165,8 @@ describe("AssistantChat (#450)", () => {
     });
     expect(createEvent).toHaveBeenCalledTimes(1);
     expect(createEvent).toHaveBeenLastCalledWith({ title: "영화", startsAt: kst("2030-11-30T14:00"), endsAt: kst("2030-11-30T15:00"), allDay: false, participants: [1] });
-    expect(screen.getByText(/^'영화'\S* 넣었어요\.$/)).toBeTruthy();
+    // (#486) 받침 없는 제목은 '를'
+    expect(screen.getByText("'영화'를 넣었어요.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "영화 추가" })).toBeNull();
     // 회식 카드는 아직 넣지 않은 그대로
     expect(screen.getByRole("button", { name: "강남 회식 추가" })).toBeTruthy();

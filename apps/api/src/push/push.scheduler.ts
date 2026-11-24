@@ -8,7 +8,8 @@ import { kstDate, KST_OFFSET_MS, DAY_MS } from '../events/recurrence.js';
 import { AnniversaryPlanner } from './anniversary-planner.js';
 import { PollPlanner } from './poll-planner.js';
 import { CATCH_UP_MS, type ExpandStats, PushDispatcher, type SendStats } from './push-dispatcher.js';
-import { PushRepository } from './push.repository.js';
+import { PushLeaseRepository } from './push-lease.repository.js';
+import { PushNotificationsRepository } from './push-notifications.repository.js';
 import { ReminderPlanner } from './reminder-planner.js';
 import { WeeklyPlanner } from './weekly-planner.js';
 
@@ -67,7 +68,8 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly push: PushRepository,
+    private readonly leases: PushLeaseRepository,
+    private readonly notifications: PushNotificationsRepository,
     private readonly reminders: ReminderPlanner,
     private readonly anniversaries: AnniversaryPlanner,
     private readonly weeklyPlanner: WeeklyPlanner,
@@ -82,7 +84,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     if (!this.enabled) return;
-    await this.push.ensureLease();
+    await this.leases.ensureLease();
     this.timer = setInterval(() => void this.runSafely(), TICK_MS);
     this.timer.unref();
     this.logger.log(`push.scheduler 시작 holder=${this.holder.slice(0, 8)}`);
@@ -119,7 +121,7 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runTick(now: Date): Promise<TickResult> {
-    const lease = await this.push.acquireLease(this.holder, now, new Date(now.getTime() + LEASE_MS));
+    const lease = await this.leases.acquireLease(this.holder, now, new Date(now.getTime() + LEASE_MS));
     if (!lease) {
       this.logger.debug('push.tick 임대 없음');
       return { ran: false };
@@ -129,8 +131,8 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     let planned = 0;
     if (lo.getTime() < hi.getTime()) {
       const rows = [...(await this.reminders.plan(lo, hi, now)), ...(await this.anniversaries.plan(lo, hi))];
-      planned = await this.push.createNotifications(rows);
-      await this.push.setCursor(this.holder, hi);
+      planned = await this.notifications.createNotifications(rows);
+      await this.leases.setCursor(this.holder, hi);
     }
     // (#277) 창이 아니라 "이번 주 처리 여부" 로 판단한다 (월요일 09:00 ~ 12:00 KST, D-203)
     const weekly = await this.weeklyPlanner.plan(now);
@@ -145,10 +147,10 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     let purgedDeletions: number | null = null;
     const day = dailyDue(now, lease.dailyDoneOn);
     if (day) {
-      cleaned = await this.push.deleteNotificationsCreatedBefore(new Date(now.getTime() - RETENTION_MS));
+      cleaned = await this.notifications.deleteNotificationsCreatedBefore(new Date(now.getTime() - RETENTION_MS));
       // (#375) 되돌리기 보관 7일 (D-251)
       purgedDeletions = await this.deletions.purgeCreatedBefore(new Date(now.getTime() - DELETION_RETENTION_MS));
-      await this.push.setDailyDone(this.holder, day);
+      await this.leases.setDailyDone(this.holder, day);
     }
 
     const result: TickResult = { ran: true, planned, weekly, polls, expand, send, receipts, cleaned, purgedDeletions };

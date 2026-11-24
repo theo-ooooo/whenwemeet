@@ -3,7 +3,7 @@
  * 행은 Prisma 가 select 없이 읽은 모습 그대로(모든 열) 담는다. 열이 늘어도 보관, 복원 코드를 고칠 필요가 없다.
  * JSON 에는 Date 가 없으므로 `{ "$date": ISO }` 로 바꿔 넣고 꺼낼 때 되살린다
  */
-import type { ChangeRevert } from '../push/push.repository.js';
+import type { ChangeRevert } from '../push/push-notifications.repository.js';
 
 /** 보관 기간. 지나면 되돌릴 수 없고 하루 청소가 지운다 */
 export const DELETION_RETENTION_DAYS = 7;

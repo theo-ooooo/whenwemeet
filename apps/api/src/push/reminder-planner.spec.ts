@@ -1,4 +1,4 @@
-import type { OnceReminderRow, ReminderExceptionRow, ReminderSeriesRow } from './push.repository.js';
+import type { OnceReminderRow, ReminderExceptionRow, ReminderSeriesRow } from './push-planning.repository.js';
 import { planOnceReminders, planSeriesReminders, reminderDedupeKey } from './reminder-planner.js';
 import { dailyDue, planningWindow } from './push.scheduler.js';
 

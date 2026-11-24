@@ -9,15 +9,16 @@ import { isBusyForAny } from '../free-slots/participants.js';
 import { clampFromToNow, findFreeSlots, type Interval } from '../free-slots/slots.js';
 import { anniversaryItemsOn, type AnniversaryItemType, type AnniversaryLike } from './anniversary-items.js';
 import { type PushPayload, type WeeklyItem, type WeeklyVariant, weeklyNudgePayload, weeklySummaryPayload } from './push-copy.js';
+import { PushLeaseRepository } from './push-lease.repository.js';
+import { type PlannedWeekly, PushNotificationsRepository } from './push-notifications.repository.js';
 import {
-  type PlannedWeekly,
-  PushRepository,
+  PushPlanningRepository,
   type WeeklyBusyRow,
   type WeeklyBusySeries,
   type WeeklyEventRow,
   type WeeklyGroup,
   type WeeklySeriesRow,
-} from './push.repository.js';
+} from './push-planning.repository.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 /** 보내는 시각 (KST). 월요일 09:00 = 월요일 00:00 UTC */
@@ -178,26 +179,30 @@ export interface WeeklyBuild {
 /** 주간 알림 예약과 펼칠 때의 판정 (설계 5-9) */
 @Injectable()
 export class WeeklyPlanner {
-  constructor(private readonly push: PushRepository) {}
+  constructor(
+    private readonly planning: PushPlanningRepository,
+    private readonly notifications: PushNotificationsRepository,
+    private readonly leases: PushLeaseRepository,
+  ) {}
 
   /** 이번 틱에 예약할 것. 예약했으면 그 월요일을 적는다 (같은 주 두 번 안 함, 남은 중복은 dedupeKey 가 막는다) */
   async plan(now: Date): Promise<number> {
-    const monday = weeklyDue(now, await this.push.getWeeklyDoneOn());
+    const monday = weeklyDue(now, await this.leases.getWeeklyDoneOn());
     if (!monday) return 0;
-    const created = await this.push.createNotifications(planWeekly(await this.push.listWeeklyGroupIds(), monday));
-    await this.push.setWeeklyDoneOn(monday);
+    const created = await this.notifications.createNotifications(planWeekly(await this.planning.listWeeklyGroupIds(), monday));
+    await this.leases.setWeeklyDoneOn(monday);
     return created;
   }
 
   /** 펼치는 순간의 DB 로 변형과 문구를 정한다. 팀이 없거나 보낼 것이 없으면 null */
   async build(groupId: number, monday: string, now: Date): Promise<WeeklyBuild | null> {
-    const group = await this.push.findWeeklyGroup(groupId);
+    const group = await this.planning.findWeeklyGroup(groupId);
     if (!group) return null;
     const { from, to } = weekRange(monday);
-    const events = await this.push.listWeeklyEvents(groupId, from, to);
+    const events = await this.planning.listWeeklyEvents(groupId, from, to);
     const occurrences = weekOccurrences(events.once, events.series, from, to);
     if (occurrences.length > 0) {
-      const anniversary = weekAnniversary(await this.push.listGroupAnniversaries(groupId), monday);
+      const anniversary = weekAnniversary(await this.planning.listGroupAnniversaries(groupId), monday);
       return {
         variant: 'SUMMARY',
         payload: weeklySummaryPayload({
@@ -213,7 +218,7 @@ export class WeeklyPlanner {
     if (!(await this.nudgeEligible(group, groupId, monday, now))) return null;
     const slotFrom = clampFromToNow(from, now);
     if (slotFrom.getTime() >= to.getTime()) return null;
-    const slots = nudgeSlots(await this.push.listWeeklyBusy(group.memberIds, slotFrom, to), group.memberIds, slotFrom, to);
+    const slots = nudgeSlots(await this.planning.listWeeklyBusy(group.memberIds, slotFrom, to), group.memberIds, slotFrom, to);
     if (decideWeekly(0, true, slots.length) !== 'NUDGE') return null;
     return { variant: 'NUDGE', payload: weeklyNudgePayload({ groupName: group.name, groupCode: group.publicCode, monday, slots }) };
   }
@@ -225,14 +230,14 @@ export class WeeklyPlanner {
     if (!nudgeEligible(cheap, now)) return false;
     const quietFrom = kstMidnight(addDays(monday, -NUDGE_QUIET_DAYS));
     const { from } = weekRange(monday);
-    const recent = await this.push.listWeeklyEvents(groupId, quietFrom, from);
+    const recent = await this.planning.listWeeklyEvents(groupId, quietFrom, from);
     return nudgeEligible(
       {
         ...base,
         recentOccurrences: weekOccurrences(recent.once, recent.series, quietFrom, from).length,
-        recentCreated: await this.push.countCreatedLogsSince(groupId, new Date(now.getTime() - NUDGE_QUIET_DAYS * DAY_MS)),
-        lastCreatedAt: await this.push.lastEventCreatedAt(groupId),
-        nudgedRecently: await this.push.hasNudgeSince(groupId, kstMidnight(addDays(monday, -NUDGE_COOLDOWN_DAYS))),
+        recentCreated: await this.planning.countCreatedLogsSince(groupId, new Date(now.getTime() - NUDGE_QUIET_DAYS * DAY_MS)),
+        lastCreatedAt: await this.planning.lastEventCreatedAt(groupId),
+        nudgedRecently: await this.planning.hasNudgeSince(groupId, kstMidnight(addDays(monday, -NUDGE_COOLDOWN_DAYS))),
       },
       now,
     );
