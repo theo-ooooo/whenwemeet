@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import { EventsRepository } from '../events/events.repository.js';
-import { parseRange } from '../events/events.service.js';
+import { parseRange } from '../events/event-input.js';
 import { expand } from '../events/recurrence.js';
 import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';

@@ -3,7 +3,7 @@ import { ApiException } from '../common/errors.js';
 import { parsePublicCode } from '../common/public-code.js';
 import { parseIsoDate } from '../common/validation.js';
 import { resolveParticipants, parseParticipants } from '../events/participants.js';
-import { type EventView, toEventView } from '../events/events.service.js';
+import { type EventView, toEventView } from '../events/event-view.js';
 import { FreeSlotsService } from '../free-slots/free-slots.service.js';
 import { type ActivityActor, snapshotName } from '../group-activities/activity.js';
 import { GroupsRepository } from '../groups/groups.repository.js';

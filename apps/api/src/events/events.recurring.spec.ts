@@ -3,7 +3,9 @@ import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { EventExceptionRow, EventRow, EventsRepository, SeriesRow } from './events.repository.js';
-import { assertRepeatRule, EventsService, inheritedUntil } from './events.service.js';
+import { assertRepeatRule, inheritedUntil } from './event-input.js';
+import { EventSeriesService } from './event-series.service.js';
+import { EventsService } from './events.service.js';
 import { expand, kstDate, type Repeat } from './recurrence.js';
 import type { Mock } from 'vitest';
 import { emptyResponses } from '../testing/responses-mock.js';
@@ -70,7 +72,7 @@ describe('EventsService 반복 일정', () => {
     events = mockRepository(EventsRepository) as unknown as EventsMock;
     membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never);
+    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listInRange.mockResolvedValue([]);
@@ -648,7 +650,7 @@ describe('EventsService 반복 일정 참여자', () => {
     events = mockRepository(EventsRepository) as unknown as EventsMock;
     const membershipsRepo = mockRepository(MembershipsRepository);
     const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
-    service = new EventsService(events as never, memberships, emptyResponses() as never);
+    service = new EventsService(events as never, memberships, emptyResponses() as never, new EventSeriesService(events as never, memberships));
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     membershipsRepo.listByGroup.mockResolvedValue([membershipRow(), membershipRow({ id: 1002, userId: 2, displayName: '밥' })]);
     events.listExceptions.mockResolvedValue([]);
