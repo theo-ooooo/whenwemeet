@@ -60,6 +60,8 @@ export type NoticeRow = {
   publishedAt: string | null;
   /** (#528) 푸시를 보낸 시각 */
   pushedAt: string | null;
+  /** (#538) 앱, 웹을 열 때 한 번 창으로 */
+  popup: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -225,6 +227,8 @@ export type Store = {
   assistant?: { consent: Record<number, string>; usage: Record<number, { day: string; count: number }> };
   /** (#515) 공지, 관리자 조치 기록. 없으면 빈 목록 */
   notices?: NoticeRow[];
+  /** (#538) 팝업 공지를 닫은 기록 */
+  noticeDismissals?: { userId: number; noticeId: number }[];
   adminLogs?: AdminLogRow[];
   seq: number;
 };
@@ -694,6 +698,7 @@ export function buildStore(): Store {
       publishedAt: hoursAgo(24 * 3),
       // (#528) 이 공지는 푸시로도 보냈다
       pushedAt: hoursAgo(24 * 3),
+      popup: false,
       createdAt: hoursAgo(24 * 3),
       updatedAt: hoursAgo(24 * 3),
     },
@@ -705,6 +710,8 @@ export function buildStore(): Store {
       pinned: false,
       publishedAt: hoursAgo(20),
       pushedAt: null,
+      // (#538) 점검 안내는 팝업으로 띄운다. 나는 아직 닫지 않아 앱을 열면 한 번 뜬다
+      popup: true,
       createdAt: hoursAgo(20),
       updatedAt: hoursAgo(20),
     },
@@ -716,6 +723,7 @@ export function buildStore(): Store {
       pinned: false,
       publishedAt: null,
       pushedAt: null,
+      popup: false,
       createdAt: hoursAgo(2),
       updatedAt: hoursAgo(2),
     },

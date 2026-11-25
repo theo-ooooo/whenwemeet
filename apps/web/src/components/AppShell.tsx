@@ -15,6 +15,7 @@ import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PA
 import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { GroupHiddenModal } from "./GroupHiddenModal";
+import { NoticePopup } from "./NoticePopup";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
@@ -255,6 +256,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         </div>
       </div>
 
+      {/* (#538) 중요 공지 팝업. 이용 제한 팀 안내가 떠 있으면 기다린다 (D-291) */}
+      <NoticePopup blocked={hidden !== null} />
       {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
       <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
         <ul className="flex flex-col gap-1">

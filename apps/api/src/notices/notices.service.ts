@@ -6,7 +6,7 @@ import type { PageQuery } from '../common/page-query.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import { UsersRepository } from '../users/users.repository.js';
 import type { CreateNoticeDto, UpdateNoticeDto } from './dto/notice.dto.js';
-import { NoticeAlreadyPushedError, type NoticeRow, NoticesRepository, type NoticeWrite } from './notices.repository.js';
+import { NoticeAlreadyPushedError, type NoticeAttentionRow, type NoticeRow, NoticesRepository, type NoticeWrite } from './notices.repository.js';
 
 /** (#515) 공개 목록 한 줄. 본문은 상세에서만. unread 는 로그인했을 때만 의미가 있고 익명은 늘 false (D-285) */
 export interface NoticeListItem {
@@ -25,6 +25,47 @@ const NOT_FOUND_MESSAGE = '공지를 찾을 수 없어요';
 /** (#528) 초안에 push: true (D-287) */
 const DRAFT_PUSH_MESSAGE = '초안은 푸시로 보낼 수 없어요. 게시할 때 보내 주세요';
 const draftPush = () => new ApiException('VALIDATION_FAILED', DRAFT_PUSH_MESSAGE, [{ field: 'push', message: DRAFT_PUSH_MESSAGE }]);
+
+/** (#538) 팝업 미리 보기 상한 (첫 문단을 이 길이에서 자르고 … 를 붙인다, D-291) */
+export const POPUP_PREVIEW_MAX = 200;
+
+/** (#538) 앱, 웹을 열 때 한 번 띄우는 공지 (D-291). preview 는 본문 첫 문단 */
+export interface NoticePopup {
+  id: number;
+  title: string;
+  kind: NoticeRow['kind'];
+  publishedAt: Date;
+  preview: string;
+}
+
+/** (#538) 달력 위 "새 공지: 제목" 띠 (D-291) */
+export interface NoticeBanner {
+  id: number;
+  title: string;
+  kind: NoticeRow['kind'];
+  publishedAt: Date;
+}
+
+/** (#538) GET /notices/attention */
+export interface NoticeAttention {
+  popup: NoticePopup | null;
+  banner: NoticeBanner | null;
+}
+
+/**
+ * (#538) 본문 → 팝업 미리 보기. 빈 줄로 나눈 첫 문단(웹 lib/notice.ts noticeParagraphs 와 같은 규칙),
+ * 문단 안 줄바꿈은 그대로 두고 POPUP_PREVIEW_MAX 자를 넘으면 자르고 … 를 붙인다
+ */
+export function noticePreview(body: string, max = POPUP_PREVIEW_MAX): string {
+  const first =
+    body
+      .replace(/\r\n?/g, '\n')
+      .split(/\n(?:[ \t]*\n)+/)
+      .map((p) => p.replace(/^\n+|\n+$/g, '').trim())
+      .find((p) => p !== '') ?? '';
+  const chars = Array.from(first);
+  return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : first;
+}
 
 /** seenAt 보다 늦게 게시됐으면 새 공지. 본 적이 없으면(null) 게시된 공지는 모두 새 공지 */
 export function isUnread(publishedAt: Date, seenAt: Date | null): boolean {
@@ -73,6 +114,25 @@ export class NoticesService {
     return this.notices.existsPublishedAfter(await this.users.findNoticesSeenAt(userId));
   }
 
+  /**
+   * (#538) GET /notices/attention. popup = 닫지 않은 게시된 팝업 공지 중 가장 최근 것,
+   * banner = 공지 목록을 본 시각(noticesSeenAt)보다 늦게 게시된 공지 중 가장 최근 것 (D-291)
+   */
+  async attention(userId: number): Promise<NoticeAttention> {
+    const [popup, seenAt] = await Promise.all([this.notices.findPopupFor(userId), this.users.findNoticesSeenAt(userId)]);
+    const latest = await this.notices.findLatestPublishedAfter(seenAt);
+    return {
+      popup: popup ? { ...brief(popup), preview: noticePreview(popup.body) } : null,
+      banner: latest ? brief(latest) : null,
+    };
+  }
+
+  /** (#538) POST /notices/:id/dismiss. 멱등. 없거나 초안이면 404 (D-291) */
+  async dismiss(userId: number, id: number): Promise<{ ok: true }> {
+    if (!(await this.notices.dismiss(userId, id))) throw new ApiException('NOT_FOUND', NOT_FOUND_MESSAGE);
+    return { ok: true };
+  }
+
   /** GET /admin/notices. 초안 포함, 최근 만든 것 먼저 */
   listAll(page: PageQuery): Promise<{ items: NoticeDetail[]; nextCursor: number | null }> {
     return this.notices.listAll(page);
@@ -90,6 +150,7 @@ export class NoticesService {
         body: dto.body,
         kind: dto.kind,
         pinned: dto.pinned ?? false,
+        popup: dto.popup ?? false,
         publishedAt: dto.published ? now : null,
         createdById: adminId,
       },
@@ -113,6 +174,7 @@ export class NoticesService {
     if (dto.body !== undefined) data.body = dto.body;
     if (dto.kind !== undefined) data.kind = dto.kind;
     if (dto.pinned !== undefined) data.pinned = dto.pinned;
+    if (dto.popup !== undefined) data.popup = dto.popup;
     if (dto.published !== undefined) data.publishedAt = dto.published ? (current.publishedAt ?? now) : null;
     const push = dto.push === true;
     if (push) {
@@ -145,4 +207,8 @@ export class NoticesService {
     await this.actions.record({ adminId, action: 'notice_delete', targetType: 'notice', targetId: id });
     return { ok: true };
   }
+}
+
+function brief(row: NoticeAttentionRow): NoticeBanner {
+  return { id: row.id, title: row.title, kind: row.kind, publishedAt: row.publishedAt };
 }

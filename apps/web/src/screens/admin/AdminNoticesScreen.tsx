@@ -40,6 +40,8 @@ export function AdminNoticesScreen() {
                   {n.pinned && <PinnedBadge />}
                   {/* (#528) 푸시로도 보낸 공지 */}
                   {n.pushedAt && <StatusBadge tone="on">푸시</StatusBadge>}
+                  {/* (#538) */}
+                  {n.popup && <StatusBadge tone="on">팝업</StatusBadge>}
                 </span>
                 <b className="min-w-0 flex-1 truncate text-[14px] font-semibold">{n.title}</b>
                 <span className="t-sub shrink-0 fold:w-[150px] fold:text-right">{noticeDate(n.publishedAt)}</span>

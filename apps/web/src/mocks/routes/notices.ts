@@ -47,7 +47,7 @@ export function noticePublicRoute(req: Req): MockResult | null {
     const p = page(rows, query);
     return isPage(p) ? ok(p) : p;
   }
-  if (seg.length === 2 && seg[1] !== "seen") {
+  if (seg.length === 2 && seg[1] !== "seen" && seg[1] !== "attention") {
     const id = parseId(seg[1]);
     const n = id === null ? undefined : notices.find((x) => x.id === id);
     if (!n || (n.publishedAt === null && !isAdmin(s, ctx.userId))) return notFound();
@@ -73,6 +73,11 @@ function readNoticeInput(body: Record<string, unknown> | null, partial: boolean)
     out.kind = body!.kind as NoticeRow["kind"];
   }
   if (typeof body?.pinned === "boolean") out.pinned = body.pinned;
+  // (#538) 팝업으로 띄우기
+  if (body?.popup !== undefined) {
+    if (typeof body.popup !== "boolean") return err(400, "VALIDATION_FAILED", "popup 는 true/false 여야 해요");
+    out.popup = body.popup;
+  }
   if (typeof body?.published === "boolean") out.published = body.published;
   // (#528) 게시와 같이 푸시
   if (body?.push !== undefined) {
@@ -113,6 +118,16 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
     u.noticesSeenAt = nowIso();
     return ok({ noticesSeenAt: u.noticesSeenAt });
   }
+  // (#538) 팝업 공지와 새 공지 띠, 팝업 닫기 (D-291)
+  if (seg[0] === "notices" && seg[1] === "attention" && seg.length === 2 && method === "GET") return ok(noticeAttention(s, userId));
+  if (seg[0] === "notices" && seg[2] === "dismiss" && seg.length === 3 && method === "POST") {
+    const id = parseId(seg[1]);
+    const n = id === null ? undefined : (s.notices ?? []).find((x) => x.id === id && x.publishedAt !== null);
+    if (!n) return notFound();
+    const list = (s.noticeDismissals ??= []);
+    if (!list.some((d) => d.userId === userId && d.noticeId === n.id)) list.push({ userId, noticeId: n.id });
+    return ok({ ok: true });
+  }
   if (seg[0] !== "admin") return null;
   if (!isAdmin(s, userId)) return forbidden();
   const notices = (s.notices ??= []);
@@ -133,6 +148,7 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
         body: input.body!,
         kind: input.kind!,
         pinned: input.pinned ?? false,
+        popup: input.popup ?? false,
         publishedAt: input.published ? now : null,
         pushedAt: input.push ? now : null,
         createdAt: now,
@@ -165,6 +181,7 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
     }
     if (row && method === "DELETE") {
       s.notices = notices.filter((n) => n.id !== row.id);
+      s.noticeDismissals = (s.noticeDismissals ?? []).filter((d) => d.noticeId !== row.id);
       logAdmin(s, userId, "notice_delete", "notice", row.id);
       return ok({ ok: true });
     }
@@ -214,4 +231,29 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
 export function hasUnreadNotice(s: Store, userId: number): boolean {
   const seen = s.users.find((u) => u.id === userId)?.noticesSeenAt ?? null;
   return (s.notices ?? []).some((n) => n.publishedAt !== null && (seen === null || n.publishedAt > seen));
+}
+
+/** (#538) 첫 문단, 200자 (API noticePreview 와 같은 규칙) */
+function preview(body: string): string {
+  const first =
+    body
+      .replace(/\r\n?/g, "\n")
+      .split(/\n(?:[ \t]*\n)+/)
+      .map((p) => p.replace(/^\n+|\n+$/g, "").trim())
+      .find((p) => p !== "") ?? "";
+  const chars = Array.from(first);
+  return chars.length > 200 ? `${chars.slice(0, 200).join("").trimEnd()}…` : first;
+}
+
+/** (#538) GET /notices/attention: 닫지 않은 게시된 팝업 중 최근 것, 본 시각 이후 게시된 공지 중 최근 것 (api.md 2.16, D-291) */
+export function noticeAttention(s: Store, userId: number) {
+  const seen = s.users.find((u) => u.id === userId)?.noticesSeenAt ?? null;
+  const dismissed = new Set((s.noticeDismissals ?? []).filter((d) => d.userId === userId).map((d) => d.noticeId));
+  const published = (s.notices ?? [])
+    .filter((n) => n.publishedAt !== null)
+    .sort((a, b) => b.publishedAt!.localeCompare(a.publishedAt!) || b.id - a.id);
+  const brief = (n: NoticeRow) => ({ id: n.id, title: n.title, kind: n.kind, publishedAt: n.publishedAt! });
+  const popup = published.find((n) => n.popup && !dismissed.has(n.id));
+  const banner = published.find((n) => seen === null || n.publishedAt! > seen);
+  return { popup: popup ? { ...brief(popup), preview: preview(popup.body) } : null, banner: banner ? brief(banner) : null };
 }

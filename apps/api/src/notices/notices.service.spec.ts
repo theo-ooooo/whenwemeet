@@ -3,11 +3,11 @@ import { AdminActionsRepository } from '../admin/admin-actions.repository.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { NoticeAlreadyPushedError, type NoticeRow, NoticesRepository } from './notices.repository.js';
-import { isUnread, NoticesService } from './notices.service.js';
+import { isUnread, noticePreview, NoticesService, POPUP_PREVIEW_MAX } from './notices.service.js';
 
 function notice(id: number, overrides: Partial<NoticeRow> = {}): NoticeRow {
   const at = new Date('2026-11-20T00:00:00.000Z');
-  return { id, title: `공지 ${id}`, body: '본문', kind: 'notice', pinned: false, publishedAt: at, pushedAt: null, createdAt: at, updatedAt: at, ...overrides };
+  return { id, title: `공지 ${id}`, body: '본문', kind: 'notice', pinned: false, publishedAt: at, pushedAt: null, popup: false, createdAt: at, updatedAt: at, ...overrides };
 }
 
 describe('NoticesService (#515)', () => {
@@ -87,9 +87,9 @@ describe('NoticesService (#515)', () => {
   it('create: published 면 지금 게시, 아니면 초안. pinned 기본 false. 조치 기록', async () => {
     notices.create.mockImplementation(async (data) => notice(10, { ...data, publishedAt: data.publishedAt ?? null }));
     await service.create(1, { title: 't', body: 'b', kind: 'update', published: true }, now);
-    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'update', pinned: false, publishedAt: now, createdById: 1 }, null);
+    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'update', pinned: false, popup: false, publishedAt: now, createdById: 1 }, null);
     await service.create(1, { title: 't', body: 'b', kind: 'notice', pinned: true }, now);
-    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'notice', pinned: true, publishedAt: null, createdById: 1 }, null);
+    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'notice', pinned: true, popup: false, publishedAt: null, createdById: 1 }, null);
     expect(actions.record).toHaveBeenCalledWith({ adminId: 1, action: 'notice_create', targetType: 'notice', targetId: 10 });
   });
 
@@ -185,6 +185,66 @@ describe('NoticesService (#515)', () => {
       notices.update.mockRejectedValueOnce(new NoticeAlreadyPushedError());
       await expect(service.update(1, 6, { push: true }, now)).rejects.toMatchObject({ code: 'NOTICE_ALREADY_PUSHED' });
       expect(actions.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('팝업과 새 공지 띠 (#538, D-291)', () => {
+    const at = new Date('2026-11-24T00:00:00.000Z');
+    const row = (id: number, body = '첫 문단') => ({ id, title: `공지 ${id}`, body, kind: 'maintenance' as const, publishedAt: at });
+
+    it('noticePreview: 빈 줄로 나눈 첫 문단, 앞 빈 줄은 건너뛰고 문단 안 줄바꿈은 둔다', () => {
+      expect(noticePreview('\n\n  \n첫 줄\n둘째 줄\n\n다음 문단')).toBe('첫 줄\n둘째 줄');
+      expect(noticePreview('윈도 줄바꿈\r\n\r\n다음')).toBe('윈도 줄바꿈');
+      expect(noticePreview('   ')).toBe('');
+    });
+
+    it('noticePreview: 상한을 넘으면 글자(이모지 포함) 단위로 자르고 … 를 붙인다', () => {
+      const long = '가'.repeat(POPUP_PREVIEW_MAX + 5);
+      expect(noticePreview(long)).toBe(`${'가'.repeat(POPUP_PREVIEW_MAX)}…`);
+      expect(noticePreview('가'.repeat(POPUP_PREVIEW_MAX))).toBe('가'.repeat(POPUP_PREVIEW_MAX));
+      expect(noticePreview('😀😀😀', 2)).toBe('😀😀…');
+    });
+
+    it('attention: 팝업은 닫지 않은 최근 팝업 공지 + 첫 문단, 띠는 본 시각 이후 가장 최근 공지', async () => {
+      const seen = new Date('2026-11-20T00:00:00.000Z');
+      notices.findPopupFor.mockResolvedValue(row(7, '점검해요\n\n자세한 내용'));
+      users.findNoticesSeenAt.mockResolvedValue(seen);
+      notices.findLatestPublishedAfter.mockResolvedValue(row(8));
+      expect(await service.attention(3)).toEqual({
+        popup: { id: 7, title: '공지 7', kind: 'maintenance', publishedAt: at, preview: '점검해요' },
+        banner: { id: 8, title: '공지 8', kind: 'maintenance', publishedAt: at },
+      });
+      expect(notices.findPopupFor).toHaveBeenCalledWith(3);
+      expect(notices.findLatestPublishedAfter).toHaveBeenCalledWith(seen);
+    });
+
+    it('attention: 둘 다 없으면 null. 공지 목록을 본 적이 없으면 게시된 최근 공지를 띠로 찾는다', async () => {
+      notices.findPopupFor.mockResolvedValue(null);
+      users.findNoticesSeenAt.mockResolvedValue(null);
+      notices.findLatestPublishedAfter.mockResolvedValue(null);
+      expect(await service.attention(3)).toEqual({ popup: null, banner: null });
+      expect(notices.findLatestPublishedAfter).toHaveBeenCalledWith(null);
+    });
+
+    it('dismiss: 게시된 공지면 ok, 없거나 초안이면 404', async () => {
+      notices.dismiss.mockResolvedValueOnce(true);
+      expect(await service.dismiss(3, 7)).toEqual({ ok: true });
+      expect(notices.dismiss).toHaveBeenCalledWith(3, 7);
+      notices.dismiss.mockResolvedValueOnce(false);
+      await expect(service.dismiss(3, 99)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+
+    it('create, update: popup 을 그대로 저장하고 생략하면 create 는 false, update 는 그대로', async () => {
+      notices.create.mockImplementation(async (data) => notice(13, { ...data, publishedAt: data.publishedAt ?? null }));
+      await service.create(1, { title: 't', body: 'b', kind: 'notice', published: true, popup: true }, now);
+      expect(notices.create).toHaveBeenLastCalledWith(expect.objectContaining({ popup: true }), null);
+
+      notices.findById.mockResolvedValue(notice(14));
+      notices.update.mockResolvedValue(notice(14, { popup: true }));
+      await service.update(1, 14, { popup: true }, now);
+      expect(notices.update).toHaveBeenLastCalledWith(14, { popup: true }, null);
+      await service.update(1, 14, { title: '제목' }, now);
+      expect(notices.update).toHaveBeenLastCalledWith(14, { title: '제목' }, null);
     });
   });
 });

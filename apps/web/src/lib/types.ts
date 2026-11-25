@@ -345,9 +345,18 @@ export type Notice = {
   publishedAt: string | null;
   /** (#528) 푸시를 보낸 시각. null = 안 보냄. 한 공지는 한 번만 (D-287) */
   pushedAt: string | null;
+  /** (#538) 앱, 웹을 열 때 한 번 창으로 띄운다 (D-291). 옛 API 응답에는 없다 */
+  popup?: boolean;
   createdAt: string;
   updatedAt: string;
 };
+
+/** (#538) 달력 위 "새 공지: 제목" 띠 (D-291) */
+export type NoticeBanner = { id: number; title: string; kind: NoticeKind; publishedAt: string };
+/** (#538) 팝업 공지. preview 는 본문 첫 문단 (서버가 200자에서 자른다) */
+export type NoticePopup = NoticeBanner & { preview: string };
+/** (#538) GET /notices/attention */
+export type NoticeAttention = { popup: NoticePopup | null; banner: NoticeBanner | null };
 
 /** (#515) 페이지 응답. nextCursor 가 null 이면 끝 */
 export type Page<T> = { items: T[]; nextCursor: number | null };

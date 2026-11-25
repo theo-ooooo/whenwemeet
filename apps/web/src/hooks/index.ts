@@ -50,7 +50,7 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
 export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
-export { useMarkNoticesSeen } from "./useNotices";
+export { useDismissNotice, useMarkNoticesSeen, useNoticeAttention } from "./useNotices";
 export { useCreateNotice, useUpdateNotice, useDeleteNotice, useUpdateUserRole, useHideTarget, useUnhideTarget, useDeleteTarget } from "./useAdmin";
 export { useSendAssistantMessage, useAssistantConsent } from "./useAssistant";
 export { useDeleteMe } from "./useDeleteMe";

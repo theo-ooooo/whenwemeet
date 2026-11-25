@@ -122,6 +122,8 @@ model User {
   adminActions            AdminAction[]
   /// (#532) 접속한 기종과 앱 버전 (기종마다 한 줄, D-288)
   clients                 UserClient[]
+  /// (#538) 내가 닫은 팝업 공지 (D-291)
+  noticeDismissals        NoticeDismissal[]
 }
 
 /// (#515) 관리자 조치 종류 (D-286). 관리자 변경은 모두 한 줄씩 남긴다
@@ -190,14 +192,31 @@ model Notice {
   publishedAt DateTime?
   /// (#528) 푸시를 보낸(예약한) 시각. 한 공지는 한 번만 보낸다 (D-287)
   pushedAt    DateTime?
+  /// (#538) 앱, 웹을 열 때 한 번 창으로 띄운다. 사용자가 닫으면 NoticeDismissal 이 남는다 (D-291)
+  popup       Boolean    @default(false)
   /// 쓴 관리자. 탈퇴하면 null
   createdById Int?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  /// (#538) 이 팝업을 닫은 사용자들
+  dismissals NoticeDismissal[]
 
   @@index([publishedAt])
+}
+
+/// (#538) 팝업 공지를 닫은 기록 (D-291). 사용자 + 공지당 한 행. 기기가 바뀌어도 다시 띄우지 않는다
+model NoticeDismissal {
+  userId    Int
+  noticeId  Int
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, noticeId])
+  @@index([noticeId])
 }
 
 /// (#450) AI 비서 하루 사용 횟수. 사용자 + KST 날짜당 한 행 (D-269). 대화, 답은 어디에도 저장하지 않는다
