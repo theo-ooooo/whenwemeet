@@ -13,8 +13,9 @@ export const NOTICE_BODY_MAX = 20_000;
 
 export type NoticeSegment = { type: "text"; text: string } | { type: "link"; href: string };
 
+// 주소는 URL 에 쓰는 ASCII 문자까지만 (#519: "(https://a.b)과" 처럼 한글이 바로 붙어도 거기서 끊는다).
 // 주소 끝의 문장 부호(마침표, 쉼표, 닫는 괄호 등)는 링크에서 뺀다
-const URL_RE = /https:\/\/[^\s<>"'`]+/g;
+const URL_RE = /https:\/\/[A-Za-z0-9\-._~:/?#[\]@!$&*+,;=%()]+/g;
 const TRAILING = /[.,!?;:)\]}'"”’。、]+$/;
 
 /** 한 문단을 글자와 링크 조각으로. https 만 링크 (http, javascript: 등은 글자 그대로) */
