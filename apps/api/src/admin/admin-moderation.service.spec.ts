@@ -84,7 +84,7 @@ describe('AdminModerationService (#515, D-286)', () => {
     expect(repo.setEventHidden).toHaveBeenCalledWith(9, { reason: '스팸', hiddenAt: at, hiddenById: 2 });
     users.findForAdmin.mockResolvedValueOnce(null);
     await expect(service.user(3)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [] });
+    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
     repo.listGroupsOfUser.mockResolvedValueOnce([group]);
     preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS });
     repo.listPushDevicesOfUser.mockResolvedValueOnce([]);
@@ -92,7 +92,7 @@ describe('AdminModerationService (#515, D-286)', () => {
   });
 
   it('(#528) 사용자 상세: 알림 설정은 내 정보 > 알림 과 같은 키(공지 포함), 기기는 토큰 없이', async () => {
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [] });
+    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
     repo.listGroupsOfUser.mockResolvedValueOnce([]);
     preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS, NOTICE: false, CHANGE: false });
     const device = { platform: 'IOS' as const, appVersion: '1.3.0', createdAt: at, lastSeenAt: at };

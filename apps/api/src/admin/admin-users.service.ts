@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
 import type { PageQuery } from '../common/page-query.js';
 import type { UserRole } from '../generated/prisma/enums.js';
-import { type AdminUserRow, UsersRepository } from '../users/users.repository.js';
+import { type AdminPlatform, type AdminUserRow, UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 
 /** (#515) 관리자 화면의 사용자 목록과 역할 바꾸기 (D-285). 관리자 확인은 컨트롤러의 AdminGuard */
@@ -14,7 +14,7 @@ export class AdminUsersService {
   ) {}
 
   /** GET /admin/users. 최근 가입 먼저, q 는 닉네임 부분 일치 */
-  list(query: PageQuery & { q: string | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
+  list(query: PageQuery & { q: string | null; platform: AdminPlatform | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
     return this.users.listForAdmin(query);
   }
 

@@ -52,4 +52,28 @@ describe('관리자 사용자 상세 알림 설정 (e2e, #528)', () => {
     expect(none.body.data.notifications.devices).toEqual([]);
     await api(app).get(`/v1/admin/users/${noDevice.userId}`).set(auth(on)).expect(403);
   });
+
+  it('(#528) 쓰는 곳: 푸시 기기 기종, 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 모름. 목록 필터 platform', async () => {
+    const appOnly = await devLogin(app, '앱만');
+    await prisma.user.update({ where: { id: appOnly.userId }, data: { lastAppLoginAt: new Date() } });
+    type Row = { id: number; platforms: string[]; platformLastSeen: { platform: string; lastSeenAt: string }[]; lastAppLoginAt: string | null };
+    const users = async (query: Record<string, string> = {}) =>
+      (await api(app).get('/v1/admin/users').query({ limit: '50', ...query }).set(auth(admin)).expect(200)).body.data.items as Row[];
+    const byId = new Map((await users()).map((u) => [u.id, u]));
+    expect(byId.get(on.userId)!.platforms).toEqual(['ios', 'android']);
+    expect(byId.get(off.userId)!.platforms).toEqual(['ios']);
+    expect(byId.get(noDevice.userId)!.platforms).toEqual(['web']);
+    expect(byId.get(appOnly.userId)!.platforms).toEqual([]);
+    expect(byId.get(on.userId)!.platformLastSeen.map((p) => p.platform)).toEqual(['ios', 'android']);
+
+    const ids = async (platform: string) => (await users({ platform })).map((u) => u.id).sort((a, b) => a - b);
+    expect(await ids('ios')).toEqual([on.userId, off.userId].sort((a, b) => a - b));
+    expect(await ids('android')).toEqual([on.userId]);
+    expect(await ids('web')).toEqual([admin.userId, noDevice.userId].sort((a, b) => a - b));
+    await api(app).get('/v1/admin/users').query({ platform: 'IOS' }).set(auth(admin)).expect(400);
+
+    const detail = await api(app).get(`/v1/admin/users/${on.userId}`).set(auth(admin)).expect(200);
+    expect(detail.body.data.user).toMatchObject({ platforms: ['ios', 'android'], lastAppLoginAt: null });
+    expect(JSON.stringify(detail.body)).not.toMatch(/ExponentPushToken/);
+  });
 });
