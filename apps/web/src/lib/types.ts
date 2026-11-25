@@ -52,7 +52,7 @@ export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
 /** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
 /** (#189) poll 약속 투표(열림, 마감, 정함). 기본 켬 */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean };
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean; notice: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -343,6 +343,8 @@ export type Notice = {
   kind: NoticeKind;
   pinned: boolean;
   publishedAt: string | null;
+  /** (#528) 푸시를 보낸 시각. null = 안 보냄. 한 공지는 한 번만 (D-287) */
+  pushedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -382,7 +384,13 @@ export type AdminEvent = {
 export type AdminEventDetail = AdminEvent & { memo: string | null; place: string | null };
 
 /** (#515) 관리자 사용자 상세 */
-export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[] };
+/** (#528) 관리자 사용자 상세의 푸시 기기 한 줄 (토큰 없음) */
+export type AdminPushDevice = { platform: "IOS" | "ANDROID"; appVersion: string; createdAt: string; lastSeenAt: string };
+
+/** (#528) 관리자 사용자 상세의 알림 설정 (읽기 전용). settings 는 그 사람의 내 정보 > 알림 과 같은 모양 */
+export type AdminUserNotifications = { settings: NotificationSettings; devices: AdminPushDevice[] };
+
+export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[]; notifications: AdminUserNotifications };
 
 /** (#515) 관리자 조치 기록 한 줄 (D-286) */
 export type AdminActionLog = {

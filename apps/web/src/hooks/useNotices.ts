@@ -18,4 +18,4 @@ export function useMarkNoticesSeen(opts?: MutationOptions) {
 }
 
 /** (#515) 공지 작성, 수정 입력. published 는 게시(true)와 초안(false) */
-export type NoticeInput = { title: string; body: string; kind: Notice["kind"]; pinned: boolean; published: boolean };
+export type NoticeInput = { title: string; body: string; kind: Notice["kind"]; pinned: boolean; published: boolean; /** (#528) 게시와 같이 전체 푸시. 게시할 때만, 한 번만 */ push?: boolean };

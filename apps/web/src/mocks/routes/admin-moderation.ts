@@ -1,6 +1,7 @@
 // (#515) 관리자 팀, 일정 숨김과 삭제, 사용자 상세 목 라우트 (api.md 2.16, D-286). 관리자 확인은 noticeAuthedRoute 가 먼저 한다
 import { parseId } from "@/lib/id";
 import type { EventRow, GroupRow, Store } from "../fixtures";
+import { DEFAULT_NOTIFY } from "./me";
 import { logAdmin } from "./notices";
 import { err, nowIso, ok, type AuthedReq, type MockResult } from "./shared";
 
@@ -82,7 +83,13 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
     const u = id === null ? undefined : s.users.find((x) => x.id === id);
     if (!u) return err(404, "NOT_FOUND", "사용자를 찾을 수 없어요");
     const teams = s.memberships.filter((m) => m.userId === u.id).map((m) => groupOut(s, s.groups.find((g) => g.id === m.groupId)!));
-    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams });
+    // (#528) 알림 설정(읽기 전용)과 기기 요약. 토큰은 싣지 않는다
+    const devices = (s.pushDevices ?? [])
+      .filter((d) => d.userId === u.id)
+      .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+      .map((d) => ({ platform: d.platform, appVersion: d.appVersion, createdAt: d.createdAt ?? d.lastSeenAt, lastSeenAt: d.lastSeenAt }));
+    const notifications = { settings: { ...DEFAULT_NOTIFY, ...u.notify }, devices };
+    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams, notifications });
   }
 
   if (seg[1] === "groups") {

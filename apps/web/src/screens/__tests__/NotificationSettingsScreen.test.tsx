@@ -25,7 +25,7 @@ vi.mock("@/hooks", () => ({
 
 const { NotificationSettingsScreen } = await import("../NotificationSettingsScreen");
 
-const DEFAULTS: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true };
+const DEFAULTS: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true };
 const switchOf = (name: string) => screen.getByRole("switch", { name: new RegExp(`^${name}`) });
 
 describe("NotificationSettingsScreen (#277)", () => {
@@ -37,9 +37,11 @@ describe("NotificationSettingsScreen (#277)", () => {
   });
   afterEach(cleanup);
 
-  it("받을 알림 7줄. 주간 요약은 켬, 다 같이 비는 시간은 끔, (#189) 약속 투표는 켬", () => {
+  it("받을 알림 8줄. 주간 요약은 켬, 다 같이 비는 시간은 끔, (#189) 약속 투표는 켬, (#528) 공지는 켬", () => {
     render(<NotificationSettingsScreen />);
-    expect(screen.getAllByRole("switch")).toHaveLength(7);
+    expect(screen.getAllByRole("switch")).toHaveLength(8);
+    expect(switchOf("공지").getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText("새 기능, 점검 같은 언제볼까 소식을 알려 드려요")).toBeTruthy();
     expect(switchOf("약속 투표").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("주간 요약").getAttribute("aria-checked")).toBe("true");
     expect(switchOf("다 같이 비는 시간").getAttribute("aria-checked")).toBe("false");
@@ -65,5 +67,15 @@ describe("NotificationSettingsScreen (#277)", () => {
     expect(mutate).toHaveBeenCalledWith({ weekly: false });
     expect(setData).toHaveBeenLastCalledWith(DEFAULTS);
     expect(show).toHaveBeenCalledWith("알림 설정을 바꾸지 못했어요. 다시 시도해 주세요");
+  });
+
+  it("(#528) 공지를 끄면 notice 만 PATCH", async () => {
+    mutate.mockResolvedValue({ ok: true, data: { ...DEFAULTS, notice: false }, error: null });
+    render(<NotificationSettingsScreen />);
+    await act(async () => {
+      fireEvent.click(switchOf("공지"));
+    });
+    expect(mutate).toHaveBeenCalledWith({ notice: false });
+    expect(setData).toHaveBeenLastCalledWith({ ...DEFAULTS, notice: false });
   });
 });

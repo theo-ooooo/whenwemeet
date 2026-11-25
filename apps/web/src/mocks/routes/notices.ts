@@ -1,11 +1,15 @@
 // (#515) 공지사항과 관리자 화면 목 라우트 (api.md 2.16, D-285, D-286)
 import { parseId } from "@/lib/id";
 import type { AdminLogRow, NoticeRow, Store } from "../fixtures";
+import { errorBody } from "@/lib/envelope";
 import { err, nextId, nowIso, ok, type AuthedReq, type MockResult, type Req } from "./shared";
 
 const KINDS = ["notice", "update", "maintenance"];
 const notFound = () => err(404, "NOT_FOUND", "공지를 찾을 수 없어요");
 const forbidden = () => err(403, "FORBIDDEN", "관리자만 할 수 있어요");
+/** (#528) 초안에 push (api.md 2.16, D-287) */
+const DRAFT_PUSH = "초안은 푸시로 보낼 수 없어요. 게시할 때 보내 주세요";
+const draftPush = (): MockResult => ({ status: 400, body: errorBody(400, "VALIDATION_FAILED", DRAFT_PUSH, [{ field: "push", message: DRAFT_PUSH }]) });
 
 function isAdmin(s: Store, userId: number | null): boolean {
   return userId !== null && s.users.find((u) => u.id === userId)?.role === "admin";
@@ -52,8 +56,8 @@ export function noticePublicRoute(req: Req): MockResult | null {
   return null;
 }
 
-function readNoticeInput(body: Record<string, unknown> | null, partial: boolean): MockResult | Partial<NoticeRow> & { published?: boolean } {
-  const out: Partial<NoticeRow> & { published?: boolean } = {};
+function readNoticeInput(body: Record<string, unknown> | null, partial: boolean): MockResult | Partial<NoticeRow> & { published?: boolean; push?: boolean } {
+  const out: Partial<NoticeRow> & { published?: boolean; push?: boolean } = {};
   if (!partial || body?.title !== undefined) {
     const title = typeof body?.title === "string" ? body.title.trim() : "";
     if (title.length < 1 || title.length > 100) return err(400, "VALIDATION_FAILED", "제목은 1~100자여야 해요");
@@ -70,6 +74,11 @@ function readNoticeInput(body: Record<string, unknown> | null, partial: boolean)
   }
   if (typeof body?.pinned === "boolean") out.pinned = body.pinned;
   if (typeof body?.published === "boolean") out.published = body.published;
+  // (#528) 게시와 같이 푸시
+  if (body?.push !== undefined) {
+    if (typeof body.push !== "boolean") return err(400, "VALIDATION_FAILED", "push 는 true/false 여야 해요");
+    out.push = body.push;
+  }
   return out;
 }
 
@@ -93,6 +102,7 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
     if (seg.length === 2 && method === "POST") {
       const input = readNoticeInput(body, false);
       if ("status" in input) return input as MockResult;
+      if (input.push && !input.published) return draftPush();
       const now = nowIso();
       const row: NoticeRow = {
         id: nextId(),
@@ -101,11 +111,13 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
         kind: input.kind!,
         pinned: input.pinned ?? false,
         publishedAt: input.published ? now : null,
+        pushedAt: input.push ? now : null,
         createdAt: now,
         updatedAt: now,
       };
       notices.push(row);
       logAdmin(s, userId, "notice_create", "notice", row.id);
+      if (row.pushedAt) logAdmin(s, userId, "notice_push", "notice", row.id);
       return ok(row, 201);
     }
     const id = seg.length === 3 ? parseId(seg[2]) : null;
@@ -115,11 +127,17 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
     if (row && method === "PATCH") {
       const input = readNoticeInput(body, true);
       if ("status" in input) return input as MockResult;
-      const { published, ...rest } = input;
+      const { published, push, ...rest } = input;
+      const publishedAt = published === undefined ? row.publishedAt : published ? (row.publishedAt ?? nowIso()) : null;
+      // (#528) 고친 결과가 게시 상태여야 하고, 이미 보냈으면 409 이며 아무것도 바꾸지 않는다
+      if (push && publishedAt === null) return draftPush();
+      if (push && row.pushedAt) return err(409, "NOTICE_ALREADY_PUSHED", "이 공지는 이미 푸시로 보냈어요");
       Object.assign(row, rest);
-      if (published !== undefined) row.publishedAt = published ? (row.publishedAt ?? nowIso()) : null;
+      row.publishedAt = publishedAt;
+      if (push) row.pushedAt = nowIso();
       row.updatedAt = nowIso();
       logAdmin(s, userId, "notice_update", "notice", row.id);
+      if (push) logAdmin(s, userId, "notice_push", "notice", row.id);
       return ok(row);
     }
     if (row && method === "DELETE") {
