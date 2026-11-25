@@ -4,6 +4,9 @@ import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
 import type { ActivityActor, ActivityPayload, GroupActivityType } from './activity.js';
 
+/** (#515) payload.eventId 로 일정을 가리키는 활동 종류 */
+const EVENT_ACTIVITY_TYPES = ['EVENT_RSVP', 'POLL_CLOSED'] as const;
+
 export interface GroupActivityRow {
   id: number;
   type: GroupActivityType;
@@ -86,21 +89,42 @@ export class GroupActivitiesRepository {
    * (#189) `after` 이후 남이 정한 투표 수 (내 활동 제외, 탈퇴자 포함). 정하기는 POLL_CLOSED 와 숨겨지는 CREATED 로그를 한 번에 남겨
    * 안 읽은 수에서 하나를 빼는 데 쓴다 (D-236)
    */
-  countUnseenPollClosedByOthers(groupId: number, after: Date, userId: number): Promise<number> {
+  async countUnseenPollClosedByOthers(groupId: number, after: Date, userId: number): Promise<number> {
     return this.prisma.groupActivity.count({
-      where: { groupId, type: 'POLL_CLOSED', createdAt: { gt: after }, OR: [{ actorId: null }, { actorId: { not: userId } }] },
+      where: { groupId, type: 'POLL_CLOSED', createdAt: { gt: after }, OR: [{ actorId: null }, { actorId: { not: userId } }], ...(await this.notHiddenEvent(groupId)) },
     });
   }
 
-  /** `after` 이후, 내 활동 제외 (actorId null 인 탈퇴자 기록은 포함) */
-  countUnseenByOthers(groupId: number, after: Date, userId: number): Promise<number> {
+  /** `after` 이후, 내 활동 제외 (actorId null 인 탈퇴자 기록은 포함). (#515) 숨긴 일정의 참석, 투표 확정 기록은 세지 않는다 */
+  async countUnseenByOthers(groupId: number, after: Date, userId: number): Promise<number> {
     return this.prisma.groupActivity.count({
       where: {
         groupId,
         createdAt: { gt: after },
         OR: [{ actorId: null }, { actorId: { not: userId } }],
+        ...(await this.notHiddenEvent(groupId)),
       },
     });
+  }
+
+  /**
+   * (#515) 관리자가 숨긴 일정을 가리키는 활동(EVENT_RSVP, POLL_CLOSED 의 payload.eventId)을 빼는 조건 (D-286).
+   * 활동에는 일정 FK 가 없어 그 팀의 숨긴 일정 번호를 먼저 읽는다. 숨긴 일정이 없으면 조건 없음.
+   * payload 가 없는 다른 종류는 JSON 비교가 NULL 이 되므로 종류로 먼저 통과시킨다
+   */
+  private async notHiddenEvent(groupId: number): Promise<{ AND?: object[] }> {
+    const hidden = await this.prisma.event.findMany({ where: { groupId, hiddenAt: { not: null } }, select: { id: true } });
+    if (hidden.length === 0) return {};
+    return {
+      AND: [
+        {
+          OR: [
+            { type: { notIn: [...EVENT_ACTIVITY_TYPES] } },
+            { NOT: { OR: hidden.map(({ id }) => ({ payload: { path: '$.eventId', equals: id } })) } },
+          ],
+        },
+      ],
+    };
   }
 
   /** `since` 이후, 내 활동 제외, 최신순 `limit` 건 */
@@ -110,6 +134,7 @@ export class GroupActivitiesRepository {
         groupId,
         createdAt: { gte: since },
         OR: [{ actorId: null }, { actorId: { not: userId } }],
+        ...(await this.notHiddenEvent(groupId)),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,

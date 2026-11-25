@@ -124,6 +124,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           onNavigate={onMenuNavigate}
           unread={unread}
           noticeDot={noticeDot}
+          hiddenTeam={hiddenSummary}
           enabled={wide && groupId !== null && !fold.collapsed && hidden === null}
           refreshKey={`${tab ?? ""}#${eventsVersion}`}
           onSwitchTeam={() => setSwitcher(true)}
