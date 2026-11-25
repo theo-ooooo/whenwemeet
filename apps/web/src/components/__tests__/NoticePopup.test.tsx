@@ -73,7 +73,7 @@ describe("NoticePopup (#538)", () => {
     renderPopup();
     fireEvent.click(screen.getByRole("button", { name: "자세히 보기" }));
     expect(dismiss).toHaveBeenCalledWith(2);
-    expect(push).toHaveBeenCalledWith("/notices/2");
+    expect(push).toHaveBeenCalledWith("/notices/2?from=popup"); // (#544) 팝업으로 연 읽음
   });
 
   it("막는 창이 있거나 알림 안내가 떠 있으면 기다렸다가, 닫히면 뜬다", () => {

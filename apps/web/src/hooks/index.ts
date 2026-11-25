@@ -41,6 +41,8 @@ export {
   useAdminReportTarget,
   useAdminReportOpenCount,
   useAdminStats,
+  useAdminNoticeStats,
+  useAdminNoticeReaders,
 } from "./useAdmin";
 export type { PagedResult } from "./_usePaged";
 
@@ -64,7 +66,7 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
 export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
-export { useDismissNotice, useMarkNoticesSeen, useNoticeAttention } from "./useNotices";
+export { useDismissNotice, useMarkNoticeRead, useMarkNoticesSeen, useNoticeAttention } from "./useNotices";
 // (#539) 앱 업데이트 안내
 export { useAdminAppReleases, useAppRelease, useUpdateAppRelease, type AppReleaseInput } from "./useAppRelease";
 export { useCreateNotice, useUpdateNotice, useDeleteNotice, useUpdateUserRole, useHideTarget, useUnhideTarget, useDeleteTarget, useCloseReport } from "./useAdmin";

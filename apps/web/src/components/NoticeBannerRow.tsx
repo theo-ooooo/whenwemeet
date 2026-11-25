@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { useNoticeAttention } from "@/hooks";
 import { dismissHint, useHintDismissed } from "@/lib/hint";
-import { noticeBannerKey } from "@/lib/notice";
+import { noticeBannerKey, noticeHref } from "@/lib/notice";
 import { IconChevronRight, IconClose, IconMegaphone } from "./icons";
 
 export function NoticeBannerRow() {
@@ -17,7 +17,7 @@ export function NoticeBannerRow() {
     <>
       <div className="flex h-10 items-center gap-2 text-[13px]">
         <IconMegaphone size={16} className="shrink-0 text-acc-ink" />
-        <Link href={`/notices/${banner.id}`} onClick={() => dismissHint(key)} className="group flex h-10 min-w-0 flex-1 items-center gap-1.5">
+        <Link href={noticeHref(banner.id, "banner")} onClick={() => dismissHint(key)} className="group flex h-10 min-w-0 flex-1 items-center gap-1.5">
           <span className="shrink-0 font-semibold text-acc-ink">새 공지</span>
           <span className="min-w-0 truncate text-soft group-hover:underline group-hover:underline-offset-2">{banner.title}</span>
           <IconChevronRight size={14} className="shrink-0 text-ink-2" />

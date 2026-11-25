@@ -1,6 +1,6 @@
 // (#515) 공지사항과 관리자 화면 목 라우트 (api.md 2.16, D-285, D-286)
 import { parseId } from "@/lib/id";
-import type { AdminLogRow, NoticeRow, Store } from "../fixtures";
+import type { AdminLogRow, NoticeReadRow, NoticeRow, Store } from "../fixtures";
 import { errorBody } from "@/lib/envelope";
 import { err, nextId, nowIso, ok, type AuthedReq, type MockResult, type Req } from "./shared";
 
@@ -128,14 +128,26 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
     if (!list.some((d) => d.userId === userId && d.noticeId === n.id)) list.push({ userId, noticeId: n.id });
     return ok({ ok: true });
   }
+  // (#544) 공지 상세를 열었다: 처음 한 번만, 경로도 처음 것 (D-293)
+  if (seg[0] === "notices" && seg[2] === "read" && seg.length === 3 && method === "POST") return markRead(s, userId, seg[1], body);
   if (seg[0] !== "admin") return null;
   if (!isAdmin(s, userId)) return forbidden();
   const notices = (s.notices ??= []);
 
   if (seg[1] === "notices") {
     if (seg.length === 2 && method === "GET") {
-      const p = page([...notices].sort((a, b) => b.id - a.id), query);
+      // (#544) 줄마다 읽은 사람 수
+      const reads = s.noticeReads ?? [];
+      const rows = [...notices].sort((a, b) => b.id - a.id).map((n) => ({ ...n, readCount: reads.filter((r) => r.noticeId === n.id).length }));
+      const p = page(rows, query);
       return isPage(p) ? ok(p) : p;
+    }
+    // (#544) 결과와 읽은 사람 (D-293)
+    if (seg.length === 4 && method === "GET" && (seg[3] === "stats" || seg[3] === "readers")) {
+      const id = parseId(seg[2]);
+      const row = id === null ? undefined : notices.find((n) => n.id === id);
+      if (!row) return notFound();
+      return seg[3] === "stats" ? ok(noticeStats(s, row)) : noticeReaders(s, row, query);
     }
     if (seg.length === 2 && method === "POST") {
       const input = readNoticeInput(body, false);
@@ -156,7 +168,10 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
       };
       notices.push(row);
       logAdmin(s, userId, "notice_create", "notice", row.id);
-      if (row.pushedAt) logAdmin(s, userId, "notice_push", "notice", row.id);
+      if (row.pushedAt) {
+        logAdmin(s, userId, "notice_push", "notice", row.id);
+        fanOutPush(s, row.id);
+      }
       return ok(row, 201);
     }
     const id = seg.length === 3 ? parseId(seg[2]) : null;
@@ -176,12 +191,17 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
       if (push) row.pushedAt = nowIso();
       row.updatedAt = nowIso();
       logAdmin(s, userId, "notice_update", "notice", row.id);
-      if (push) logAdmin(s, userId, "notice_push", "notice", row.id);
+      if (push) {
+        logAdmin(s, userId, "notice_push", "notice", row.id);
+        fanOutPush(s, row.id);
+      }
       return ok(row);
     }
     if (row && method === "DELETE") {
       s.notices = notices.filter((n) => n.id !== row.id);
       s.noticeDismissals = (s.noticeDismissals ?? []).filter((d) => d.noticeId !== row.id);
+      s.noticeReads = (s.noticeReads ?? []).filter((r) => r.noticeId !== row.id);
+      s.noticeDeliveries = (s.noticeDeliveries ?? []).filter((d) => d.noticeId !== row.id);
       logAdmin(s, userId, "notice_delete", "notice", row.id);
       return ok({ ok: true });
     }
@@ -256,4 +276,93 @@ export function noticeAttention(s: Store, userId: number) {
   const popup = published.find((n) => n.popup && !dismissed.has(n.id));
   const banner = published.find((n) => seen === null || n.publishedAt! > seen);
   return { popup: popup ? { ...brief(popup), preview: preview(popup.body) } : null, banner: banner ? brief(banner) : null };
+}
+
+const READ_VIAS: NoticeReadRow["via"][] = ["list", "detail", "push", "popup", "banner"];
+
+/** (#544) POST /notices/:id/read. 게시된 공지만(아니면 404), 처음 한 번만 남고 경로도 처음 것 (api.md 2.16, D-293) */
+function markRead(s: Store, userId: number, rawId: string, body: Record<string, unknown> | null): MockResult {
+  const via = body?.via === undefined ? "detail" : body.via;
+  if (!READ_VIAS.includes(via as NoticeReadRow["via"])) return err(400, "VALIDATION_FAILED", "via 는 list, detail, push, popup, banner 중 하나여야 해요");
+  const id = parseId(rawId);
+  const n = id === null ? undefined : (s.notices ?? []).find((x) => x.id === id && x.publishedAt !== null);
+  if (!n) return notFound();
+  const reads = (s.noticeReads ??= []);
+  const existing = reads.find((r) => r.userId === userId && r.noticeId === n.id);
+  if (existing) return ok({ firstReadAt: existing.firstReadAt, via: existing.via, first: false });
+  const row: NoticeReadRow = { userId, noticeId: n.id, firstReadAt: nowIso(), via: via as NoticeReadRow["via"] };
+  reads.push(row);
+  return ok({ firstReadAt: row.firstReadAt, via: row.via, first: true });
+}
+
+/** (#544) 목에서는 푸시를 바로 펼치고 모두 전달 성공으로 둔다: 기기가 있고 공지 알림을 끄지 않은 사람의 기기마다 한 줄 */
+function fanOutPush(s: Store, noticeId: number) {
+  const list = (s.noticeDeliveries ??= []);
+  for (const d of s.pushDevices ?? []) {
+    const user = s.users.find((u) => u.id === d.userId);
+    if (!user || user.notify?.notice === false) continue;
+    list.push({ noticeId, userId: d.userId, platform: d.platform, status: "SENT", receipt: "ok" });
+  }
+}
+
+/** (#544) GET /admin/notices/:id/stats (API NoticeReadsService.stats 와 같은 규칙) */
+export function noticeStats(s: Store, n: NoticeRow) {
+  const reads = (s.noticeReads ?? []).filter((r) => r.noticeId === n.id);
+  const byVia = Object.fromEntries(READ_VIAS.map((v) => [v, reads.filter((r) => r.via === v).length])) as Record<NoticeReadRow["via"], number>;
+  const deliveries = (s.noticeDeliveries ?? []).filter((d) => d.noticeId === n.id);
+  const targets = new Set(deliveries.map((d) => d.userId));
+  const push = n.pushedAt
+    ? {
+        status: deliveries.length > 0 ? "DISPATCHED" : "PENDING",
+        dispatchedAt: deliveries.length > 0 ? n.pushedAt : null,
+        targetUsers: targets.size,
+        devices: deliveries.length,
+        sent: deliveries.filter((d) => d.status === "SENT").length,
+        delivered: deliveries.filter((d) => d.status === "SENT" && d.receipt === "ok").length,
+        failed: deliveries.filter((d) => d.status === "FAILED" || (d.status === "SENT" && d.receipt !== null && d.receipt !== "ok")).length,
+        pending: deliveries.filter((d) => d.status === "QUEUED" || d.status === "SENDING" || (d.status === "SENT" && d.receipt === null)).length,
+      }
+    : null;
+  const basis = push ? { of: "push" as const, read: reads.filter((r) => targets.has(r.userId)).length, total: targets.size } : { of: "users" as const, read: reads.length, total: s.users.length };
+  return {
+    noticeId: n.id,
+    publishedAt: n.publishedAt,
+    pushedAt: n.pushedAt,
+    push,
+    reads: { total: reads.length, byVia, pushOpened: byVia.push },
+    readRate: basis.total > 0 ? Math.min(1, basis.read / basis.total) : null,
+    readRateBasis: basis,
+  };
+}
+
+/** (#544) GET /admin/notices/:id/readers. 읽은 사람은 읽은 시각 내림차순, unread=1 은 푸시 대상 중 안 읽은 사람(id 내림차순). cursor 는 사용자 id */
+function noticeReaders(s: Store, n: NoticeRow, query: URLSearchParams): MockResult {
+  const q = (query.get("q") ?? "").trim();
+  const via = query.get("via");
+  if (via && !READ_VIAS.includes(via as NoticeReadRow["via"])) return err(400, "VALIDATION_FAILED", "via 는 list, detail, push, popup, banner 중 하나여야 해요");
+  const userOf = (id: number) => s.users.find((u) => u.id === id);
+  const person = (id: number) => {
+    const u = userOf(id)!;
+    return { id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl };
+  };
+  const reads = (s.noticeReads ?? []).filter((r) => r.noticeId === n.id && userOf(r.userId));
+  let rows;
+  if (query.get("unread") === "1") {
+    const read = new Set(reads.map((r) => r.userId));
+    const targets = [...new Set((s.noticeDeliveries ?? []).filter((d) => d.noticeId === n.id).map((d) => d.userId))];
+    rows = targets
+      .filter((id) => !read.has(id) && userOf(id))
+      .sort((a, b) => b - a)
+      .map((id) => ({ ...person(id), firstReadAt: null, via: null }));
+  } else {
+    rows = reads
+      .filter((r) => !via || r.via === via)
+      .sort((a, b) => b.firstReadAt.localeCompare(a.firstReadAt) || b.userId - a.userId)
+      .map((r) => ({ ...person(r.userId), firstReadAt: r.firstReadAt as string | null, via: r.via as NoticeReadRow["via"] | null }));
+  }
+  const p = page(
+    rows.filter((r) => !q || r.nickname.includes(q)),
+    query,
+  );
+  return isPage(p) ? ok(p) : p;
 }

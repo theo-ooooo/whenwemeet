@@ -92,8 +92,11 @@ export const upcomingUrl = (groupCode: string) => `/upcoming?team=${groupCode}`;
 export const freeUrl = (groupCode: string) => `/free?team=${groupCode}`;
 /** (#189) 약속 투표 화면 */
 export const pollUrl = (groupCode: string, pollCode: string) => `/polls/${pollCode}?team=${groupCode}`;
-/** (#528) 공지 상세. 팀과 무관한 공개 경로 */
-export const noticeUrl = (noticeId: number) => `/notices/${noticeId}`;
+/**
+ * (#528) 공지 상세. 팀과 무관한 공개 경로. (#544) `?from=push` 로 웹이 읽은 경로를 push 로 기록한다 (D-293).
+ * 이미 보낸 옛 경로(`/notices/{id}`)도 그대로 열리고 경로는 detail 로 남는다
+ */
+export const noticeUrl = (noticeId: number) => `/notices/${noticeId}?from=push`;
 
 /** 종일 일정의 마지막 날 (끝은 배타적) */
 function lastAllDayDate(endsAt: Date): string {

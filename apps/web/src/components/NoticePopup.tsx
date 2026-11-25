@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useDismissNotice, useNoticeAttention } from "@/hooks";
 import { dismissHint } from "@/lib/hint";
-import { noticeBannerKey } from "@/lib/notice";
+import { noticeBannerKey, noticeHref } from "@/lib/notice";
 import { isPromptOpen, subscribePrompt } from "@/lib/push";
 import { NoticeKindBadge } from "./NoticeKindBadge";
 import { Button } from "./ui";
@@ -72,7 +72,7 @@ export function NoticePopup({ blocked }: { blocked: boolean }) {
             full
             onClick={() => {
               const id = close();
-              if (id !== null) router.push(`/notices/${id}`);
+              if (id !== null) router.push(noticeHref(id, "popup"));
             }}
           >
             자세히 보기

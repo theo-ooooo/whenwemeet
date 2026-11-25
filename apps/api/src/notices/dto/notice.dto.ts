@@ -86,3 +86,14 @@ export class UpdateNoticeDto {
   @IsBoolean({ message: BOOL_MESSAGE('push') })
   push?: boolean;
 }
+
+/** (#544) 공지를 처음 연 경로. Prisma enum NoticeReadVia 와 같은 값 (D-293) */
+export const NOTICE_READ_VIAS = ['list', 'detail', 'push', 'popup', 'banner'] as const;
+export type NoticeReadViaValue = (typeof NOTICE_READ_VIAS)[number];
+
+/** (#544) POST /notices/:id/read. via 생략은 detail (주소를 직접 열었거나 경로를 모름) */
+export class ReadNoticeDto {
+  @ValidateIf((_: unknown, value: unknown) => value !== undefined)
+  @IsIn(NOTICE_READ_VIAS, { message: 'via 는 list, detail, push, popup, banner 중 하나여야 해요' })
+  via?: NoticeReadViaValue;
+}

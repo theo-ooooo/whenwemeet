@@ -58,7 +58,7 @@ describe('PushDispatcher', () => {
   });
 
   describe('펼치기 (5-6 A)', () => {
-    it('(#528) 공지: 펼칠 때의 공지로 문구(제목, 본문 첫 줄, /notices/{id}), 받는 사람은 전체 목록. 팀 조회를 하지 않는다', async () => {
+    it('(#528) 공지: 펼칠 때의 공지로 문구(제목, 본문 첫 줄, /notices/{id}?from=push), 받는 사람은 전체 목록. 팀 조회를 하지 않는다', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 7, kind: 'NOTICE', dedupeKey: 'N:42', groupId: null, eventId: null, payload: null, scheduledAt: new Date(NOW.getTime() - 2 * 60 * MIN) })]);
       push.findPublishedNotice.mockResolvedValue({ id: 42, title: '점검 안내', body: '\n  12월 1일 새벽 점검해요  \n자세한 내용' });
       const recipients = [
@@ -73,7 +73,7 @@ describe('PushDispatcher', () => {
       expect(push.dispatchTx).toHaveBeenCalledWith(
         7,
         NOW,
-        { title: '점검 안내', subtitle: null, body: '12월 1일 새벽 점검해요', url: '/notices/42', expiration: Math.floor(NOW.getTime() / 1000) + 86400 },
+        { title: '점검 안내', subtitle: null, body: '12월 1일 새벽 점검해요', url: '/notices/42?from=push', expiration: Math.floor(NOW.getTime() / 1000) + 86400 },
         recipients,
       );
       // 2시간 늦어도 보낸다 (공지는 3시간 허용)

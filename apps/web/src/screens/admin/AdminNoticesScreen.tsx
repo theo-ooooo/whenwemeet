@@ -1,5 +1,6 @@
 "use client";
-// (#515) 관리자 공지 목록 (초안 포함, 최근 만든 것 먼저). 줄을 누르면 수정 화면
+// (#515) 관리자 공지 목록 (초안 포함, 최근 만든 것 먼저). 줄을 누르면 수정 화면.
+// (#544) 게시일 옆에 "읽음 N" (로그인하고 상세를 연 사람 수, D-293). 초안은 읽을 수 없어 기록이 없으면 그리지 않는다
 import Link from "next/link";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { IconMegaphone, IconPlus } from "@/components/icons";
@@ -44,7 +45,10 @@ export function AdminNoticesScreen() {
                   {n.popup && <StatusBadge tone="on">팝업</StatusBadge>}
                 </span>
                 <b className="min-w-0 flex-1 truncate text-[14px] font-semibold">{n.title}</b>
-                <span className="t-sub shrink-0 fold:w-[150px] fold:text-right">{noticeDate(n.publishedAt)}</span>
+                <span className="t-sub flex shrink-0 items-center gap-2 fold:w-[230px] fold:justify-end">
+                  {n.readCount !== undefined && (n.publishedAt !== null || n.readCount > 0) && <span className="tabular-nums">읽음 {n.readCount.toLocaleString("ko-KR")}</span>}
+                  <span>{noticeDate(n.publishedAt)}</span>
+                </span>
               </Link>
             </li>
           ))}

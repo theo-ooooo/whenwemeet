@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { api } from "@/lib/api";
 import type {
   AdminActionLog,
+  AdminNotice,
   AdminEvent,
   AdminEventDetail,
   AdminGroup,
@@ -15,6 +16,9 @@ import type {
   AdminUser,
   AdminUserDetail,
   Notice,
+  NoticeReader,
+  NoticeReadVia,
+  NoticeStats,
   Page,
   ReportStatus,
   ReportTargetType,
@@ -25,9 +29,24 @@ import { useMutation, type MutationOptions } from "./_useMutation";
 import { usePaged } from "./_usePaged";
 import type { NoticeInput } from "./useNotices";
 
-/** 관리자 공지 목록 (초안 포함) */
-export function useAdminNotices(opts?: QueryOptions<Page<Notice>>) {
-  return usePaged<Notice>("/admin/notices?limit=50", opts);
+/** 관리자 공지 목록 (초안 포함). (#544) 줄마다 readCount */
+export function useAdminNotices(opts?: QueryOptions<Page<AdminNotice>>) {
+  return usePaged<AdminNotice>("/admin/notices?limit=50", opts);
+}
+
+/** (#544) 공지 결과: 푸시 발송과 읽은 사람 수 (D-293) */
+export function useAdminNoticeStats(id: number, opts?: QueryOptions<NoticeStats>) {
+  return useQuery<NoticeStats>(`/admin/notices/${id}/stats`, opts);
+}
+
+/** (#544) 읽은 사람 (q 이름 검색, via 경로). unread 면 푸시 대상 중 안 읽은 사람 (via 는 무시) */
+export function useAdminNoticeReaders(id: number, filter: { q: string; via: NoticeReadVia | null; unread: boolean }, opts?: QueryOptions<Page<NoticeReader>>) {
+  const params = new URLSearchParams({ limit: "20" });
+  const query = filter.q.trim();
+  if (query) params.set("q", query);
+  if (filter.unread) params.set("unread", "1");
+  else if (filter.via) params.set("via", filter.via);
+  return usePaged<NoticeReader>(`/admin/notices/${id}/readers?${params.toString()}`, { debounceMs: 250, ...opts });
 }
 
 /** 관리자 공지 하나 (초안도 읽힌다). id 가 null 이면 요청하지 않는다(새 공지) */

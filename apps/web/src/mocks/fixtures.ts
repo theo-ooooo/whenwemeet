@@ -66,6 +66,11 @@ export type NoticeRow = {
   updatedAt: string;
 };
 
+/** (#544) 목 공지 읽음 (사용자 + 공지당 처음 한 번, D-293) */
+export type NoticeReadRow = { userId: number; noticeId: number; firstReadAt: string; via: "list" | "detail" | "push" | "popup" | "banner" };
+/** (#544) 목 공지 푸시의 기기별 발송 (PushDelivery 의 필요한 부분). receipt 'ok' = 전달 성공, 그 밖 문자열 = 영수증 오류, null = 아직 */
+export type NoticeDeliveryRow = { noticeId: number; userId: number; platform: "IOS" | "ANDROID"; status: "QUEUED" | "SENDING" | "SENT" | "FAILED"; receipt: string | null };
+
 /** (#515) 목 관리자 조치 기록 */
 export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event" | "app_release"; targetId: number; reason: string | null; createdAt: string };
 /** (#539) 목 기종별 앱 최신, 최소 버전 (D-292) */
@@ -247,6 +252,9 @@ export type Store = {
   appReleases?: AppReleaseRow[];
   /** (#538) 팝업 공지를 닫은 기록 */
   noticeDismissals?: { userId: number; noticeId: number }[];
+  /** (#544) 공지 읽음, 공지 푸시의 기기별 발송 */
+  noticeReads?: NoticeReadRow[];
+  noticeDeliveries?: NoticeDeliveryRow[];
   adminLogs?: AdminLogRow[];
   /** (#536) 신고. 없으면 빈 목록 */
   reports?: ReportRow[];
@@ -749,6 +757,25 @@ export function buildStore(): Store {
     },
   ];
 
+  // (#544) 공지 1(푸시 보냄)의 기기별 발송: 나, 엄마, 수경은 전달 성공, 아빠는 영수증 오류, 하늘은 보내기 실패. 민지는 공지 알림을 꺼 대상이 아니다
+  const noticeDeliveries: NoticeDeliveryRow[] = [
+    { noticeId: 1, userId: ME_ID, platform: "IOS", status: "SENT", receipt: "ok" },
+    { noticeId: 1, userId: MOM_ID, platform: "ANDROID", status: "SENT", receipt: "ok" },
+    { noticeId: 1, userId: DAD_ID, platform: "IOS", status: "SENT", receipt: "DeviceNotRegistered" },
+    { noticeId: 1, userId: 12, platform: "IOS", status: "SENT", receipt: "ok" },
+    { noticeId: 1, userId: OTHER_ID, platform: "IOS", status: "FAILED", receipt: null },
+  ];
+  // (#544) 읽음: 공지 1 은 엄마(푸시), 수경(목록), 아빠(직접), 민지(새 공지 띠, 푸시 대상 아님). 나와 하늘은 아직이라 "안 읽음" 에 보인다.
+  //   공지 2(팝업)는 엄마, 아빠가 팝업 자세히 보기로 읽었다
+  const noticeReads: NoticeReadRow[] = [
+    { userId: MOM_ID, noticeId: 1, firstReadAt: hoursAgo(24 * 3 - 1), via: "push" },
+    { userId: 12, noticeId: 1, firstReadAt: hoursAgo(24 * 2), via: "list" },
+    { userId: DAD_ID, noticeId: 1, firstReadAt: hoursAgo(30), via: "detail" },
+    { userId: 11, noticeId: 1, firstReadAt: hoursAgo(26), via: "banner" },
+    { userId: MOM_ID, noticeId: 2, firstReadAt: hoursAgo(19), via: "popup" },
+    { userId: DAD_ID, noticeId: 2, firstReadAt: hoursAgo(5), via: "popup" },
+  ];
+
   // (#528) 관리자 팀 목록의 개인 달력: 가입자마다 "내 달력" 하나 (실서비스처럼 같은 이름이 늘어선다). 엄마, 아빠도
   for (const [i, userId] of [MOM_ID, DAD_ID, 11, 12, 13].entries()) {
     const id = 60 + i;
@@ -806,7 +833,7 @@ export function buildStore(): Store {
   ];
 
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, appReleases, adminLogs: [], reports, seq: 100 };
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, noticeReads, noticeDeliveries, pushDevices, userClients, appReleases, adminLogs: [], reports, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

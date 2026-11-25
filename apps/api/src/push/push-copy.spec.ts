@@ -347,12 +347,12 @@ describe('(#528) 공지 푸시 문구 (D-287)', () => {
     expect(noticeBodyPreview(family.repeat(81))).toBe(`${family.repeat(79)}…`);
   });
 
-  it('noticePayload: 제목 그대로, 팀 이름 없음, /notices/{id}, 24시간 뒤 만료. Android 도 앞머리가 붙지 않는다', () => {
+  it('noticePayload: 제목 그대로, 팀 이름 없음, /notices/{id}?from=push (#544), 24시간 뒤 만료. Android 도 앞머리가 붙지 않는다', () => {
     const now = new Date('2026-11-25T00:00:00.000Z');
     const payload = noticePayload({ id: 9, title: '새 기능: 볼까', body: '볼까에게 일정을 물어보세요\n...' }, now);
-    expect(payload).toEqual({ title: '새 기능: 볼까', subtitle: null, body: '볼까에게 일정을 물어보세요', url: '/notices/9', expiration: Math.floor(now.getTime() / 1000) + 86400 });
+    expect(payload).toEqual({ title: '새 기능: 볼까', subtitle: null, body: '볼까에게 일정을 물어보세요', url: '/notices/9?from=push', expiration: Math.floor(now.getTime() / 1000) + 86400 });
     const android = toExpoMessage('NOTICE', 3, payload, { token: 'ExponentPushToken[a]', platform: 'ANDROID' }, now);
-    expect(android).toMatchObject({ title: '새 기능: 볼까', body: '볼까에게 일정을 물어보세요', data: { url: '/notices/9', kind: 'NOTICE', nid: 3 } });
+    expect(android).toMatchObject({ title: '새 기능: 볼까', body: '볼까에게 일정을 물어보세요', data: { url: '/notices/9?from=push', kind: 'NOTICE', nid: 3 } });
     expect(android).not.toHaveProperty('subtitle');
   });
 });

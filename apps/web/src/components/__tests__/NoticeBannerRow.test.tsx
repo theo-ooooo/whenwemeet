@@ -20,7 +20,7 @@ describe("NoticeBannerRow (#538)", () => {
   it("새 공지 제목과 상세 링크", () => {
     render(<NoticeBannerRow />);
     const link = screen.getByRole("link", { name: /새 공지\s*연말 일정 정리 기능/ });
-    expect(link.getAttribute("href")).toBe("/notices/4");
+    expect(link.getAttribute("href")).toBe("/notices/4?from=banner"); // (#544) 띠로 연 읽음
   });
 
   it("× 는 이 공지만 감춘다. 더 새 공지가 오면 다시 보인다", () => {
