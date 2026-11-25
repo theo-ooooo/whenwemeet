@@ -20,6 +20,7 @@ import { freeSlotsRoute } from "./routes/free-slots";
 import { newsRoutes } from "./routes/news";
 import { noticeAuthedRoute, noticePublicRoute } from "./routes/notices";
 import { adminModerationRoute } from "./routes/admin-moderation";
+import { adminAppReleasesRoute, appVersionPublicRoute } from "./routes/app-releases";
 
 export type { MockResult };
 
@@ -27,6 +28,8 @@ export type { MockResult };
 const AUTHED_ROUTES: ((req: AuthedReq) => MockResult | null)[] = [
   meRoutes,
   // (#515) 공지 읽음, 관리자 화면
+  // (#539) 관리자 앱 버전 (noticeAuthedRoute 의 /admin/* 판정보다 먼저)
+  adminAppReleasesRoute,
   noticeAuthedRoute,
   adminModerationRoute,
   groupsRoute,
@@ -68,7 +71,7 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   const req: Req = { s, ctx, method, path, seg, query, body, handle: mockHandle };
 
-  for (const route of [inviteRoute, eventShareRoute, noticePublicRoute]) {
+  for (const route of [inviteRoute, eventShareRoute, noticePublicRoute, appVersionPublicRoute]) {
     const r = route(req);
     if (r) return r;
   }

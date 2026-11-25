@@ -358,6 +358,9 @@ export type NoticePopup = NoticeBanner & { preview: string };
 /** (#538) GET /notices/attention */
 export type NoticeAttention = { popup: NoticePopup | null; banner: NoticeBanner | null };
 
+/** (#539) 기종별 앱 최신, 최소 버전 (D-292). 버전 null = 그 안내를 하지 않음. storeUrl 은 정하지 않았으면 기본 스토어 주소 */
+export type AppRelease = { platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string; updatedAt: string | null };
+
 /** (#515) 페이지 응답. nextCursor 가 null 이면 끝 */
 export type Page<T> = { items: T[]; nextCursor: number | null };
 
@@ -437,7 +440,7 @@ export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[]; notificati
 export type AdminActionLog = {
   id: number;
   action: string;
-  targetType: "notice" | "user" | "group" | "event";
+  targetType: "notice" | "user" | "group" | "event" | "app_release";
   targetId: number;
   reason: string | null;
   createdAt: string;

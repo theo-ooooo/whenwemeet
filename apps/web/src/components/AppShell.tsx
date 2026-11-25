@@ -16,6 +16,7 @@ import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { GroupHiddenModal } from "./GroupHiddenModal";
 import { NoticePopup } from "./NoticePopup";
+import { AppUpdateBanner, AppUpdateRequired, useAppUpdate } from "./AppUpdatePrompt";
 import { pickStartGroupId } from "@/lib/start-calendar";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
@@ -78,6 +79,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const unread = groups?.find((g) => g.id === groupId)?.unreadNewsCount ?? 0;
   // (#515) 안 본 공지가 있으면 내 정보(아바타)에 코랄 점 (D-285). /notices 는 이 뼈대 밖이라 돌아오면 다시 받는다
   const noticeDot = useMe().data?.hasUnreadNotice === true;
+  // (#539) 앱 셸이면 기종의 최신, 최소 버전과 비교 (웹 브라우저는 status null)
+  const appUpdate = useAppUpdate();
+  const updateRequired = appUpdate.status === "required";
 
   if (gone) return <GroupGone />;
 
@@ -208,6 +212,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             }`}
           >
             {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
+            {/* (#539) 최신 버전보다 낮은 앱: 본문 위 한 줄 (버전마다 한 번 닫을 수 있다) */}
+            {appUpdate.status === "available" && appUpdate.release && <AppUpdateBanner release={appUpdate.release} />}
             {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
             {hidden ? null : value !== null && !resolvingTeam ? (
               <Fragment key={groupId}>{children}</Fragment>
@@ -256,8 +262,10 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         </div>
       </div>
 
-      {/* (#538) 중요 공지 팝업. 이용 제한 팀 안내가 떠 있으면 기다린다 (D-291) */}
-      <NoticePopup blocked={hidden !== null} />
+      {/* (#538) 중요 공지 팝업. 이용 제한 팀 안내, 꼭 업데이트 창이 떠 있으면 기다린다 (D-291) */}
+      <NoticePopup blocked={hidden !== null || updateRequired} />
+      {/* (#539) 최소 버전보다 낮은 앱: 닫을 수 없는 창 (D-292) */}
+      {updateRequired && appUpdate.release && <AppUpdateRequired release={appUpdate.release} version={appUpdate.version} />}
       {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
       <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
         <ul className="flex flex-col gap-1">
