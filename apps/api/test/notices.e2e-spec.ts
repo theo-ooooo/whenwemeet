@@ -125,7 +125,7 @@ describe('공지사항, 관리자 (e2e, #515)', () => {
     for (const name of ['하늘', '하늘색', '바다']) extra.push(await devLogin(app, name));
     const all = await api(app).get('/v1/admin/users').set(auth(admin)).expect(200);
     expect(all.body.data.items.map((item: { nickname: string }) => item.nickname)).toEqual(['바다', '하늘색', '하늘', '사용자', '운영자']);
-    expect(all.body.data.items[0]).toMatchObject({ role: 'user', providers: ['DEV'] });
+    expect(all.body.data.items[0]).toMatchObject({ role: 'user', profileImageUrl: null, providers: ['DEV'] });
     expect(all.body.data.items[4]).toMatchObject({ role: 'admin' });
 
     const search = await api(app).get(`/v1/admin/users?q=${encodeURIComponent(' 하늘 ')}`).set(auth(admin)).expect(200);

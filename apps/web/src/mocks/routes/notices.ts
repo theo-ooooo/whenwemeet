@@ -130,7 +130,7 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
   }
 
   if (seg[1] === "users") {
-    const toAdminUser = (u: Store["users"][number]) => ({ id: u.id, nickname: u.nickname, role: u.role ?? "user", createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] });
+    const toAdminUser = (u: Store["users"][number]) => ({ id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] });
     if (seg.length === 2 && method === "GET") {
       const q = (query.get("q") ?? "").trim();
       const rows = s.users.filter((u) => !q || u.nickname.includes(q)).sort((a, b) => b.id - a.id).map(toAdminUser);
