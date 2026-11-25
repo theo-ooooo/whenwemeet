@@ -20,6 +20,23 @@ describe("공지 본문 (#515)", () => {
     ]);
   });
 
+  it("주소 뒤에 바로 붙은 한글은 링크에 넣지 않는다 (#519)", () => {
+    expect(noticeSegments("웹(https://whenwemeet.day)과 iOS")).toEqual([
+      { type: "text", text: "웹(" },
+      { type: "link", href: "https://whenwemeet.day" },
+      { type: "text", text: ")과 iOS" },
+    ]);
+    expect(noticeSegments("고객 지원(https://whenwemeet.day/support)으로")).toEqual([
+      { type: "text", text: "고객 지원(" },
+      { type: "link", href: "https://whenwemeet.day/support" },
+      { type: "text", text: ")으로" },
+    ]);
+    expect(noticeSegments("https://whenwemeet.day에서")).toEqual([
+      { type: "link", href: "https://whenwemeet.day" },
+      { type: "text", text: "에서" },
+    ]);
+  });
+
   it("http, javascript:, HTML 은 글자 그대로", () => {
     const text = 'http://a.example <script>alert(1)</script> javascript:alert(1) <a href="https://x">';
     const segs = noticeSegments(text);
