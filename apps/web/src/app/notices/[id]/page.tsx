@@ -6,6 +6,7 @@ import { IconChevronLeft } from "@/components/icons";
 import { LegalPage } from "@/components/LegalPage";
 import { NoticeBody } from "@/components/NoticeBody";
 import { NoticeKindBadge, PinnedBadge } from "@/components/NoticeKindBadge";
+import { NoticeReadMark } from "@/components/NoticeReadMark";
 import { parseId } from "@/lib/id";
 import { noticeDate } from "@/lib/notice";
 import { serverApi } from "@/lib/server-api";
@@ -35,6 +36,8 @@ export default async function NoticePage({ params }: { params: Promise<{ id: str
         <IconChevronLeft size={16} />
         목록
       </Link>
+      {/* (#538) 읽었으니 이 공지의 달력 위 새 공지 띠를 감춘다 */}
+      {notice.publishedAt && <NoticeReadMark id={notice.id} />}
       <article className="rounded-xl bg-paper px-4 py-5">
         <div className="flex flex-wrap items-center gap-1.5">
           {notice.pinned && <PinnedBadge />}

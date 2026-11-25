@@ -13,6 +13,7 @@ const NOTICE_SELECT = {
   pinned: true,
   publishedAt: true,
   pushedAt: true,
+  popup: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -27,6 +28,8 @@ export interface NoticeRow {
   publishedAt: Date | null;
   /** (#528) 푸시를 보낸 시각. null = 아직 안 보냄 (D-287) */
   pushedAt: Date | null;
+  /** (#538) 앱, 웹을 열 때 한 번 창으로 (D-291) */
+  popup: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,7 +40,20 @@ export interface NoticeWrite {
   kind?: NoticeKind;
   pinned?: boolean;
   publishedAt?: Date | null;
+  /** (#538) */
+  popup?: boolean;
 }
+
+/** (#538) 팝업, 새 공지 띠에 쓰는 한 줄 (본문 포함: 팝업은 첫 문단을 미리 보인다) */
+export interface NoticeAttentionRow {
+  id: number;
+  title: string;
+  body: string;
+  kind: NoticeKind;
+  publishedAt: Date;
+}
+
+const ATTENTION_SELECT = { id: true, title: true, body: true, kind: true, publishedAt: true } as const;
 
 /** 페이지 결과. nextCursor 는 이 페이지 마지막 id (다음 요청의 cursor), 더 없으면 null */
 export interface NoticePage {
@@ -79,6 +95,37 @@ export class NoticesRepository {
       select: { id: true },
     });
     return row !== null;
+  }
+
+  /**
+   * (#538) 이 사용자가 닫지 않은 게시된 팝업 공지 중 가장 최근 게시된 것 (D-291). 없으면 null.
+   * 팝업 공지는 손에 꼽을 만큼이라 publishedAt 인덱스와 닫은 기록 PK(userId, noticeId) 로 충분하다
+   */
+  async findPopupFor(userId: number): Promise<NoticeAttentionRow | null> {
+    const row = await this.prisma.notice.findFirst({
+      where: { popup: true, publishedAt: { not: null }, dismissals: { none: { userId } } },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      select: ATTENTION_SELECT,
+    });
+    return row && row.publishedAt ? { ...row, publishedAt: row.publishedAt } : null;
+  }
+
+  /** (#538) after 보다 늦게 게시된 공지 중 가장 최근 것 (새 공지 띠). after 가 null 이면 게시된 공지 중 가장 최근 것 */
+  async findLatestPublishedAfter(after: Date | null): Promise<NoticeAttentionRow | null> {
+    const row = await this.prisma.notice.findFirst({
+      where: { publishedAt: after ? { gt: after } : { not: null } },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      select: ATTENTION_SELECT,
+    });
+    return row && row.publishedAt ? { ...row, publishedAt: row.publishedAt } : null;
+  }
+
+  /** (#538) 게시된 공지면 닫은 기록을 남긴다(이미 있으면 그대로). 없거나 초안이면 false */
+  async dismiss(userId: number, noticeId: number): Promise<boolean> {
+    const notice = await this.prisma.notice.findFirst({ where: { id: noticeId, publishedAt: { not: null } }, select: { id: true } });
+    if (!notice) return false;
+    await this.prisma.noticeDismissal.createMany({ data: [{ userId, noticeId }], skipDuplicates: true });
+    return true;
   }
 
   /** (#528) pushAt 을 주면 같은 트랜잭션에서 pushedAt 을 적고 공지 푸시를 예약한다 (게시된 공지만, 서비스가 확인) */

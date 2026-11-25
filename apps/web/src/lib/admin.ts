@@ -1,17 +1,22 @@
 // (#515) 관리자 화면 공통 표기 (D-285, D-286). 단위 테스트 대상이라 React 를 import 하지 않는다
 
-/** 관리자 탭. 순서 고정 */
+/** 관리자 탭. 순서 고정. (#537) 첫 탭은 대시보드(/admin), (#536) 신고 */
 export const ADMIN_TABS = [
+  { href: "/admin", label: "대시보드" },
+  { href: "/admin/reports", label: "신고" },
   { href: "/admin/notices", label: "공지사항" },
   { href: "/admin/users", label: "사용자" },
   { href: "/admin/teams", label: "팀" },
   { href: "/admin/events", label: "일정" },
   { href: "/admin/logs", label: "기록" },
+  // (#539) 기종별 앱 최신, 최소 버전 (D-292)
+  { href: "/admin/app-versions", label: "앱 버전" },
 ] as const;
 
-/** 지금 주소에 맞는 탭 (하위 주소 포함). 없으면 null */
+/** 지금 주소에 맞는 탭 (하위 주소 포함). 없으면 null. (#537) 대시보드(/admin)는 그 주소만 (하위 주소는 각 탭) */
 export function adminTabOf(pathname: string): string | null {
-  return ADMIN_TABS.find((t) => pathname === t.href || pathname.startsWith(`${t.href}/`))?.href ?? null;
+  if (pathname === "/admin" || pathname === "/admin/") return "/admin";
+  return ADMIN_TABS.find((t) => t.href !== "/admin" && (pathname === t.href || pathname.startsWith(`${t.href}/`)))?.href ?? null;
 }
 
 const ACTION_LABEL: Record<string, string> = {
@@ -27,13 +32,18 @@ const ACTION_LABEL: Record<string, string> = {
   event_hide: "일정 숨김",
   event_unhide: "일정 숨김 해제",
   event_delete: "일정 삭제",
+  // (#539)
+  app_release_update: "앱 버전 변경",
+  // (#536)
+  report_resolve: "신고 처리",
+  report_dismiss: "신고 기각",
 };
 
 export function adminActionLabel(action: string): string {
   return ACTION_LABEL[action] ?? action;
 }
 
-const TARGET_LABEL: Record<string, string> = { notice: "공지", user: "사용자", group: "팀", event: "일정" };
+const TARGET_LABEL: Record<string, string> = { notice: "공지", user: "사용자", group: "팀", event: "일정", app_release: "앱 버전" };
 
 export function adminTargetLabel(type: string, id: number): string {
   return `${TARGET_LABEL[type] ?? type} #${id}`;
@@ -118,3 +128,44 @@ export function adminEventTime(startsAt: string, allDay: boolean): string {
 
 /** (#515) 숨김 사유 상한 (API 와 같다) */
 export const HIDE_REASON_MAX = 200;
+
+/** (#536) 신고 처리 메모 상한 (API 와 같다) */
+export const REPORT_RESOLUTION_MAX = 200;
+
+const REPORT_TARGET_LABEL: Record<string, string> = { group: "팀", event: "일정", user: "사용자" };
+/** (#536) 신고 대상 종류 이름 */
+export function reportTargetTypeLabel(type: string): string {
+  return REPORT_TARGET_LABEL[type] ?? type;
+}
+
+const REPORT_STATUS_LABEL: Record<string, string> = { open: "접수", resolved: "처리 완료", dismissed: "기각" };
+/** (#536) 신고 상태 이름 */
+export function reportStatusLabel(status: string): string {
+  return REPORT_STATUS_LABEL[status] ?? status;
+}
+
+/** (#536) 신고 목록 상태 필터. URL `?status=` 값 (기본 open) ↔ API status (all 은 빼고) */
+export type AdminReportFilter = "open" | "resolved" | "dismissed" | "all";
+export const ADMIN_REPORT_FILTERS: { value: AdminReportFilter; label: string }[] = [
+  { value: "open", label: "접수" },
+  { value: "resolved", label: "처리 완료" },
+  { value: "dismissed", label: "기각" },
+  { value: "all", label: "전체" },
+];
+export function adminReportFilterOf(raw: string | null): AdminReportFilter {
+  return raw === "resolved" || raw === "dismissed" || raw === "all" ? raw : "open";
+}
+
+/** (#536) 신고 대상 상세 주소 */
+export function adminReportHref(targetType: string, targetId: number): string {
+  return `/admin/reports/${targetType}/${targetId}`;
+}
+
+/** (#536) 신고를 닫거나 대상을 숨긴 뒤 탭 배지를 다시 받으라는 window 이벤트 이름 */
+export const ADMIN_REPORTS_CHANGED = "wwm:admin-reports-changed";
+
+/** (#536) 탭 배지 글자. 0 이면 없음, 99 넘으면 "99+" */
+export function adminBadgeText(count: number | null | undefined): string | null {
+  if (!count || count <= 0) return null;
+  return count > 99 ? "99+" : String(count);
+}

@@ -5,6 +5,7 @@ import { UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 import { type AdminEventDetail, type AdminGroupDetail, AdminModerationRepository } from './admin-moderation.repository.js';
 import { AdminModerationService } from './admin-moderation.service.js';
+import { AdminReportsRepository } from './admin-reports.repository.js';
 
 const at = new Date('2026-11-25T00:00:00.000Z');
 const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', owner: null, memberPreview: [], memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
@@ -28,6 +29,7 @@ describe('AdminModerationService (#515, D-286)', () => {
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
   let preferences: RepositoryMock<NotificationPreferencesRepository>;
+  let reports: RepositoryMock<AdminReportsRepository>;
   let service: AdminModerationService;
 
   beforeEach(() => {
@@ -36,7 +38,9 @@ describe('AdminModerationService (#515, D-286)', () => {
     actions = mockRepository(AdminActionsRepository);
     actions.record.mockResolvedValue(undefined);
     preferences = mockRepository(NotificationPreferencesRepository);
-    service = new AdminModerationService(repo as never, users as never, actions as never, preferences as never);
+    reports = mockRepository(AdminReportsRepository);
+    reports.closeOpen.mockResolvedValue(0);
+    service = new AdminModerationService(repo as never, users as never, actions as never, preferences as never, reports as never);
   });
 
   it('팀 숨기기: 사유와 관리자, 시각을 저장하고 group_hide 기록. 없는 팀은 404 (기록 없음)', async () => {
@@ -75,6 +79,27 @@ describe('AdminModerationService (#515, D-286)', () => {
     repo.findGroup.mockResolvedValueOnce(null);
     await expect(service.deleteGroup(1, 7)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(repo.deleteGroupTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('(#536) 숨기기, 삭제는 그 대상의 접수 중 신고를 처리 완료로 닫고, 닫은 게 있으면 report_resolve 기록', async () => {
+    repo.setGroupHidden.mockResolvedValueOnce(true);
+    repo.findGroup.mockResolvedValue(group);
+    reports.closeOpen.mockResolvedValueOnce(2);
+    await service.hideGroup(1, 5, '광고', at);
+    expect(reports.closeOpen).toHaveBeenCalledWith({ targetType: 'group', targetId: 5, status: 'resolved', adminId: 1, resolution: '숨김: 광고', at });
+    expect(actions.record).toHaveBeenLastCalledWith({ adminId: 1, action: 'report_resolve', targetType: 'group', targetId: 5, reason: '숨김: 광고' });
+    // 닫을 신고가 없으면 기록하지 않는다
+    actions.record.mockClear();
+    repo.findEvent.mockResolvedValueOnce(event);
+    repo.deleteEvent.mockResolvedValueOnce(true);
+    await service.deleteEvent(1, 9);
+    expect(reports.closeOpen).toHaveBeenLastCalledWith(expect.objectContaining({ targetType: 'event', targetId: 9, resolution: '삭제' }));
+    expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual(['event_delete']);
+    // 사유가 길면 200자로 자른다
+    repo.setEventHidden.mockResolvedValueOnce(true);
+    repo.findEvent.mockResolvedValue(event);
+    await service.hideEvent(1, 9, 'x'.repeat(200), at);
+    expect(reports.closeOpen.mock.lastCall![0].resolution).toHaveLength(200);
   });
 
   it('일정 숨기기와 사용자 상세', async () => {

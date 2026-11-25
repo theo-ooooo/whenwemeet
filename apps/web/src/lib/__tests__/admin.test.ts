@@ -8,7 +8,7 @@ describe("관리자 표기 (#515)", () => {
     expect(adminTabOf("/admin/users")).toBe("/admin/users");
     expect(adminTabOf("/admin/teams/3")).toBe("/admin/teams");
     expect(adminTabOf("/admin/events")).toBe("/admin/events");
-    expect(adminTabOf("/admin")).toBeNull();
+    expect(adminTabOf("/admin")).toBe("/admin");
     expect(adminTabOf("/admin/noticesx")).toBeNull();
   });
 
@@ -59,3 +59,10 @@ describe("(#528) 쓰는 곳 표기와 필터", () => {
   });
 });
 
+describe("(#539) 앱 버전 탭과 기록 표기", () => {
+  it("탭, 조치, 대상", () => {
+    expect(adminTabOf("/admin/app-versions")).toBe("/admin/app-versions");
+    expect(adminActionLabel("app_release_update")).toBe("앱 버전 변경");
+    expect(adminTargetLabel("app_release", 1)).toBe("앱 버전 #1");
+  });
+});

@@ -22,10 +22,12 @@ import { MeModule } from './me/me.module.js';
 import { NewsModule } from './news/news.module.js';
 import { NoticesModule } from './notices/notices.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { AppReleasesModule } from './app-releases/app-releases.module.js';
 import { PlacesModule } from './places/places.module.js';
 import { PollsModule } from './polls/polls.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PushModule } from './push/push.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { TodosModule } from './todos/todos.module.js';
 import { UserClientsModule } from './user-clients/user-clients.module.js';
 
@@ -51,10 +53,13 @@ import { UserClientsModule } from './user-clients/user-clients.module.js';
     NewsModule,
     NoticesModule,
     AdminModule,
+    ReportsModule,
     MeModule,
     AuthAccountsModule,
     PushModule,
     UserClientsModule,
+    // (#539) 앱 업데이트 안내
+    AppReleasesModule,
   ],
   controllers: [HealthController],
   providers: [

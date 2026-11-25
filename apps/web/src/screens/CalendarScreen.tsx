@@ -23,6 +23,7 @@ import { DaySheet } from "@/components/DaySheet";
 import { ScopeSheet } from "@/components/RecurrenceSheets";
 import { DayView } from "@/components/DayView";
 import { AssistantPanel } from "@/components/AssistantPanel";
+import { NoticeBannerRow } from "@/components/NoticeBannerRow";
 import { StartGuide } from "@/components/StartGuide";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
@@ -326,12 +327,12 @@ export function CalendarScreen({ initialEvent = null }: Props) {
         {/* phone: 같이 쓰기 입구(있을 때만) → "11월" 제목줄 32 (제목 18/700 / 오늘 알약 + ‹ ›).
             넓은 화면도 입구는 제목줄 위에 같은 카드로 */}
         {/* (#278) 팀 만들기 쓰임별 시작 안내(이 기기에 있을 때만)는 같은 카드에서 입구보다 위 */}
-        {(together || group?.type === "TEAM") && (
-          <div className="mb-[22px] rounded-xl bg-paper px-3.5 empty:hidden fold:mb-3 [&>div:last-child]:hidden">
-            {group?.type === "TEAM" && <StartGuide groupId={group.id} />}
-            {together && <TogetherHint hint={together} />}
-          </div>
-        )}
+        {/* (#538) 새 공지 띠(있을 때만)가 맨 위. 줄이 하나도 없으면 카드는 empty:hidden 으로 숨는다 */}
+        <div className="mb-[22px] rounded-xl bg-paper px-3.5 empty:hidden fold:mb-3 [&>div:last-child]:hidden">
+          <NoticeBannerRow />
+          {group?.type === "TEAM" && <StartGuide groupId={group.id} />}
+          {together && <TogetherHint hint={together} />}
+        </div>
         {/* 폰: 진행 중 약속 투표가 있으면 달력 위에 한 줄 카드 (가장 급한 투표 + 나머지 수). 넓은 화면은 사이드바가 같은 줄을 둔다 */}
         <PollSideLine
           groupId={groupId}

@@ -26,6 +26,19 @@ export class NoticesController {
     return this.notices.markSeen(user.id);
   }
 
+  /** (#538) 팝업과 새 공지 띠 (D-291). 로그인만. ':id' 보다 먼저 등록 */
+  @Get('attention')
+  attention(@CurrentUser() user: AuthUser) {
+    return this.notices.attention(user.id);
+  }
+
+  /** (#538) 팝업 닫기. 멱등이라 200 */
+  @Post(':id/dismiss')
+  @HttpCode(200)
+  dismiss(@CurrentUser() user: AuthUser, @IdParam('id') id: number) {
+    return this.notices.dismiss(user.id, id);
+  }
+
   @Get(':id')
   @OptionalAuth()
   get(@OptionalUser() user: AuthUser | null, @IdParam('id') id: number) {

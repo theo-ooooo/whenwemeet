@@ -72,10 +72,16 @@ export const ABSORB_CHECKED_USER_RELATIONS = [
   'hiddenGroups',
   'hiddenEvents',
   'adminActions',
+  // (#536) 한 신고, 처리한 신고 (흡수로 지우면 신고한 사람이 비므로 데이터로 본다)
+  'reports',
+  'resolvedReports',
 ] as const;
 
-/** 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수, (#532) 접속 기종은 User 삭제 Cascade) */
-export const ABSORB_CLEANED_USER_RELATIONS = ['avatar', 'authHandoffs', 'authLinkTickets', 'pushDevices', 'pushDeliveries', 'assistantUsages', 'clients'] as const;
+/**
+ * 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수, (#532) 접속 기종,
+ * (#538) 닫은 팝업 공지는 User 삭제 Cascade)
+ */
+export const ABSORB_CLEANED_USER_RELATIONS = ['avatar', 'authHandoffs', 'authLinkTickets', 'pushDevices', 'pushDeliveries', 'assistantUsages', 'clients', 'noticeDismissals'] as const;
 
 /** 빈 계정의 개인 팀에서 0 이어야 하는 Group 관계. startUsers 는 개인 팀을 고정할 수 없어(D-191) 판정 밖 */
 export const ABSORB_CHECKED_GROUP_RELATIONS = [
@@ -169,6 +175,8 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['hiddenGroups', tx.group.count({ where: { hiddenById: userId } })],
     ['hiddenEvents', tx.event.count({ where: { hiddenById: userId } })],
     ['adminActions', tx.adminAction.count({ where: { adminId: userId } })],
+    ['reports', tx.report.count({ where: { reporterId: userId } })],
+    ['resolvedReports', tx.report.count({ where: { resolvedById: userId } })],
   ];
   // 한 트랜잭션은 연결 하나라 차례로 센다
   for (const [name, count] of counts) {
