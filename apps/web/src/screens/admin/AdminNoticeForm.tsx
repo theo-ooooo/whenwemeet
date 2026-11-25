@@ -72,7 +72,7 @@ function Form({ notice }: { notice: Notice | null }) {
   }
 
   return (
-    <div className="max-w-[720px]">
+    <div className="max-w-[960px]">
       <AdminTitle
         title={notice ? "공지 수정" : "새 공지"}
         sub={notice ? (published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)") : undefined}

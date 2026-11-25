@@ -64,10 +64,13 @@ export function AdminUsersScreen() {
                     {u.role === "admin" ? <StatusBadge tone="warn">관리자</StatusBadge> : <StatusBadge tone="off">사용자</StatusBadge>}
                     {self && <span className="text-[11px] font-bold text-ink-2">나</span>}
                   </span>
-                  <span className="t-sub block">
+                  <span className="t-sub block lg:hidden">
                     가입 {adminDateTime(u.createdAt)}, {providerText(u.providers)}
                   </span>
                 </span>
+                {/* 넓은 화면은 열로 나눈다 */}
+                <span className="hidden w-48 shrink-0 truncate text-[13px] text-ink-2 lg:block">{providerText(u.providers)}</span>
+                <span className="hidden w-36 shrink-0 text-[13px] tabular-nums text-ink-2 lg:block">가입 {adminDateTime(u.createdAt)}</span>
                 <Button
                   size="sm"
                   variant="outline"
