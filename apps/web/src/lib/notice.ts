@@ -49,3 +49,11 @@ export function noticeParagraphs(body: string): NoticeSegment[][] {
 export function noticeDate(publishedAt: string | null): string {
   return publishedAt ? formatDateKo(dateKeyOf(publishedAt), true) : "초안";
 }
+
+/**
+ * (#538) 달력 위 새 공지 띠를 이 기기에서 감추는 안내 키 (lib/hint.ts). 공지마다 따로라 더 새 공지가 오면 다시 보인다 (D-291).
+ * 띠의 ×, 띠를 눌러 연 상세, 같은 공지의 팝업을 닫을 때, 공지 상세를 열 때 감춘다
+ */
+export function noticeBannerKey(id: number): string {
+  return `notice.${id}`;
+}

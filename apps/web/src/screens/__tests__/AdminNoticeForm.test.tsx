@@ -78,4 +78,23 @@ describe("AdminNoticeForm 푸시 (#528)", () => {
     });
     expect(update.mock.calls[0][0]).not.toHaveProperty("push");
   });
+
+  it("(#538) 팝업으로 띄우기: 켜고 게시하면 popup: true, 저장된 값으로 시작한다", async () => {
+    render(<AdminNoticeForm id={null} />);
+    fireEvent.change(screen.getByLabelText(/^제목/), { target: { value: "점검" } });
+    fireEvent.change(screen.getByLabelText("본문"), { target: { value: "새벽 점검" } });
+    const sw = screen.getByRole("switch", { name: /^팝업으로 띄우기/ });
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(sw);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "게시" }));
+    });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ popup: true, published: true }));
+    cleanup();
+
+    notice = { ...base, popup: true };
+    render(<AdminNoticeForm id={7} />);
+    expect(screen.getByRole("switch", { name: /^팝업으로 띄우기/ }).getAttribute("aria-checked")).toBe("true");
+  });
 });
+

@@ -122,6 +122,8 @@ model User {
   adminActions            AdminAction[]
   /// (#532) 접속한 기종과 앱 버전 (기종마다 한 줄, D-288)
   clients                 UserClient[]
+  /// (#538) 내가 닫은 팝업 공지 (D-291)
+  noticeDismissals        NoticeDismissal[]
 }
 
 /// (#515) 관리자 조치 종류 (D-286). 관리자 변경은 모두 한 줄씩 남긴다
@@ -138,6 +140,8 @@ enum AdminActionType {
   event_delete
   /// (#528) 공지 푸시 보냄 (D-287)
   notice_push
+  /// (#539) 앱 최신, 최소 버전, 스토어 주소 변경 (D-292)
+  app_release_update
 }
 
 /// (#515) 조치 대상 종류
@@ -146,6 +150,8 @@ enum AdminTargetType {
   user
   group
   event
+  /// (#539) AppRelease (D-292)
+  app_release
 }
 
 /// (#515) 관리자 조치 기록 (D-286). 대상이 지워져도 남는다(FK 없음, 번호만). 관리자가 탈퇴하면 adminId null
@@ -190,14 +196,31 @@ model Notice {
   publishedAt DateTime?
   /// (#528) 푸시를 보낸(예약한) 시각. 한 공지는 한 번만 보낸다 (D-287)
   pushedAt    DateTime?
+  /// (#538) 앱, 웹을 열 때 한 번 창으로 띄운다. 사용자가 닫으면 NoticeDismissal 이 남는다 (D-291)
+  popup       Boolean    @default(false)
   /// 쓴 관리자. 탈퇴하면 null
   createdById Int?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  /// (#538) 이 팝업을 닫은 사용자들
+  dismissals NoticeDismissal[]
 
   @@index([publishedAt])
+}
+
+/// (#538) 팝업 공지를 닫은 기록 (D-291). 사용자 + 공지당 한 행. 기기가 바뀌어도 다시 띄우지 않는다
+model NoticeDismissal {
+  userId    Int
+  noticeId  Int
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, noticeId])
+  @@index([noticeId])
 }
 
 /// (#450) AI 비서 하루 사용 횟수. 사용자 + KST 날짜당 한 행 (D-269). 대화, 답은 어디에도 저장하지 않는다
@@ -940,6 +963,26 @@ model UserClient {
 
   @@unique([userId, platform])
   @@index([lastSeenAt])
+}
+
+/// (#539) 앱 업데이트 안내의 기종 (D-292)
+enum AppPlatform {
+  ios
+  android
+}
+
+/// (#539) 기종별 앱 최신, 최소 버전과 스토어 주소 (D-292). 관리자 "앱 버전" 화면에서 고친다.
+/// 행이 없거나 버전이 null 이면 안내하지 않는다. 스토어 주소가 null 이면 코드의 기본 주소
+model AppRelease {
+  id            Int         @id @default(autoincrement())
+  platform      AppPlatform @unique
+  /// 이보다 낮으면 "새 버전이 나왔어요" (버전마다 한 번, 닫을 수 있음)
+  latestVersion String?     @db.VarChar(32)
+  /// 이보다 낮으면 "업데이트가 필요해요" (닫을 수 없음). latestVersion 보다 높을 수 없다
+  minVersion    String?     @db.VarChar(32)
+  storeUrl      String?     @db.VarChar(500)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 /// (#188) 알림 종류. 내 정보 > 알림 의 토글과 대응 (WEEKLY 는 변형마다 토글이 따로, D-204)

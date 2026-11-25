@@ -810,16 +810,18 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
 - 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
-### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287)
+### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287, #538 D-291)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
 | GET | `/notices` | 선택 | `limit?`(1~50, 기본 20), `cursor?` | `{ data: { items: NoticeListItem[], nextCursor } }` 게시된 것만, 고정 먼저 게시 시각 내림차순 |
 | GET | `/notices/:id` | 선택 | - | `{ data: Notice }`. 초안은 관리자만, 그 밖은 404 NOT_FOUND |
 | POST | `/notices/seen` | 유저 | - | `{ data: { noticesSeenAt } }`. 멱등이라 200. 화면은 목록을 받은 뒤 부른다 (GET → POST) |
+| GET | `/notices/attention` | 유저 | - | (#538) `{ data: { popup: NoticePopup \| null, banner: NoticeBanner \| null } }`. popup 은 닫지 않은 게시된 팝업 공지 중 게시 시각이 가장 늦은 것, banner 는 `noticesSeenAt` 보다 늦게 게시된 공지 중 가장 최근 것 (D-291) |
+| POST | `/notices/:id/dismiss` | 유저 | - | (#538) `{ data: { ok: true } }`. 팝업을 닫았다. 멱등이라 200. 없거나 초안이면 404 NOT_FOUND |
 | GET | `/admin/notices` | 관리자 | `limit?`, `cursor?` | `{ data: { items: Notice[], nextCursor } }` 초안 포함, id 내림차순 |
 | GET | `/admin/notices/:id` | 관리자 | - | `{ data: Notice }` |
-| POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published?, push? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안. (#528) `push: true` 는 `published: true` 일 때만(아니면 400 VALIDATION_FAILED `field: 'push'`), 전체 푸시를 예약한다 |
+| POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published?, push?, popup? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안. (#528) `push: true` 는 `published: true` 일 때만(아니면 400 VALIDATION_FAILED `field: 'push'`), 전체 푸시를 예약한다 |
 | PATCH | `/admin/notices/:id` | 관리자 | 같은 필드 모두 선택 | `{ data: Notice }`. `published: true` 는 초안일 때만 지금 게시(이미 게시면 시각 유지), `false` 는 게시 취소. (#528) `push: true` 는 고친 결과가 게시 상태일 때만(아니면 400 `field: 'push'`), 이미 보낸 공지면 409 NOTICE_ALREADY_PUSHED 이고 아무것도 바꾸지 않는다 |
 | DELETE | `/admin/notices/:id` | 관리자 | - | `{ data: { ok: true } }` |
 | GET | `/admin/users` | 관리자 | `q?`(닉네임 부분 일치, 50자), `platform?`((#528) `ios` \| `android` \| `web`, 그 밖 400), `limit?`, `cursor?` | `{ data: { items: AdminUser[], nextCursor } }` id 내림차순 |
@@ -840,7 +842,9 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 ```ts
 NoticeKind     = 'notice' | 'update' | 'maintenance'
 NoticeListItem = { id, title, kind: NoticeKind, pinned, publishedAt, unread: boolean }   // 본문 없음. 익명은 unread 늘 false
-Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, pushedAt: string | null, createdAt, updatedAt }   // publishedAt null = 초안. (#528) pushedAt null = 푸시 안 보냄
+Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, pushedAt: string | null, popup: boolean, createdAt, updatedAt }   // publishedAt null = 초안. (#528) pushedAt null = 푸시 안 보냄. (#538) popup = 앱, 웹을 열 때 한 번 창으로
+NoticeBanner   = { id, title, kind: NoticeKind, publishedAt }   // (#538)
+NoticePopup    = NoticeBanner & { preview: string }             // (#538) 본문 첫 문단(빈 줄 앞), 200자 넘으면 자르고 …
 AdminUser      = { id, nickname, role: 'user' | 'admin', createdAt, providers: AuthProvider[],
                    platforms: ('ios' | 'android' | 'web')[],                        // (#528) 아래 "쓰는 곳"
                    platformLastSeen: { platform: 'ios' | 'android' | 'web', appVersion: string | null, lastSeenAt }[], // (#528, #532) 기종마다 앱 버전과 마지막 접속
@@ -852,7 +856,7 @@ AdminGroupDetail = AdminGroup & { members: { userId, nickname, displayName, join
 AdminEvent     = { id, title, group: { id, name, hidden, type, owner: AdminPerson | null /* (#528) */ }, startsAt, endsAt, allDay, repeat, creator: { id, nickname } | null, createdAt, hidden: Hidden | null }
 AdminUserNotifications = { settings: NotificationSettings /* 내 정보 > 알림 과 같은 모양(푸시-알림.md 7-1), 공지 포함 */,
                            devices: { platform: 'IOS' | 'ANDROID', appVersion, createdAt, lastSeenAt }[] /* 토큰 없음, 마지막 확인 내림차순 */ }   // (#528)
-AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event', targetId, reason: string | null, createdAt, admin: { id, nickname } | null }
+AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event' | 'app_release' /* (#539) */, targetId, reason: string | null, createdAt, admin: { id, nickname } | null }
 ```
 
 - 인증 열 `선택` 은 토큰이 없거나 틀려도 익명으로 답한다(401 없음). `관리자` 는 `User.role = 'admin'` 이고 가드가 매 요청 DB 역할을 읽는다. 아니면 403 FORBIDDEN "관리자만 할 수 있어요" (D-285)
@@ -865,7 +869,24 @@ AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event'
 - (#528, D-287) 공지 푸시: `push: true` 가 받아들여지면 같은 트랜잭션에서 `Notice.pushedAt = 지금` 과 `PushNotification { kind NOTICE, dedupeKey N:{id}, groupId null }` 을 만들고 조치 기록 `notice_push` 를 남긴 뒤 푸시 틱을 한 번 깨운다. 요청 안에서 기기로 보내지 않는다. 한 공지는 한 번만: 이미 보냈으면 409, 동시에 두 요청이 와도 하나만 된다(`pushedAt IS NULL` 조건부 갱신). 게시 취소 뒤 다시 게시해도 다시 보내지 않는다. 받는 사람과 문구는 푸시-알림.md 16장
 - (#528) 쓰는 곳: 앱이 기종을 남기는 곳은 푸시 기기(`PushDevice.platform`)뿐이다(앱 로그인 기록 `lastAppLoginAt` 에는 기종이 없고, UA 는 저장하지 않는다). 기기가 있으면 그 기종들(ios 먼저), 기기도 앱 로그인 기록도 없으면 `['web']`(웹만), 앱 로그인 기록만 있으면 `[]`(앱을 쓰지만 알림을 허용하지 않아 기종 모름). 필터 `web` 은 기기도 앱 로그인 기록도 없는 사람. 앱 로그인 기록은 #188(1.1) 뒤부터라 그 전에만 앱으로 로그인한 사람은 웹만으로 보일 수 있다
 - (#532, D-288) 쓰는 곳은 접속 기록(`UserClient`)을 먼저 본다. 기종마다 접속 기록이 있으면 그 앱 버전과 마지막 접속, 없는 ios, android 는 그 기종 푸시 기기 중 마지막 확인이 가장 늦은 것(그 기기의 앱 버전). `platforms` 는 그렇게 나온 기종들(ios, android, web 순)이고, 하나도 없으면 위 #528 규칙(앱 로그인 기록 없으면 `['web']`, 있으면 `[]`). 필터 `ios`, `android` 는 그 기종 접속 기록이나 푸시 기기가 있는 사람, `web` 은 웹 접속 기록이 있거나 아무 기록도 앱 로그인 기록도 없는 사람(목록의 `platforms` 에 web 이 들어가는 사람과 같다). 과거 기록은 없어 배포 뒤 접속한 사람부터 쌓인다
+- (#538, D-291) 팝업: 관리자가 `popup: true` 로 둔 게시된 공지. 사용자가 닫으면(`POST /notices/:id/dismiss`) `NoticeDismissal` 한 행이 남아 기기가 바뀌어도 다시 띄우지 않고, 그다음으로 늦은 닫지 않은 팝업 공지가 있으면 그것이 다음에 뜬다. 웹은 팀 화면 뼈대에서 한 번 띄우고 [자세히 보기], [닫기] 둘 다 닫은 기록을 남긴다("다시 보지 않기" 를 따로 두지 않음). 공지 목록 seen 은 팝업에 영향이 없다. 띠는 seen 으로 사라지고, 그 밖에는 웹이 공지별로 이 기기에서 감춘다(×, 상세 열기)
 - (#528) 개인 달력은 이름이 모두 "내 달력" 이라 관리자 화면은 `owner` 로 "{닉네임}의 개인 달력" 이라 부른다
+
+### 2.17 앱 업데이트 안내 (#539, D-292)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/app/version` | 없음 | `platform`(`ios` \| `android`, 그 밖 400) | `{ data: AppRelease }` |
+| GET | `/admin/app-releases` | 관리자 | - | `{ data: AppRelease[] }` ios, android 순으로 둘 다(정하지 않은 기종은 버전 null) |
+| PUT | `/admin/app-releases/:platform` | 관리자 | `{ latestVersion?, minVersion?, storeUrl? }` 각 문자열 또는 null(지움), 생략은 그대로 | `{ data: AppRelease }`. 버전은 숫자 1~3마디(`1.4.0`), storeUrl 은 https 500자 이하, 아니면 400. 고친 결과의 최소가 최신보다 높으면 400 VALIDATION_FAILED `field: minVersion`. 조치 기록 `app_release_update`(대상 `app_release`, id 는 AppRelease.id) |
+
+```ts
+AppRelease = { platform: 'ios' | 'android', latestVersion: string | null, minVersion: string | null, storeUrl: string /* 정하지 않았으면 기본 스토어 주소 */, updatedAt: string | null /* 한 번도 안 고쳤으면 null */ }
+```
+
+- 버전 비교는 마디마다 숫자(1.10.0 > 1.9.0), 없는 마디는 0, `-`, `+` 뒤 꼬리는 버린다(API `app-releases/app-version.ts`, 웹 `lib/app-version.ts` 같은 규칙)
+- 웹은 앱 셸 UA 일 때만 부른다. 앱 버전 < minVersion 이면 닫을 수 없는 "업데이트가 필요해요", < latestVersion 이면 닫을 수 있는 "새 버전이 나왔어요"(최신 버전마다 기기에서 한 번). 값이 null 이면 그 안내 없음
+- 목(`API_MOCK=1`)은 두 기종 모두 최신 1.4.0, 최소 1.1.0 으로 시드한다. 브라우저 개발자 도구(또는 CDP `Network.setUserAgentOverride`)로 User-Agent 끝에 `WhenwemeetApp/1.3.0 (ios)` 를 붙이면 띠, `WhenwemeetApp/1.0.0 (ios)` 면 꼭 업데이트 창이 보인다. 목 사용자는 처음에 점검 안내(#538) 팝업도 본다
 
 ## 3. 기획 기능 → API 추적
 
@@ -899,6 +920,8 @@ AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event'
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
 | 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
 | 공지사항, 새 공지 점 (#515) | `GET /notices`, `GET /notices/:id`, `POST /notices/seen`, `GET /me` 의 `hasUnreadNotice` |
+| 중요 공지 팝업, 달력 위 새 공지 띠 (#538) | `GET /notices/attention`, `POST /notices/:id/dismiss`, 관리자 공지의 `popup` |
+| 앱 업데이트 안내 (#539) | `GET /app/version`, `GET /admin/app-releases`, `PUT /admin/app-releases/:platform` (2.17) |
 | 관리자 화면 (#515) | 2.16 `/admin/*` 전부, `GET /me` 의 `role`, `isAdmin` |
 | AI 비서 볼까 (#450) | 2.15 전부, `GET /me` 의 `assistant`, 저장은 `POST /groups/:id/events`, `POST /groups/:id/polls`, (#511) 고치기, 지우기는 `PATCH`, `DELETE /groups/:id/events/:eventId` |
 

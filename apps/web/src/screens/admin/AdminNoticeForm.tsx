@@ -1,6 +1,7 @@
 "use client";
 // (#515) 관리자 공지 작성, 수정 (D-285). 제목, 종류, 상단 고정, 본문(일반 텍스트: 빈 줄 = 문단, https 주소 = 링크).
 // 새 공지: [초안 저장] [게시]. 초안: [초안 저장] [게시]. 게시된 공지: [게시 취소] [저장]. 삭제는 확인 창
+// (#538) "팝업으로 띄우기": 게시된 동안 앱, 웹을 열 때 한 번 창으로 (D-291). 초안에서도 켤 수 있다
 // (#528) "푸시로도 알리기": 켜고 [게시]/[저장] 하면 확인 창 뒤 전체 푸시 (D-287). [초안 저장], [게시 취소] 에는 보내지 않는다.
 //   한 공지는 한 번만이라 이미 보냈으면 켜진 채 잠기고 "푸시 보냄: 날짜". 서버가 409 를 주면(다른 관리자가 먼저 보냄) 그 문구를 보인다
 import Link from "next/link";
@@ -35,6 +36,7 @@ function Form({ notice }: { notice: Notice | null }) {
   const [title, setTitle] = useState(notice?.title ?? "");
   const [kind, setKind] = useState<NoticeKind>(notice?.kind ?? "notice");
   const [pinned, setPinned] = useState(notice?.pinned ?? false);
+  const [popup, setPopup] = useState(notice?.popup ?? false);
   const [body, setBody] = useState(notice?.body ?? "");
   const [preview, setPreview] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -70,7 +72,7 @@ function Form({ notice }: { notice: Notice | null }) {
       setError("제목과 본문을 입력해 주세요");
       return;
     }
-    const input: NoticeInput = { title: title.trim(), body, kind, pinned, published: publish, ...(withPush ? { push: true } : {}) };
+    const input: NoticeInput = { title: title.trim(), body, kind, pinned, popup, published: publish, ...(withPush ? { push: true } : {}) };
     const r = notice ? await update.mutate({ id: notice.id, ...input }) : await create.mutate(input);
     setConfirmPush(false);
     if (!r.ok) {
@@ -119,6 +121,8 @@ function Form({ notice }: { notice: Notice | null }) {
         </div>
         <RowGroup inset>
           <ToggleRow label="상단 고정" description="목록 맨 위에 보여요" checked={pinned} onChange={setPinned} />
+          {/* (#538) 앱, 웹을 열 때 한 번 창으로 (D-291) */}
+          <ToggleRow label="팝업으로 띄우기" description="앱, 웹을 열 때 한 번 창으로 보여요" checked={popup} onChange={setPopup} />
           {pushedAt ? (
             <ToggleRow label="푸시로도 알리기" description={`푸시 보냄: ${adminDateTime(pushedAt)}`} checked disabled onChange={() => {}} />
           ) : (

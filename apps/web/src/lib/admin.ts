@@ -7,6 +7,8 @@ export const ADMIN_TABS = [
   { href: "/admin/teams", label: "팀" },
   { href: "/admin/events", label: "일정" },
   { href: "/admin/logs", label: "기록" },
+  // (#539) 기종별 앱 최신, 최소 버전 (D-292)
+  { href: "/admin/app-versions", label: "앱 버전" },
 ] as const;
 
 /** 지금 주소에 맞는 탭 (하위 주소 포함). 없으면 null */
@@ -27,13 +29,15 @@ const ACTION_LABEL: Record<string, string> = {
   event_hide: "일정 숨김",
   event_unhide: "일정 숨김 해제",
   event_delete: "일정 삭제",
+  // (#539)
+  app_release_update: "앱 버전 변경",
 };
 
 export function adminActionLabel(action: string): string {
   return ACTION_LABEL[action] ?? action;
 }
 
-const TARGET_LABEL: Record<string, string> = { notice: "공지", user: "사용자", group: "팀", event: "일정" };
+const TARGET_LABEL: Record<string, string> = { notice: "공지", user: "사용자", group: "팀", event: "일정", app_release: "앱 버전" };
 
 export function adminTargetLabel(type: string, id: number): string {
   return `${TARGET_LABEL[type] ?? type} #${id}`;

@@ -156,4 +156,38 @@ describe("목 관리자 사용자 쓰는 곳 (#528, #532)", () => {
     expect(call("GET", "/admin/users", ME_ID, null, "platform=IOS").status).toBe(400);
     expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android", "web"] });
   });
+
+  describe("팝업과 새 공지 띠 (#538)", () => {
+    type Attention = { popup: { id: number; preview: string } | null; banner: { id: number } | null };
+    const attention = (userId = ME_ID) => call("GET", "/notices/attention", userId).body.data as unknown as Attention;
+
+    it("시드: 점검 안내가 팝업(첫 문단), 띠는 본 시각 이후 가장 최근 공지", () => {
+      const got = attention();
+      expect(got.popup).toMatchObject({ id: 2, preview: "11월 30일(일) 새벽 2시부터 4시까지 서버를 점검해요." });
+      expect(got.banner).toMatchObject({ id: 2 });
+      expect(call("GET", "/notices/attention", null).status).toBe(401);
+    });
+
+    it("닫기: 멱등, 그 사용자만. 초안과 없는 공지는 404. seen 은 띠만 지운다", () => {
+      expect(call("POST", "/notices/2/dismiss").status).toBe(200);
+      expect(call("POST", "/notices/2/dismiss").status).toBe(200);
+      expect(attention().popup).toBeNull();
+      expect(attention(MOM_ID).popup).toMatchObject({ id: 2 });
+      expect(call("POST", "/notices/3/dismiss").status).toBe(404);
+      expect(call("POST", "/notices/999/dismiss").status).toBe(404);
+      call("POST", "/notices/seen");
+      expect(attention().banner).toBeNull();
+    });
+
+    it("관리자 popup: 기본 false, 저장되고 게시하면 닫은 사람에게도 새 팝업이 뜬다", () => {
+      call("POST", "/notices/2/dismiss");
+      const plain = call("POST", "/admin/notices", ME_ID, { title: "일반", body: "b", kind: "notice", published: true });
+      expect(plain.body.data.popup).toBe(false);
+      expect(call("POST", "/admin/notices", ME_ID, { title: "x", body: "b", kind: "notice", popup: "y" }).status).toBe(400);
+      const id = plain.body.data.id as number;
+      expect(call("PATCH", `/admin/notices/${id}`, ME_ID, { popup: true }).body.data.popup).toBe(true);
+      expect(attention().popup).toMatchObject({ id });
+    });
+  });
 });
+

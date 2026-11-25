@@ -60,12 +60,16 @@ export type NoticeRow = {
   publishedAt: string | null;
   /** (#528) 푸시를 보낸 시각 */
   pushedAt: string | null;
+  /** (#538) 앱, 웹을 열 때 한 번 창으로 */
+  popup: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
 /** (#515) 목 관리자 조치 기록 */
-export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event"; targetId: number; reason: string | null; createdAt: string };
+export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event" | "app_release"; targetId: number; reason: string | null; createdAt: string };
+/** (#539) 목 기종별 앱 최신, 최소 버전 (D-292) */
+export type AppReleaseRow = { id: number; platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string | null; updatedAt: string };
 /** (#515) 목 운영 숨김 (D-286) */
 export type MockHidden = { reason: string; hiddenAt: string; hiddenById: number };
 export type GroupRow = {
@@ -225,6 +229,10 @@ export type Store = {
   assistant?: { consent: Record<number, string>; usage: Record<number, { day: string; count: number }> };
   /** (#515) 공지, 관리자 조치 기록. 없으면 빈 목록 */
   notices?: NoticeRow[];
+  /** (#539) 기종별 앱 최신, 최소 버전 */
+  appReleases?: AppReleaseRow[];
+  /** (#538) 팝업 공지를 닫은 기록 */
+  noticeDismissals?: { userId: number; noticeId: number }[];
   adminLogs?: AdminLogRow[];
   seq: number;
 };
@@ -694,6 +702,7 @@ export function buildStore(): Store {
       publishedAt: hoursAgo(24 * 3),
       // (#528) 이 공지는 푸시로도 보냈다
       pushedAt: hoursAgo(24 * 3),
+      popup: false,
       createdAt: hoursAgo(24 * 3),
       updatedAt: hoursAgo(24 * 3),
     },
@@ -705,6 +714,8 @@ export function buildStore(): Store {
       pinned: false,
       publishedAt: hoursAgo(20),
       pushedAt: null,
+      // (#538) 점검 안내는 팝업으로 띄운다. 나는 아직 닫지 않아 앱을 열면 한 번 뜬다
+      popup: true,
       createdAt: hoursAgo(20),
       updatedAt: hoursAgo(20),
     },
@@ -716,6 +727,7 @@ export function buildStore(): Store {
       pinned: false,
       publishedAt: null,
       pushedAt: null,
+      popup: false,
       createdAt: hoursAgo(2),
       updatedAt: hoursAgo(2),
     },
@@ -747,7 +759,14 @@ export function buildStore(): Store {
     { userId: 11, platform: "web", appVersion: null, firstSeenAt: hoursAgo(24 * 2), lastSeenAt: hoursAgo(24 * 2) },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, adminLogs: [], seq: 100 };
+  // (#539) 앱 버전: 두 기종 모두 최신 1.4.0, 최소 1.1.0. 앱 UA 로 열면 1.3.x 는 "새 버전이 나왔어요", 1.0.x 는 "업데이트가 필요해요"
+  //   (브라우저 개발자 도구나 CDP 로 User-Agent 끝에 `WhenwemeetApp/1.3.0 (ios)` 를 붙여 확인한다. api.md 2.17)
+  const appReleases: AppReleaseRow[] = [
+    { id: 1, platform: "ios", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: null, updatedAt: hoursAgo(24) },
+    { id: 2, platform: "android", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: null, updatedAt: hoursAgo(24) },
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, appReleases, adminLogs: [], seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */
