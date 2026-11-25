@@ -14,7 +14,7 @@ import { AdminMore, StatusBadge } from "./AdminMore";
 
 type TypeFilter = "all" | ReportTargetType;
 const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
-  { value: "all", label: "전체" },
+  { value: "all", label: "모든 대상" },
   { value: "group", label: "팀" },
   { value: "event", label: "일정" },
   { value: "user", label: "사용자" },
@@ -49,15 +49,15 @@ export function AdminReportsScreen() {
   return (
     <div>
       <AdminTitle title="신고" sub="같은 대상의 신고는 한 줄로 묶어요. 처리하면 그 대상의 접수 중 신고가 모두 닫혀요" />
-      <div className="mb-3 flex flex-col gap-2 fold:flex-row fold:items-center">
+      <div className="mb-3 flex flex-col gap-3 fold:flex-row fold:items-end fold:gap-6">
         <div className="fold:w-[360px] fold:shrink-0">
-          <span id="admin-report-status" className="sr-only">
+          <span id="admin-report-status" className="mb-1 block px-1 text-[12px] font-semibold text-ink-2">
             상태
           </span>
           <Segmented labelledBy="admin-report-status" value={status} options={ADMIN_REPORT_FILTERS} onChange={(v: AdminReportFilter) => setParam("status", v, "open")} />
         </div>
-        <div className="fold:w-[300px] fold:shrink-0">
-          <span id="admin-report-type" className="sr-only">
+        <div className="fold:w-[340px] fold:shrink-0">
+          <span id="admin-report-type" className="mb-1 block px-1 text-[12px] font-semibold text-ink-2">
             대상 종류
           </span>
           <Segmented labelledBy="admin-report-type" value={type} options={TYPE_FILTERS} onChange={(v) => setParam("type", v, "all")} />
