@@ -14,7 +14,8 @@ import { confirmLeave } from "@/lib/leave-guard";
 import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, pollCodeOf, routeInfo } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
-import { GroupHiddenNotice } from "./GroupHiddenNotice";
+import { GroupHiddenModal } from "./GroupHiddenModal";
+import { pickStartGroupId } from "@/lib/start-calendar";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
@@ -89,6 +90,16 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
       setGroupId(id);
       if (to !== null) router.push(to);
     });
+  }
+
+  /**
+   * (#515) 숨긴 팀에서 다른 팀 열기. 숨기지 않은 팀 중 팀이 사라졌을 때와 같은 규칙(개인 달력 먼저)으로 고르고,
+   * 열 팀이 없으면 팀이 하나도 없을 때처럼 새 팀 만들기로
+   */
+  function openOtherTeam() {
+    const next = pickStartGroupId((groups ?? []).filter((g) => !g.hidden), null, null);
+    if (next === null) router.replace("/groups/new");
+    else switchTo(next);
   }
 
   // + 버튼: 달력에서 고른 날(쿼리 date), 없으면 오늘 10:00~11:00
@@ -196,9 +207,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             }`}
           >
             {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
-            {hidden ? (
-              <GroupHiddenNotice reason={hidden.reason} onSwitchTeam={() => setSwitcher(true)} />
-            ) : value !== null && !resolvingTeam ? (
+            {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
+            {hidden ? null : value !== null && !resolvingTeam ? (
               <Fragment key={groupId}>{children}</Fragment>
             ) : (
               <div className="space-y-3 pt-1" aria-busy="true" aria-label="불러오는 중">
@@ -245,6 +255,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         </div>
       </div>
 
+      {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
       <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
         <ul className="flex flex-col gap-1">
           {(groups ?? []).map((g) => {
