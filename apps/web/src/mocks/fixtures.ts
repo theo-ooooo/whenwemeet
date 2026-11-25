@@ -62,12 +62,16 @@ export type NoticeRow = {
 
 /** (#515) 목 관리자 조치 기록 */
 export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event"; targetId: number; reason: string | null; createdAt: string };
+/** (#515) 목 운영 숨김 (D-286) */
+export type MockHidden = { reason: string; hiddenAt: string; hiddenById: number };
 export type GroupRow = {
   id: number;
   type: GroupType;
   name: string;
   inviteCode: string | null;
   createdAt: string;
+  /** (#515) 운영 숨김. 없으면 정상 */
+  hidden?: MockHidden | null;
 };
 export type MembershipRow = {
   userId: number;
@@ -99,6 +103,8 @@ export type EventRow = {
   repeatAnchor?: string | null;
   /** (#187) "이 일정만" 예외. 원래 회차 날짜 기준 */
   exceptions: MockException[];
+  /** (#515) 운영 숨김. 없으면 정상 */
+  hidden?: MockHidden | null;
   /** (#188) 알림. 없으면 NONE */
   reminder?: EventReminder;
   /** (#248) true(또는 없음) = "모두". 기존 시드는 DB 기본값처럼 모두 (설계 2-1) */

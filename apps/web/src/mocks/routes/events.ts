@@ -47,7 +47,8 @@ function eventSearch(s: Store, userId: number, query: URLSearchParams): MockResu
     return out;
   };
   const items: { event: EventOut; matched: ("title" | "memo" | "place")[] }[] = [];
-  for (const e of s.events.filter((x) => groupIds.includes(x.groupId))) {
+  // (#515) 숨긴 일정은 검색에서 뺀다
+  for (const e of s.events.filter((x) => groupIds.includes(x.groupId) && !x.hidden)) {
     if (!e.repeat) {
       const matched = fields(e);
       if (matched.length) items.push({ event: eventOut(s, e), matched });
@@ -100,7 +101,7 @@ export function eventCodeRoute(req: AuthedReq): MockResult | null {
   if (seg[0] === "events" && seg.length === 2 && method === "GET") {
     const code = seg[1].toLowerCase();
     const e = s.events.find((x) => mockEventCode(x.id) === code);
-    if (!e || !s.memberships.some((m) => m.groupId === e.groupId && m.userId === userId)) return err(404, "NOT_FOUND", "일정을 찾을 수 없어요");
+    if (!e || e.hidden || !s.memberships.some((m) => m.groupId === e.groupId && m.userId === userId)) return err(404, "NOT_FOUND", "일정을 찾을 수 없어요");
     return handle({ ...ctx, path: `/groups/${e.groupId}/events/${e.id}` });
   }
   return null;
@@ -162,7 +163,7 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       if (to - from > 62 * DAY_MS) return err(400, "EVENT_RANGE_INVALID", "조회 기간은 62일 이내예요");
       // 반복 원본은 기간 안 회차로 펼친다 (#187)
       const list = s.events
-        .filter((e) => e.groupId === groupId)
+        .filter((e) => e.groupId === groupId && !e.hidden)
         .flatMap((e) =>
           e.repeat
             ? expand(e as RepeatRow, e.exceptions, from, to).map((o) => eventOut(s, e, o))
@@ -219,7 +220,7 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
     }
     const eventId = parseId(rest[1]);
     if (eventId === null) return err(400, "VALIDATION_FAILED", "eventId 은(는) 양의 정수여야 해요");
-    const e = s.events.find((x) => x.id === eventId && x.groupId === groupId);
+    const e = s.events.find((x) => x.id === eventId && x.groupId === groupId && !x.hidden);
     if (!e) return err(404, "NOT_FOUND", "이미 삭제된 일정이에요");
 
     // 한 번짜리 (예전 그대로. occurrence, scope 는 무시)

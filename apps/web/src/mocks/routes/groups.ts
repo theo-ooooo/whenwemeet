@@ -63,7 +63,9 @@ export function groupsRoute(req: AuthedReq): MockResult | null {
           publicCode: mockGroupCode(grp.id),
           memberCount: s.memberships.filter((x) => x.groupId === grp.id).length,
           me: { color: m.color, displayName: memberOf(s, grp.id, userId).displayName },
-          unreadNewsCount: unread(s, grp.id, userId),
+          unreadNewsCount: grp.hidden ? 0 : unread(s, grp.id, userId),
+          // (#515) 운영 숨김 (D-286)
+          hidden: grp.hidden ? { reason: grp.hidden.reason, hiddenAt: grp.hidden.hiddenAt } : null,
         }));
       return ok(mine);
     }
@@ -95,7 +97,7 @@ export function joinRoute(req: AuthedReq): MockResult | null {
   const { s, method, seg, body, userId } = req;
   if (seg[0] === "groups" && seg[1] === "join" && method === "POST") {
     const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
-    const grp = s.groups.find((x) => x.inviteCode === code);
+    const grp = s.groups.find((x) => x.inviteCode === code && !x.hidden);
     if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
     if (!s.memberships.find((m) => m.groupId === grp.id && m.userId === userId)) {
       s.memberships.push({

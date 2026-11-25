@@ -1,5 +1,6 @@
 "use client";
 // (#515) 관리자 사용자 목록 (최근 가입 먼저, 닉네임 검색) 과 역할 바꾸기. 내 역할은 바꿀 수 없다(버튼 끔, API 도 403)
+import Link from "next/link";
 import { useState } from "react";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { IconSearch } from "@/components/icons";
@@ -56,7 +57,9 @@ export function AdminUsersScreen() {
                 <span className="w-12 shrink-0 text-[12px] tabular-nums text-ink-2">#{u.id}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
-                    <b className="truncate text-[14px] font-semibold">{u.nickname}</b>
+                    <Link href={`/admin/users/${u.id}`} className="truncate text-[14px] font-semibold underline-offset-2 hover:underline">
+                      {u.nickname}
+                    </Link>
                     {u.role === "admin" ? <StatusBadge tone="warn">관리자</StatusBadge> : <StatusBadge tone="off">사용자</StatusBadge>}
                     {self && <span className="text-[11px] font-bold text-ink-2">나</span>}
                   </span>

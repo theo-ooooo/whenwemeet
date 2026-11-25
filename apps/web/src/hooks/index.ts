@@ -27,7 +27,7 @@ export { usePlaceSearch } from "./usePlaceSearch";
 export { usePlaceResolve } from "./usePlaceResolve";
 export { useEventSearch } from "./useEventSearch";
 export { useNotices, type NoticeInput } from "./useNotices";
-export { useAdminNotices, useAdminNotice, useAdminUsers, useAdminLogs } from "./useAdmin";
+export { useAdminNotices, useAdminNotice, useAdminUsers, useAdminUser, useAdminLogs, useAdminGroups, useAdminGroup, useAdminEvents, useAdminEvent } from "./useAdmin";
 export type { PagedResult } from "./_usePaged";
 
 // 변경
@@ -51,7 +51,7 @@ export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoI
 export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
 export { useMarkNoticesSeen } from "./useNotices";
-export { useCreateNotice, useUpdateNotice, useDeleteNotice, useUpdateUserRole } from "./useAdmin";
+export { useCreateNotice, useUpdateNotice, useDeleteNotice, useUpdateUserRole, useHideTarget, useUnhideTarget, useDeleteTarget } from "./useAdmin";
 export { useSendAssistantMessage, useAssistantConsent } from "./useAssistant";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
@@ -64,4 +64,4 @@ export { useRegisterPushDevice, useRemovePushDevice, type PushDeviceInput } from
 export { useRequestEmailLogin, useVerifyEmailCode, useEmailSignup, type EmailRequestResult } from "./useEmailLogin";
 
 // 공통 이벤트
-export { useGroupGone } from "./useGroupGone";
+export { useGroupGone, useGroupHidden } from "./useGroupGone";

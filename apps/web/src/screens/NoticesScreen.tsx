@@ -1,7 +1,8 @@
 "use client";
-// (#515) 공지 목록 (공개, D-285). 로그인 없이도 열린다. 로그인했으면 새 공지에 코랄 점, 목록을 받은 뒤 본 시각을 기록한다(GET → POST)
+// (#515) 공지 목록 (공개, D-285). 로그인 없이도 열린다. 로그인했으면 새 공지에 코랄 점, 목록을 받은 뒤 본 시각을 기록한다(GET → POST).
+// 본 시각을 기록하면 뒤에서 다시 받은 목록은 모두 읽음이라, 이 화면에 있는 동안은 처음 받은 새 공지 표시를 그대로 둔다
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconMegaphone } from "@/components/icons";
 import { NoticeKindBadge, PinnedBadge } from "@/components/NoticeKindBadge";
 import { Button, EmptyState, ErrorState, SkeletonList } from "@/components/ui";
@@ -14,6 +15,9 @@ export function NoticesScreen({ initial, loggedIn }: { initial: Page<NoticeListI
   const { mutate: markSeen } = useMarkNoticesSeen();
   const marked = useRef(false);
   const hasItems = q.items !== null;
+  // 처음 받은 목록에서 새 공지였던 번호 (seen 뒤 다시 받아도 이 방문 동안 점을 유지)
+  const [firstUnread, setFirstUnread] = useState<Set<number> | null>(() => (initial ? unreadIds(initial.items) : null));
+  if (firstUnread === null && q.items) setFirstUnread(unreadIds(q.items));
 
   useEffect(() => {
     if (!loggedIn || !hasItems || marked.current) return;
@@ -41,7 +45,7 @@ export function NoticesScreen({ initial, loggedIn }: { initial: Page<NoticeListI
                 <span className="flex flex-wrap items-center gap-1.5">
                   {n.pinned && <PinnedBadge />}
                   <NoticeKindBadge kind={n.kind} />
-                  {n.unread && (
+                  {(n.unread || firstUnread?.has(n.id)) && (
                     <span className="flex items-center gap-1 text-[11px] font-bold text-acc-ink">
                       <i aria-hidden="true" className="block size-1.5 rounded-full bg-pri" />새 공지
                     </span>
@@ -63,4 +67,8 @@ export function NoticesScreen({ initial, loggedIn }: { initial: Page<NoticeListI
       )}
     </div>
   );
+}
+
+function unreadIds(items: NoticeListItem[]): Set<number> {
+  return new Set(items.filter((n) => n.unread).map((n) => n.id));
 }

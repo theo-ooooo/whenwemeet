@@ -48,3 +48,28 @@ describe("목 공지사항, 관리자 (#515)", () => {
     expect(page.body.data.nextCursor).not.toBeNull();
   });
 });
+
+describe("목 팀, 일정 숨김 (#515, D-286)", () => {
+  beforeEach(() => resetStore());
+
+  it("팀 숨기기: 팀 경로 403 GROUP_HIDDEN, 목록엔 hidden, 나가기는 된다, 해제하면 돌아온다", () => {
+    expect(call("POST", "/admin/groups/4/hide", ME_ID, { reason: " " }).status).toBe(400);
+    expect(call("POST", "/admin/groups/4/hide", ME_ID, { reason: "광고" }).body.data.hidden).toMatchObject({ reason: "광고" });
+    const blocked = mockHandle({ method: "GET", path: "/groups/4", query: new URLSearchParams(), body: null, userId: ME_ID }) as { status: number; body: { error: { code: string } } };
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("GROUP_HIDDEN");
+    const groups = call("GET", "/groups").body.data as unknown as { id: number; hidden: { reason: string } | null }[];
+    expect(groups.find((g) => g.id === 4)?.hidden).toMatchObject({ reason: "광고" });
+    expect(call("POST", "/admin/groups/4/unhide").status).toBe(200);
+    expect(call("GET", "/groups/4").status).toBe(200);
+  });
+
+  it("일정 숨기기: 목록과 상세에서 빠지고, 관리자 목록에는 숨김으로", () => {
+    expect(call("POST", "/admin/events/3/hide", ME_ID, { reason: "스팸" }).status).toBe(200);
+    expect(call("GET", "/groups/2/events/3").status).toBe(404);
+    const list = call("GET", "/admin/events", ME_ID, null, "q=영화");
+    expect(list.body.data.items[0]).toMatchObject({ id: 3, hidden: { reason: "스팸" } });
+    expect(call("GET", "/admin/logs").body.data.items[0]).toMatchObject({ action: "event_hide", reason: "스팸" });
+    expect(call("GET", "/admin/events/3", OTHER_ID).status).toBe(403);
+  });
+});

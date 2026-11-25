@@ -7,7 +7,7 @@ export function inviteRoute(req: Req): MockResult | null {
   const { s, method, seg, query, ctx } = req;
   if (method === "GET" && seg[0] === "invites" && seg[1]) {
     const code = seg[1].toUpperCase();
-    const grp = s.groups.find((x) => x.inviteCode === code);
+    const grp = s.groups.find((x) => x.inviteCode === code && !x.hidden);
     if (!grp) return err(404, "INVITE_NOT_FOUND", "초대 링크가 만료됐거나 잘못됐어요");
     const members = s.memberships.filter((m) => m.groupId === grp.id);
     const by = query.get("by");

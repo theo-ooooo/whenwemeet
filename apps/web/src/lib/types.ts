@@ -24,6 +24,8 @@ export type GroupSummary = {
   memberCount: number;
   me: { color: string; displayName: string };
   unreadNewsCount: number;
+  /** (#515) 운영 숨김이면 사유와 시각 (D-286). 옛 API 는 없음 = 숨기지 않음 */
+  hidden?: { reason: string; hiddenAt: string } | null;
 };
 
 export type GroupDetail = {
@@ -350,6 +352,37 @@ export type Page<T> = { items: T[]; nextCursor: number | null };
 
 /** (#515) 관리자 사용자 목록 한 줄 */
 export type AdminUser = { id: number; nickname: string; role: UserRole; createdAt: string; providers: string[] };
+
+/** (#515) 운영 숨김 상태 (D-286) */
+export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };
+
+/** (#515) 관리자 팀 목록 한 줄 */
+export type AdminGroup = { id: number; name: string; type: GroupType; memberCount: number; eventCount: number; createdAt: string; hidden: HiddenState | null };
+
+/** (#515) 관리자 팀 상세 */
+export type AdminGroupDetail = AdminGroup & {
+  members: { userId: number; nickname: string; displayName: string | null; joinedAt: string }[];
+  recentEvents: { id: number; title: string; startsAt: string; allDay: boolean; repeat: string | null; hidden: boolean }[];
+};
+
+/** (#515) 관리자 일정 목록 한 줄 (제목만, 메모와 장소는 상세) */
+export type AdminEvent = {
+  id: number;
+  title: string;
+  group: { id: number; name: string; hidden: boolean };
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  repeat: string | null;
+  creator: { id: number; nickname: string } | null;
+  createdAt: string;
+  hidden: HiddenState | null;
+};
+
+export type AdminEventDetail = AdminEvent & { memo: string | null; place: string | null };
+
+/** (#515) 관리자 사용자 상세 */
+export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[] };
 
 /** (#515) 관리자 조치 기록 한 줄 (D-286) */
 export type AdminActionLog = {

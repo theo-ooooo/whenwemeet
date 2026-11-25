@@ -4,6 +4,8 @@
 export const ADMIN_TABS = [
   { href: "/admin/notices", label: "공지사항" },
   { href: "/admin/users", label: "사용자" },
+  { href: "/admin/teams", label: "팀" },
+  { href: "/admin/events", label: "일정" },
   { href: "/admin/logs", label: "기록" },
 ] as const;
 
@@ -48,3 +50,12 @@ export function adminDateTime(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}.${pad(d.getUTCMonth() + 1)}.${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
+
+/** (#515) 관리자 일정 시각 "2026.11.25 14:05", 종일은 "2026.11.25 종일" */
+export function adminEventTime(startsAt: string, allDay: boolean): string {
+  const text = adminDateTime(startsAt);
+  return allDay ? `${text.slice(0, 10)} 종일` : text;
+}
+
+/** (#515) 숨김 사유 상한 (API 와 같다) */
+export const HIDE_REASON_MAX = 200;
