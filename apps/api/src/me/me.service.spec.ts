@@ -20,6 +20,7 @@ describe('MeService', () => {
   const avatars = { purgeObjects: vi.fn() };
   const ASSISTANT = { available: true, consented: false, dailyLimit: 30, usedToday: 0 };
   const assistant = { status: vi.fn(), consent: vi.fn() };
+  const notices = { hasUnread: vi.fn() };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);
@@ -31,7 +32,9 @@ describe('MeService', () => {
     avatars.purgeObjects.mockReset().mockResolvedValue(undefined);
     assistant.status.mockReset().mockResolvedValue(ASSISTANT);
     assistant.consent.mockReset();
-    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never, email), avatars as never, assistant as never);
+    notices.hasUnread.mockReset().mockResolvedValue(false);
+    users.findRole.mockResolvedValue('user');
+    service = new MeService(users as never, membershipsRepo as never, new AuthProviders(kakao as never, dev, apple as never, email), avatars as never, assistant as never, notices as never);
     membershipsRepo.listByUserWithGroupType.mockResolvedValue([
       { id: 501, groupId: 21, groupType: 'PERSONAL' },
       { id: 502, groupId: 31, groupType: 'TEAM' },
@@ -169,7 +172,7 @@ describe('MeService', () => {
 
     it('GET /me 는 저장값을 붙인다. 행이 없거나 GROUP 인데 팀이 없으면 LAST, GROUP 이 아니면 groupId 는 null', async () => {
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: 31 });
-      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] }, assistant: ASSISTANT });
+      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] }, assistant: ASSISTANT, role: 'user', isAdmin: false, hasUnreadNotice: false });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: null });
       expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'PERSONAL', groupId: 31 });
@@ -217,5 +220,17 @@ describe('MeService', () => {
       });
       expect(users.updateStartCalendar).not.toHaveBeenCalled();
     });
+  });
+
+  it('(#515) GET /me: 역할은 DB 값, 관리자 여부, 안 본 공지 (D-285)', async () => {
+    const user = { id: 7, nickname: '관리', profileImageUrl: null, createdAt: new Date(0) };
+    users.findRole.mockResolvedValueOnce('admin');
+    notices.hasUnread.mockResolvedValueOnce(true);
+    expect(await service.getProfile(user)).toMatchObject({ role: 'admin', isAdmin: true, hasUnreadNotice: true });
+    expect(users.findRole).toHaveBeenCalledWith(7);
+    expect(notices.hasUnread).toHaveBeenCalledWith(7);
+    // 사용자 행이 사라진 경우(가드 뒤 탈퇴 경합)는 user 로
+    users.findRole.mockResolvedValueOnce(null);
+    expect(await service.getProfile(user)).toMatchObject({ role: 'user', isAdmin: false, hasUnreadNotice: false });
   });
 });
