@@ -176,6 +176,12 @@ export class UsersRepository {
     return toAdminUserRow(row);
   }
 
+  /** (#515) 관리자 사용자 상세 한 줄. 없으면 null */
+  async findForAdmin(id: number): Promise<AdminUserRow | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT });
+    return row && toAdminUserRow(row);
+  }
+
   /** (#515) 공지 목록을 마지막으로 본 시각. 아직이거나 사용자가 없으면 null */
   async findNoticesSeenAt(id: number): Promise<Date | null> {
     const row = await this.prisma.user.findUnique({ where: { id }, select: { noticesSeenAt: true } });

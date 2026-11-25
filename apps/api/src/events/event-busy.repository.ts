@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type ExceptionRule, type Repeat, seriesCandidateWindow, type SeriesRule } from './recurrence.js';
 import { dateToDb, dbToDate, participantIdsOf } from './event-rows.js';
+import { VISIBLE_EVENT_WHERE } from './visible-event.js';
 
 /** (#248) 빈 시간 판정용 참여자 필드 (D-137) */
 const BUSY_PARTICIPANTS_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
@@ -39,6 +40,7 @@ export class EventBusyRepository {
         startsAt: { lt: to },
         endsAt: { gt: from },
         ...(includeAllDay ? {} : { allDay: false }),
+        ...VISIBLE_EVENT_WHERE,
       },
       select: { startsAt: true, endsAt: true, ...BUSY_PARTICIPANTS_SELECT },
       orderBy: { startsAt: 'asc' },
@@ -58,6 +60,7 @@ export class EventBusyRepository {
         repeat: { not: null },
         startsAt: { lt: window.startsBefore },
         OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+        ...VISIBLE_EVENT_WHERE,
       },
       select: {
         startsAt: true,

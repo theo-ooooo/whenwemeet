@@ -3,6 +3,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Repeat } from './recurrence.js';
+import { VISIBLE_EVENT_WHERE, visibleEventSql } from './visible-event.js';
 import { dbToDate, EVENT_EXCEPTION_SELECT, EVENT_SELECT, type EventRow, type SeriesRow, toEventRow, toExceptionRow } from './event-rows.js';
 
 /** (#199) 일정 검색. events.repository 에서 옮김 (#504) */
@@ -23,16 +24,16 @@ export class EventSearchRepository {
     const [upcomingIds, pastIds] = await Promise.all([
       this.prisma.$queryRaw<{ id: number }[]>`
         SELECT id FROM Event
-        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt > ${now} AND ${matchSql('', pattern)}
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt > ${now} AND ${matchSql('', pattern)} AND ${visibleEventSql('')}
         ORDER BY startsAt ASC, id ASC LIMIT ${take}`,
       this.prisma.$queryRaw<{ id: number }[]>`
         SELECT id FROM Event
-        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt <= ${now} AND ${matchSql('', pattern)}
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NULL AND endsAt <= ${now} AND ${matchSql('', pattern)} AND ${visibleEventSql('')}
         ORDER BY startsAt DESC, id DESC LIMIT ${take}`,
     ]);
     const load = async (ids: { id: number }[]) => {
       if (ids.length === 0) return [];
-      const rows = await this.prisma.event.findMany({ where: { id: { in: ids.map((row) => row.id) } }, select: EVENT_SELECT });
+      const rows = await this.prisma.event.findMany({ where: { id: { in: ids.map((row) => row.id) }, ...VISIBLE_EVENT_WHERE }, select: EVENT_SELECT });
       const byId = new Map(rows.map((row) => [row.id, toEventRow(row, this.urls)]));
       return ids.flatMap((row) => byId.get(row.id) ?? []);
     };
@@ -54,17 +55,17 @@ export class EventSearchRepository {
     const [matched, hits] = await Promise.all([
       this.prisma.$queryRaw<{ id: number }[]>`
         SELECT id FROM Event
-        WHERE groupId IN (${groups}) AND \`repeat\` IS NOT NULL AND ${matchSql('', pattern)}
+        WHERE groupId IN (${groups}) AND \`repeat\` IS NOT NULL AND ${matchSql('', pattern)} AND ${visibleEventSql('')}
         ORDER BY id ASC LIMIT ${cap}`,
       this.prisma.$queryRaw<{ eventId: number; occurrence: Date }[]>`
         SELECT x.eventId, x.occurrence FROM EventException x JOIN Event e ON e.id = x.eventId
-        WHERE e.groupId IN (${groups}) AND e.\`repeat\` IS NOT NULL AND x.cancelled = false AND ${matchSql('x.', pattern)}
+        WHERE e.groupId IN (${groups}) AND e.\`repeat\` IS NOT NULL AND x.cancelled = false AND ${matchSql('x.', pattern)} AND ${visibleEventSql('e.')}
         ORDER BY x.eventId ASC, x.occurrence ASC LIMIT ${cap}`,
     ]);
     const ids = [...new Set([...matched.map((row) => row.id), ...hits.map((row) => row.eventId)])];
     if (ids.length === 0) return { series: [], matchedIds: [], exceptionHits: [] };
     const rows = await this.prisma.event.findMany({
-      where: { id: { in: ids }, repeat: { not: null } },
+      where: { id: { in: ids }, repeat: { not: null }, ...VISIBLE_EVENT_WHERE },
       orderBy: { id: 'asc' },
       select: { ...EVENT_SELECT, exceptions: { select: EVENT_EXCEPTION_SELECT } },
     });

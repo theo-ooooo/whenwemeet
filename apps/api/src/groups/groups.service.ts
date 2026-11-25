@@ -34,6 +34,8 @@ export interface GroupSummary {
   memberCount: number;
   me: { color: string; displayName: string };
   unreadNewsCount: number;
+  /** (#515) 운영 숨김이면 사유와 시각, 아니면 null (D-286). 팀 바꾸기 목록에 그대로 보이고 고르면 이용 제한 안내 */
+  hidden: { reason: string; hiddenAt: Date } | null;
 }
 
 /** (#278, D-250) 팀 만들기 쓰임. 서버는 저장하지 않고 로그로만 센다 */
@@ -71,10 +73,12 @@ export class GroupsService {
 
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
+      const hidden = row.group.hiddenAt ? { reason: row.group.hiddenReason ?? '', hiddenAt: row.group.hiddenAt } : null;
       const after = unseenAfter(row.lastSeenAt, row.joinedAt);
       // (#189) 투표로 정한 일정의 CREATED 로그는 새 소식에서 숨기므로(POLL_CLOSED 한 줄로 보인다) 그 수만큼 뺀다 (D-236)
-      const unreadNewsCount =
-        (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) +
+      const unreadNewsCount = hidden
+        ? 0
+        : (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) +
         (await this.activities.countUnseenByOthers(row.group.id, after, userId)) -
         (await this.activities.countUnseenPollClosedByOthers(row.group.id, after, userId));
       summaries.push({
@@ -85,6 +89,7 @@ export class GroupsService {
         memberCount: row.group._count.memberships,
         me: { color: row.color, displayName: row.displayName ?? row.user.nickname },
         unreadNewsCount,
+        hidden,
       });
     }
     return summaries;
@@ -208,7 +213,8 @@ export class GroupsService {
 
   /** 팀 나가기 (api.md 2.7). 멤버십 확인 → PERSONAL 거부 → 삭제와 빈 팀 정리는 한 트랜잭션 */
   async leave(userId: number, groupId: number): Promise<{ groupDeleted: boolean }> {
-    const membership = await this.memberships.assertMember(userId, groupId);
+    // (#515) 숨긴 팀에서도 나갈 수는 있다 (D-286)
+    const membership = await this.memberships.assertMember(userId, groupId, { allowHidden: true });
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
     if (group.type === 'PERSONAL') throw new ApiException('GROUP_PERSONAL_LEAVE');

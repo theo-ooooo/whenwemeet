@@ -52,8 +52,10 @@ export class GroupsRepository {
   async findByInviteCode(inviteCode: string): Promise<InviteGroupRow | null> {
     const group = await this.prisma.group.findUnique({
       where: { inviteCode },
-      select: { id: true, name: true, publicCode: true, _count: { select: { memberships: true } } },
+      select: { id: true, name: true, publicCode: true, hiddenAt: true, _count: { select: { memberships: true } } },
     });
+    // (#515) 숨긴 팀의 초대 링크와 코드는 없는 것과 같다 (D-286)
+    if (group?.hiddenAt) return null;
     return group && { id: group.id, name: group.name, publicCode: group.publicCode, memberCount: group._count.memberships };
   }
 

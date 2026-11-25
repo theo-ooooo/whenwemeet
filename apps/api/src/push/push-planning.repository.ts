@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { VISIBLE_EVENT_WHERE } from '../events/visible-event.js';
 import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { EventReminder } from './remind-at.js';
 import { type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT } from '../anniversaries/anniversary-reminders.js';
@@ -142,7 +143,7 @@ export class PushPlanningRepository {
   /** 한 번짜리 일정 중 알림 시각이 (lo, hi] 인 것 (인덱스 remindAt) */
   async listOnceReminders(lo: Date, hi: Date): Promise<OnceReminderRow[]> {
     const rows = await this.prisma.event.findMany({
-      where: { repeat: null, remindAt: { gt: lo, lte: hi } },
+      where: { repeat: null, remindAt: { gt: lo, lte: hi }, ...VISIBLE_EVENT_WHERE },
       select: {
         id: true,
         publicCode: true,
@@ -182,6 +183,7 @@ export class PushPlanningRepository {
           { OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }] },
           { OR: [{ reminder: { not: 'NONE' } }, { id: { in: exceptionOwners.map((row) => row.eventId) } }] },
         ],
+        ...VISIBLE_EVENT_WHERE,
       },
       select: {
         id: true,
@@ -333,13 +335,14 @@ export class PushPlanningRepository {
     const window = seriesCandidateWindow(from, to);
     const select = { title: true, startsAt: true, endsAt: true, allDay: true } as const;
     const [once, series] = await Promise.all([
-      this.prisma.event.findMany({ where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from } }, select, orderBy: { startsAt: 'asc' } }),
+      this.prisma.event.findMany({ where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from }, ...VISIBLE_EVENT_WHERE }, select, orderBy: { startsAt: 'asc' } }),
       this.prisma.event.findMany({
         where: {
           groupId,
           repeat: { not: null },
           startsAt: { lt: window.startsBefore },
           OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+          ...VISIBLE_EVENT_WHERE,
         },
         select: {
           ...select,
@@ -410,7 +413,7 @@ export class PushPlanningRepository {
     const window = seriesCandidateWindow(from, to);
     const [once, series] = await Promise.all([
       this.prisma.event.findMany({
-        where: { groupId: { in: groupIds }, repeat: null, allDay: false, startsAt: { lt: to }, endsAt: { gt: from } },
+        where: { groupId: { in: groupIds }, repeat: null, allDay: false, startsAt: { lt: to }, endsAt: { gt: from }, ...VISIBLE_EVENT_WHERE },
         select: { startsAt: true, endsAt: true, ...BUSY_SELECT },
         orderBy: { startsAt: 'asc' },
       }),
@@ -420,6 +423,7 @@ export class PushPlanningRepository {
           repeat: { not: null },
           startsAt: { lt: window.startsBefore },
           OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+          ...VISIBLE_EVENT_WHERE,
         },
         select: {
           startsAt: true,
