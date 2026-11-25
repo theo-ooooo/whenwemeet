@@ -18,6 +18,8 @@ const ACTION_LABEL: Record<string, string> = {
   notice_create: "공지 작성",
   notice_update: "공지 수정",
   notice_delete: "공지 삭제",
+  // (#528)
+  notice_push: "공지 푸시",
   user_role: "역할 변경",
   group_hide: "팀 숨김",
   group_unhide: "팀 숨김 해제",
@@ -45,6 +47,29 @@ export function providerText(providers: string[]): string {
 }
 
 /** 관리자 표의 날짜시각 "2026.11.25 14:05" (KST) */
+/**
+ * (#528) 관리자 화면의 팀 이름. 개인 달력은 이름이 모두 "내 달력" 이라 주인으로 부른다: "지우의 개인 달력".
+ * 주인이 없으면(탈퇴로 빈 개인 달력) "개인 달력"
+ */
+export function adminGroupName(group: { name: string; type: string; owner: { nickname: string } | null }): string {
+  if (group.type !== "PERSONAL") return group.name;
+  return group.owner ? `${group.owner.nickname}의 개인 달력` : "개인 달력";
+}
+
+/** (#528) 관리자 팀 목록 종류 필터. URL `?type=` 값 (기본 team) ↔ API `type` */
+export type AdminGroupFilter = "team" | "personal" | "all";
+export const ADMIN_GROUP_FILTERS: { value: AdminGroupFilter; label: string }[] = [
+  { value: "team", label: "팀" },
+  { value: "personal", label: "개인 달력" },
+  { value: "all", label: "전체" },
+];
+export function adminGroupFilterOf(raw: string | null): AdminGroupFilter {
+  return raw === "personal" || raw === "all" ? raw : "team";
+}
+export function adminGroupTypeParam(filter: AdminGroupFilter): "TEAM" | "PERSONAL" | null {
+  return filter === "team" ? "TEAM" : filter === "personal" ? "PERSONAL" : null;
+}
+
 export function adminDateTime(iso: string): string {
   const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
   const pad = (n: number) => String(n).padStart(2, "0");

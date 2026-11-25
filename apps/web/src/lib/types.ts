@@ -358,8 +358,21 @@ export type AdminUser = { id: number; nickname: string; role: UserRole; profileI
 /** (#515) 운영 숨김 상태 (D-286) */
 export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };
 
-/** (#515) 관리자 팀 목록 한 줄 */
-export type AdminGroup = { id: number; name: string; type: GroupType; memberCount: number; eventCount: number; createdAt: string; hidden: HiddenState | null };
+/** (#528) 관리자 화면의 사람 요약 (개인 달력 주인, 팀 멤버 미리 보기) */
+export type AdminPerson = { id: number; nickname: string; profileImageUrl: string | null };
+
+/** (#515) 관리자 팀 목록 한 줄. (#528) owner 는 개인 달력의 주인(팀은 null), memberPreview 는 먼저 들어온 3명까지 */
+export type AdminGroup = {
+  id: number;
+  name: string;
+  type: GroupType;
+  owner: AdminPerson | null;
+  memberPreview: AdminPerson[];
+  memberCount: number;
+  eventCount: number;
+  createdAt: string;
+  hidden: HiddenState | null;
+};
 
 /** (#515) 관리자 팀 상세 */
 export type AdminGroupDetail = AdminGroup & {
@@ -371,7 +384,8 @@ export type AdminGroupDetail = AdminGroup & {
 export type AdminEvent = {
   id: number;
   title: string;
-  group: { id: number; name: string; hidden: boolean };
+  /** (#528) type, 개인 달력이면 주인 */
+  group: { id: number; name: string; hidden: boolean; type: GroupType; owner: AdminPerson | null };
   startsAt: string;
   endsAt: string;
   allDay: boolean;

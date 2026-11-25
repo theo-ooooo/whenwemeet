@@ -99,12 +99,11 @@ export function AdminUserScreen({ id }: { id: number }) {
                   href={`/admin/teams/${g.id}`}
                   className="flex min-h-12 items-center gap-2 py-2.5 hover:brightness-95"
                 >
+                  {/* (#528) 개인 달력은 "개인 달력" (이 사람의 것이라 주인 이름은 빼고) */}
                   <b className="min-w-0 truncate text-[14px] font-semibold">
-                    {g.name}
+                    {g.type === "PERSONAL" ? "개인 달력" : g.name}
                   </b>
-                  <StatusBadge tone="off">
-                    {g.type === "PERSONAL" ? "개인" : "팀"}
-                  </StatusBadge>
+                  {g.type === "TEAM" && <StatusBadge tone="off">팀</StatusBadge>}
                   {g.hidden && <StatusBadge tone="warn">숨김</StatusBadge>}
                   <span className="t-sub ml-auto shrink-0">
                     멤버 {g.memberCount}명, 일정 {g.eventCount}개

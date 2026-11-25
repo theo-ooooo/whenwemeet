@@ -6,7 +6,7 @@ import { useState } from "react";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { Button, ConfirmDialog, ErrorState, InlineError, Skeleton } from "@/components/ui";
 import { messageOf, useAdminEvent, useDeleteTarget, useHideTarget, useUnhideTarget } from "@/hooks";
-import { adminDateTime, adminEventTime } from "@/lib/admin";
+import { adminDateTime, adminEventTime, adminGroupName } from "@/lib/admin";
 import type { AdminEventDetail } from "@/lib/types";
 import { StatusBadge } from "./AdminMore";
 import { HiddenBox, InfoRow } from "./HiddenBox";
@@ -55,7 +55,7 @@ export function AdminEventScreen({ id }: { id: number }) {
           <InfoRow label="상태">{e.hidden ? <StatusBadge tone="warn">숨김</StatusBadge> : <StatusBadge tone="on">정상</StatusBadge>}</InfoRow>
           <InfoRow label="팀">
             <Link href={`/admin/teams/${e.group.id}`} className="font-semibold underline underline-offset-2">
-              {e.group.name} #{e.group.id}
+              {adminGroupName(e.group)} #{e.group.id}
             </Link>
             {e.group.hidden && <span className="ml-1.5 text-[12px] font-bold text-danger">숨긴 팀</span>}
           </InfoRow>

@@ -108,3 +108,28 @@ describe("목 공지 푸시, 관리자 사용자 알림 설정 (#528, D-287)", (
     expect(call("GET", "/admin/users/13").body.data.notifications).toMatchObject({ devices: [] });
   });
 });
+
+describe("목 관리자 팀 종류 필터와 개인 달력 주인 (#528)", () => {
+  beforeEach(() => resetStore());
+  type Row = { id: number; type: string; name: string; owner: { nickname: string } | null; memberPreview: unknown[] };
+  const groups = (query: string) => call("GET", "/admin/groups", ME_ID, null, `limit=50&${query}`).body.data.items as unknown as Row[];
+
+  it("type=TEAM 은 팀만(멤버 미리 보기 3명까지), PERSONAL 은 주인이 있는 개인 달력만, 없으면 전체", () => {
+    const teams = groups("type=TEAM");
+    expect(teams.every((g) => g.type === "TEAM" && g.owner === null)).toBe(true);
+    expect(teams.every((g) => g.memberPreview.length <= 3)).toBe(true);
+    const personal = groups("type=PERSONAL");
+    expect(personal.length).toBeGreaterThan(3);
+    expect(personal.every((g) => g.type === "PERSONAL" && g.name === "내 달력" && g.owner !== null)).toBe(true);
+    expect(groups("")).toHaveLength(teams.length + personal.length);
+    expect(call("GET", "/admin/groups", ME_ID, null, "type=team").status).toBe(400);
+  });
+
+  it("q 는 개인 달력 주인 닉네임도 찾는다. 일정 목록의 팀에 type 과 주인", () => {
+    expect(groups("q=수경").map((g) => [g.type, g.owner?.nickname])).toEqual([["PERSONAL", "수경"]]);
+    const events = call("GET", "/admin/events", ME_ID, null, "limit=50").body.data.items as unknown as { group: { type: string; owner: { nickname: string } | null } }[];
+    const personal = events.find((e) => e.group.type === "PERSONAL");
+    expect(personal?.group.owner?.nickname).toBeTruthy();
+    expect(events.filter((e) => e.group.type === "TEAM").every((e) => e.group.owner === null)).toBe(true);
+  });
+});

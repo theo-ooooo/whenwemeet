@@ -714,6 +714,14 @@ export function buildStore(): Store {
     },
   ];
 
+  // (#528) 관리자 팀 목록의 개인 달력: 가입자마다 "내 달력" 하나 (실서비스처럼 같은 이름이 늘어선다). 엄마, 아빠도
+  for (const [i, userId] of [MOM_ID, DAD_ID, 11, 12, 13].entries()) {
+    const id = 60 + i;
+    const at = users.find((u) => u.id === userId)!.createdAt;
+    groups.push({ id, type: "PERSONAL", name: "내 달력", inviteCode: null, createdAt: at });
+    memberships.push({ userId, groupId: id, color: "#9CA3AF", displayName: null, joinedAt: at, lastSeenAt: null });
+  }
+
   // (#528) 관리자 사용자 상세의 기기: 민지는 아이폰과 안드로이드 태블릿, 수경은 아이폰 하나. 토큰은 목 안에서만 쓴다
   const pushDevices: PushDeviceRow[] = [
     { token: "ExponentPushToken[mock-minji-ios]", userId: 11, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 10), lastSeenAt: hoursAgo(3) },
