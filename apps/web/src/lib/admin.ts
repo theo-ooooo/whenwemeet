@@ -18,6 +18,8 @@ const ACTION_LABEL: Record<string, string> = {
   notice_create: "공지 작성",
   notice_update: "공지 수정",
   notice_delete: "공지 삭제",
+  // (#528)
+  notice_push: "공지 푸시",
   user_role: "역할 변경",
   group_hide: "팀 숨김",
   group_unhide: "팀 숨김 해제",
@@ -45,6 +47,47 @@ export function providerText(providers: string[]): string {
 }
 
 /** 관리자 표의 날짜시각 "2026.11.25 14:05" (KST) */
+/**
+ * (#528) 관리자 화면의 팀 이름. 개인 달력은 이름이 모두 "내 달력" 이라 주인으로 부른다: "지우의 개인 달력".
+ * 주인이 없으면(탈퇴로 빈 개인 달력) "개인 달력"
+ */
+export function adminGroupName(group: { name: string; type: string; owner: { nickname: string } | null }): string {
+  if (group.type !== "PERSONAL") return group.name;
+  return group.owner ? `${group.owner.nickname}의 개인 달력` : "개인 달력";
+}
+
+/** (#528) 관리자 팀 목록 종류 필터. URL `?type=` 값 (기본 team) ↔ API `type` */
+export type AdminGroupFilter = "team" | "personal" | "all";
+export const ADMIN_GROUP_FILTERS: { value: AdminGroupFilter; label: string }[] = [
+  { value: "team", label: "팀" },
+  { value: "personal", label: "개인 달력" },
+  { value: "all", label: "전체" },
+];
+export function adminGroupFilterOf(raw: string | null): AdminGroupFilter {
+  return raw === "personal" || raw === "all" ? raw : "team";
+}
+export function adminGroupTypeParam(filter: AdminGroupFilter): "TEAM" | "PERSONAL" | null {
+  return filter === "team" ? "TEAM" : filter === "personal" ? "PERSONAL" : null;
+}
+
+/** (#528) 쓰는 곳 표기. 빈 배열은 앱으로 로그인했지만 알림을 허용하지 않아 기종을 모르는 경우 */
+export function adminPlatformLabels(platforms: readonly string[]): string[] {
+  if (platforms.length === 0) return ["앱 (기종 모름)"];
+  return platforms.map((p) => (p === "ios" ? "iOS" : p === "android" ? "Android" : "웹만"));
+}
+
+/** (#528) 사용자 목록 기종 필터. URL `?platform=` 값 그대로 API 로 (all 은 빼고) */
+export type AdminPlatformFilter = "all" | "ios" | "android" | "web";
+export const ADMIN_PLATFORM_FILTERS: { value: AdminPlatformFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "ios", label: "iOS" },
+  { value: "android", label: "Android" },
+  { value: "web", label: "웹만" },
+];
+export function adminPlatformFilterOf(raw: string | null): AdminPlatformFilter {
+  return raw === "ios" || raw === "android" || raw === "web" ? raw : "all";
+}
+
 export function adminDateTime(iso: string): string {
   const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
   const pad = (n: number) => String(n).padStart(2, "0");

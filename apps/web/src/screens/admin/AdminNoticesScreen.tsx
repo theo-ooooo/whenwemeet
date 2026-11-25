@@ -34,10 +34,12 @@ export function AdminNoticesScreen() {
           {q.items.map((n) => (
             <li key={n.id}>
               <Link href={`/admin/notices/${n.id}`} className="flex min-h-14 flex-col gap-1 py-3 hover:brightness-95 fold:flex-row fold:items-center fold:gap-3">
-                <span className="flex shrink-0 items-center gap-1.5 fold:w-[148px]">
+                <span className="flex shrink-0 items-center gap-1.5 fold:w-[184px]">
                   {n.publishedAt ? <StatusBadge tone="on">게시</StatusBadge> : <StatusBadge tone="off">초안</StatusBadge>}
                   <NoticeKindBadge kind={n.kind} />
                   {n.pinned && <PinnedBadge />}
+                  {/* (#528) 푸시로도 보낸 공지 */}
+                  {n.pushedAt && <StatusBadge tone="on">푸시</StatusBadge>}
                 </span>
                 <b className="min-w-0 flex-1 truncate text-[14px] font-semibold">{n.title}</b>
                 <span className="t-sub shrink-0 fold:w-[150px] fold:text-right">{noticeDate(n.publishedAt)}</span>

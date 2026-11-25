@@ -46,6 +46,8 @@ export type UserRow = {
   noticesSeenAt?: string | null;
   /** (#515) 로그인 방법 (관리자 사용자 목록). 없으면 KAKAO */
   providers?: string[];
+  /** (#528) 마지막 앱 로그인. 없으면 기록 없음 */
+  lastAppLoginAt?: string | null;
 };
 
 /** (#515) 목 공지. publishedAt null = 초안 */
@@ -56,6 +58,8 @@ export type NoticeRow = {
   kind: "notice" | "update" | "maintenance";
   pinned: boolean;
   publishedAt: string | null;
+  /** (#528) 푸시를 보낸 시각 */
+  pushedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -116,7 +120,7 @@ export type EventRow = {
   place?: MockPlace | null;
 };
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
-export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string };
+export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string; /** (#528) 등록 시각. 없으면 lastSeenAt */ createdAt?: string };
 export type AnniversaryRow = {
   id: number;
   groupId: number;
@@ -661,9 +665,18 @@ export function buildStore(): Store {
 
   // (#515) 관리자 사용자 목록용: 팀이 없는 가입자 몇 명
   users.push(
-    { id: 11, nickname: "민지", profileImageUrl: null, createdAt: hoursAgo(24 * 12), providers: ["APPLE"] },
+    // (#528) 민지는 공지, 팀원 변경 알림을 껐다 (관리자 사용자 상세의 알림 설정)
+    {
+      id: 11,
+      nickname: "민지",
+      profileImageUrl: null,
+      createdAt: hoursAgo(24 * 12),
+      providers: ["APPLE"],
+      notify: { reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: false },
+    },
     { id: 12, nickname: "수경", profileImageUrl: null, createdAt: hoursAgo(24 * 6), providers: ["EMAIL"] },
-    { id: 13, nickname: "도윤", profileImageUrl: null, createdAt: hoursAgo(24 * 2), providers: ["KAKAO", "APPLE"] },
+    // (#528) 도윤은 앱으로 로그인했지만 알림을 허용하지 않아 기종을 모른다
+    { id: 13, nickname: "도윤", profileImageUrl: null, createdAt: hoursAgo(24 * 2), providers: ["KAKAO", "APPLE"], lastAppLoginAt: hoursAgo(30) },
   );
 
   // (#515) 공지: 고정 업데이트, 점검 안내(게시), 초안 하나. 나는 공지를 본 적이 없어 새 공지 점이 보인다
@@ -675,6 +688,8 @@ export function buildStore(): Store {
       kind: "update",
       pinned: true,
       publishedAt: hoursAgo(24 * 3),
+      // (#528) 이 공지는 푸시로도 보냈다
+      pushedAt: hoursAgo(24 * 3),
       createdAt: hoursAgo(24 * 3),
       updatedAt: hoursAgo(24 * 3),
     },
@@ -685,6 +700,7 @@ export function buildStore(): Store {
       kind: "maintenance",
       pinned: false,
       publishedAt: hoursAgo(20),
+      pushedAt: null,
       createdAt: hoursAgo(20),
       updatedAt: hoursAgo(20),
     },
@@ -695,12 +711,28 @@ export function buildStore(): Store {
       kind: "notice",
       pinned: false,
       publishedAt: null,
+      pushedAt: null,
       createdAt: hoursAgo(2),
       updatedAt: hoursAgo(2),
     },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, adminLogs: [], seq: 100 };
+  // (#528) 관리자 팀 목록의 개인 달력: 가입자마다 "내 달력" 하나 (실서비스처럼 같은 이름이 늘어선다). 엄마, 아빠도
+  for (const [i, userId] of [MOM_ID, DAD_ID, 11, 12, 13].entries()) {
+    const id = 60 + i;
+    const at = users.find((u) => u.id === userId)!.createdAt;
+    groups.push({ id, type: "PERSONAL", name: "내 달력", inviteCode: null, createdAt: at });
+    memberships.push({ userId, groupId: id, color: "#9CA3AF", displayName: null, joinedAt: at, lastSeenAt: null });
+  }
+
+  // (#528) 관리자 사용자 상세의 기기: 민지는 아이폰과 안드로이드 태블릿, 수경은 아이폰 하나. 토큰은 목 안에서만 쓴다
+  const pushDevices: PushDeviceRow[] = [
+    { token: "ExponentPushToken[mock-minji-ios]", userId: 11, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 10), lastSeenAt: hoursAgo(3) },
+    { token: "ExponentPushToken[mock-minji-android]", userId: 11, platform: "ANDROID", appVersion: "1.2.1", createdAt: hoursAgo(24 * 9), lastSeenAt: hoursAgo(24 * 4) },
+    { token: "ExponentPushToken[mock-sugyeong-ios]", userId: 12, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 5), lastSeenAt: hoursAgo(26) },
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, adminLogs: [], seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

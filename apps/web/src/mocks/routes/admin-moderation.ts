@@ -1,7 +1,8 @@
 // (#515) 관리자 팀, 일정 숨김과 삭제, 사용자 상세 목 라우트 (api.md 2.16, D-286). 관리자 확인은 noticeAuthedRoute 가 먼저 한다
 import { parseId } from "@/lib/id";
 import type { EventRow, GroupRow, Store } from "../fixtures";
-import { logAdmin } from "./notices";
+import { DEFAULT_NOTIFY } from "./me";
+import { adminUserOut, logAdmin } from "./notices";
 import { err, nowIso, ok, type AuthedReq, type MockResult } from "./shared";
 
 function hiddenOut(s: Store, h: GroupRow["hidden"]) {
@@ -10,11 +11,29 @@ function hiddenOut(s: Store, h: GroupRow["hidden"]) {
   return { reason: h.reason, hiddenAt: h.hiddenAt, hiddenBy: by ? { id: by.id, nickname: by.nickname } : null };
 }
 
+/** (#528) 먼저 들어온 멤버 (관리자 화면의 사람 요약) */
+function peopleOf(s: Store, groupId: number) {
+  return s.memberships
+    .filter((m) => m.groupId === groupId)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .flatMap((m) => {
+      const u = s.users.find((x) => x.id === m.userId);
+      return u ? [{ id: u.id, nickname: u.nickname, profileImageUrl: u.profileImageUrl }] : [];
+    });
+}
+
+/** (#528) 개인 달력의 주인. 팀은 null */
+function ownerOf(s: Store, g: GroupRow) {
+  return g.type === "PERSONAL" ? (peopleOf(s, g.id)[0] ?? null) : null;
+}
+
 function groupOut(s: Store, g: GroupRow) {
   return {
     id: g.id,
     name: g.name,
     type: g.type,
+    owner: ownerOf(s, g),
+    memberPreview: peopleOf(s, g.id).slice(0, 3),
     memberCount: s.memberships.filter((m) => m.groupId === g.id).length,
     eventCount: s.events.filter((e) => e.groupId === g.id).length,
     createdAt: g.createdAt,
@@ -28,7 +47,7 @@ function eventOut(s: Store, e: EventRow) {
   return {
     id: e.id,
     title: e.title,
-    group: { id: g.id, name: g.name, hidden: Boolean(g.hidden) },
+    group: { id: g.id, name: g.name, hidden: Boolean(g.hidden), type: g.type, owner: ownerOf(s, g) },
     startsAt: e.startsAt,
     endsAt: e.endsAt,
     allDay: e.allDay,
@@ -82,13 +101,29 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
     const u = id === null ? undefined : s.users.find((x) => x.id === id);
     if (!u) return err(404, "NOT_FOUND", "사용자를 찾을 수 없어요");
     const teams = s.memberships.filter((m) => m.userId === u.id).map((m) => groupOut(s, s.groups.find((g) => g.id === m.groupId)!));
-    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams });
+    // (#528) 알림 설정(읽기 전용)과 기기 요약. 토큰은 싣지 않는다
+    const devices = (s.pushDevices ?? [])
+      .filter((d) => d.userId === u.id)
+      .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+      .map((d) => ({ platform: d.platform, appVersion: d.appVersion, createdAt: d.createdAt ?? d.lastSeenAt, lastSeenAt: d.lastSeenAt }));
+    const notifications = { settings: { ...DEFAULT_NOTIFY, ...u.notify }, devices };
+    return ok({ user: adminUserOut(s, u), teams, notifications });
   }
 
   if (seg[1] === "groups") {
     if (seg.length === 2 && method === "GET") {
       const q = (query.get("q") ?? "").trim();
-      return paged(s.groups.filter((g) => !q || g.name.includes(q)).sort((a, b) => b.id - a.id).map((g) => groupOut(s, g)), query);
+      // (#528) type 필터, 개인 달력은 주인 닉네임으로도 찾는다
+      const type = query.get("type");
+      if (type && type !== "TEAM" && type !== "PERSONAL") return err(400, "VALIDATION_FAILED", "type 은 TEAM, PERSONAL 중 하나여야 해요");
+      const matches = (g: GroupRow) => !q || g.name.includes(q) || (g.type === "PERSONAL" && (ownerOf(s, g)?.nickname.includes(q) ?? false));
+      return paged(
+        s.groups
+          .filter((g) => (!type || g.type === type) && matches(g))
+          .sort((a, b) => b.id - a.id)
+          .map((g) => groupOut(s, g)),
+        query,
+      );
     }
     const id = parseId(seg[2]);
     const g = id === null ? undefined : s.groups.find((x) => x.id === id);

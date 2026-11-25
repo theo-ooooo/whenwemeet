@@ -23,6 +23,8 @@ export const PREFERENCE_DEFAULTS: Readonly<Record<PreferenceKind, boolean>> = {
   WEEKLY_NUDGE: false,
   /** (#189) 약속 투표 */
   POLL: true,
+  /** (#528) 공지 (D-287) */
+  NOTICE: true,
 };
 
 export interface PreferenceRow {

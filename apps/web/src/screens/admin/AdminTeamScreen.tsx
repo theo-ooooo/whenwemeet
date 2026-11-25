@@ -12,7 +12,7 @@ import {
   useHideTarget,
   useUnhideTarget,
 } from "@/hooks";
-import { adminDateTime, adminEventTime } from "@/lib/admin";
+import { adminDateTime, adminEventTime, adminGroupName } from "@/lib/admin";
 import type { AdminGroupDetail } from "@/lib/types";
 import { StatusBadge } from "./AdminMore";
 import { HiddenBox, InfoRow } from "./HiddenBox";
@@ -60,7 +60,8 @@ export function AdminTeamScreen({ id }: { id: number }) {
 
   return (
     <div>
-      <AdminTitle title={g.name} sub={`팀 #${g.id}`} />
+      {/* (#528) 개인 달력은 이름이 모두 "내 달력" 이라 주인으로 부른다 */}
+      <AdminTitle title={adminGroupName(g)} sub={`${g.type === "PERSONAL" ? "개인 달력" : "팀"} #${g.id}`} />
       {error && <InlineError className="mb-2">{error}</InlineError>}
       {/* 넓은 화면은 왼쪽 정보 카드, 오른쪽 멤버와 최근 일정 */}
       <div className="lg:grid lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)] lg:items-start lg:gap-6">
@@ -198,7 +199,7 @@ export function AdminTeamScreen({ id }: { id: number }) {
       />
       <DeleteTeamDialog
         open={dialog === "delete"}
-        name={g.name}
+        name={adminGroupName(g)}
         loading={remove.isPending}
         onConfirm={() => void onDelete()}
         onCancel={() => setDialog(null)}

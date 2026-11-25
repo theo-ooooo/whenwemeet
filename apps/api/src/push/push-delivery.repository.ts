@@ -11,7 +11,8 @@ export interface DueNotification {
   kind: PushKindName;
   /** (#277) WEEKLY 는 여기서 그 주 월요일을 읽는다 */
   dedupeKey: string;
-  groupId: number;
+  /** (#528) NOTICE(전체 대상)만 null */
+  groupId: number | null;
   scheduledAt: Date;
   /** (#297) 예약을 만든 시각. CHANGE 묶음은 첫 변경, JOIN 은 합류, 가져오기는 가져오기를 마친 시각 */
   createdAt: Date;
@@ -39,6 +40,9 @@ export interface ReceiptCandidate {
   ticketId: string;
   token: string;
 }
+
+/** 기기별 발송을 만드는 한 번의 INSERT 크기. (#528) 공지처럼 받는 기기가 많아도 문장 하나가 커지지 않게 나눈다 */
+export const DELIVERY_INSERT_CHUNK = 1000;
 
 /** 펼치기 상태 전이와 기기별 발송, 영수증 저장소 (#188, #485) */
 @Injectable()
@@ -96,9 +100,9 @@ export class PushDeliveryRepository {
         data: { status: 'DISPATCHED', dispatchedAt: now, ...(payload ? { payload: toJson(payload) } : {}) },
       });
       if (count !== 1) return false;
-      if (recipients.length > 0) {
+      for (let i = 0; i < recipients.length; i += DELIVERY_INSERT_CHUNK) {
         await tx.pushDelivery.createMany({
-          data: recipients.map((recipient) => ({ notificationId, ...recipient })),
+          data: recipients.slice(i, i + DELIVERY_INSERT_CHUNK).map((recipient) => ({ notificationId, ...recipient })),
           skipDuplicates: true,
         });
       }

@@ -84,6 +84,35 @@ export interface AdminUserRow {
   profileImageUrl: string | null;
   createdAt: Date;
   providers: AuthProvider[];
+  /** (#528) 쓰는 곳. 아래 adminPlatformsOf 규칙 */
+  platforms: AdminPlatform[];
+  /** (#528) 기종마다 그 기종 푸시 기기의 마지막 확인 시각 (가장 늦은 것). 기기가 없으면 빈 배열 */
+  platformLastSeen: { platform: 'ios' | 'android'; lastSeenAt: Date }[];
+  /** (#528) 마지막 앱 로그인(handoff 교환, 앱 안 이메일 로그인). 기록이 없으면 null (D-97) */
+  lastAppLoginAt: Date | null;
+}
+
+/** (#528) 관리자 사용자 목록의 기종 표시와 필터 값 */
+export type AdminPlatform = 'ios' | 'android' | 'web';
+
+/**
+ * (#528) 쓰는 곳 판정. 앱이 기종을 남기는 곳은 푸시 기기(PushDevice.platform)뿐이다(앱 로그인 기록 lastAppLoginAt 에는 기종이 없다).
+ * - 푸시 기기가 있으면 그 기종들 (ios 먼저)
+ * - 기기가 없고 앱 로그인 기록도 없으면 ['web'] (웹만)
+ * - 기기가 없는데 앱 로그인 기록이 있으면 [] (앱을 쓰지만 알림을 허용하지 않아 기종을 모름)
+ */
+export function adminPlatformsOf(devices: readonly { platform: 'IOS' | 'ANDROID' }[], lastAppLoginAt: Date | null): AdminPlatform[] {
+  const out: AdminPlatform[] = [];
+  if (devices.some((d) => d.platform === 'IOS')) out.push('ios');
+  if (devices.some((d) => d.platform === 'ANDROID')) out.push('android');
+  if (out.length === 0 && lastAppLoginAt === null) out.push('web');
+  return out;
+}
+
+/** (#528) 기종 필터 → 조건. ios, android 는 그 기종 푸시 기기가 있는 사람, web 은 기기도 앱 로그인 기록도 없는 사람 */
+function platformWhere(platform: AdminPlatform) {
+  if (platform === 'web') return { pushDevices: { none: {} }, lastAppLoginAt: null };
+  return { pushDevices: { some: { platform: platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const) } } };
 }
 
 const ADMIN_USER_SELECT = {
@@ -93,12 +122,30 @@ const ADMIN_USER_SELECT = {
   avatar: { select: FILE_LOCATION_SELECT },
   createdAt: true,
   authAccounts: { select: { provider: true }, orderBy: { id: 'asc' } },
+  // (#528) 기종. 토큰은 읽지 않는다
+  lastAppLoginAt: true,
+  pushDevices: { select: { platform: true, lastSeenAt: true } },
 } as const;
 
 function toAdminUserRow(
-  row: { id: number; nickname: string; role: UserRole; avatar: FileLocation | null; createdAt: Date; authAccounts: { provider: AuthProvider }[] },
+  row: {
+    id: number;
+    nickname: string;
+    role: UserRole;
+    avatar: FileLocation | null;
+    createdAt: Date;
+    authAccounts: { provider: AuthProvider }[];
+    lastAppLoginAt: Date | null;
+    pushDevices: { platform: 'IOS' | 'ANDROID'; lastSeenAt: Date }[];
+  },
   urls: FileUrlBuilder,
 ): AdminUserRow {
+  const lastSeen = new Map<'ios' | 'android', Date>();
+  for (const device of row.pushDevices) {
+    const key = device.platform === 'IOS' ? 'ios' : 'android';
+    const prev = lastSeen.get(key);
+    if (!prev || prev < device.lastSeenAt) lastSeen.set(key, device.lastSeenAt);
+  }
   return {
     id: row.id,
     nickname: row.nickname,
@@ -106,6 +153,12 @@ function toAdminUserRow(
     profileImageUrl: urls.publicUrlOrNull(row.avatar),
     createdAt: row.createdAt,
     providers: row.authAccounts.map((account) => account.provider),
+    platforms: adminPlatformsOf(row.pushDevices, row.lastAppLoginAt),
+    platformLastSeen: (['ios', 'android'] as const).flatMap((platform) => {
+      const at = lastSeen.get(platform);
+      return at ? [{ platform, lastSeenAt: at }] : [];
+    }),
+    lastAppLoginAt: row.lastAppLoginAt,
   };
 }
 
@@ -211,10 +264,12 @@ export class UsersRepository {
    * (#515) 관리자 사용자 목록. id 내림차순(최근 가입 먼저), q 는 닉네임 부분 일치, cursor 는 앞 페이지 마지막 id(그보다 작은 것부터).
    * limit + 1 개를 읽어 다음 페이지가 있는지 본다
    */
-  async listForAdmin(query: { q: string | null; limit: number; cursor: number | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
+  async listForAdmin(query: { q: string | null; platform?: AdminPlatform | null; limit: number; cursor: number | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.user.findMany({
       where: {
         ...(query.q ? { nickname: { contains: query.q } } : {}),
+        // (#528) 기종 필터
+        ...(query.platform ? platformWhere(query.platform) : {}),
         ...(query.cursor !== null ? { id: { lt: query.cursor } } : {}),
       },
       orderBy: { id: 'desc' },

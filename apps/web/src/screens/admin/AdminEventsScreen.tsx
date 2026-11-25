@@ -1,5 +1,6 @@
 "use client";
 // (#515) 관리자 일정 목록 (최근 만든 것 먼저, 제목 검색, 팀 번호 필터, D-286). 목록에는 제목만 (메모, 장소는 상세)
+// (#528) 팀 칸: 개인 달력이면 "지우의 개인 달력"
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { AdminTitle } from "@/components/admin/AdminShell";
 import { IconCalendar, IconSearch } from "@/components/icons";
 import { EmptyState, ErrorState, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAdminEvents } from "@/hooks";
-import { adminEventTime } from "@/lib/admin";
+import { adminEventTime, adminGroupName } from "@/lib/admin";
 import { parseId } from "@/lib/id";
 import { AdminMore, StatusBadge } from "./AdminMore";
 
@@ -74,13 +75,13 @@ export function AdminEventsScreen() {
                     {e.hidden ? <StatusBadge tone="warn">숨김</StatusBadge> : <StatusBadge tone="on">정상</StatusBadge>}
                   </span>
                   <span className="t-sub block truncate lg:hidden">
-                    {adminEventTime(e.startsAt, e.allDay)}, {e.group.name} #{e.group.id}, {e.creator?.nickname ?? "탈퇴한 멤버"}
+                    {adminEventTime(e.startsAt, e.allDay)}, {adminGroupName(e.group)} #{e.group.id}, {e.creator?.nickname ?? "탈퇴한 멤버"}
                   </span>
                 </span>
                 {/* 넓은 화면은 열로 나눈다 */}
                 <span className="hidden w-44 shrink-0 text-[13px] tabular-nums text-ink-2 lg:block">{adminEventTime(e.startsAt, e.allDay)}</span>
                 <span className="hidden w-52 shrink-0 truncate text-[13px] text-ink-2 lg:block">
-                  {e.group.name} <span className="tabular-nums">#{e.group.id}</span>
+                  {adminGroupName(e.group)} <span className="tabular-nums">#{e.group.id}</span>
                 </span>
                 <span className="hidden w-32 shrink-0 truncate text-[13px] text-ink-2 lg:block">{e.creator?.nickname ?? "탈퇴한 멤버"}</span>
               </Link>

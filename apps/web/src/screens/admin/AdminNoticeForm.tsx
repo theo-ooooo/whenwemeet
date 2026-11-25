@@ -1,12 +1,15 @@
 "use client";
 // (#515) 관리자 공지 작성, 수정 (D-285). 제목, 종류, 상단 고정, 본문(일반 텍스트: 빈 줄 = 문단, https 주소 = 링크).
 // 새 공지: [초안 저장] [게시]. 초안: [초안 저장] [게시]. 게시된 공지: [게시 취소] [저장]. 삭제는 확인 창
+// (#528) "푸시로도 알리기": 켜고 [게시]/[저장] 하면 확인 창 뒤 전체 푸시 (D-287). [초안 저장], [게시 취소] 에는 보내지 않는다.
+//   한 공지는 한 번만이라 이미 보냈으면 켜진 채 잠기고 "푸시 보냄: 날짜". 서버가 409 를 주면(다른 관리자가 먼저 보냄) 그 문구를 보인다
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { NoticeBody } from "@/components/NoticeBody";
 import { Button, ConfirmDialog, ErrorState, Field, InlineError, RowGroup, Segmented, Skeleton, ToggleRow, inputClass } from "@/components/ui";
+import { adminDateTime } from "@/lib/admin";
 import { messageOf, useAdminNotice, useCreateNotice, useDeleteNotice, useUpdateNotice, type NoticeInput } from "@/hooks";
 import { NOTICE_BODY_MAX, NOTICE_KIND_LABEL, NOTICE_KINDS, NOTICE_TITLE_MAX, noticeDate } from "@/lib/notice";
 import type { Notice, NoticeKind } from "@/lib/types";
@@ -35,23 +38,41 @@ function Form({ notice }: { notice: Notice | null }) {
   const [body, setBody] = useState(notice?.body ?? "");
   const [preview, setPreview] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [push, setPush] = useState(false);
+  const [confirmPush, setConfirmPush] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const create = useCreateNotice({ keepPendingAfterSuccess: true });
   const update = useUpdateNotice({ keepPendingAfterSuccess: true });
   const remove = useDeleteNotice({ keepPendingAfterSuccess: true });
   const busy = create.isPending || update.isPending || remove.isPending;
   const published = Boolean(notice?.publishedAt);
+  const pushedAt = notice?.pushedAt ?? null;
   const titleOk = title.trim().length >= 1 && title.trim().length <= NOTICE_TITLE_MAX;
   const bodyOk = body.trim().length >= 1 && body.trim().length <= NOTICE_BODY_MAX;
 
-  async function save(publish: boolean) {
+  /** 게시(또는 게시된 공지 저장)일 때만 푸시를 싣는다. 켜져 있으면 먼저 확인 창 */
+  function requestSave(publish: boolean) {
+    if (publish && push && !pushedAt) {
+      setError(null);
+      if (!titleOk || !bodyOk) {
+        setError("제목과 본문을 입력해 주세요");
+        return;
+      }
+      setConfirmPush(true);
+      return;
+    }
+    void save(publish, false);
+  }
+
+  async function save(publish: boolean, withPush: boolean) {
     setError(null);
     if (!titleOk || !bodyOk) {
       setError("제목과 본문을 입력해 주세요");
       return;
     }
-    const input: NoticeInput = { title: title.trim(), body, kind, pinned, published: publish };
+    const input: NoticeInput = { title: title.trim(), body, kind, pinned, published: publish, ...(withPush ? { push: true } : {}) };
     const r = notice ? await update.mutate({ id: notice.id, ...input }) : await create.mutate(input);
+    setConfirmPush(false);
     if (!r.ok) {
       setError(messageOf(r.error, "저장하지 못했어요. 잠시 후 다시 시도해 주세요"));
       return;
@@ -75,7 +96,7 @@ function Form({ notice }: { notice: Notice | null }) {
     <div className="max-w-[960px]">
       <AdminTitle
         title={notice ? "공지 수정" : "새 공지"}
-        sub={notice ? (published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)") : undefined}
+        sub={notice ? `${published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)"}${pushedAt ? `, 푸시 보냄 ${adminDateTime(pushedAt)}` : ""}` : undefined}
         right={
           notice && published ? (
             <Link href={`/notices/${notice.id}`} target="_blank" className="hit rounded-sm px-2 py-1 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink">
@@ -98,6 +119,16 @@ function Form({ notice }: { notice: Notice | null }) {
         </div>
         <RowGroup inset>
           <ToggleRow label="상단 고정" description="목록 맨 위에 보여요" checked={pinned} onChange={setPinned} />
+          {pushedAt ? (
+            <ToggleRow label="푸시로도 알리기" description={`푸시 보냄: ${adminDateTime(pushedAt)}`} checked disabled onChange={() => {}} />
+          ) : (
+            <ToggleRow
+              label="푸시로도 알리기"
+              description={published ? "저장할 때 모든 사용자에게 한 번 보내요" : "게시할 때 모든 사용자에게 한 번 보내요"}
+              checked={push}
+              onChange={setPush}
+            />
+          )}
         </RowGroup>
         <div>
           <div className="mb-1.5 flex items-center">
@@ -129,20 +160,20 @@ function Form({ notice }: { notice: Notice | null }) {
         <div className="flex flex-wrap gap-2 pt-1">
           {published ? (
             <>
-              <Button variant="secondary" disabled={busy} onClick={() => void save(false)}>
+              <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
                 게시 취소
               </Button>
-              <Button className="ml-auto" loading={update.isPending} disabled={busy} onClick={() => void save(true)}>
-                저장
+              <Button className="ml-auto" loading={update.isPending} disabled={busy} onClick={() => requestSave(true)}>
+                {push && !pushedAt ? "저장하고 푸시 보내기" : "저장"}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="secondary" disabled={busy} onClick={() => void save(false)}>
+              <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
                 초안 저장
               </Button>
-              <Button className="ml-auto" loading={create.isPending || update.isPending} disabled={busy} onClick={() => void save(true)}>
-                게시
+              <Button className="ml-auto" loading={create.isPending || update.isPending} disabled={busy} onClick={() => requestSave(true)}>
+                {push && !pushedAt ? "게시하고 푸시 보내기" : "게시"}
               </Button>
             </>
           )}
@@ -155,6 +186,15 @@ function Form({ notice }: { notice: Notice | null }) {
           </Button>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmPush}
+        title="모든 사용자에게 푸시를 보낼까요?"
+        body="공지 알림을 켠 사용자의 모든 기기로 한 번 가요. 보낸 뒤에는 거둘 수 없고 다시 보낼 수도 없어요"
+        confirmLabel={published ? "저장하고 보내기" : "게시하고 보내기"}
+        loading={create.isPending || update.isPending}
+        onConfirm={() => void save(true, true)}
+        onCancel={() => setConfirmPush(false)}
+      />
       <ConfirmDialog
         open={confirmDelete}
         title="이 공지를 삭제할까요?"

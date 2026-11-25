@@ -6,6 +6,8 @@ import {
   copula,
   eventUrl,
   importPayload,
+  noticeBodyPreview,
+  noticePayload,
   pollClosedPayload,
   pollDeadlinePayload,
   pollOpenedPayload,
@@ -329,5 +331,28 @@ describe('주간 알림 문구 (#277, 설계 6장 WEEKLY)', () => {
     const message = toExpoMessage('WEEKLY', 9, payload, { token: 't', platform: 'ANDROID' }, NOW);
     expect(message).toMatchObject({ title: '[우리] 이번 주 일정 1개', body: '수 저녁', data: { url: '/upcoming?team=abcd2345', kind: 'WEEKLY', nid: 9 }, expiration: EXP });
     expect(JSON.stringify(message)).not.toContain('variant');
+  });
+});
+
+describe('(#528) 공지 푸시 문구 (D-287)', () => {
+  it('본문 첫 줄: 빈 줄과 앞뒤 공백을 건너뛰고, 80자를 넘으면 79자 + …, 글자는 코드 포인트로 센다', () => {
+    expect(noticeBodyPreview('\n\n  첫 줄이에요  \n둘째 줄')).toBe('첫 줄이에요');
+    expect(noticeBodyPreview('한 줄\r\n둘')).toBe('한 줄');
+    expect(noticeBodyPreview('   \n  ')).toBeNull();
+    const long = '가'.repeat(100);
+    expect(noticeBodyPreview(long)).toBe(`${'가'.repeat(79)}…`);
+    expect(noticeBodyPreview('가'.repeat(80))).toBe('가'.repeat(80));
+    // 가족 이모지(여러 코드 포인트)도 한 글자로 센다
+    const family = '👨‍👩‍👧';
+    expect(noticeBodyPreview(family.repeat(81))).toBe(`${family.repeat(79)}…`);
+  });
+
+  it('noticePayload: 제목 그대로, 팀 이름 없음, /notices/{id}, 24시간 뒤 만료. Android 도 앞머리가 붙지 않는다', () => {
+    const now = new Date('2026-11-25T00:00:00.000Z');
+    const payload = noticePayload({ id: 9, title: '새 기능: 볼까', body: '볼까에게 일정을 물어보세요\n...' }, now);
+    expect(payload).toEqual({ title: '새 기능: 볼까', subtitle: null, body: '볼까에게 일정을 물어보세요', url: '/notices/9', expiration: Math.floor(now.getTime() / 1000) + 86400 });
+    const android = toExpoMessage('NOTICE', 3, payload, { token: 'ExponentPushToken[a]', platform: 'ANDROID' }, now);
+    expect(android).toMatchObject({ title: '새 기능: 볼까', body: '볼까에게 일정을 물어보세요', data: { url: '/notices/9', kind: 'NOTICE', nid: 3 } });
+    expect(android).not.toHaveProperty('subtitle');
   });
 });

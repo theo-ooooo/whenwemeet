@@ -6,7 +6,7 @@ import { addDays, DAY_MS, KST_OFFSET_MS, kstDate, kstMidnight, type Repeat } fro
 import type { ChangeAction } from './coalesce.js';
 import type { EventReminder } from './remind-at.js';
 
-export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY' | 'POLL';
+export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY' | 'POLL' | 'NOTICE';
 /** (#277) WEEKLY 의 변형. 주간 요약, 조용한 팀 깨우기 (D-203) */
 export type WeeklyVariant = 'SUMMARY' | 'NUDGE';
 export type Platform = 'IOS' | 'ANDROID';
@@ -92,6 +92,8 @@ export const upcomingUrl = (groupCode: string) => `/upcoming?team=${groupCode}`;
 export const freeUrl = (groupCode: string) => `/free?team=${groupCode}`;
 /** (#189) 약속 투표 화면 */
 export const pollUrl = (groupCode: string, pollCode: string) => `/polls/${pollCode}?team=${groupCode}`;
+/** (#528) 공지 상세. 팀과 무관한 공개 경로 */
+export const noticeUrl = (noticeId: number) => `/notices/${noticeId}`;
 
 /** 종일 일정의 마지막 날 (끝은 배타적) */
 function lastAllDayDate(endsAt: Date): string {
@@ -321,6 +323,36 @@ export function pollClosedPayload(
     subtitle: target.groupName,
     body: pollTimeLabel(target.option, kstDate(now)),
     url: eventUrl(target.groupCode, target.eventCode, null),
+    expiration: epochSeconds(now.getTime() + DAY_MS),
+  };
+}
+
+/** (#528) 공지 푸시 본문 상한 (글자). 잠금 화면 두세 줄 안. 넘치면 잘라 '…' (D-287) */
+export const NOTICE_BODY_PREVIEW_MAX = 80;
+
+const graphemes = new Intl.Segmenter('ko', { granularity: 'grapheme' });
+
+/** (#528) 본문의 첫 줄(빈 줄은 건너뜀)을 앞뒤 공백을 자르고 상한까지. 글자는 보이는 글자(grapheme) 단위로 센다(이모지가 쪼개지지 않게) */
+export function noticeBodyPreview(body: string, max = NOTICE_BODY_PREVIEW_MAX): string | null {
+  const line = body
+    .split(/\r?\n/)
+    .map((row) => row.trim())
+    .find((row) => row.length > 0);
+  if (!line) return null;
+  const chars = Array.from(graphemes.segment(line), (part) => part.segment);
+  return chars.length <= max ? line : `${chars.slice(0, max - 1).join('').trimEnd()}…`;
+}
+
+/**
+ * (#528) 공지 푸시 (D-287). 제목 = 공지 제목, 본문 = 본문 첫 줄. 팀이 없어 subtitle 과 Android 앞머리를 두지 않는다.
+ * 누르면 공지 상세. 만료는 24시간 뒤 (변경 알림과 같음)
+ */
+export function noticePayload(notice: { id: number; title: string; body: string }, now: Date): PushPayload {
+  return {
+    title: notice.title,
+    subtitle: null,
+    body: noticeBodyPreview(notice.body),
+    url: noticeUrl(notice.id),
     expiration: epochSeconds(now.getTime() + DAY_MS),
   };
 }

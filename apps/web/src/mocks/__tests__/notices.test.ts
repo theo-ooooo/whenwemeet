@@ -73,3 +73,82 @@ describe("목 팀, 일정 숨김 (#515, D-286)", () => {
     expect(call("GET", "/admin/events/3", OTHER_ID).status).toBe(403);
   });
 });
+
+describe("목 공지 푸시, 관리자 사용자 알림 설정 (#528, D-287)", () => {
+  beforeEach(() => resetStore());
+
+  it("게시하며 push: pushedAt 과 notice_push 기록. 초안 push 400(field push), 두 번째 409 이고 고친 내용은 그대로", () => {
+    const draft = call("POST", "/admin/notices", ME_ID, { title: "초안", body: "b", kind: "notice", push: true });
+    expect(draft.status).toBe(400);
+    const created = call("POST", "/admin/notices", ME_ID, { title: "새 기능", body: "b", kind: "update", published: true, push: true });
+    expect(created.status).toBe(201);
+    const id = created.body.data.id as number;
+    expect(created.body.data.pushedAt).not.toBeNull();
+    expect(call("GET", "/admin/logs").body.data.items.slice(0, 2).map((l) => l.action)).toEqual(["notice_push", "notice_create"]);
+    const again = call("PATCH", `/admin/notices/${id}`, ME_ID, { title: "바꿈", push: true });
+    expect(again.status).toBe(409);
+    expect(call("GET", `/admin/notices/${id}`).body.data.title).toBe("새 기능");
+    // 초안(3번)은 게시와 같이만 보낼 수 있다
+    expect(call("PATCH", "/admin/notices/3", ME_ID, { push: true }).status).toBe(400);
+    expect(call("PATCH", "/admin/notices/3", ME_ID, { published: true, push: true }).body.data.pushedAt).not.toBeNull();
+  });
+
+  it("알림 설정에 notice (기본 켬)", () => {
+    expect(call("GET", "/me/notification-settings").body.data.notice).toBe(true);
+    expect(call("PATCH", "/me/notification-settings", ME_ID, { notice: false }).body.data.notice).toBe(false);
+  });
+
+  it("관리자 사용자 상세: 설정은 내 정보 > 알림 키 그대로, 기기는 토큰 없이", () => {
+    const r = call("GET", "/admin/users/11");
+    const n = r.body.data.notifications as { settings: Record<string, boolean>; devices: Record<string, unknown>[] };
+    expect(Object.keys(n.settings).sort()).toEqual(Object.keys(call("GET", "/me/notification-settings").body.data).sort());
+    expect(n.settings).toMatchObject({ notice: false, change: false, reminder: true });
+    expect(n.devices.map((d) => d.platform)).toEqual(["IOS", "ANDROID"]);
+    expect(JSON.stringify(r.body)).not.toMatch(/PushToken/);
+    expect(call("GET", "/admin/users/13").body.data.notifications).toMatchObject({ devices: [] });
+  });
+});
+
+describe("목 관리자 팀 종류 필터와 개인 달력 주인 (#528)", () => {
+  beforeEach(() => resetStore());
+  type Row = { id: number; type: string; name: string; owner: { nickname: string } | null; memberPreview: unknown[] };
+  const groups = (query: string) => call("GET", "/admin/groups", ME_ID, null, `limit=50&${query}`).body.data.items as unknown as Row[];
+
+  it("type=TEAM 은 팀만(멤버 미리 보기 3명까지), PERSONAL 은 주인이 있는 개인 달력만, 없으면 전체", () => {
+    const teams = groups("type=TEAM");
+    expect(teams.every((g) => g.type === "TEAM" && g.owner === null)).toBe(true);
+    expect(teams.every((g) => g.memberPreview.length <= 3)).toBe(true);
+    const personal = groups("type=PERSONAL");
+    expect(personal.length).toBeGreaterThan(3);
+    expect(personal.every((g) => g.type === "PERSONAL" && g.name === "내 달력" && g.owner !== null)).toBe(true);
+    expect(groups("")).toHaveLength(teams.length + personal.length);
+    expect(call("GET", "/admin/groups", ME_ID, null, "type=team").status).toBe(400);
+  });
+
+  it("q 는 개인 달력 주인 닉네임도 찾는다. 일정 목록의 팀에 type 과 주인", () => {
+    expect(groups("q=수경").map((g) => [g.type, g.owner?.nickname])).toEqual([["PERSONAL", "수경"]]);
+    const events = call("GET", "/admin/events", ME_ID, null, "limit=50").body.data.items as unknown as { group: { type: string; owner: { nickname: string } | null } }[];
+    const personal = events.find((e) => e.group.type === "PERSONAL");
+    expect(personal?.group.owner?.nickname).toBeTruthy();
+    expect(events.filter((e) => e.group.type === "TEAM").every((e) => e.group.owner === null)).toBe(true);
+  });
+});
+
+describe("목 관리자 사용자 쓰는 곳 (#528)", () => {
+  beforeEach(() => resetStore());
+  type U = { id: number; platforms: string[]; lastAppLoginAt: string | null };
+  const users = (query = "") => call("GET", "/admin/users", ME_ID, null, `limit=50&${query}`).body.data.items as unknown as U[];
+
+  it("기기 기종, 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 []. platform 필터, 상세도 같은 값", () => {
+    const byId = new Map(users().map((u) => [u.id, u]));
+    expect(byId.get(11)!.platforms).toEqual(["ios", "android"]);
+    expect(byId.get(12)!.platforms).toEqual(["ios"]);
+    expect(byId.get(13)!.platforms).toEqual([]);
+    expect(byId.get(ME_ID)!.platforms).toEqual(["web"]);
+    expect(users("platform=android").map((u) => u.id)).toEqual([11]);
+    expect(users("platform=web").every((u) => u.platforms[0] === "web")).toBe(true);
+    expect(call("GET", "/admin/users", ME_ID, null, "platform=IOS").status).toBe(400);
+    expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android"] });
+  });
+});
+
