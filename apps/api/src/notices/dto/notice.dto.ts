@@ -35,6 +35,11 @@ export class CreateNoticeDto {
   @ValidateIf((_: unknown, value: unknown) => value !== undefined)
   @IsBoolean({ message: BOOL_MESSAGE('published') })
   published?: boolean;
+
+  /** (#528) 게시와 같이 전체 푸시. published 가 true 일 때만 (D-287) */
+  @ValidateIf((_: unknown, value: unknown) => value !== undefined)
+  @IsBoolean({ message: BOOL_MESSAGE('push') })
+  push?: boolean;
 }
 
 /**
@@ -65,4 +70,9 @@ export class UpdateNoticeDto {
   @ValidateIf((_: unknown, value: unknown) => value !== undefined)
   @IsBoolean({ message: BOOL_MESSAGE('published') })
   published?: boolean;
+
+  /** (#528) 전체 푸시. 고친 결과가 게시 상태여야 하고 한 공지는 한 번만 (이미 보냈으면 409, D-287) */
+  @ValidateIf((_: unknown, value: unknown) => value !== undefined)
+  @IsBoolean({ message: BOOL_MESSAGE('push') })
+  push?: boolean;
 }

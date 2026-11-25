@@ -30,6 +30,7 @@ const SETTINGS: { key: keyof NotificationSettings; kind: SettingKind }[] = [
   { key: 'weekly', kind: 'WEEKLY' },
   { key: 'weeklyNudge', kind: 'WEEKLY_NUDGE' },
   { key: 'poll', kind: 'POLL' },
+  { key: 'notice', kind: 'NOTICE' },
 ];
 const OFFSET_NAMES = ['DAY_OF', 'DAY_BEFORE', 'WEEK_BEFORE'] as const;
 type OffsetName = (typeof OFFSET_NAMES)[number];
@@ -484,6 +485,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
       weekly: true,
       weeklyNudge: false,
       poll: true,
+      notice: true,
     });
   });
 

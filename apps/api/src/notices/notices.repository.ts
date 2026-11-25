@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { NoticeKind } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { PushNotificationsRepository } from '../push/push-notifications.repository.js';
 
 /** (#515) 공지 저장소 (D-285) */
 
@@ -11,6 +12,7 @@ const NOTICE_SELECT = {
   kind: true,
   pinned: true,
   publishedAt: true,
+  pushedAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -23,6 +25,8 @@ export interface NoticeRow {
   pinned: boolean;
   /** null = 초안 */
   publishedAt: Date | null;
+  /** (#528) 푸시를 보낸 시각. null = 아직 안 보냄 (D-287) */
+  pushedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,9 +45,15 @@ export interface NoticePage {
   nextCursor: number | null;
 }
 
+/** (#528) 푸시를 같이 예약했는데 그 사이 다른 요청이 먼저 보냈다 (트랜잭션은 되돌린다) */
+export class NoticeAlreadyPushedError extends Error {}
+
 @Injectable()
 export class NoticesRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushNotificationsRepository,
+  ) {}
 
   /**
    * 게시된 공지. 고정 먼저, 게시 시각 내림차순, 같으면 id 내림차순 (D-285).
@@ -71,15 +81,31 @@ export class NoticesRepository {
     return row !== null;
   }
 
-  create(data: Required<Pick<NoticeWrite, 'title' | 'body' | 'kind'>> & NoticeWrite & { createdById: number }): Promise<NoticeRow> {
-    return this.prisma.notice.create({ data, select: NOTICE_SELECT });
+  /** (#528) pushAt 을 주면 같은 트랜잭션에서 pushedAt 을 적고 공지 푸시를 예약한다 (게시된 공지만, 서비스가 확인) */
+  create(data: Required<Pick<NoticeWrite, 'title' | 'body' | 'kind'>> & NoticeWrite & { createdById: number }, pushAt: Date | null = null): Promise<NoticeRow> {
+    if (pushAt === null) return this.prisma.notice.create({ data, select: NOTICE_SELECT });
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.notice.create({ data: { ...data, pushedAt: pushAt }, select: NOTICE_SELECT });
+      await this.push.scheduleNoticeTx(tx, row.id, pushAt);
+      return row;
+    });
   }
 
-  /** 없으면 null */
-  async update(id: number, data: NoticeWrite): Promise<NoticeRow | null> {
-    const { count } = await this.prisma.notice.updateMany({ where: { id }, data });
-    if (count === 0) return null;
-    return this.findById(id);
+  /**
+   * 없으면 null. (#528) pushAt 을 주면 같은 트랜잭션에서 "아직 안 보냈고 게시된" 공지일 때만 pushedAt 을 적고 푸시를 예약한다.
+   * 그 조건이 깨졌으면(동시에 두 번 누름) NoticeAlreadyPushedError 를 던져 고친 내용까지 되돌린다
+   */
+  async update(id: number, data: NoticeWrite, pushAt: Date | null = null): Promise<NoticeRow | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.notice.updateMany({ where: { id }, data });
+      if (count === 0) return null;
+      if (pushAt !== null) {
+        const marked = await tx.notice.updateMany({ where: { id, pushedAt: null, publishedAt: { not: null } }, data: { pushedAt: pushAt } });
+        if (marked.count !== 1) throw new NoticeAlreadyPushedError();
+        await this.push.scheduleNoticeTx(tx, id, pushAt);
+      }
+      return tx.notice.findUnique({ where: { id }, select: NOTICE_SELECT });
+    });
   }
 
   /** 지웠으면 true */

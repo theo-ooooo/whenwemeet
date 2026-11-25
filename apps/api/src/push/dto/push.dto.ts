@@ -56,4 +56,9 @@ export class UpdateNotificationSettingsDto {
   @IsOptional()
   @IsBoolean({ message: 'poll 은 true/false 여야 해요' })
   poll?: boolean;
+
+  /** (#528) 공지 (D-287) */
+  @IsOptional()
+  @IsBoolean({ message: 'notice 는 true/false 여야 해요' })
+  notice?: boolean;
 }

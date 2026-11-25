@@ -44,6 +44,15 @@ export function parsePollDedupeKey(key: string): { stage: PollPushStage; pollId:
   return { stage, pollId: Number(match[2]) };
 }
 
+/** (#528) 공지 푸시 dedupeKey. 공지 하나에 한 건 (D-287) */
+export const noticeDedupeKey = (noticeId: number) => `N:${noticeId}`;
+
+/** dedupeKey → 공지 번호. 모양이 틀리면 null */
+export function parseNoticeDedupeKey(key: string): number | null {
+  const match = /^N:([1-9]\d*)$/.exec(key);
+  return match ? Number(match[1]) : null;
+}
+
 /** 일정 쓰기 저장소들의 `...WithLogTx` 가 막 만든 로그 */
 /** (#375) 삭제 하나가 팀원 변경 알림 묶음에 한 일. 되돌리면 거꾸로 한다 (revertChangeTx, D-251) */
 export type ChangeRevert =
@@ -230,6 +239,19 @@ export class PushNotificationsRepository {
         skipDuplicates: true,
       });
       return created.count === 1;
+    });
+  }
+
+  // ---------- (#528) 공지 (D-287) ----------
+
+  /**
+   * 공지에 pushedAt 을 적은 트랜잭션 안에서. 전체 대상이라 팀이 없다(groupId null). 예약 시각 = 지금이고
+   * 문구와 받는 사람은 펼칠 때 정한다(그 사이 고친 제목, 본문이 나간다). 같은 공지의 두 번째 예약은 dedupeKey 가 막는다
+   */
+  async scheduleNoticeTx(tx: Db, noticeId: number, now: Date): Promise<void> {
+    await tx.pushNotification.createMany({
+      data: [{ kind: 'NOTICE', dedupeKey: noticeDedupeKey(noticeId), groupId: null, scheduledAt: now }],
+      skipDuplicates: true,
     });
   }
 

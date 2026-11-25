@@ -19,6 +19,8 @@ export interface NotificationSettings {
   weeklyNudge: boolean;
   /** (#189) 약속 투표. 기본 켬 */
   poll: boolean;
+  /** (#528) 공지. 기본 켬 (D-287) */
+  notice: boolean;
 }
 
 export interface DeviceInput {
@@ -36,9 +38,11 @@ const SETTING_KIND: Record<keyof NotificationSettings, PreferenceKind> = {
   weekly: 'WEEKLY',
   weeklyNudge: 'WEEKLY_NUDGE',
   poll: 'POLL',
+  notice: 'NOTICE',
 };
 
-function toSettings(values: Record<PreferenceKind, boolean>): NotificationSettings {
+/** 종류별 값 → 설정 API 모양. (#528) 관리자 사용자 상세도 같은 모양을 쓴다 */
+export function toNotificationSettings(values: Record<PreferenceKind, boolean>): NotificationSettings {
   return Object.fromEntries(Object.entries(SETTING_KIND).map(([key, kind]) => [key, values[kind]])) as unknown as NotificationSettings;
 }
 
@@ -83,7 +87,7 @@ export class PushDevicesRepository {
 
   async getSettings(userId: number): Promise<NotificationSettings | null> {
     const values = await this.preferences.find(userId);
-    return values && toSettings(values);
+    return values && toNotificationSettings(values);
   }
 
   async updateSettings(userId: number, patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
@@ -91,6 +95,6 @@ export class PushDevicesRepository {
     for (const [key, kind] of Object.entries(SETTING_KIND) as [keyof NotificationSettings, PreferenceKind][]) {
       if (patch[key] !== undefined) values[kind] = patch[key];
     }
-    return toSettings(await this.preferences.set(userId, values));
+    return toNotificationSettings(await this.preferences.set(userId, values));
   }
 }

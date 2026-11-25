@@ -122,11 +122,11 @@ describe('푸시 알림 (e2e)', () => {
     it('알림 설정: 기본 모두 켬, 불리언만, 빈 본문은 그대로', async () => {
       const get = await api(app).get('/v1/me/notification-settings').set(auth(minji)).expect(200);
       // (#277) 주간 요약은 기본 켬, 다 같이 비는 시간(깨우기)은 기본 끔 (D-204)
-      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
+      expect(get.body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true });
       const bad = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: 'no' }).expect(400);
       expect(bad.body.error.details[0].field).toBe('change');
       const patched = await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({ change: false }).expect(200);
-      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true });
+      expect(patched.body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true });
       expect((await api(app).patch('/v1/me/notification-settings').set(auth(minji)).send({}).expect(200)).body.data.change).toBe(false);
     });
 

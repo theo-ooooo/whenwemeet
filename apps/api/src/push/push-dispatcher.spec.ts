@@ -58,6 +58,44 @@ describe('PushDispatcher', () => {
   });
 
   describe('펼치기 (5-6 A)', () => {
+    it('(#528) 공지: 펼칠 때의 공지로 문구(제목, 본문 첫 줄, /notices/{id}), 받는 사람은 전체 목록. 팀 조회를 하지 않는다', async () => {
+      push.listDuePending.mockResolvedValue([due({ id: 7, kind: 'NOTICE', dedupeKey: 'N:42', groupId: null, eventId: null, payload: null, scheduledAt: new Date(NOW.getTime() - 2 * 60 * MIN) })]);
+      push.findPublishedNotice.mockResolvedValue({ id: 42, title: '점검 안내', body: '\n  12월 1일 새벽 점검해요  \n자세한 내용' });
+      const recipients = [
+        { userId: 1, token: 'a', platform: 'IOS' as const },
+        { userId: 2, token: 'b', platform: 'ANDROID' as const },
+      ];
+      push.listNoticeRecipients.mockResolvedValue(recipients);
+      const stats = await dispatcher.expandDue(NOW);
+      expect(push.findPublishedNotice).toHaveBeenCalledWith(42);
+      expect(push.findGroupRef).not.toHaveBeenCalled();
+      expect(push.listRecipients).not.toHaveBeenCalled();
+      expect(push.dispatchTx).toHaveBeenCalledWith(
+        7,
+        NOW,
+        { title: '점검 안내', subtitle: null, body: '12월 1일 새벽 점검해요', url: '/notices/42', expiration: Math.floor(NOW.getTime() / 1000) + 86400 },
+        recipients,
+      );
+      // 2시간 늦어도 보낸다 (공지는 3시간 허용)
+      expect(stats).toMatchObject({ dispatched: 1, skipped: 0, deliveries: 2 });
+    });
+
+    it('(#528) 공지: 지워졌거나 게시 취소됐으면 SKIPPED, 3시간 넘게 늦으면 SKIPPED. NOTICE 밖인데 팀이 없는 행도 SKIPPED', async () => {
+      push.listDuePending.mockResolvedValue([
+        due({ id: 1, kind: 'NOTICE', dedupeKey: 'N:1', groupId: null, payload: null }),
+        due({ id: 2, kind: 'NOTICE', dedupeKey: 'N:2', groupId: null, payload: null, scheduledAt: new Date(NOW.getTime() - 181 * MIN) }),
+        due({ id: 3, groupId: null }),
+      ]);
+      push.findPublishedNotice.mockResolvedValue(null);
+      const stats = await dispatcher.expandDue(NOW);
+      expect(push.markSkipped).toHaveBeenCalledWith([2]);
+      expect(push.markSkipped).toHaveBeenCalledWith([1]);
+      expect(push.markSkipped).toHaveBeenCalledWith([3]);
+      expect(push.listNoticeRecipients).not.toHaveBeenCalled();
+      expect(push.dispatchTx).not.toHaveBeenCalled();
+      expect(stats).toMatchObject({ dispatched: 0, skipped: 3 });
+    });
+
     it('예약 시각이 10분 넘게 지난 PENDING 은 SKIPPED, 10분 안은 펼친다 (D-88)', async () => {
       push.listDuePending.mockResolvedValue([due({ id: 1, scheduledAt: new Date(NOW.getTime() - 11 * MIN) }), due({ id: 2, scheduledAt: new Date(NOW.getTime() - 9 * MIN) })]);
       const stats = await dispatcher.expandDue(NOW);

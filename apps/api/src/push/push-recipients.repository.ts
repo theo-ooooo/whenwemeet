@@ -23,6 +23,9 @@ export interface Recipient {
 /** 받는 사람을 거르는 알림 종류. 푸시 종류 이름과 같고 WEEKLY 의 NUDGE 만 WEEKLY_NUDGE 를 따로 넘긴다 (D-204) */
 export type SettingKind = PreferenceKind;
 
+/** (#528) 공지 받는 사람을 한 번에 읽는 사용자 수 (id 순으로 이어 읽는다) */
+export const NOTICE_RECIPIENT_PAGE = 1000;
+
 /** 펼칠 때 읽는 저장소 (#188, #485). 받는 사람(설정, 참여자, 불참)과 문구 재료(팀, 로그, 이름, 생일, 투표 대상) */
 @Injectable()
 export class PushRecipientsRepository {
@@ -139,6 +142,34 @@ export class PushRecipientsRepository {
   async findShownBirthday(groupId: number, userId: number): Promise<string | null> {
     const row = await this.prisma.membership.findFirst({ where: { groupId, userId, showBirthday: true }, select: { user: { select: { birthday: true } } } });
     return row?.user.birthday ?? null;
+  }
+
+  // ---------- (#528) 공지 (D-287) ----------
+
+  /** 푸시 문구 재료. 지워졌거나 게시 취소(초안)면 null (보내지 않는다) */
+  async findPublishedNotice(noticeId: number): Promise<{ id: number; title: string; body: string } | null> {
+    return this.prisma.notice.findFirst({ where: { id: noticeId, publishedAt: { not: null } }, select: { id: true, title: true, body: true } });
+  }
+
+  /**
+   * 공지 받는 사람: 기기가 하나라도 있고 공지 알림(NOTICE)을 끄지 않은 모든 사용자의 기기 전부.
+   * 팀 설정(Membership.notify)은 팀 알림용이라 보지 않는다. 탈퇴한 사용자는 행이 지워져(기기도 Cascade) 빠진다.
+   * 사용자 id 순으로 NOTICE_RECIPIENT_PAGE 명씩 이어 읽어 한 쿼리가 커지지 않게 한다
+   */
+  async listNoticeRecipients(pageSize = NOTICE_RECIPIENT_PAGE): Promise<Recipient[]> {
+    const out: Recipient[] = [];
+    let after = 0;
+    for (;;) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { gt: after }, pushDevices: { some: {} }, ...preferenceOn('NOTICE') },
+        orderBy: { id: 'asc' },
+        take: pageSize,
+        select: { id: true, pushDevices: { select: { token: true, platform: true } } },
+      });
+      for (const user of users) for (const device of user.pushDevices) out.push({ userId: user.id, token: device.token, platform: device.platform });
+      if (users.length < pageSize) return out;
+      after = users[users.length - 1].id;
+    }
   }
 
   // ---------- (#189) 약속 투표 (설계 약속-투표.md 6장, D-241) ----------
