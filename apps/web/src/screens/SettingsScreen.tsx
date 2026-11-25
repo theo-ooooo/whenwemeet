@@ -5,12 +5,15 @@
 //   "연결" 다른 캘린더 앱에서 보기 줄(→ 연결 주소 시트, #193), 일정 가져오기(#279)
 //   맨 아래 빨간 글자 "팀 나가기"(확인 창). "바꾸기" 버튼은 두지 않고 줄을 누른다 (디자인규칙.md 8-0 3)
 // `?invite=1` 이면 초대 시트를, (#278) `?feed=1` 이면 연결 주소 시트를 연 채로 시작한다
+// (#536) 팀이면 나가기 아래 "이 팀 신고하기", 멤버 줄(나 말고)마다 ⋯ 메뉴의 "신고하기" → 신고 시트 (D-289)
 import { IMPORT_PATH } from "@/lib/routes";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useGroupContext } from "@/components/AppShell";
 import { CalendarFeedSection } from "@/components/CalendarFeedSection";
 import { NameSheet } from "@/components/NameSheet";
+import { OverflowMenu } from "@/components/OverflowMenu";
+import { ReportSheet, type ReportTarget } from "@/components/ReportSheet";
 import { useToast } from "@/components/Toast";
 import { IconCheck, KakaoSymbol } from "@/components/icons";
 import { Avatar, Button, ConfirmDialog, ErrorState, MemberDot, RowButton, RowGroup, RowLink, Sheet, Skeleton, ToggleRow } from "@/components/ui";
@@ -30,6 +33,7 @@ export function SettingsScreen({ openInvite, showFeed = false }: { openInvite: b
   // 주소로 연 시트(?invite=1, ?feed=1)는 팀을 받은 뒤 그린다
   const [sheet, setSheet] = useState<SheetKind | null>(openInvite ? "invite" : showFeed ? "feed" : null);
   const close = () => setSheet(null);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   if (error && !group) {
     return (
@@ -47,7 +51,7 @@ export function SettingsScreen({ openInvite, showFeed = false }: { openInvite: b
       {group ? (
         // 본문 폭 main-lg(≥696, #323): 왼쪽 "팀" | 오른쪽 "나", "연결", 나가기 (#244)
         <div className="space-y-5 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
-          <TeamGroup group={group} onOpen={setSheet} />
+          <TeamGroup group={group} onOpen={setSheet} onReport={setReport} />
           <div className="space-y-5">
             <MeGroup group={group} onSaved={setGroup} onOpen={setSheet} />
             <RowGroup title="연결">
@@ -55,7 +59,17 @@ export function SettingsScreen({ openInvite, showFeed = false }: { openInvite: b
               <RowLink href={IMPORT_PATH} label="일정 가져오기" value=".ics 파일" />
             </RowGroup>
             {group.type === "TEAM" && <LeaveRow group={group} groupId={groupId} />}
+            {group.type === "TEAM" && (
+              <button
+                type="button"
+                onClick={() => setReport({ targetType: "group", targetId: group.id })}
+                className="flex h-11 w-full items-center justify-center rounded-lg text-[13px] font-semibold text-ink-2 hover:bg-hover hover:text-ink"
+              >
+                이 팀 신고하기
+              </button>
+            )}
           </div>
+          <ReportSheet target={report} onClose={() => setReport(null)} />
           <NameSheetFor group={group} open={sheet === "name"} onClose={close} onSaved={setGroup} />
           <DisplayNameSheet group={group} open={sheet === "display"} onClose={close} onSaved={setGroup} />
           <ColorSheet group={group} open={sheet === "color"} onClose={close} onSaved={setGroup} />
@@ -76,7 +90,7 @@ export function SettingsScreen({ openInvite, showFeed = false }: { openInvite: b
 }
 
 /* "팀" 묶음: 팀 이름, 초대하기, 멤버. 개인 달력은 이름과 새 팀 만들기 */
-function TeamGroup({ group, onOpen }: { group: GroupDetail; onOpen: (k: SheetKind) => void }) {
+function TeamGroup({ group, onOpen, onReport }: { group: GroupDetail; onOpen: (k: SheetKind) => void; onReport: (t: ReportTarget) => void }) {
   if (group.type !== "TEAM") {
     return (
       <RowGroup title="달력" hint="개인 달력은 나만 볼 수 있어요. 여럿이 쓰려면 새 팀을 만들어 보세요">
@@ -102,6 +116,13 @@ function TeamGroup({ group, onOpen }: { group: GroupDetail; onOpen: (k: SheetKin
                   <span className="truncate text-[14px] font-semibold">{m.displayName}</span>
                   {isMe && <span className="text-[12px] text-ink-2">(나)</span>}
                 </span>
+                {/* (#536) 나 말고 멤버마다 ⋯ → 신고하기 */}
+                {!isMe && m.userId !== null && (
+                  <OverflowMenu
+                    label={`${m.displayName} 메뉴`}
+                    items={[{ label: "신고하기", onSelect: () => onReport({ targetType: "user", targetId: m.userId!, name: m.displayName }) }]}
+                  />
+                )}
               </li>
             );
           })}

@@ -27,6 +27,7 @@ import { PlacesModule } from './places/places.module.js';
 import { PollsModule } from './polls/polls.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PushModule } from './push/push.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { TodosModule } from './todos/todos.module.js';
 import { UserClientsModule } from './user-clients/user-clients.module.js';
 
@@ -52,6 +53,7 @@ import { UserClientsModule } from './user-clients/user-clients.module.js';
     NewsModule,
     NoticesModule,
     AdminModule,
+    ReportsModule,
     MeModule,
     AuthAccountsModule,
     PushModule,

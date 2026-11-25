@@ -90,6 +90,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | 일정 가져오기 미리보기 `POST /groups/:id/imports/preview` (#279) | 사용자 | 30 / 1시간 |
 | 일정 가져오기 `POST /groups/:id/imports` (#279) | 사용자 | 10 / 1시간 |
 | AI 비서 `POST /groups/:id/assistant/messages` (#450) | 사용자 | 10 / 1분 (하루 30번은 DB 로 따로 센다, 2.15) |
+| 신고하기 `POST /reports` (#536) | 사용자 | 10 / 24시간 (접수 중 같은 대상의 다시 신고도 센다, 2.18) |
 | 그 밖의 모든 요청 (위 경로도 함께 센다) | 로그인(유효한 JWT)이면 사용자, 아니면 IP | 사용자 300 / 1분, IP 600 / 1분 |
 
 - 제외: `GET /health` (배포 healthcheck, 점검 화면). 푸시 스케줄러는 HTTP 가 아니라 대상 아님. 이메일 엔드포인트는 자체 제한(EMAIL_RATE_LIMITED)을 그대로 두고 기본 한도만 함께 센다
@@ -810,7 +811,7 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
 - 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
-### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287, #538 D-291)
+### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287, #538 D-291, (#536) 숨김과 삭제는 접수 중 신고를 닫는다 2.18)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -888,6 +889,56 @@ AppRelease = { platform: 'ios' | 'android', latestVersion: string | null, minVer
 - 웹은 앱 셸 UA 일 때만 부른다. 앱 버전 < minVersion 이면 닫을 수 없는 "업데이트가 필요해요", < latestVersion 이면 닫을 수 있는 "새 버전이 나왔어요"(최신 버전마다 기기에서 한 번). 값이 null 이면 그 안내 없음
 - 목(`API_MOCK=1`)은 두 기종 모두 최신 1.4.0, 최소 1.1.0 으로 시드한다. 브라우저 개발자 도구(또는 CDP `Network.setUserAgentOverride`)로 User-Agent 끝에 `WhenwemeetApp/1.3.0 (ios)` 를 붙이면 띠, `WhenwemeetApp/1.0.0 (ios)` 면 꼭 업데이트 창이 보인다. 목 사용자는 처음에 점검 안내(#538) 팝업도 본다
 
+### 2.18 신고하기 (#536, D-289)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| POST | `/reports` | 유저 | `{ targetType: 'group'\|'event'\|'user', targetId, reason: ReportReason, detail?(앞뒤 공백 자르고 500자까지) }` | 새 신고 201, 접수 중인 내 같은 대상 신고가 있으면 만들지 않고 200 `{ data: ReportReceipt }` |
+| GET | `/admin/reports` | 관리자 | `status?`(`open` \| `resolved` \| `dismissed`, 없으면 전체), `targetType?`, `limit?`, `cursor?` | `{ data: { items: AdminReportGroup[], nextCursor } }` 대상별 묶음, 최근 신고가 늦은 대상 먼저. cursor 는 앞 페이지 마지막 `latestReportId` |
+| GET | `/admin/reports/open-count` | 관리자 | - | `{ data: { openTargets } }` 접수 중 신고가 있는 대상 수 (탭 배지) |
+| GET | `/admin/reports/targets/:targetType/:targetId` | 관리자 | - | `{ data: AdminReportTarget }`. 신고가 없는 대상은 404 |
+| POST | `/admin/reports/:id/resolve` | 관리자 | `{ resolution(1~200) }` | `{ data: AdminReportTarget }`. 그 신고 대상의 접수 중 신고를 모두 처리 완료로 |
+| POST | `/admin/reports/:id/dismiss` | 관리자 | `{ resolution?(200) }` | 같음, 기각으로 |
+
+```ts
+ReportReason  = 'spam' | 'abuse' | 'illegal' | 'privacy' | 'other'   // 스팸, 광고 / 욕설, 괴롭힘 / 불법 정보 / 개인정보 노출 / 그 밖
+ReportStatus  = 'open' | 'resolved' | 'dismissed'
+ReportReceipt = { id, targetType, targetId, reason, status, createdAt, duplicate: boolean }
+AdminReportGroup = { targetType, targetId,
+                     target: { title, hidden, group: { id, name, type } | null /* 일정의 팀 */ } | null,   // 지워진 대상은 null
+                     count /* 필터에 맞는 수 */, openCount /* 지금 접수 중 */, reasons: { reason, count }[] /* 많은 것 먼저 */,
+                     status /* 접수 중이 있으면 open, 아니면 최근 신고의 상태 */, firstReportedAt, lastReportedAt, latestReportId }
+AdminReport   = { id, reason, detail, status, createdAt, reporter: { id, nickname } | null, resolvedBy: { id, nickname } | null, resolvedAt, resolution }
+AdminReportTarget = { targetType, targetId, openCount, reports: AdminReport[] /* 최근 100건 */,
+                      target: { type: 'group', group: AdminGroupDetail } | { type: 'event', event: AdminEvent & { memo, place } }
+                            | { type: 'user', user: AdminUser, teams: AdminGroup[] /* TEAM 만 */ } | null }
+```
+
+- 신고할 수 있는 대상: 팀은 내가 멤버인 팀(숨긴 팀 포함), 일정은 내 팀의 보이는 일정(`VISIBLE_EVENT_WHERE`), 사용자는 나와 같은 팀에 있는 사람. 그 밖(없는 번호 포함)은 404 NOT_FOUND "신고할 대상을 찾을 수 없어요". 내 개인 달력, 내가 만든 일정, 나 자신은 403 FORBIDDEN
+- 중복: 같은 사람, 같은 대상의 접수 중 신고가 있으면 200 으로 그 신고(사유, 내용은 처음 것). 닫힌 뒤 다시 하면 새 신고(201)
+- 하루 10번: 요청 제한 `report`(1장 표). 넘으면 429 RATE_LIMITED
+- 처리 완료와 기각은 조치 기록 `report_resolve`, `report_dismiss` 한 줄(targetType, targetId = 신고 대상, reason = 메모). 닫을 것이 없으면 바꾸지도 기록하지도 않고 상세만 돌려준다
+- `POST /admin/groups/:id/hide`, `/admin/events/:id/hide`, 두 `DELETE` 는 그 대상의 접수 중 신고를 처리 완료(메모 "숨김: 사유" 200자까지, "삭제")로 닫고 닫은 것이 있으면 `report_resolve` 를 남긴다. 숨김 해제는 신고를 다시 열지 않는다. 팀을 지워도 그 팀 일정의 신고는 그대로(대상 null 로 남아 직접 닫는다)
+- 사용자 정지 기능은 없다. 사용자 신고는 그 사람의 팀을 보고 팀을 숨기거나, 처리 완료나 기각으로 닫는다
+- 신고한 사람에게 처리 결과를 알리지 않는다
+
+### 2.19 관리자 대시보드 (#537, D-290)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/admin/stats` | 관리자 | `range?`(`7` \| `30`, 기본 7, 그 밖 400) | `{ data: AdminStats }` |
+
+```ts
+AdminStats = { range: 7 | 30, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' /* KST, to = 오늘 */, generatedAt,
+               days: { day, signups, activeUsers, assistantMessages, assistantUsers }[] /* 오래된 날 먼저, range 개, 빈 날 0 */,
+               totals: { users, teams /* TEAM */, personalCalendars, events, notices /* 게시된 것 */, openReports, activeUsers /* 기간 */, signupsInRange, assistantMessagesInRange },
+               platforms: { ios, android, web, unknown } }
+```
+
+- 날짜는 KST 달력 날짜. `signups` = 그날 가입, `activeUsers` = `UserClient.lastSeenAt` 이 그날인 서로 다른 사람(기종마다 마지막 접속만 남으므로 "그날이 마지막 접속인 사람", 지난 날일수록 적다), 볼까는 `AssistantUsage` 의 그날 합계와 행 수
+- `platforms` 는 관리자 사용자 목록의 쓰는 곳 규칙(2.16 #532)과 같다. 한 사람이 여러 기종이면 각각 센다. `unknown` = 기록 없이 앱 로그인 기록만 있는 사람
+- 지표마다 쿼리 하나, 결과는 기간별로 인스턴스 메모리에 60초 (`generatedAt` 으로 확인)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -919,6 +970,8 @@ AppRelease = { platform: 'ios' | 'android', latestVersion: string | null, minVer
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
 | 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
+| 신고하기 (#536) | `POST /reports`, 관리자 신고 탭 2.18 |
+| 관리자 대시보드 (#537) | `GET /admin/stats` (2.19) |
 | 공지사항, 새 공지 점 (#515) | `GET /notices`, `GET /notices/:id`, `POST /notices/seen`, `GET /me` 의 `hasUnreadNotice` |
 | 중요 공지 팝업, 달력 위 새 공지 띠 (#538) | `GET /notices/attention`, `POST /notices/:id/dismiss`, 관리자 공지의 `popup` |
 | 앱 업데이트 안내 (#539) | `GET /app/version`, `GET /admin/app-releases`, `PUT /admin/app-releases/:platform` (2.17) |

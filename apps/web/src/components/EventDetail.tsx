@@ -7,10 +7,13 @@
 // (#378) 2026-11-13 "수정" 옆 "삭제" 를 잘못 눌러 일정이 지워졌다. 아래 버튼은 주 버튼 "수정" 하나만 두고
 //   공유, 복제, 삭제는 머리 오른쪽 ⋯ 메뉴로 옮긴다. 삭제는 부르는 쪽(CalendarScreen)이 확인 창(반복이면 범위 시트)을 띄우고, 지운 뒤 되돌리기(#375).
 //   칸 순서는 시간 → 장소 → 참여자, 참석 → 메모 → 반응 (나머지 화면 점검 1)
+// (#536) ⋯ 메뉴 맨 아래 "신고하기"(남이 만든 일정만, 개인 달력 제외) → 신고 시트 (D-289)
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useEventShareSheet } from "./EventShareSheet";
 import { IconArrowRight, IconBell, IconChevronLeft, IconShare } from "./icons";
 import { OverflowMenu, type OverflowMenuItem } from "./OverflowMenu";
+import { ReportSheet, type ReportTarget } from "./ReportSheet";
 import { CloseButton } from "./ui";
 import { EventResponses } from "./EventResponses";
 import { MemoSection } from "./MemoSection";
@@ -72,10 +75,14 @@ export function EventDetail({
   // (#274) 공유: 개인 팀과 이미 끝난 회차는 숨긴다 (API 도 GROUP_NOT_INVITABLE, EVENT_SHARE_ENDED 로 막는다)
   const canShare = !who.personal && !isShareEnded(ev.endsAt);
   const share = useEventShareSheet(groupId, ev);
+  // (#536) 남이 만든 일정만 신고 (탈퇴한 멤버의 일정 포함). 개인 달력은 내 일정뿐이라 없다
+  const canReport = !who.personal && who.meId !== null && ev.creator.userId !== who.meId;
+  const [report, setReport] = useState<ReportTarget | null>(null);
   const menu: OverflowMenuItem[] = [
     ...(canShare ? [{ label: "공유", onSelect: share.open }] : []),
     { label: "복제", onSelect: () => router.push(eventCopyHref(ev)) },
     { label: "삭제", destructive: true as const, confirm: "caller" as const, onSelect: onDelete },
+    ...(canReport ? [{ label: "신고하기", onSelect: () => setReport({ targetType: "event" as const, targetId: ev.id }) }] : []),
   ];
   const memo = <MemoSection memo={ev.memo} />;
   const withRsvp = !who.personal && Boolean(ev.rsvp);
@@ -179,6 +186,7 @@ export function EventDetail({
         )}
       </div>
       {canShare && share.sheet}
+      <ReportSheet target={report} onClose={() => setReport(null)} />
     </div>
   );
 }

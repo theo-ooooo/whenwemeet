@@ -2,7 +2,24 @@
 // (#515) 관리자 화면 훅 (D-285, D-286). 관리자 API(/admin/*) 는 관리자가 아니면 403
 import { useCallback } from "react";
 import { api } from "@/lib/api";
-import type { AdminActionLog, AdminEvent, AdminEventDetail, AdminGroup, AdminGroupDetail, AdminUser, AdminUserDetail, Notice, Page, UserRole } from "@/lib/types";
+import type {
+  AdminActionLog,
+  AdminEvent,
+  AdminEventDetail,
+  AdminGroup,
+  AdminGroupDetail,
+  AdminReportGroup,
+  AdminReportTarget,
+  AdminStats,
+  AdminStatsRange,
+  AdminUser,
+  AdminUserDetail,
+  Notice,
+  Page,
+  ReportStatus,
+  ReportTargetType,
+  UserRole,
+} from "@/lib/types";
 import { useQuery, type QueryOptions } from "./_useQuery";
 import { useMutation, type MutationOptions } from "./_useMutation";
 import { usePaged } from "./_usePaged";
@@ -105,4 +122,37 @@ export function useUnhideTarget<T>(target: Target, opts?: MutationOptions) {
 export function useDeleteTarget(target: Target, opts?: MutationOptions) {
   const fn = useCallback((id: number) => api<{ ok: true }>(`/admin/${target}/${id}`, { method: "DELETE" }), [target]);
   return useMutation<number, { ok: true }>(fn, opts);
+}
+
+/** (#536) 신고 목록 (대상별 묶음). status 가 null 이면 전체 */
+export function useAdminReports(status: ReportStatus | null, targetType: ReportTargetType | null = null, opts?: QueryOptions<Page<AdminReportGroup>>) {
+  const params = new URLSearchParams({ limit: "20" });
+  if (status) params.set("status", status);
+  if (targetType) params.set("targetType", targetType);
+  return usePaged<AdminReportGroup>(`/admin/reports?${params.toString()}`, opts);
+}
+
+/** (#536) 신고 대상 하나 (신고 목록과 미리 보기) */
+export function useAdminReportTarget(targetType: ReportTargetType, targetId: number, opts?: QueryOptions<AdminReportTarget>) {
+  return useQuery<AdminReportTarget>(`/admin/reports/targets/${targetType}/${targetId}`, opts);
+}
+
+/** (#536) 탭 배지: 접수 중 신고가 있는 대상 수 */
+export function useAdminReportOpenCount(opts?: QueryOptions<{ openTargets: number }>) {
+  return useQuery<{ openTargets: number }>("/admin/reports/open-count", opts);
+}
+
+/** (#536) 처리 완료(메모 필수) 또는 기각(메모 선택). 그 대상의 접수 중 신고가 모두 닫힌다 */
+export function useCloseReport(kind: "resolve" | "dismiss", opts?: MutationOptions) {
+  const fn = useCallback(
+    ({ id, resolution }: { id: number; resolution: string }) =>
+      api<AdminReportTarget>(`/admin/reports/${id}/${kind}`, { method: "POST", body: kind === "dismiss" && !resolution ? {} : { resolution } }),
+    [kind],
+  );
+  return useMutation<{ id: number; resolution: string }, AdminReportTarget>(fn, opts);
+}
+
+/** (#537) 대시보드 지표 (서버 60초 캐시) */
+export function useAdminStats(range: AdminStatsRange, opts?: QueryOptions<AdminStats>) {
+  return useQuery<AdminStats>(`/admin/stats?range=${range}`, opts);
 }

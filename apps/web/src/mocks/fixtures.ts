@@ -70,6 +70,20 @@ export type NoticeRow = {
 export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event" | "app_release"; targetId: number; reason: string | null; createdAt: string };
 /** (#539) 목 기종별 앱 최신, 최소 버전 (D-292) */
 export type AppReleaseRow = { id: number; platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string | null; updatedAt: string };
+/** (#536) 목 신고 한 건 (D-289) */
+export type ReportRow = {
+  id: number;
+  reporterId: number | null;
+  targetType: "group" | "event" | "user";
+  targetId: number;
+  reason: "spam" | "abuse" | "illegal" | "privacy" | "other";
+  detail: string | null;
+  status: "open" | "resolved" | "dismissed";
+  resolvedById: number | null;
+  resolvedAt: string | null;
+  resolution: string | null;
+  createdAt: string;
+};
 /** (#515) 목 운영 숨김 (D-286) */
 export type MockHidden = { reason: string; hiddenAt: string; hiddenById: number };
 export type GroupRow = {
@@ -234,6 +248,8 @@ export type Store = {
   /** (#538) 팝업 공지를 닫은 기록 */
   noticeDismissals?: { userId: number; noticeId: number }[];
   adminLogs?: AdminLogRow[];
+  /** (#536) 신고. 없으면 빈 목록 */
+  reports?: ReportRow[];
   seq: number;
 };
 
@@ -766,7 +782,31 @@ export function buildStore(): Store {
     { id: 2, platform: "android", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: null, updatedAt: hoursAgo(24) },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, appReleases, adminLogs: [], seq: 100 };
+
+  // (#536) 신고: 카페 작업(하늘의 일정)을 내가 신고, 우리 가족 팀을 엄마와 아빠가 신고(묶음 2건), 하늘을 내가 신고했다가 처리 완료, 아빠를 엄마가 신고했다가 기각
+  const report = (id: number, reporterId: number, targetType: ReportRow["targetType"], targetId: number, reason: ReportRow["reason"], detail: string | null, h: number, closed?: Pick<ReportRow, "status" | "resolution">): ReportRow => ({
+    id,
+    reporterId,
+    targetType,
+    targetId,
+    reason,
+    detail,
+    status: closed?.status ?? "open",
+    resolvedById: closed ? ME_ID : null,
+    resolvedAt: closed ? hoursAgo(h - 2) : null,
+    resolution: closed?.resolution ?? null,
+    createdAt: hoursAgo(h),
+  });
+  const reports: ReportRow[] = [
+    report(1, ME_ID, "user", OTHER_ID, "abuse", "단체 채팅에서 욕설", 24 * 6, { status: "resolved", resolution: "본인에게 안내함" }),
+    report(2, MOM_ID, "user", DAD_ID, "other", null, 24 * 4, { status: "dismissed", resolution: null }),
+    report(3, MOM_ID, "group", FAMILY_ID, "spam", "팀 이름으로 광고를 해요", 30),
+    report(4, DAD_ID, "group", FAMILY_ID, "abuse", null, 6),
+    report(5, ME_ID, "event", 30, "spam", "메모에 모르는 링크가 있어요", 3),
+  ];
+
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, appReleases, adminLogs: [], reports, seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

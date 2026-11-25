@@ -440,11 +440,92 @@ export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[]; notificati
 export type AdminActionLog = {
   id: number;
   action: string;
+  /** (#536) 신고 처리(report_resolve, report_dismiss)는 신고 대상의 종류와 번호 */
   targetType: "notice" | "user" | "group" | "event" | "app_release";
   targetId: number;
   reason: string | null;
   createdAt: string;
   admin: { id: number; nickname: string } | null;
+};
+
+/** (#536) 신고 (api.md 2.18, D-289) */
+export type ReportTargetType = "group" | "event" | "user";
+export type ReportReason = "spam" | "abuse" | "illegal" | "privacy" | "other";
+export type ReportStatus = "open" | "resolved" | "dismissed";
+
+/** (#536) POST /reports 응답. duplicate 면 접수 중인 내 신고가 이미 있어 새로 만들지 않았다 */
+export type ReportReceipt = {
+  id: number;
+  targetType: ReportTargetType;
+  targetId: number;
+  reason: ReportReason;
+  status: ReportStatus;
+  createdAt: string;
+  duplicate: boolean;
+};
+
+/** (#536) 관리자 신고 목록 한 줄 = 대상 하나. target 은 지워졌으면 null */
+export type AdminReportGroup = {
+  targetType: ReportTargetType;
+  targetId: number;
+  target: { title: string; hidden: boolean; group: { id: number; name: string; type: GroupType } | null } | null;
+  count: number;
+  openCount: number;
+  reasons: { reason: ReportReason; count: number }[];
+  status: ReportStatus;
+  firstReportedAt: string;
+  lastReportedAt: string;
+  latestReportId: number;
+};
+
+/** (#536) 대상 상세의 신고 한 건 */
+export type AdminReport = {
+  id: number;
+  reason: ReportReason;
+  detail: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  reporter: { id: number; nickname: string } | null;
+  resolvedBy: { id: number; nickname: string } | null;
+  resolvedAt: string | null;
+  resolution: string | null;
+};
+
+/** (#536) 대상 미리 보기. 팀, 일정은 관리자 상세와 같은 모양, 사용자는 그 사람의 팀 */
+export type AdminReportTargetDetail =
+  | { type: "group"; group: AdminGroupDetail }
+  | { type: "event"; event: AdminEventDetail }
+  | { type: "user"; user: AdminUser; teams: AdminGroup[] };
+
+export type AdminReportTarget = {
+  targetType: ReportTargetType;
+  targetId: number;
+  target: AdminReportTargetDetail | null;
+  openCount: number;
+  reports: AdminReport[];
+};
+
+/** (#537) 관리자 대시보드 (api.md 2.19, D-290) */
+export type AdminStatsRange = 7 | 30;
+export type AdminStatsDay = { day: string; signups: number; activeUsers: number; assistantMessages: number; assistantUsers: number };
+export type AdminStats = {
+  range: AdminStatsRange;
+  from: string;
+  to: string;
+  generatedAt: string;
+  days: AdminStatsDay[];
+  totals: {
+    users: number;
+    teams: number;
+    personalCalendars: number;
+    events: number;
+    notices: number;
+    openReports: number;
+    activeUsers: number;
+    signupsInRange: number;
+    assistantMessagesInRange: number;
+  };
+  platforms: { ios: number; android: number; web: number; unknown: number };
 };
 
 export type InvitePreview = {

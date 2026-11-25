@@ -21,6 +21,7 @@ import { newsRoutes } from "./routes/news";
 import { noticeAuthedRoute, noticePublicRoute } from "./routes/notices";
 import { adminModerationRoute } from "./routes/admin-moderation";
 import { adminAppReleasesRoute, appVersionPublicRoute } from "./routes/app-releases";
+import { reportsRoute } from "./routes/reports";
 
 export type { MockResult };
 
@@ -32,6 +33,8 @@ const AUTHED_ROUTES: ((req: AuthedReq) => MockResult | null)[] = [
   adminAppReleasesRoute,
   noticeAuthedRoute,
   adminModerationRoute,
+  // (#536) 신고하기, 관리자 신고 탭, (#537) 대시보드
+  reportsRoute,
   groupsRoute,
   joinRoute,
   // (#199) 일정 검색, 장소 검색, 다시 찾기 (events/:code 보다 먼저)
