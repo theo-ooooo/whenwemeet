@@ -24,8 +24,8 @@ async function handle(req: NextRequest, ctx: Ctx) {
   const token = req.cookies.get(SESSION_COOKIE)?.value ?? null;
   const pathname = `/${path.map(encodeURIComponent).join("/")}`;
 
-  // 초대 미리보기와 (#515) 공지 읽기(목록, 상세)만 비로그인 허용. 그 외는 API 를 부르지 않고 바로 401
-  const isPublic = req.method === "GET" && (path[0] === "invites" || path[0] === "notices");
+  // 초대 미리보기, (#515) 공지 읽기(목록, 상세), (#539) 앱 버전 조회만 비로그인 허용. 그 외는 API 를 부르지 않고 바로 401
+  const isPublic = req.method === "GET" && (path[0] === "invites" || path[0] === "notices" || (path[0] === "app" && path[1] === "version"));
   if (!token && !isPublic) {
     return NextResponse.json(errorBody(401, "UNAUTHORIZED", "로그인이 필요해요"), { status: 401 });
   }
