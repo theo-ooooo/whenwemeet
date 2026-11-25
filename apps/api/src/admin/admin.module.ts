@@ -10,16 +10,19 @@ import { AdminModerationService } from './admin-moderation.service.js';
 import { AdminReportsController } from './admin-reports.controller.js';
 import { AdminReportsRepository } from './admin-reports.repository.js';
 import { AdminReportsService } from './admin-reports.service.js';
+import { AdminStatsController } from './admin-stats.controller.js';
+import { AdminStatsRepository } from './admin-stats.repository.js';
+import { AdminStatsClock, AdminStatsService } from './admin-stats.service.js';
 import { AdminUsersController } from './admin-users.controller.js';
 import { AdminUsersService } from './admin-users.service.js';
 
 /**
  * (#515) 관리자 판정(AdminAccess, AdminGuard), 사용자 관리, 팀과 일정 숨김, 삭제(D-286), 조치 기록. 공지 작성은 NoticesModule 이 이 가드를 쓴다.
- * (#536) 신고 탭(D-289)
+ * (#536) 신고 탭(D-289), (#537) 대시보드 지표(D-290)
  */
 @Module({
   imports: [UsersModule, NotificationPreferencesModule],
-  controllers: [AdminUsersController, AdminLogsController, AdminGroupsController, AdminEventsController, AdminReportsController],
+  controllers: [AdminUsersController, AdminLogsController, AdminGroupsController, AdminEventsController, AdminReportsController, AdminStatsController],
   providers: [
     AdminAccess,
     AdminGuard,
@@ -29,6 +32,9 @@ import { AdminUsersService } from './admin-users.service.js';
     AdminModerationService,
     AdminReportsRepository,
     AdminReportsService,
+    AdminStatsRepository,
+    AdminStatsClock,
+    AdminStatsService,
   ],
   exports: [AdminAccess, AdminGuard, AdminActionsRepository],
 })

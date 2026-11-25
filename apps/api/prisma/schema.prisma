@@ -127,6 +127,9 @@ model User {
   /// (#536) 내가 한 신고, 내가 처리한 신고 (D-289)
   reports                 Report[]      @relation("ReportReporter")
   resolvedReports         Report[]      @relation("ReportResolvedBy")
+
+  /// (#537) 대시보드 날짜별 가입자 (D-290)
+  @@index([createdAt])
 }
 
 /// (#515) 관리자 조치 종류 (D-286). 관리자 변경은 모두 한 줄씩 남긴다
@@ -287,6 +290,8 @@ model AssistantUsage {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, day])
+  /// (#537) 대시보드 날짜별 볼까 사용량 (D-290)
+  @@index([day])
 }
 
 /// (#369) 사용자별 알림 종류 (내 정보 > 알림 토글, D-249). 기본값은 코드 표 `notification-preferences/notification-preferences.ts` 하나
