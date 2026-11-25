@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockHandle } from "../handler";
-import { ME_ID, OTHER_ID } from "../fixtures";
+import { ME_ID, MOM_ID, OTHER_ID } from "../fixtures";
 import { resetStore } from "../routes/shared";
 
 type Res = { status: number; body: { data: Record<string, unknown> & { items: Record<string, unknown>[] } } };
@@ -134,21 +134,26 @@ describe("목 관리자 팀 종류 필터와 개인 달력 주인 (#528)", () =>
   });
 });
 
-describe("목 관리자 사용자 쓰는 곳 (#528)", () => {
+describe("목 관리자 사용자 쓰는 곳 (#528, #532)", () => {
   beforeEach(() => resetStore());
-  type U = { id: number; platforms: string[]; lastAppLoginAt: string | null };
+  type U = { id: number; platforms: string[]; platformLastSeen: { platform: string; appVersion: string | null }[]; lastAppLoginAt: string | null };
   const users = (query = "") => call("GET", "/admin/users", ME_ID, null, `limit=50&${query}`).body.data.items as unknown as U[];
 
-  it("기기 기종, 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 []. platform 필터, 상세도 같은 값", () => {
+  it("접속 기록을 먼저, 없는 기종은 푸시 기기. 아무 기록도 앱 로그인도 없으면 web, 앱 로그인만 있으면 []. platform 필터, 상세도 같은 값", () => {
     const byId = new Map(users().map((u) => [u.id, u]));
-    expect(byId.get(11)!.platforms).toEqual(["ios", "android"]);
+    expect(byId.get(11)!.platforms).toEqual(["ios", "android", "web"]);
+    expect(byId.get(11)!.platformLastSeen.map((p) => [p.platform, p.appVersion])).toEqual([
+      ["ios", "1.3.0"],
+      ["android", "1.2.1"],
+      ["web", null],
+    ]);
     expect(byId.get(12)!.platforms).toEqual(["ios"]);
     expect(byId.get(13)!.platforms).toEqual([]);
     expect(byId.get(ME_ID)!.platforms).toEqual(["web"]);
-    expect(users("platform=android").map((u) => u.id)).toEqual([11]);
-    expect(users("platform=web").every((u) => u.platforms[0] === "web")).toBe(true);
+    expect(byId.get(MOM_ID)!.platforms).toEqual(["android"]);
+    expect(users("platform=android").map((u) => u.id).sort((a, b) => a - b)).toEqual([MOM_ID, 11]);
+    expect(users("platform=web").every((u) => u.platforms.includes("web"))).toBe(true);
     expect(call("GET", "/admin/users", ME_ID, null, "platform=IOS").status).toBe(400);
-    expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android"] });
+    expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android", "web"] });
   });
 });
-

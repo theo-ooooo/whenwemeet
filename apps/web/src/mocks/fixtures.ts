@@ -120,6 +120,8 @@ export type EventRow = {
   place?: MockPlace | null;
 };
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
+/** (#532) 접속 기종 기록 (UserClient). appVersion 은 앱만 */
+export type UserClientRow = { userId: number; platform: "ios" | "android" | "web"; appVersion: string | null; firstSeenAt: string; lastSeenAt: string };
 export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string; /** (#528) 등록 시각. 없으면 lastSeenAt */ createdAt?: string };
 export type AnniversaryRow = {
   id: number;
@@ -203,6 +205,8 @@ export type Store = {
   activities?: ActivityRow[];
   /** (#188) 없으면 빈 목록 */
   pushDevices?: PushDeviceRow[];
+  /** (#532) 접속 기종. 없으면 빈 목록 */
+  userClients?: UserClientRow[];
   /** (#198) 로그인 방법 (D-257). 없으면 첫 조회 때 나는 카카오 하나로 채운다 */
   authAccounts?: { id: number; userId: number; provider: "KAKAO" | "APPLE" | "EMAIL"; label: string; createdAt: string }[];
   /** (#276) 없으면 빈 목록 */
@@ -732,7 +736,18 @@ export function buildStore(): Store {
     { token: "ExponentPushToken[mock-sugyeong-ios]", userId: 12, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 5), lastSeenAt: hoursAgo(26) },
   ];
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, adminLogs: [], seq: 100 };
+  // (#532) 접속 기록: 나는 웹, 엄마는 안드로이드 앱(알림 허용 안 함), 아빠는 아이폰 앱과 웹, 민지는 아이폰 앱과 웹(안드로이드는 푸시 기기로만 안다).
+  // 수경은 기록 없음(푸시 기기로 iOS), 도윤은 배포 전에만 앱을 열어 아직 기종 모름
+  const userClients: UserClientRow[] = [
+    { userId: ME_ID, platform: "web", appVersion: null, firstSeenAt: hoursAgo(24 * 20), lastSeenAt: hoursAgo(1) },
+    { userId: MOM_ID, platform: "android", appVersion: "1.3.0", firstSeenAt: hoursAgo(24 * 3), lastSeenAt: hoursAgo(5) },
+    { userId: DAD_ID, platform: "ios", appVersion: "1.2.0", firstSeenAt: hoursAgo(24 * 3), lastSeenAt: hoursAgo(28) },
+    { userId: DAD_ID, platform: "web", appVersion: null, firstSeenAt: hoursAgo(24 * 2), lastSeenAt: hoursAgo(50) },
+    { userId: 11, platform: "ios", appVersion: "1.3.0", firstSeenAt: hoursAgo(24 * 3), lastSeenAt: hoursAgo(2) },
+    { userId: 11, platform: "web", appVersion: null, firstSeenAt: hoursAgo(24 * 2), lastSeenAt: hoursAgo(24 * 2) },
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, pushDevices, userClients, adminLogs: [], seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

@@ -70,10 +70,25 @@ export function adminGroupTypeParam(filter: AdminGroupFilter): "TEAM" | "PERSONA
   return filter === "team" ? "TEAM" : filter === "personal" ? "PERSONAL" : null;
 }
 
-/** (#528) 쓰는 곳 표기. 빈 배열은 앱으로 로그인했지만 알림을 허용하지 않아 기종을 모르는 경우 */
+/** (#532) 기종 이름 */
+export function adminPlatformName(platform: string): string {
+  return platform === "ios" ? "iOS" : platform === "android" ? "Android" : "웹";
+}
+
+/**
+ * (#528, #532) 쓰는 곳 표기. 웹 하나뿐이면 "웹만", 앱과 같이 쓰면 "웹".
+ * 빈 배열은 앱으로 로그인했지만 접속 기록도 푸시 기기도 없어 기종을 모르는 경우 (배포 전에만 앱을 연 사람)
+ */
 export function adminPlatformLabels(platforms: readonly string[]): string[] {
   if (platforms.length === 0) return ["앱 (기종 모름)"];
-  return platforms.map((p) => (p === "ios" ? "iOS" : p === "android" ? "Android" : "웹만"));
+  if (platforms.length === 1 && platforms[0] === "web") return ["웹만"];
+  return platforms.map(adminPlatformName);
+}
+
+/** (#532) 사용자 상세의 기종 한 줄 "iOS 1.3.0 · 마지막 11.25", 웹은 "웹 · 마지막 11.24" (KST 월.일) */
+export function adminPlatformSeenText(seen: { platform: string; appVersion: string | null; lastSeenAt: string }): string {
+  const name = seen.appVersion ? `${adminPlatformName(seen.platform)} ${seen.appVersion}` : adminPlatformName(seen.platform);
+  return `${name} · 마지막 ${adminDateTime(seen.lastSeenAt).slice(5, 10)}`;
 }
 
 /** (#528) 사용자 목록 기종 필터. URL `?platform=` 값 그대로 API 로 (all 은 빼고) */
@@ -82,7 +97,8 @@ export const ADMIN_PLATFORM_FILTERS: { value: AdminPlatformFilter; label: string
   { value: "all", label: "전체" },
   { value: "ios", label: "iOS" },
   { value: "android", label: "Android" },
-  { value: "web", label: "웹만" },
+  // (#532) 웹을 쓴 사람 (앱과 같이 쓰는 사람 포함)
+  { value: "web", label: "웹" },
 ];
 export function adminPlatformFilterOf(raw: string | null): AdminPlatformFilter {
   return raw === "ios" || raw === "android" || raw === "web" ? raw : "all";

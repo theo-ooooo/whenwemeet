@@ -120,6 +120,8 @@ model User {
   hiddenGroups            Group[]       @relation("GroupHiddenBy")
   hiddenEvents            Event[]       @relation("EventHiddenBy")
   adminActions            AdminAction[]
+  /// (#532) 접속한 기종과 앱 버전 (기종마다 한 줄, D-288)
+  clients                 UserClient[]
 }
 
 /// (#515) 관리자 조치 종류 (D-286). 관리자 변경은 모두 한 줄씩 남긴다
@@ -914,6 +916,30 @@ enum EventReminder {
 enum DevicePlatform {
   IOS
   ANDROID
+}
+
+/// (#532) 로그인한 요청이 온 기종 (D-288). 앱 셸 User-Agent 의 `WhenwemeetApp/<버전> (ios|android)`, 그 밖은 web
+enum ClientPlatform {
+  ios
+  android
+  web
+}
+
+/// (#532) 사용자별 접속 기종 기록 (D-288). 웹 프록시가 넘긴 User-Agent 에서 기종과 앱 버전만 뽑아 남긴다(원문 저장 안 함).
+/// 같은 사용자, 기종은 1시간에 한 번만 갱신. 배포 뒤 접속한 사람부터 쌓인다
+model UserClient {
+  id          Int            @id @default(autoincrement())
+  userId      Int
+  platform    ClientPlatform
+  /// 앱 버전 (ios, android). web 은 null
+  appVersion  String?        @db.VarChar(32)
+  firstSeenAt DateTime       @default(now())
+  lastSeenAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([lastSeenAt])
 }
 
 /// (#188) 알림 종류. 내 정보 > 알림 의 토글과 대응 (WEEKLY 는 변형마다 토글이 따로, D-204)

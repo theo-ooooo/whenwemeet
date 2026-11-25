@@ -38,6 +38,17 @@ export function internalHeaders(clientIp: string | null, key = process.env.INTER
   return h;
 }
 
+/** (#532) 브라우저 User-Agent 를 API 로 넘기는 헤더 (D-288). API 는 X-Internal-Key 가 맞을 때만 읽어 기종과 앱 버전만 남긴다 */
+export const CLIENT_UA_HEADER = "X-Client-UA";
+const MAX_UA_LENGTH = 512;
+
+/** (#532) X-Client-UA. 내부 키가 없으면 API 가 믿지 않으므로 싣지 않는다. 너무 긴 값은 앞부분만 */
+export function clientUaHeaders(userAgent: string | null | undefined, key = process.env.INTERNAL_API_KEY): Record<string, string> {
+  const ua = userAgent?.trim();
+  if (!key || !ua) return {};
+  return { [CLIENT_UA_HEADER]: ua.slice(0, MAX_UA_LENGTH) };
+}
+
 export async function upstream(opts: {
   method: string;
   path: string; // '/groups' (prefix /v1 제외)
@@ -52,8 +63,10 @@ export async function upstream(opts: {
   internal?: { clientIp: string };
   /** (#450) 카드에서 저장한 요청의 출처 (X-Client-Source, 허용 값만). API 는 만들기 로그 줄에만 남긴다 (AI-비서.md 6-1) */
   clientSource?: ClientSource | null;
+  /** (#532) 브라우저(앱 셸 웹뷰 포함)의 User-Agent. 내부 키와 같이 X-Client-UA 로 싣는다. API 가 로그인한 요청의 기종을 남긴다 (D-288) */
+  userAgent?: string | null;
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal, clientSource = null } = opts;
+  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal, clientSource = null, userAgent = null } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
@@ -86,7 +99,7 @@ export async function upstream(opts: {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers["Content-Type"] = contentType ?? "application/json";
-  Object.assign(headers, internalHeaders(internal?.clientIp ?? null));
+  Object.assign(headers, internalHeaders(internal?.clientIp ?? null), clientUaHeaders(userAgent));
   if (clientSource) headers[CLIENT_SOURCE_HEADER] = clientSource;
   try {
     const res = await fetch(`${apiUrl()}/v1${path}${search}`, {
