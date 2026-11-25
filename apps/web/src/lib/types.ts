@@ -351,7 +351,7 @@ export type Notice = {
 export type Page<T> = { items: T[]; nextCursor: number | null };
 
 /** (#515) 관리자 사용자 목록 한 줄 */
-export type AdminUser = { id: number; nickname: string; role: UserRole; createdAt: string; providers: string[] };
+export type AdminUser = { id: number; nickname: string; role: UserRole; profileImageUrl: string | null; createdAt: string; providers: string[] };
 
 /** (#515) 운영 숨김 상태 (D-286) */
 export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };

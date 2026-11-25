@@ -2,7 +2,7 @@
 // (#515) 관리자 사용자 상세: 기본 정보와 속한 팀 (역할 바꾸기는 목록에서)
 import Link from "next/link";
 import { AdminTitle } from "@/components/admin/AdminShell";
-import { ErrorState, Skeleton } from "@/components/ui";
+import { Avatar, ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAdminUser } from "@/hooks";
 import { adminDateTime, providerText } from "@/lib/admin";
 import { StatusBadge } from "./AdminMore";
@@ -15,7 +15,12 @@ export function AdminUserScreen({ id }: { id: number }) {
   const { user, teams } = q.data;
   return (
     <div className="max-w-[720px]">
-      <AdminTitle title={user.nickname} sub={`사용자 #${user.id}`} />
+      <div className="mb-4 flex items-center gap-4">
+        <Avatar member={{ displayName: user.nickname, profileImageUrl: user.profileImageUrl }} size={64} />
+        <div className="min-w-0 flex-1 [&>div]:mb-0">
+          <AdminTitle title={user.nickname} sub={`사용자 #${user.id}`} />
+        </div>
+      </div>
       <section className="rounded-xl bg-paper px-4 py-3">
         <dl className="divide-y divide-line">
           <InfoRow label="역할">{user.role === "admin" ? <StatusBadge tone="warn">관리자</StatusBadge> : <StatusBadge tone="off">사용자</StatusBadge>}</InfoRow>

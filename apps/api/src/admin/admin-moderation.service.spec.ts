@@ -80,7 +80,7 @@ describe('AdminModerationService (#515, D-286)', () => {
     expect(repo.setEventHidden).toHaveBeenCalledWith(9, { reason: '스팸', hiddenAt: at, hiddenById: 2 });
     users.findForAdmin.mockResolvedValueOnce(null);
     await expect(service.user(3)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', createdAt: at, providers: [] });
+    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [] });
     repo.listGroupsOfUser.mockResolvedValueOnce([group]);
     expect((await service.user(3)).teams).toEqual([group]);
   });

@@ -80,6 +80,8 @@ export interface AdminUserRow {
   id: number;
   nickname: string;
   role: UserRole;
+  /** (#523) 프로필 사진 공개 주소. 없으면 null (이니셜) */
+  profileImageUrl: string | null;
   createdAt: Date;
   providers: AuthProvider[];
 }
@@ -88,12 +90,23 @@ const ADMIN_USER_SELECT = {
   id: true,
   nickname: true,
   role: true,
+  avatar: { select: FILE_LOCATION_SELECT },
   createdAt: true,
   authAccounts: { select: { provider: true }, orderBy: { id: 'asc' } },
 } as const;
 
-function toAdminUserRow(row: { id: number; nickname: string; role: UserRole; createdAt: Date; authAccounts: { provider: AuthProvider }[] }): AdminUserRow {
-  return { id: row.id, nickname: row.nickname, role: row.role, createdAt: row.createdAt, providers: row.authAccounts.map((account) => account.provider) };
+function toAdminUserRow(
+  row: { id: number; nickname: string; role: UserRole; avatar: FileLocation | null; createdAt: Date; authAccounts: { provider: AuthProvider }[] },
+  urls: FileUrlBuilder,
+): AdminUserRow {
+  return {
+    id: row.id,
+    nickname: row.nickname,
+    role: row.role,
+    profileImageUrl: urls.publicUrlOrNull(row.avatar),
+    createdAt: row.createdAt,
+    providers: row.authAccounts.map((account) => account.provider),
+  };
 }
 
 @Injectable()
@@ -173,13 +186,13 @@ export class UsersRepository {
     const { count } = await this.prisma.user.updateMany({ where: { id }, data: { role } });
     if (count === 0) return null;
     const row = await this.prisma.user.findUniqueOrThrow({ where: { id }, select: ADMIN_USER_SELECT });
-    return toAdminUserRow(row);
+    return toAdminUserRow(row, this.urls);
   }
 
   /** (#515) 관리자 사용자 상세 한 줄. 없으면 null */
   async findForAdmin(id: number): Promise<AdminUserRow | null> {
     const row = await this.prisma.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT });
-    return row && toAdminUserRow(row);
+    return row && toAdminUserRow(row, this.urls);
   }
 
   /** (#515) 공지 목록을 마지막으로 본 시각. 아직이거나 사용자가 없으면 null */
@@ -208,7 +221,7 @@ export class UsersRepository {
       take: query.limit + 1,
       select: ADMIN_USER_SELECT,
     });
-    const page = rows.slice(0, query.limit).map(toAdminUserRow);
+    const page = rows.slice(0, query.limit).map((row) => toAdminUserRow(row, this.urls));
     return { items: page, nextCursor: rows.length > query.limit ? page[page.length - 1].id : null };
   }
 
