@@ -84,10 +84,10 @@ export interface AdminUserRow {
   profileImageUrl: string | null;
   createdAt: Date;
   providers: AuthProvider[];
-  /** (#528) 쓰는 곳. 아래 adminPlatformsOf 규칙 */
+  /** (#528) 쓰는 곳. (#532) 아래 adminPlatformsOf 규칙 */
   platforms: AdminPlatform[];
-  /** (#528) 기종마다 그 기종 푸시 기기의 마지막 확인 시각 (가장 늦은 것). 기기가 없으면 빈 배열 */
-  platformLastSeen: { platform: 'ios' | 'android'; lastSeenAt: Date }[];
+  /** (#528, #532) 기종마다 마지막 접속과 앱 버전. 접속 기록(UserClient)을 먼저, 없는 기종은 그 기종 푸시 기기(가장 늦게 확인한 것). 둘 다 없으면 빈 배열 */
+  platformLastSeen: AdminPlatformSeen[];
   /** (#528) 마지막 앱 로그인(handoff 교환, 앱 안 이메일 로그인). 기록이 없으면 null (D-97) */
   lastAppLoginAt: Date | null;
 }
@@ -95,24 +95,53 @@ export interface AdminUserRow {
 /** (#528) 관리자 사용자 목록의 기종 표시와 필터 값 */
 export type AdminPlatform = 'ios' | 'android' | 'web';
 
+/** (#532) 기종 하나의 마지막 접속. appVersion 은 앱만 (web, 버전 모르는 기록은 null) */
+export interface AdminPlatformSeen {
+  platform: AdminPlatform;
+  appVersion: string | null;
+  lastSeenAt: Date;
+}
+
+type ClientRow = { platform: AdminPlatform; appVersion: string | null; lastSeenAt: Date };
+type DeviceRow = { platform: 'IOS' | 'ANDROID'; appVersion: string; lastSeenAt: Date };
+
+const PLATFORM_ORDER: readonly AdminPlatform[] = ['ios', 'android', 'web'];
+
 /**
- * (#528) 쓰는 곳 판정. 앱이 기종을 남기는 곳은 푸시 기기(PushDevice.platform)뿐이다(앱 로그인 기록 lastAppLoginAt 에는 기종이 없다).
- * - 푸시 기기가 있으면 그 기종들 (ios 먼저)
- * - 기기가 없고 앱 로그인 기록도 없으면 ['web'] (웹만)
- * - 기기가 없는데 앱 로그인 기록이 있으면 [] (앱을 쓰지만 알림을 허용하지 않아 기종을 모름)
+ * (#532) 기종별 마지막 접속 (D-288). 접속 기록(UserClient)이 있는 기종은 그 값, 없는 ios, android 는 그 기종 푸시 기기 중 가장 늦게 확인한 것.
+ * 순서는 ios, android, web
  */
-export function adminPlatformsOf(devices: readonly { platform: 'IOS' | 'ANDROID' }[], lastAppLoginAt: Date | null): AdminPlatform[] {
-  const out: AdminPlatform[] = [];
-  if (devices.some((d) => d.platform === 'IOS')) out.push('ios');
-  if (devices.some((d) => d.platform === 'ANDROID')) out.push('android');
+export function adminPlatformSeenOf(clients: readonly ClientRow[], devices: readonly DeviceRow[]): AdminPlatformSeen[] {
+  return PLATFORM_ORDER.flatMap((platform): AdminPlatformSeen[] => {
+    const client = clients.find((c) => c.platform === platform);
+    if (client) return [{ platform, appVersion: client.appVersion, lastSeenAt: client.lastSeenAt }];
+    if (platform === 'web') return [];
+    const latest = devices
+      .filter((d) => d.platform === (platform === 'ios' ? 'IOS' : 'ANDROID'))
+      .reduce<DeviceRow | null>((best, d) => (!best || best.lastSeenAt < d.lastSeenAt ? d : best), null);
+    return latest ? [{ platform, appVersion: latest.appVersion, lastSeenAt: latest.lastSeenAt }] : [];
+  });
+}
+
+/**
+ * (#528, #532) 쓰는 곳 판정 (D-288).
+ * - 접속 기록(UserClient) 이나 푸시 기기가 있는 기종들 (ios, android, web 순)
+ * - 아무 기록도 없고 앱 로그인 기록도 없으면 ['web'] (웹만, 기존 규칙)
+ * - 아무 기록도 없는데 앱 로그인 기록이 있으면 [] (앱을 쓰지만 기종을 모름. 배포 전에만 앱을 연 사람)
+ */
+export function adminPlatformsOf(seen: readonly { platform: AdminPlatform }[], lastAppLoginAt: Date | null): AdminPlatform[] {
+  const out = PLATFORM_ORDER.filter((platform) => seen.some((s) => s.platform === platform));
   if (out.length === 0 && lastAppLoginAt === null) out.push('web');
   return out;
 }
 
-/** (#528) 기종 필터 → 조건. ios, android 는 그 기종 푸시 기기가 있는 사람, web 은 기기도 앱 로그인 기록도 없는 사람 */
+/** (#528, #532) 기종 필터 → 조건. 목록의 platforms 에 그 값이 들어가는 사람과 같다 */
 function platformWhere(platform: AdminPlatform) {
-  if (platform === 'web') return { pushDevices: { none: {} }, lastAppLoginAt: null };
-  return { pushDevices: { some: { platform: platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const) } } };
+  if (platform === 'web') {
+    return { OR: [{ clients: { some: { platform: 'web' as const } } }, { clients: { none: {} }, pushDevices: { none: {} }, lastAppLoginAt: null }] };
+  }
+  const device = platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const);
+  return { OR: [{ clients: { some: { platform } } }, { pushDevices: { some: { platform: device } } }] };
 }
 
 const ADMIN_USER_SELECT = {
@@ -122,9 +151,10 @@ const ADMIN_USER_SELECT = {
   avatar: { select: FILE_LOCATION_SELECT },
   createdAt: true,
   authAccounts: { select: { provider: true }, orderBy: { id: 'asc' } },
-  // (#528) 기종. 토큰은 읽지 않는다
+  // (#528) 기종. 토큰은 읽지 않는다. (#532) 접속 기록
   lastAppLoginAt: true,
-  pushDevices: { select: { platform: true, lastSeenAt: true } },
+  pushDevices: { select: { platform: true, appVersion: true, lastSeenAt: true } },
+  clients: { select: { platform: true, appVersion: true, lastSeenAt: true } },
 } as const;
 
 function toAdminUserRow(
@@ -136,16 +166,12 @@ function toAdminUserRow(
     createdAt: Date;
     authAccounts: { provider: AuthProvider }[];
     lastAppLoginAt: Date | null;
-    pushDevices: { platform: 'IOS' | 'ANDROID'; lastSeenAt: Date }[];
+    pushDevices: DeviceRow[];
+    clients: ClientRow[];
   },
   urls: FileUrlBuilder,
 ): AdminUserRow {
-  const lastSeen = new Map<'ios' | 'android', Date>();
-  for (const device of row.pushDevices) {
-    const key = device.platform === 'IOS' ? 'ios' : 'android';
-    const prev = lastSeen.get(key);
-    if (!prev || prev < device.lastSeenAt) lastSeen.set(key, device.lastSeenAt);
-  }
+  const seen = adminPlatformSeenOf(row.clients, row.pushDevices);
   return {
     id: row.id,
     nickname: row.nickname,
@@ -153,11 +179,8 @@ function toAdminUserRow(
     profileImageUrl: urls.publicUrlOrNull(row.avatar),
     createdAt: row.createdAt,
     providers: row.authAccounts.map((account) => account.provider),
-    platforms: adminPlatformsOf(row.pushDevices, row.lastAppLoginAt),
-    platformLastSeen: (['ios', 'android'] as const).flatMap((platform) => {
-      const at = lastSeen.get(platform);
-      return at ? [{ platform, lastSeenAt: at }] : [];
-    }),
+    platforms: adminPlatformsOf(seen, row.lastAppLoginAt),
+    platformLastSeen: seen,
     lastAppLoginAt: row.lastAppLoginAt,
   };
 }

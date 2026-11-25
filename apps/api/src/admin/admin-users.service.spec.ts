@@ -1,5 +1,5 @@
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { adminPlatformsOf, UsersRepository } from '../users/users.repository.js';
+import { adminPlatformSeenOf, adminPlatformsOf, UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 import { AdminUsersService } from './admin-users.service.js';
 
@@ -37,11 +37,30 @@ describe('AdminUsersService (#515)', () => {
     expect(users.listForAdmin).toHaveBeenCalledWith({ q: '하', platform: 'android', limit: 20, cursor: null });
   });
 
-  it('(#528) adminPlatformsOf: 푸시 기기 기종(ios 먼저), 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 모름([])', () => {
+  it('(#528, #532) adminPlatformsOf: 기록 있는 기종(ios, android, web 순), 아무 기록도 앱 로그인도 없으면 web, 앱 로그인만 있으면 모름([])', () => {
     const at = new Date('2026-11-20T00:00:00.000Z');
-    expect(adminPlatformsOf([{ platform: 'ANDROID' }, { platform: 'IOS' }, { platform: 'IOS' }], null)).toEqual(['ios', 'android']);
-    expect(adminPlatformsOf([{ platform: 'ANDROID' }], at)).toEqual(['android']);
+    expect(adminPlatformsOf([{ platform: 'web' }, { platform: 'android' }, { platform: 'ios' }], null)).toEqual(['ios', 'android', 'web']);
+    expect(adminPlatformsOf([{ platform: 'android' }], at)).toEqual(['android']);
     expect(adminPlatformsOf([], null)).toEqual(['web']);
     expect(adminPlatformsOf([], at)).toEqual([]);
+  });
+
+  it('(#532) adminPlatformSeenOf: 접속 기록을 먼저, 없는 기종은 그 기종 푸시 기기 중 가장 늦은 것', () => {
+    const t = (iso: string) => new Date(`2026-11-${iso}T00:00:00.000Z`);
+    const clients = [
+      { platform: 'web' as const, appVersion: null, lastSeenAt: t('24') },
+      { platform: 'ios' as const, appVersion: '1.3.0', lastSeenAt: t('25') },
+    ];
+    const devices = [
+      { platform: 'IOS' as const, appVersion: '1.2.0', lastSeenAt: t('26') },
+      { platform: 'ANDROID' as const, appVersion: '1.1.0', lastSeenAt: t('20') },
+      { platform: 'ANDROID' as const, appVersion: '1.2.0', lastSeenAt: t('22') },
+    ];
+    expect(adminPlatformSeenOf(clients, devices)).toEqual([
+      { platform: 'ios', appVersion: '1.3.0', lastSeenAt: t('25') },
+      { platform: 'android', appVersion: '1.2.0', lastSeenAt: t('22') },
+      { platform: 'web', appVersion: null, lastSeenAt: t('24') },
+    ]);
+    expect(adminPlatformSeenOf([], [])).toEqual([]);
   });
 });

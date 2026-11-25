@@ -71,6 +71,8 @@ export async function resetDb(app: TestApp): Promise<void> {
   await prisma.pushDelivery.deleteMany();
   await prisma.pushNotification.deleteMany();
   await prisma.pushDevice.deleteMany();
+  // (#532) 접속 기종
+  await prisma.userClient.deleteMany();
   // (#515) 공지, 관리자 조치 기록
   await prisma.notice.deleteMany();
   await prisma.adminAction.deleteMany();
