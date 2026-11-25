@@ -8,7 +8,7 @@ import { messageOf, useAdminUser } from "@/hooks";
 import { adminDateTime, providerText } from "@/lib/admin";
 import { NOTIFICATION_KINDS } from "@/lib/notification-kinds";
 import type { AdminUserNotifications } from "@/lib/types";
-import { StatusBadge } from "./AdminMore";
+import { PlatformBadges, StatusBadge } from "./AdminMore";
 import { InfoRow } from "./HiddenBox";
 
 const PLATFORM_LABEL = { IOS: "iOS", ANDROID: "Android" } as const;
@@ -86,6 +86,18 @@ export function AdminUserScreen({ id }: { id: number }) {
             </InfoRow>
             <InfoRow label="가입">{adminDateTime(user.createdAt)}</InfoRow>
             <InfoRow label="로그인">{providerText(user.providers)}</InfoRow>
+            {/* (#528) 기종은 푸시 기기에서만 안다. 기기마다 마지막 확인 */}
+            <InfoRow label="쓰는 곳">
+              <span className="flex flex-wrap items-center gap-1">
+                <PlatformBadges platforms={user.platforms} />
+              </span>
+              {user.platformLastSeen.map((p) => (
+                <span key={p.platform} className="t-sub block">
+                  {p.platform === "ios" ? "iOS" : "Android"} 마지막 확인 {adminDateTime(p.lastSeenAt)}
+                </span>
+              ))}
+            </InfoRow>
+            <InfoRow label="앱 로그인">{user.lastAppLoginAt ? adminDateTime(user.lastAppLoginAt) : "기록 없음"}</InfoRow>
           </dl>
         </section>
         <div>

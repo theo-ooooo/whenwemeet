@@ -46,6 +46,8 @@ export type UserRow = {
   noticesSeenAt?: string | null;
   /** (#515) 로그인 방법 (관리자 사용자 목록). 없으면 KAKAO */
   providers?: string[];
+  /** (#528) 마지막 앱 로그인. 없으면 기록 없음 */
+  lastAppLoginAt?: string | null;
 };
 
 /** (#515) 목 공지. publishedAt null = 초안 */
@@ -673,7 +675,8 @@ export function buildStore(): Store {
       notify: { reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: false },
     },
     { id: 12, nickname: "수경", profileImageUrl: null, createdAt: hoursAgo(24 * 6), providers: ["EMAIL"] },
-    { id: 13, nickname: "도윤", profileImageUrl: null, createdAt: hoursAgo(24 * 2), providers: ["KAKAO", "APPLE"] },
+    // (#528) 도윤은 앱으로 로그인했지만 알림을 허용하지 않아 기종을 모른다
+    { id: 13, nickname: "도윤", profileImageUrl: null, createdAt: hoursAgo(24 * 2), providers: ["KAKAO", "APPLE"], lastAppLoginAt: hoursAgo(30) },
   );
 
   // (#515) 공지: 고정 업데이트, 점검 안내(게시), 초안 하나. 나는 공지를 본 적이 없어 새 공지 점이 보인다

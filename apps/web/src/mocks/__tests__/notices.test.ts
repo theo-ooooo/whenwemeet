@@ -133,3 +133,22 @@ describe("목 관리자 팀 종류 필터와 개인 달력 주인 (#528)", () =>
     expect(events.filter((e) => e.group.type === "TEAM").every((e) => e.group.owner === null)).toBe(true);
   });
 });
+
+describe("목 관리자 사용자 쓰는 곳 (#528)", () => {
+  beforeEach(() => resetStore());
+  type U = { id: number; platforms: string[]; lastAppLoginAt: string | null };
+  const users = (query = "") => call("GET", "/admin/users", ME_ID, null, `limit=50&${query}`).body.data.items as unknown as U[];
+
+  it("기기 기종, 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 []. platform 필터, 상세도 같은 값", () => {
+    const byId = new Map(users().map((u) => [u.id, u]));
+    expect(byId.get(11)!.platforms).toEqual(["ios", "android"]);
+    expect(byId.get(12)!.platforms).toEqual(["ios"]);
+    expect(byId.get(13)!.platforms).toEqual([]);
+    expect(byId.get(ME_ID)!.platforms).toEqual(["web"]);
+    expect(users("platform=android").map((u) => u.id)).toEqual([11]);
+    expect(users("platform=web").every((u) => u.platforms[0] === "web")).toBe(true);
+    expect(call("GET", "/admin/users", ME_ID, null, "platform=IOS").status).toBe(400);
+    expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android"] });
+  });
+});
+

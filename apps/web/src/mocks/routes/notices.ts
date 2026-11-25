@@ -82,6 +82,27 @@ function readNoticeInput(body: Record<string, unknown> | null, partial: boolean)
   return out;
 }
 
+/**
+ * (#515) 관리자 사용자 한 줄. (#528) platforms: 푸시 기기 기종(ios 먼저), 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 [] (API adminPlatformsOf)
+ */
+export function adminUserOut(s: Store, u: Store["users"][number]) {
+  const devices = (s.pushDevices ?? []).filter((d) => d.userId === u.id);
+  const lastSeen = (platform: "IOS" | "ANDROID") =>
+    devices
+      .filter((d) => d.platform === platform)
+      .map((d) => d.lastSeenAt)
+      .sort()
+      .at(-1);
+  const platformLastSeen = (["IOS", "ANDROID"] as const).flatMap((p) => {
+    const at = lastSeen(p);
+    return at ? [{ platform: p === "IOS" ? ("ios" as const) : ("android" as const), lastSeenAt: at }] : [];
+  });
+  const lastAppLoginAt = u.lastAppLoginAt ?? null;
+  const platforms: ("ios" | "android" | "web")[] = platformLastSeen.map((p) => p.platform);
+  if (platforms.length === 0 && lastAppLoginAt === null) platforms.push("web");
+  return { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"], platforms, platformLastSeen, lastAppLoginAt };
+}
+
 /** 로그인 뒤: POST /notices/seen, /admin/* (관리자만) */
 export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
   const { s, method, seg, query, body, userId } = req;
@@ -148,10 +169,17 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
   }
 
   if (seg[1] === "users") {
-    const toAdminUser = (u: Store["users"][number]) => ({ id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] });
+    const toAdminUser = (u: Store["users"][number]) => adminUserOut(s, u);
     if (seg.length === 2 && method === "GET") {
       const q = (query.get("q") ?? "").trim();
-      const rows = s.users.filter((u) => !q || u.nickname.includes(q)).sort((a, b) => b.id - a.id).map(toAdminUser);
+      // (#528) 기종 필터
+      const platform = query.get("platform");
+      if (platform && !["ios", "android", "web"].includes(platform)) return err(400, "VALIDATION_FAILED", "platform 은 ios, android, web 중 하나여야 해요");
+      const rows = s.users
+        .filter((u) => !q || u.nickname.includes(q))
+        .sort((a, b) => b.id - a.id)
+        .map(toAdminUser)
+        .filter((u) => !platform || (u.platforms as string[]).includes(platform));
       const p = page(rows, query);
       return isPage(p) ? ok(p) : p;
     }

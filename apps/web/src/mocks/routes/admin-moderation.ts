@@ -2,7 +2,7 @@
 import { parseId } from "@/lib/id";
 import type { EventRow, GroupRow, Store } from "../fixtures";
 import { DEFAULT_NOTIFY } from "./me";
-import { logAdmin } from "./notices";
+import { adminUserOut, logAdmin } from "./notices";
 import { err, nowIso, ok, type AuthedReq, type MockResult } from "./shared";
 
 function hiddenOut(s: Store, h: GroupRow["hidden"]) {
@@ -107,7 +107,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
       .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
       .map((d) => ({ platform: d.platform, appVersion: d.appVersion, createdAt: d.createdAt ?? d.lastSeenAt, lastSeenAt: d.lastSeenAt }));
     const notifications = { settings: { ...DEFAULT_NOTIFY, ...u.notify }, devices };
-    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams, notifications });
+    return ok({ user: adminUserOut(s, u), teams, notifications });
   }
 
   if (seg[1] === "groups") {

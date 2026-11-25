@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminTabOf, adminTargetLabel, providerText } from "../admin";
+import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminPlatformFilterOf, adminPlatformLabels, adminTabOf, adminTargetLabel, providerText } from "../admin";
 
 describe("관리자 표기 (#515)", () => {
   it("탭: 하위 주소도 같은 탭", () => {
@@ -39,3 +39,16 @@ describe("(#528) 관리자 팀 이름과 종류 필터", () => {
     expect([adminGroupTypeParam("team"), adminGroupTypeParam("personal"), adminGroupTypeParam("all")]).toEqual(["TEAM", "PERSONAL", null]);
   });
 });
+
+describe("(#528) 쓰는 곳 표기와 필터", () => {
+  it("iOS, Android, 웹만, 빈 배열은 앱 (기종 모름)", () => {
+    expect(adminPlatformLabels(["ios", "android"])).toEqual(["iOS", "Android"]);
+    expect(adminPlatformLabels(["web"])).toEqual(["웹만"]);
+    expect(adminPlatformLabels([])).toEqual(["앱 (기종 모름)"]);
+  });
+
+  it("?platform= 은 ios, android, web 만, 그 밖은 전체", () => {
+    expect([adminPlatformFilterOf(null), adminPlatformFilterOf("IOS"), adminPlatformFilterOf("web")]).toEqual(["all", "all", "web"]);
+  });
+});
+

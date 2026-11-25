@@ -353,7 +353,23 @@ export type Notice = {
 export type Page<T> = { items: T[]; nextCursor: number | null };
 
 /** (#515) 관리자 사용자 목록 한 줄 */
-export type AdminUser = { id: number; nickname: string; role: UserRole; profileImageUrl: string | null; createdAt: string; providers: string[] };
+/** (#528) 관리자 화면의 쓰는 곳. 기종은 푸시 기기에서만 안다 */
+export type AdminPlatform = "ios" | "android" | "web";
+
+export type AdminUser = {
+  id: number;
+  nickname: string;
+  role: UserRole;
+  profileImageUrl: string | null;
+  createdAt: string;
+  providers: string[];
+  /** (#528) 푸시 기기 기종(ios 먼저). 기기도 앱 로그인 기록도 없으면 ["web"], 앱 로그인만 있으면 [] (기종 모름) */
+  platforms: AdminPlatform[];
+  /** (#528) 기종마다 마지막 확인 */
+  platformLastSeen: { platform: "ios" | "android"; lastSeenAt: string }[];
+  /** (#528) 마지막 앱 로그인. 없으면 null */
+  lastAppLoginAt: string | null;
+};
 
 /** (#515) 운영 숨김 상태 (D-286) */
 export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };

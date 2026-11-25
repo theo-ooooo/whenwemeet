@@ -70,6 +70,24 @@ export function adminGroupTypeParam(filter: AdminGroupFilter): "TEAM" | "PERSONA
   return filter === "team" ? "TEAM" : filter === "personal" ? "PERSONAL" : null;
 }
 
+/** (#528) 쓰는 곳 표기. 빈 배열은 앱으로 로그인했지만 알림을 허용하지 않아 기종을 모르는 경우 */
+export function adminPlatformLabels(platforms: readonly string[]): string[] {
+  if (platforms.length === 0) return ["앱 (기종 모름)"];
+  return platforms.map((p) => (p === "ios" ? "iOS" : p === "android" ? "Android" : "웹만"));
+}
+
+/** (#528) 사용자 목록 기종 필터. URL `?platform=` 값 그대로 API 로 (all 은 빼고) */
+export type AdminPlatformFilter = "all" | "ios" | "android" | "web";
+export const ADMIN_PLATFORM_FILTERS: { value: AdminPlatformFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "ios", label: "iOS" },
+  { value: "android", label: "Android" },
+  { value: "web", label: "웹만" },
+];
+export function adminPlatformFilterOf(raw: string | null): AdminPlatformFilter {
+  return raw === "ios" || raw === "android" || raw === "web" ? raw : "all";
+}
+
 export function adminDateTime(iso: string): string {
   const d = new Date(new Date(iso).getTime() + 9 * 3600_000);
   const pad = (n: number) => String(n).padStart(2, "0");
