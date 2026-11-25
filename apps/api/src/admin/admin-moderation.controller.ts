@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Post, Query, UseGuards } from 
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { ApiException } from '../common/errors.js';
+import type { GroupType } from '../generated/prisma/enums.js';
 import { IdParam } from '../common/id-param.js';
 import { parsePageQuery, parseSearchText } from '../common/page-query.js';
 import { AdminGuard } from './admin-access.js';
@@ -17,6 +18,13 @@ function parseGroupFilter(raw: unknown): number | null {
   return Number(raw);
 }
 
+/** (#528) `?type=` 원문. 없거나 빈 값이면 null(전체), TEAM, PERSONAL 밖이면 400 */
+function parseGroupType(raw: unknown): GroupType | null {
+  if (raw === undefined || raw === '') return null;
+  if (raw === 'TEAM' || raw === 'PERSONAL') return raw;
+  throw new ApiException('VALIDATION_FAILED', 'type 은 TEAM, PERSONAL 중 하나여야 해요', [{ field: 'type', message: 'type 은 TEAM, PERSONAL 중 하나여야 해요' }]);
+}
+
 /** (#515) 관리자 팀 관리 (api.md 2.16, D-286). 관리자만 */
 @Controller('admin/groups')
 @UseGuards(AdminGuard)
@@ -24,8 +32,8 @@ export class AdminGroupsController {
   constructor(private readonly moderation: AdminModerationService) {}
 
   @Get()
-  list(@Query('q') q?: unknown, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
-    return this.moderation.listGroups({ q: parseSearchText(q), ...parsePageQuery({ limit, cursor }) });
+  list(@Query('q') q?: unknown, @Query('type') type?: unknown, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
+    return this.moderation.listGroups({ q: parseSearchText(q), type: parseGroupType(type), ...parsePageQuery({ limit, cursor }) });
   }
 
   @Get(':id')

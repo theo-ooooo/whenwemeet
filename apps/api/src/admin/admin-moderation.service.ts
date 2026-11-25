@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
+import type { GroupType } from '../generated/prisma/enums.js';
 import type { PageQuery } from '../common/page-query.js';
 import { NotificationPreferencesRepository } from '../notification-preferences/notification-preferences.repository.js';
 import { type NotificationSettings, toNotificationSettings } from '../push/push-devices.repository.js';
@@ -39,7 +40,7 @@ export class AdminModerationService {
     private readonly preferences: NotificationPreferencesRepository,
   ) {}
 
-  listGroups(query: PageQuery & { q: string | null }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
+  listGroups(query: PageQuery & { q: string | null; type: GroupType | null }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
     return this.repo.listGroups(query);
   }
 

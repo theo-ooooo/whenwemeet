@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { EventRepeat, GroupType } from '../generated/prisma/enums.js';
+import { FILE_LOCATION_SELECT, type FileLocation, FileUrlBuilder } from '../files/file-url.builder.js';
 import { START_CALENDAR_RESET } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -22,10 +23,21 @@ export interface AdminPushDevice {
   lastSeenAt: Date;
 }
 
+/** (#528) 관리자 화면의 사람 요약 (개인 달력 주인, 팀 멤버 미리 보기) */
+export interface AdminPerson {
+  id: number;
+  nickname: string;
+  profileImageUrl: string | null;
+}
+
 export interface AdminGroupRow {
   id: number;
   name: string;
   type: GroupType;
+  /** (#528) 개인 달력(PERSONAL)의 주인 = 하나뿐인 멤버. 팀은 null */
+  owner: AdminPerson | null;
+  /** (#528) 먼저 들어온 멤버 3명까지 (아바타 묶음). 개인 달력은 주인 한 명 */
+  memberPreview: AdminPerson[];
   memberCount: number;
   eventCount: number;
   createdAt: Date;
@@ -41,7 +53,8 @@ export interface AdminGroupDetail extends AdminGroupRow {
 export interface AdminEventRow {
   id: number;
   title: string;
-  group: { id: number; name: string; hidden: boolean };
+  /** (#528) type 과 개인 달력 주인(팀이면 null) */
+  group: { id: number; name: string; hidden: boolean; type: GroupType; owner: AdminPerson | null };
   startsAt: Date;
   endsAt: Date;
   allDay: boolean;
@@ -69,6 +82,11 @@ function toHidden(row: { hiddenAt: Date | null; hiddenReason: string | null; hid
   return row.hiddenAt ? { reason: row.hiddenReason ?? '', hiddenAt: row.hiddenAt, hiddenBy: row.hiddenBy } : null;
 }
 
+/** (#528) 미리 보기 멤버 수 */
+export const MEMBER_PREVIEW = 3;
+const PERSON_SELECT = { user: { select: { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } } as const;
+type PersonRecord = { user: { id: number; nickname: string; avatar: FileLocation | null } };
+
 const GROUP_SELECT = {
   id: true,
   name: true,
@@ -76,6 +94,8 @@ const GROUP_SELECT = {
   createdAt: true,
   ...HIDDEN_SELECT,
   _count: { select: { memberships: true, events: true } },
+  // (#528) 개인 달력 주인과 팀 아바타 묶음. 팀마다 3행까지라 목록 한 페이지에 쿼리 하나가 더 붙을 뿐이다
+  memberships: { orderBy: { joinedAt: 'asc' }, take: MEMBER_PREVIEW, select: PERSON_SELECT },
 } as const;
 
 type GroupRecord = {
@@ -87,10 +107,39 @@ type GroupRecord = {
   hiddenReason: string | null;
   hiddenBy: { id: number; nickname: string } | null;
   _count: { memberships: number; events: number };
+  memberships: PersonRecord[];
 };
 
-function toGroupRow(row: GroupRecord): AdminGroupRow {
-  return { id: row.id, name: row.name, type: row.type, memberCount: row._count.memberships, eventCount: row._count.events, createdAt: row.createdAt, hidden: toHidden(row) };
+const EVENT_GROUP_SELECT = {
+  id: true,
+  name: true,
+  type: true,
+  hiddenAt: true,
+  // (#528) 개인 달력이면 주인 이름을 보인다. 팀이어도 1행이라 싸다
+  memberships: { orderBy: { joinedAt: 'asc' }, take: 1, select: PERSON_SELECT },
+} as const;
+
+function toPerson(record: PersonRecord, urls: FileUrlBuilder): AdminPerson {
+  return { id: record.user.id, nickname: record.user.nickname, profileImageUrl: urls.publicUrlOrNull(record.user.avatar) };
+}
+
+/** 개인 달력의 주인(하나뿐인 멤버). 팀이거나 멤버가 없으면 null */
+function ownerOf(group: { type: GroupType; memberships: PersonRecord[] }, urls: FileUrlBuilder): AdminPerson | null {
+  return group.type === 'PERSONAL' && group.memberships[0] ? toPerson(group.memberships[0], urls) : null;
+}
+
+function toGroupRow(row: GroupRecord, urls: FileUrlBuilder): AdminGroupRow {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    owner: ownerOf(row, urls),
+    memberPreview: row.memberships.map((m) => toPerson(m, urls)),
+    memberCount: row._count.memberships,
+    eventCount: row._count.events,
+    createdAt: row.createdAt,
+    hidden: toHidden(row),
+  };
 }
 
 const EVENT_SELECT = {
@@ -102,7 +151,7 @@ const EVENT_SELECT = {
   repeat: true,
   createdAt: true,
   ...HIDDEN_SELECT,
-  group: { select: { id: true, name: true, hiddenAt: true } },
+  group: { select: EVENT_GROUP_SELECT },
   creator: { select: { id: true, nickname: true } },
 } as const;
 
@@ -117,15 +166,15 @@ type EventRecord = {
   hiddenAt: Date | null;
   hiddenReason: string | null;
   hiddenBy: { id: number; nickname: string } | null;
-  group: { id: number; name: string; hiddenAt: Date | null };
+  group: { id: number; name: string; type: GroupType; hiddenAt: Date | null; memberships: PersonRecord[] };
   creator: { id: number; nickname: string } | null;
 };
-
-function toEventRow(row: EventRecord): AdminEventRow {
+function toEventRow(row: EventRecord, urls: FileUrlBuilder): AdminEventRow {
+  const { group } = row;
   return {
     id: row.id,
     title: row.title,
-    group: { id: row.group.id, name: row.group.name, hidden: row.group.hiddenAt !== null },
+    group: { id: group.id, name: group.name, hidden: group.hiddenAt !== null, type: group.type, owner: ownerOf(group, urls) },
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     allDay: row.allDay,
@@ -143,19 +192,29 @@ function pageOf<T extends { id: number }>(rows: T[], limit: number): { items: T[
 
 @Injectable()
 export class AdminModerationRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly urls: FileUrlBuilder,
+  ) {}
 
   // ---------- 팀 ----------
 
-  /** q 는 팀 이름 부분 일치 */
-  async listGroups(query: { q: string | null; limit: number; cursor: number | null }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
+  /**
+   * q 는 팀 이름 부분 일치, (#528) 개인 달력은 주인 닉네임도 (모든 개인 달력 이름이 "내 달력" 이라 이름으로는 찾을 수 없다).
+   * type 을 주면 그 종류만 (null = 전체)
+   */
+  async listGroups(query: { q: string | null; type: GroupType | null; limit: number; cursor: number | null }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.group.findMany({
-      where: { ...(query.q ? { name: { contains: query.q } } : {}), ...(query.cursor !== null ? { id: { lt: query.cursor } } : {}) },
+      where: {
+        ...(query.q ? { OR: [{ name: { contains: query.q } }, { type: 'PERSONAL', memberships: { some: { user: { nickname: { contains: query.q } } } } }] } : {}),
+        ...(query.type !== null ? { type: query.type } : {}),
+        ...(query.cursor !== null ? { id: { lt: query.cursor } } : {}),
+      },
       orderBy: { id: 'desc' },
       take: query.limit + 1,
       select: GROUP_SELECT,
     });
-    return pageOf(rows.map(toGroupRow), query.limit);
+    return pageOf(rows.map((row) => toGroupRow(row, this.urls)), query.limit);
   }
 
   async findGroup(id: number): Promise<AdminGroupDetail | null> {
@@ -163,14 +222,18 @@ export class AdminModerationRepository {
       where: { id },
       select: {
         ...GROUP_SELECT,
-        memberships: { orderBy: { joinedAt: 'asc' }, select: { userId: true, displayName: true, joinedAt: true, user: { select: { nickname: true } } } },
+        memberships: {
+          orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
+          select: { userId: true, displayName: true, joinedAt: true, user: { select: { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } },
+        },
         events: { orderBy: { startsAt: 'desc' }, take: 20, select: { id: true, title: true, startsAt: true, allDay: true, repeat: true, hiddenAt: true } },
       },
     });
     if (!row) return null;
     const { memberships, events, ...group } = row;
     return {
-      ...toGroupRow(group),
+      // 상세는 멤버 전부를 읽으니 미리 보기는 그 앞 3명
+      ...toGroupRow({ ...group, memberships: memberships.slice(0, MEMBER_PREVIEW) }, this.urls),
       members: memberships.map((m) => ({ userId: m.userId, nickname: m.user.nickname, displayName: m.displayName, joinedAt: m.joinedAt })),
       recentEvents: events.map(({ hiddenAt, ...e }) => ({ ...e, hidden: hiddenAt !== null })),
     };
@@ -179,7 +242,7 @@ export class AdminModerationRepository {
   /** 사용자가 속한 팀 (관리자 사용자 상세), 가입순 */
   async listGroupsOfUser(userId: number): Promise<AdminGroupRow[]> {
     const rows = await this.prisma.membership.findMany({ where: { userId }, orderBy: { joinedAt: 'asc' }, select: { group: { select: GROUP_SELECT } } });
-    return rows.map((row) => toGroupRow(row.group));
+    return rows.map((row) => toGroupRow(row.group, this.urls));
   }
 
   /** (#528) 관리자 사용자 상세의 푸시 기기 요약. 토큰은 읽지 않는다(응답에 실리지 않게). 최근 확인 먼저 */
@@ -228,14 +291,14 @@ export class AdminModerationRepository {
       take: query.limit + 1,
       select: EVENT_SELECT,
     });
-    return pageOf(rows.map(toEventRow), query.limit);
+    return pageOf(rows.map((row) => toEventRow(row, this.urls)), query.limit);
   }
 
   async findEvent(id: number): Promise<AdminEventDetail | null> {
     const row = await this.prisma.event.findUnique({ where: { id }, select: { ...EVENT_SELECT, memo: true, placeText: true, placeQuery: true } });
     if (!row) return null;
     const { memo, placeText, placeQuery, ...rest } = row;
-    return { ...toEventRow(rest), memo, place: placeText ?? placeQuery };
+    return { ...toEventRow(rest, this.urls), memo, place: placeText ?? placeQuery };
   }
 
   async setEventHidden(id: number, input: HideInput | null): Promise<boolean> {

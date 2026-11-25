@@ -7,11 +7,11 @@ import { type AdminEventDetail, type AdminGroupDetail, AdminModerationRepository
 import { AdminModerationService } from './admin-moderation.service.js';
 
 const at = new Date('2026-11-25T00:00:00.000Z');
-const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
+const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', owner: null, memberPreview: [], memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
 const event: AdminEventDetail = {
   id: 9,
   title: '광고',
-  group: { id: 5, name: '팀', hidden: false },
+  group: { id: 5, name: '팀', hidden: false, type: 'TEAM', owner: null },
   startsAt: at,
   endsAt: at,
   allDay: false,
