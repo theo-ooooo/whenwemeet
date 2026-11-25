@@ -65,6 +65,7 @@
 | IMPORT_TOO_LARGE | 400 | (#279) ICS 파일의 VEVENT 가 3,000개 초과 |
 | IMPORT_INCOMPLETE | 500 | (#279) 일정 가져오기가 중간에 실패. 넣은 묶음은 남는다. message "N개 중 M개 넣었어요. 같은 파일을 다시 올리면 나머지만 들어가요", `details: { created, total }`. 웹은 점검 화면으로 보내지 않는다(INTERNAL 아님) |
 | ASSISTANT_CONSENT_REQUIRED | 409 | (#450) AI 비서 처음 안내에 동의하기 전 메시지. message "먼저 안내를 확인해 주세요" (2.15) |
+| NOTICE_ALREADY_PUSHED | 409 | (#528) 이미 푸시를 보낸 공지에 다시 `push: true`. message "이 공지는 이미 푸시로 보냈어요" (2.16, D-287) |
 | ASSISTANT_DAILY_LIMIT | 429 | (#450) AI 비서 하루 30번(KST) 초과. `details: { limit, resetAt }`, `Retry-After` 없음 (2.15, D-269) |
 | ASSISTANT_UNAVAILABLE | 503 | (#450) `OPENAI_API_KEY` 없음, OpenAI 인증 실패, 잔액, 한도, 5xx, 연결 실패 (2.15) |
 | ASSISTANT_TIMEOUT | 504 | (#450) OpenAI 호출 10초 초과. message "답이 늦어지고 있어요. 다시 보내 주세요" (2.15) |
@@ -807,7 +808,7 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
 - 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
-### 2.16 공지사항과 관리자 (#515, D-285, D-286)
+### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -816,13 +817,13 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 | POST | `/notices/seen` | 유저 | - | `{ data: { noticesSeenAt } }`. 멱등이라 200. 화면은 목록을 받은 뒤 부른다 (GET → POST) |
 | GET | `/admin/notices` | 관리자 | `limit?`, `cursor?` | `{ data: { items: Notice[], nextCursor } }` 초안 포함, id 내림차순 |
 | GET | `/admin/notices/:id` | 관리자 | - | `{ data: Notice }` |
-| POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안 |
-| PATCH | `/admin/notices/:id` | 관리자 | 같은 필드 모두 선택 | `{ data: Notice }`. `published: true` 는 초안일 때만 지금 게시(이미 게시면 시각 유지), `false` 는 게시 취소 |
+| POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published?, push? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안. (#528) `push: true` 는 `published: true` 일 때만(아니면 400 VALIDATION_FAILED `field: 'push'`), 전체 푸시를 예약한다 |
+| PATCH | `/admin/notices/:id` | 관리자 | 같은 필드 모두 선택 | `{ data: Notice }`. `published: true` 는 초안일 때만 지금 게시(이미 게시면 시각 유지), `false` 는 게시 취소. (#528) `push: true` 는 고친 결과가 게시 상태일 때만(아니면 400 `field: 'push'`), 이미 보낸 공지면 409 NOTICE_ALREADY_PUSHED 이고 아무것도 바꾸지 않는다 |
 | DELETE | `/admin/notices/:id` | 관리자 | - | `{ data: { ok: true } }` |
 | GET | `/admin/users` | 관리자 | `q?`(닉네임 부분 일치, 50자), `limit?`, `cursor?` | `{ data: { items: AdminUser[], nextCursor } }` id 내림차순 |
-| GET | `/admin/users/:id` | 관리자 | - | `{ data: { user: AdminUser, teams: AdminGroup[] } }` |
+| GET | `/admin/users/:id` | 관리자 | - | `{ data: { user: AdminUser, teams: AdminGroup[], notifications: AdminUserNotifications } }`. (#528) 알림 설정은 읽기 전용 |
 | PATCH | `/admin/users/:id/role` | 관리자 | `{ role: 'user'\|'admin' }` | `{ data: AdminUser }`. 내 역할이면 403 FORBIDDEN "내 역할은 바꿀 수 없어요" |
-| GET | `/admin/groups` | 관리자 | `q?`(팀 이름), `limit?`, `cursor?` | `{ data: { items: AdminGroup[], nextCursor } }` |
+| GET | `/admin/groups` | 관리자 | `q?`(팀 이름, (#528) 개인 달력은 주인 닉네임도), `type?`(`TEAM` \| `PERSONAL`, 없으면 전체, 그 밖 400), `limit?`, `cursor?` | `{ data: { items: AdminGroup[], nextCursor } }` |
 | GET | `/admin/groups/:id` | 관리자 | - | `{ data: AdminGroupDetail }` |
 | POST | `/admin/groups/:id/hide` | 관리자 | `{ reason(1~200) }` | `{ data: AdminGroupDetail }` |
 | POST | `/admin/groups/:id/unhide` | 관리자 | - | `{ data: AdminGroupDetail }` |
@@ -837,12 +838,15 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 ```ts
 NoticeKind     = 'notice' | 'update' | 'maintenance'
 NoticeListItem = { id, title, kind: NoticeKind, pinned, publishedAt, unread: boolean }   // 본문 없음. 익명은 unread 늘 false
-Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, createdAt, updatedAt }   // publishedAt null = 초안
+Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, pushedAt: string | null, createdAt, updatedAt }   // publishedAt null = 초안. (#528) pushedAt null = 푸시 안 보냄
 AdminUser      = { id, nickname, role: 'user' | 'admin', createdAt, providers: AuthProvider[] }
 Hidden         = { reason, hiddenAt, hiddenBy: { id, nickname } | null }
-AdminGroup     = { id, name, type, memberCount, eventCount, createdAt, hidden: Hidden | null }
+AdminPerson    = { id, nickname, profileImageUrl: string | null }   // (#528)
+AdminGroup     = { id, name, type, owner: AdminPerson | null /* (#528) 개인 달력의 주인, 팀은 null */, memberPreview: AdminPerson[] /* (#528) 먼저 들어온 3명까지 */, memberCount, eventCount, createdAt, hidden: Hidden | null }
 AdminGroupDetail = AdminGroup & { members: { userId, nickname, displayName, joinedAt }[], recentEvents: { id, title, startsAt, allDay, repeat, hidden }[] /* 시작 내림차순 20 */ }
-AdminEvent     = { id, title, group: { id, name, hidden }, startsAt, endsAt, allDay, repeat, creator: { id, nickname } | null, createdAt, hidden: Hidden | null }
+AdminEvent     = { id, title, group: { id, name, hidden, type, owner: AdminPerson | null /* (#528) */ }, startsAt, endsAt, allDay, repeat, creator: { id, nickname } | null, createdAt, hidden: Hidden | null }
+AdminUserNotifications = { settings: NotificationSettings /* 내 정보 > 알림 과 같은 모양(푸시-알림.md 7-1), 공지 포함 */,
+                           devices: { platform: 'IOS' | 'ANDROID', appVersion, createdAt, lastSeenAt }[] /* 토큰 없음, 마지막 확인 내림차순 */ }   // (#528)
 AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event', targetId, reason: string | null, createdAt, admin: { id, nickname } | null }
 ```
 
@@ -853,6 +857,8 @@ AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event'
 - 숨긴 일정, 숨긴 팀의 일정은 멤버 경로에서 없는 것과 같다(`VISIBLE_EVENT_WHERE`, D-286). 숨긴 팀은 GROUP_HIDDEN, 초대 코드 INVITE_NOT_FOUND, 구독 피드 404, 알림 안 보냄
 - 관리자 변경(공지 작성, 수정, 삭제, 역할 변경, 숨김, 해제, 삭제)은 모두 `AdminAction` 한 줄. 삭제는 대상 이름(제목)을 `reason` 에 남긴다
 - 웹 프록시는 `GET /notices`, `/notices/:id` 를 쿠키 없이도 넘긴다(초대 미리보기와 같이)
+- (#528, D-287) 공지 푸시: `push: true` 가 받아들여지면 같은 트랜잭션에서 `Notice.pushedAt = 지금` 과 `PushNotification { kind NOTICE, dedupeKey N:{id}, groupId null }` 을 만들고 조치 기록 `notice_push` 를 남긴 뒤 푸시 틱을 한 번 깨운다. 요청 안에서 기기로 보내지 않는다. 한 공지는 한 번만: 이미 보냈으면 409, 동시에 두 요청이 와도 하나만 된다(`pushedAt IS NULL` 조건부 갱신). 게시 취소 뒤 다시 게시해도 다시 보내지 않는다. 받는 사람과 문구는 푸시-알림.md 16장
+- (#528) 개인 달력은 이름이 모두 "내 달력" 이라 관리자 화면은 `owner` 로 "{닉네임}의 개인 달력" 이라 부른다
 
 ## 3. 기획 기능 → API 추적
 
