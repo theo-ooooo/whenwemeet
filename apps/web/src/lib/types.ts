@@ -318,6 +318,48 @@ export type Me = {
   birthday?: BirthdaySettings;
   /** (#450) AI 비서. GET /me 에만 있다. 옛 API 는 없음 = 버튼을 그리지 않는다 */
   assistant?: AssistantMeta;
+  /** (#515) 역할과 관리자 여부, 안 본 공지가 있는지. GET /me 에만 있다 (D-285) */
+  role?: UserRole;
+  isAdmin?: boolean;
+  hasUnreadNotice?: boolean;
+};
+
+/** (#515) 사용자 역할 (D-285) */
+export type UserRole = "user" | "admin";
+
+/** (#515) 공지 종류 */
+export type NoticeKind = "notice" | "update" | "maintenance";
+
+/** (#515) 공개 목록 한 줄. unread 는 로그인했을 때만 true 가 될 수 있다 */
+export type NoticeListItem = { id: number; title: string; kind: NoticeKind; pinned: boolean; publishedAt: string; unread: boolean };
+
+/** (#515) 공지 상세, 관리자 목록 한 줄. publishedAt null = 초안 */
+export type Notice = {
+  id: number;
+  title: string;
+  body: string;
+  kind: NoticeKind;
+  pinned: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** (#515) 페이지 응답. nextCursor 가 null 이면 끝 */
+export type Page<T> = { items: T[]; nextCursor: number | null };
+
+/** (#515) 관리자 사용자 목록 한 줄 */
+export type AdminUser = { id: number; nickname: string; role: UserRole; createdAt: string; providers: string[] };
+
+/** (#515) 관리자 조치 기록 한 줄 (D-286) */
+export type AdminActionLog = {
+  id: number;
+  action: string;
+  targetType: "notice" | "user" | "group" | "event";
+  targetId: number;
+  reason: string | null;
+  createdAt: string;
+  admin: { id: number; nickname: string } | null;
 };
 
 export type InvitePreview = {

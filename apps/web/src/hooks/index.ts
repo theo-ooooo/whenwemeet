@@ -26,6 +26,9 @@ export { usePolls, usePoll } from "./usePolls";
 export { usePlaceSearch } from "./usePlaceSearch";
 export { usePlaceResolve } from "./usePlaceResolve";
 export { useEventSearch } from "./useEventSearch";
+export { useNotices, type NoticeInput } from "./useNotices";
+export { useAdminNotices, useAdminNotice, useAdminUsers, useAdminLogs } from "./useAdmin";
+export type { PagedResult } from "./_usePaged";
 
 // 변경
 export { useCreateEvent } from "./useCreateEvent";
@@ -47,6 +50,8 @@ export { useDeleteAnniversary } from "./useDeleteAnniversary";
 export { useCreateTodoList, useRenameTodoList, useDeleteTodoList, useCreateTodoItem, useUpdateTodoItem, useDeleteTodoItem, useClearDoneTodoItems } from "./useTodos";
 export { useCreatePoll, useVotePoll, useConfirmPoll, useDeletePoll } from "./usePolls";
 export { useMarkNewsSeen } from "./useMarkNewsSeen";
+export { useMarkNoticesSeen } from "./useNotices";
+export { useCreateNotice, useUpdateNotice, useDeleteNotice, useUpdateUserRole } from "./useAdmin";
 export { useSendAssistantMessage, useAssistantConsent } from "./useAssistant";
 export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";

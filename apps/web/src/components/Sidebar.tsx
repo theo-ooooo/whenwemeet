@@ -18,7 +18,7 @@ import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH,
 import type { GroupDetail } from "@/lib/types";
 import { Symbol } from "./Logo";
 import { PollSideLine } from "./PollHomeSection";
-import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
+import { AvatarDot, IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -28,6 +28,8 @@ type Props = {
   /** 켤 메뉴 (lib/routes.ts activeTab). 일정 화면은 calendar 로 온다 */
   tab: string | null;
   unread: number;
+  /** (#515) 안 본 공지가 있으면 내 정보 아바타에 코랄 점 */
+  noticeDot?: boolean;
   /** 넓은 화면일 때만 아래 묶음 데이터를 받는다 (폰은 이 사이드바가 숨어 있다) */
   enabled: boolean;
   /** 바뀌면 아래 묶음을 다시 받는다 (화면 이동, 달력에서 일정 추가/삭제) */
@@ -91,7 +93,7 @@ export function Sidebar(props: Props) {
 }
 
 /** (#315) 접힌 72 레일. 칸 44, 먹색 칩은 폰 독과 같은 규칙 (디자인규칙.md 4-1, 4-3) */
-function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }: Props) {
+function SidebarRail({ group, tab, unread, noticeDot = false, onSwitchTeam, onToggle, onNavigate }: Props) {
   const calendarOn = tab === "calendar" || tab === "upcoming";
   const menu = [
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
@@ -173,7 +175,8 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
 
       <span aria-hidden="true" className="flex-1" />
       <div className={cell}>
-        <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
+        <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
+          {noticeDot && <AvatarDot />}
           {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
         </Link>
         <RailTip label="내 정보" />
@@ -188,7 +191,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
   );
 }
 
-function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
+function SidebarFull({ groupId, group, tab, unread, noticeDot = false, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
   const annQ = useAnniversaryItems(groupId ?? 0, { enabled });
@@ -401,8 +404,11 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
 
       {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315). 가운데 묶음이 넘쳐도 밀리지 않는다 (#429) */}
       <div data-side-footer className="flex shrink-0 items-center gap-1">
-        <Link href="/me" className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
-          {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+        <Link href="/me" aria-label={noticeDot ? `${group?.me.displayName ?? ""} 내 정보, 새 공지` : undefined} className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
+          <span className="relative shrink-0">
+            {noticeDot && <AvatarDot />}
+            {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+          </span>
           <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? ""}</span>
           <span className="shrink-0 text-[12px] text-ink-2">내 정보</span>
         </Link>

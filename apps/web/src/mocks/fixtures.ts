@@ -40,7 +40,28 @@ export type UserRow = {
   birthday?: string | null;
   /** (#305) 팀원에게 알리는 시점. 없으면 당일만 */
   birthdayReminders?: AnniversaryReminder[];
+  /** (#515) 역할. 없으면 user. 목 기본 사용자(나)는 관리자 화면을 볼 수 있게 admin */
+  role?: "user" | "admin";
+  /** (#515) 공지 목록을 본 시각. 없으면 아직 */
+  noticesSeenAt?: string | null;
+  /** (#515) 로그인 방법 (관리자 사용자 목록). 없으면 KAKAO */
+  providers?: string[];
 };
+
+/** (#515) 목 공지. publishedAt null = 초안 */
+export type NoticeRow = {
+  id: number;
+  title: string;
+  body: string;
+  kind: "notice" | "update" | "maintenance";
+  pinned: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** (#515) 목 관리자 조치 기록 */
+export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event"; targetId: number; reason: string | null; createdAt: string };
 export type GroupRow = {
   id: number;
   type: GroupType;
@@ -188,6 +209,9 @@ export type Store = {
   deletions?: DeletionRow[];
   /** (#450) AI 비서: 사용자별 동의 시각, 오늘(KST) 사용 횟수. 없으면 아무도 동의 안 함 */
   assistant?: { consent: Record<number, string>; usage: Record<number, { day: string; count: number }> };
+  /** (#515) 공지, 관리자 조치 기록. 없으면 빈 목록 */
+  notices?: NoticeRow[];
+  adminLogs?: AdminLogRow[];
   seq: number;
 };
 
@@ -268,7 +292,8 @@ export function buildStore(): Store {
   const d = (day: number) => keyOf(y, m, Math.min(day, 28));
 
   const users: UserRow[] = [
-    { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40) },
+    // (#515) 나는 관리자 (관리자 화면 확인용)
+    { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40), role: "admin" },
     // (#305) 하늘은 9일 뒤가 생일 (기념일 화면, 달력에 "하늘 생일")
     { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38), birthday: addDays(today, 9).slice(5) },
     { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
@@ -628,7 +653,48 @@ export function buildStore(): Store {
     createdAt: hoursAgo(3),
   });
 
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, seq: 100 };
+  // (#515) 관리자 사용자 목록용: 팀이 없는 가입자 몇 명
+  users.push(
+    { id: 11, nickname: "민지", profileImageUrl: null, createdAt: hoursAgo(24 * 12), providers: ["APPLE"] },
+    { id: 12, nickname: "수경", profileImageUrl: null, createdAt: hoursAgo(24 * 6), providers: ["EMAIL"] },
+    { id: 13, nickname: "도윤", profileImageUrl: null, createdAt: hoursAgo(24 * 2), providers: ["KAKAO", "APPLE"] },
+  );
+
+  // (#515) 공지: 고정 업데이트, 점검 안내(게시), 초안 하나. 나는 공지를 본 적이 없어 새 공지 점이 보인다
+  const notices: NoticeRow[] = [
+    {
+      id: 1,
+      title: "볼까가 일정을 고치고 지울 수 있어요",
+      body: "이제 볼까에게 \"금요일 회식 7시 반으로 바꿔줘\" 처럼 말하면 바꿀 일정을 찾아 확인 카드로 보여 드려요.\n지우기도 같은 방법으로 할 수 있어요.\n\n자세한 사용법은 https://whenwemeet.day/support 에 정리해 두었어요.",
+      kind: "update",
+      pinned: true,
+      publishedAt: hoursAgo(24 * 3),
+      createdAt: hoursAgo(24 * 3),
+      updatedAt: hoursAgo(24 * 3),
+    },
+    {
+      id: 2,
+      title: "11월 30일 새벽 서버 점검 안내",
+      body: "11월 30일(일) 새벽 2시부터 4시까지 서버를 점검해요.\n\n점검 중에는 달력을 열 수 없어요. 이용에 불편을 드려 죄송해요.",
+      kind: "maintenance",
+      pinned: false,
+      publishedAt: hoursAgo(20),
+      createdAt: hoursAgo(20),
+      updatedAt: hoursAgo(20),
+    },
+    {
+      id: 3,
+      title: "연말 일정 정리 기능 (초안)",
+      body: "아직 쓰는 중인 공지예요.",
+      kind: "notice",
+      pinned: false,
+      publishedAt: null,
+      createdAt: hoursAgo(2),
+      updatedAt: hoursAgo(2),
+    },
+  ];
+
+  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, adminLogs: [], seq: 100 };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

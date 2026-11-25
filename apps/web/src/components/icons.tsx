@@ -337,3 +337,32 @@ export function KakaoSymbol() {
     </svg>
   );
 }
+
+/** (#515) 공지사항: 확성기 */
+export function IconMegaphone(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 10v4a1.5 1.5 0 0 0 1.5 1.5H8l6.5 4V4.5L8 8.5H5.5A1.5 1.5 0 0 0 4 10Z" />
+      <path d="M8.5 15.5 10 20" />
+      <path d="M18 9.5a3.5 3.5 0 0 1 0 5" />
+    </Svg>
+  );
+}
+
+/** (#515) 관리자: 방패 */
+export function IconShield(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3.5 19 6v5.5c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6z" />
+      <path d="m9 12 2 2 4-4" />
+    </Svg>
+  );
+}
+
+/**
+ * (#515) 아바타 오른쪽 위 코랄 점 (새 공지). 새 소식 종의 코랄 조각(IconBell unread)과 같은 색 `--pri`.
+ * 부모는 relative. 읽기 이름은 부모 링크의 aria-label 에 넣는다
+ */
+export function AvatarDot() {
+  return <span aria-hidden="true" data-notice-dot className="pointer-events-none absolute right-0.5 top-0.5 block size-2.5 rounded-full bg-pri ring-2 ring-[var(--bg)]" />;
+}

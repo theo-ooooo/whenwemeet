@@ -17,7 +17,8 @@ import { GroupGone } from "./GroupGone";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
+import { AvatarDot, IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
+import { useMe } from "@/hooks";
 import { AssistantProvider } from "./AssistantProvider";
 import { AssistantPill } from "./AssistantPill";
 import { DockTabs } from "./PhoneDock";
@@ -72,6 +73,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const menuTab = navTab(pathname, pendingNav);
   const info = routeInfo(pathname);
   const unread = groups?.find((g) => g.id === groupId)?.unreadNewsCount ?? 0;
+  // (#515) 안 본 공지가 있으면 내 정보(아바타)에 코랄 점 (D-285). /notices 는 이 뼈대 밖이라 돌아오면 다시 받는다
+  const noticeDot = useMe().data?.hasUnreadNotice === true;
 
   if (gone) return <GroupGone />;
 
@@ -116,6 +119,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           tab={menuTab}
           onNavigate={onMenuNavigate}
           unread={unread}
+          noticeDot={noticeDot}
           enabled={wide && groupId !== null && !fold.collapsed}
           refreshKey={`${tab ?? ""}#${eventsVersion}`}
           onSwitchTeam={() => setSwitcher(true)}
@@ -161,7 +165,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
                 <IconBell size={24} unread={unread > 0} />
               </span>
             </Link>
-            <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
+            <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
+              {noticeDot && <AvatarDot />}
               {shownGroup ? <Avatar member={shownGroup.me} color={shownGroup.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
             </Link>
           </header>

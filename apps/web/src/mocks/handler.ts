@@ -17,12 +17,15 @@ import { groupCalendarFeedRoute } from "./routes/calendar-feed";
 import { anniversaryRoutes, birthdaysRoute } from "./routes/anniversaries";
 import { freeSlotsRoute } from "./routes/free-slots";
 import { newsRoutes } from "./routes/news";
+import { noticeAuthedRoute, noticePublicRoute } from "./routes/notices";
 
 export type { MockResult };
 
 /** 로그인 뒤 라우트. 순서가 곧 우선순위다 (events/search 가 events/:code 보다 먼저) */
 const AUTHED_ROUTES: ((req: AuthedReq) => MockResult | null)[] = [
   meRoutes,
+  // (#515) 공지 읽음, 관리자 화면
+  noticeAuthedRoute,
   groupsRoute,
   joinRoute,
   // (#199) 일정 검색, 장소 검색, 다시 찾기 (events/:code 보다 먼저)
@@ -62,7 +65,7 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   const req: Req = { s, ctx, method, path, seg, query, body, handle: mockHandle };
 
-  for (const route of [inviteRoute, eventShareRoute]) {
+  for (const route of [inviteRoute, eventShareRoute, noticePublicRoute]) {
     const r = route(req);
     if (r) return r;
   }

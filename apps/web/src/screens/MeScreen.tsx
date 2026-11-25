@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMoon, IconPlus, IconSun } from "@/components/icons";
+import { IconBell, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMegaphone, IconMoon, IconPlus, IconShield, IconSun } from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameForm } from "@/components/NameSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -349,6 +349,24 @@ export function MeScreen() {
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
               {/* (#198) 카카오, Apple, 이메일 연결과 해제 (D-257) */}
               <RowLink href="/me/accounts" label="로그인 방법" icon={<IconKey size={18} />} value="" />
+            </RowGroup>
+            {/* (#515) 공지사항(안 본 공지가 있으면 코랄 점), 관리자만 관리자 화면 (D-285) */}
+            <RowGroup>
+              <RowLink
+                href="/notices"
+                label="공지사항"
+                icon={<IconMegaphone size={18} />}
+                value={
+                  me?.hasUnreadNotice ? (
+                    <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-acc-ink">
+                      <i aria-hidden="true" data-notice-dot className="block size-2 rounded-full bg-pri" />새 공지
+                    </span>
+                  ) : (
+                    ""
+                  )
+                }
+              />
+              {me?.isAdmin && <RowLink href="/admin" label="관리자" icon={<IconShield size={18} />} value="" />}
             </RowGroup>
             <RowGroup title={`내 팀${groups ? ` ${groups.length}개` : ""}`}>
               {groups
