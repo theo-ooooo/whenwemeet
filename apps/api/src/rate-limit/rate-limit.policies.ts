@@ -23,7 +23,8 @@ export type RateLimitPolicy =
   | 'icsFeed'
   | 'placeSearch'
   | 'placeResolve'
-  | 'assistant';
+  | 'assistant'
+  | 'report';
 
 export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule[]> = {
   login: [{ scope: 'ip', limit: 20, windowSec: 60 }],
@@ -52,6 +53,8 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule
   placeResolve: [{ scope: 'user', limit: 120, windowSec: 60 }],
   // (#450) AI 비서 메시지. 분당 폭주만 막는다. 하루 30번은 DB(AssistantUsage)로 따로 센다 (D-269)
   assistant: [{ scope: 'user', limit: 10, windowSec: 60 }],
+  // (#536) 신고하기. 사용자당 하루 10번 (D-289). 접수 중인 같은 대상의 다시 신고(200)도 센다
+  report: [{ scope: 'user', limit: 10, windowSec: 86_400 }],
 };
 
 /** 모든 요청의 기본 한도. 유효한 JWT 면 사용자 기준, 아니면 IP 기준 (같은 IP 의 여러 사용자가 한도를 나눠 쓰지 않게) */

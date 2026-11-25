@@ -27,7 +27,7 @@ function ownerOf(s: Store, g: GroupRow) {
   return g.type === "PERSONAL" ? (peopleOf(s, g.id)[0] ?? null) : null;
 }
 
-function groupOut(s: Store, g: GroupRow) {
+export function groupOut(s: Store, g: GroupRow) {
   return {
     id: g.id,
     name: g.name,
@@ -58,7 +58,7 @@ function eventOut(s: Store, e: EventRow) {
   };
 }
 
-function groupDetail(s: Store, g: GroupRow) {
+export function groupDetail(s: Store, g: GroupRow) {
   return {
     ...groupOut(s, g),
     members: s.memberships
@@ -73,7 +73,7 @@ function groupDetail(s: Store, g: GroupRow) {
   };
 }
 
-function eventDetail(s: Store, e: EventRow) {
+export function eventDetail(s: Store, e: EventRow) {
   return { ...eventOut(s, e), memo: e.memo, place: e.place?.text ?? e.place?.query ?? null };
 }
 
@@ -85,6 +85,15 @@ function paged<T extends { id: number }>(rows: T[], query: URLSearchParams): Moc
   const list = cursor ? rows.filter((r) => r.id < Number(cursor)) : rows;
   const items = list.slice(0, limit);
   return ok({ items, nextCursor: list.length > limit ? items[items.length - 1].id : null });
+}
+
+/** (#536) 숨기거나 지운 대상의 접수 중 신고를 처리 완료로 닫고, 닫은 게 있으면 report_resolve 기록 (D-289) */
+export function closeMockReports(s: Store, adminId: number, targetType: "group" | "event" | "user", targetId: number, status: "resolved" | "dismissed", resolution: string | null): number {
+  const open = (s.reports ?? []).filter((r) => r.targetType === targetType && r.targetId === targetId && r.status === "open");
+  const at = nowIso();
+  for (const r of open) Object.assign(r, { status, resolvedById: adminId, resolvedAt: at, resolution });
+  if (open.length > 0) logAdmin(s, adminId, status === "resolved" ? "report_resolve" : "report_dismiss", targetType, targetId, resolution);
+  return open.length;
 }
 
 function readReason(body: Record<string, unknown> | null): string | null {
@@ -134,6 +143,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
       if (!reason) return err(400, "VALIDATION_FAILED", "숨기는 이유를 1~200자로 적어 주세요");
       g.hidden = { reason, hiddenAt: nowIso(), hiddenById: userId };
       logAdmin(s, userId, "group_hide", "group", g.id, reason);
+      closeMockReports(s, userId, "group", g.id, "resolved", `숨김: ${reason}`.slice(0, 200));
       return ok(groupDetail(s, g));
     }
     if (seg.length === 4 && seg[3] === "unhide" && method === "POST") {
@@ -146,6 +156,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
       s.memberships = s.memberships.filter((m) => m.groupId !== g.id);
       s.events = s.events.filter((e) => e.groupId !== g.id);
       logAdmin(s, userId, "group_delete", "group", g.id, g.name);
+      closeMockReports(s, userId, "group", g.id, "resolved", "삭제");
       return ok({ ok: true });
     }
   }
@@ -170,6 +181,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
       if (!reason) return err(400, "VALIDATION_FAILED", "숨기는 이유를 1~200자로 적어 주세요");
       e.hidden = { reason, hiddenAt: nowIso(), hiddenById: userId };
       logAdmin(s, userId, "event_hide", "event", e.id, reason);
+      closeMockReports(s, userId, "event", e.id, "resolved", `숨김: ${reason}`.slice(0, 200));
       return ok(eventDetail(s, e));
     }
     if (seg.length === 4 && seg[3] === "unhide" && method === "POST") {
@@ -180,6 +192,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
     if (seg.length === 3 && method === "DELETE") {
       s.events = s.events.filter((x) => x.id !== e.id);
       logAdmin(s, userId, "event_delete", "event", e.id, e.title);
+      closeMockReports(s, userId, "event", e.id, "resolved", "삭제");
       return ok({ ok: true });
     }
   }

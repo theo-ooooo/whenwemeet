@@ -8,7 +8,7 @@ describe("관리자 표기 (#515)", () => {
     expect(adminTabOf("/admin/users")).toBe("/admin/users");
     expect(adminTabOf("/admin/teams/3")).toBe("/admin/teams");
     expect(adminTabOf("/admin/events")).toBe("/admin/events");
-    expect(adminTabOf("/admin")).toBeNull();
+    expect(adminTabOf("/admin")).toBe("/admin");
     expect(adminTabOf("/admin/noticesx")).toBeNull();
   });
 

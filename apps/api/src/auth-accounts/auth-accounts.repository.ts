@@ -72,6 +72,9 @@ export const ABSORB_CHECKED_USER_RELATIONS = [
   'hiddenGroups',
   'hiddenEvents',
   'adminActions',
+  // (#536) 한 신고, 처리한 신고 (흡수로 지우면 신고한 사람이 비므로 데이터로 본다)
+  'reports',
+  'resolvedReports',
 ] as const;
 
 /**
@@ -172,6 +175,8 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['hiddenGroups', tx.group.count({ where: { hiddenById: userId } })],
     ['hiddenEvents', tx.event.count({ where: { hiddenById: userId } })],
     ['adminActions', tx.adminAction.count({ where: { adminId: userId } })],
+    ['reports', tx.report.count({ where: { reporterId: userId } })],
+    ['resolvedReports', tx.report.count({ where: { resolvedById: userId } })],
   ];
   // 한 트랜잭션은 연결 하나라 차례로 센다
   for (const [name, count] of counts) {
