@@ -14,6 +14,14 @@ export interface HiddenState {
   hiddenBy: { id: number; nickname: string } | null;
 }
 
+/** (#528) 관리자 사용자 상세의 기기 한 줄. 토큰은 없다 */
+export interface AdminPushDevice {
+  platform: 'IOS' | 'ANDROID';
+  appVersion: string;
+  createdAt: Date;
+  lastSeenAt: Date;
+}
+
 export interface AdminGroupRow {
   id: number;
   name: string;
@@ -172,6 +180,15 @@ export class AdminModerationRepository {
   async listGroupsOfUser(userId: number): Promise<AdminGroupRow[]> {
     const rows = await this.prisma.membership.findMany({ where: { userId }, orderBy: { joinedAt: 'asc' }, select: { group: { select: GROUP_SELECT } } });
     return rows.map((row) => toGroupRow(row.group));
+  }
+
+  /** (#528) 관리자 사용자 상세의 푸시 기기 요약. 토큰은 읽지 않는다(응답에 실리지 않게). 최근 확인 먼저 */
+  listPushDevicesOfUser(userId: number): Promise<AdminPushDevice[]> {
+    return this.prisma.pushDevice.findMany({
+      where: { userId },
+      orderBy: [{ lastSeenAt: 'desc' }, { id: 'desc' }],
+      select: { platform: true, appVersion: true, createdAt: true, lastSeenAt: true },
+    });
   }
 
   /** 숨기기(input) 또는 숨김 해제(null). 없는 팀이면 false */
