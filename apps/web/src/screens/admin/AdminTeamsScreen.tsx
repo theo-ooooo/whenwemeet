@@ -40,10 +40,14 @@ export function AdminTeamsScreen() {
                     <StatusBadge tone="off">{g.type === "PERSONAL" ? "개인" : "팀"}</StatusBadge>
                     {g.hidden ? <StatusBadge tone="warn">숨김</StatusBadge> : <StatusBadge tone="on">정상</StatusBadge>}
                   </span>
-                  <span className="t-sub block">
+                  <span className="t-sub block lg:hidden">
                     멤버 {g.memberCount}명, 일정 {g.eventCount}개, 만든 날 {adminDateTime(g.createdAt).slice(0, 10)}
                   </span>
                 </span>
+                {/* 넓은 화면은 열로 나눈다 */}
+                <span className="hidden w-24 shrink-0 text-right text-[13px] tabular-nums text-ink-2 lg:block">멤버 {g.memberCount}명</span>
+                <span className="hidden w-24 shrink-0 text-right text-[13px] tabular-nums text-ink-2 lg:block">일정 {g.eventCount}개</span>
+                <span className="hidden w-32 shrink-0 text-right text-[13px] tabular-nums text-ink-2 lg:block">{adminDateTime(g.createdAt).slice(0, 10)}</span>
               </Link>
             </li>
           ))}

@@ -82,7 +82,7 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
     const u = id === null ? undefined : s.users.find((x) => x.id === id);
     if (!u) return err(404, "NOT_FOUND", "사용자를 찾을 수 없어요");
     const teams = s.memberships.filter((m) => m.userId === u.id).map((m) => groupOut(s, s.groups.find((g) => g.id === m.groupId)!));
-    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams });
+    return ok({ user: { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"] }, teams });
   }
 
   if (seg[1] === "groups") {

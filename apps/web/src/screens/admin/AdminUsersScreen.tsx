@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { IconSearch } from "@/components/icons";
-import { Button, ConfirmDialog, EmptyState, ErrorState, InlineError, SkeletonList, inputClass } from "@/components/ui";
+import { Avatar, Button, ConfirmDialog, EmptyState, ErrorState, InlineError, SkeletonList, inputClass } from "@/components/ui";
 import { messageOf, useAdminUsers, useMe, useUpdateUserRole } from "@/hooks";
 import { adminDateTime, providerText } from "@/lib/admin";
 import type { AdminUser } from "@/lib/types";
@@ -54,7 +54,8 @@ export function AdminUsersScreen() {
             const self = u.id === myId;
             return (
               <li key={u.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 py-3">
-                <span className="w-12 shrink-0 text-[12px] tabular-nums text-ink-2">#{u.id}</span>
+                <span className="w-10 shrink-0 text-[12px] tabular-nums text-ink-2">#{u.id}</span>
+                <Avatar member={{ displayName: u.nickname, profileImageUrl: u.profileImageUrl }} size={36} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <Link href={`/admin/users/${u.id}`} className="truncate text-[14px] font-semibold underline-offset-2 hover:underline">
@@ -63,10 +64,13 @@ export function AdminUsersScreen() {
                     {u.role === "admin" ? <StatusBadge tone="warn">관리자</StatusBadge> : <StatusBadge tone="off">사용자</StatusBadge>}
                     {self && <span className="text-[11px] font-bold text-ink-2">나</span>}
                   </span>
-                  <span className="t-sub block">
+                  <span className="t-sub block lg:hidden">
                     가입 {adminDateTime(u.createdAt)}, {providerText(u.providers)}
                   </span>
                 </span>
+                {/* 넓은 화면은 열로 나눈다 */}
+                <span className="hidden w-48 shrink-0 truncate text-[13px] text-ink-2 lg:block">{providerText(u.providers)}</span>
+                <span className="hidden w-36 shrink-0 text-[13px] tabular-nums text-ink-2 lg:block">가입 {adminDateTime(u.createdAt)}</span>
                 <Button
                   size="sm"
                   variant="outline"

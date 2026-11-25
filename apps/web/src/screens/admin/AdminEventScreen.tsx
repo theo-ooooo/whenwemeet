@@ -47,7 +47,7 @@ export function AdminEventScreen({ id }: { id: number }) {
   }
 
   return (
-    <div className="max-w-[720px]">
+    <div className="max-w-[960px]">
       <AdminTitle title={e.title} sub={`일정 #${e.id}`} />
       {error && <InlineError className="mb-2">{error}</InlineError>}
       <section className="rounded-xl bg-paper px-4 py-3">

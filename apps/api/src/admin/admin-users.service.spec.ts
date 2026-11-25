@@ -7,7 +7,7 @@ describe('AdminUsersService (#515)', () => {
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
   let service: AdminUsersService;
-  const row = { id: 8, nickname: '하늘', role: 'admin' as const, createdAt: new Date(0), providers: ['KAKAO' as const] };
+  const row = { id: 8, nickname: '하늘', role: 'admin' as const, profileImageUrl: null, createdAt: new Date(0), providers: ['KAKAO' as const] };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);

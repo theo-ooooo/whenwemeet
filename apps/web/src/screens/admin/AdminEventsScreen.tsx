@@ -73,10 +73,16 @@ export function AdminEventsScreen() {
                     <b className="truncate text-[14px] font-semibold">{e.title}</b>
                     {e.hidden ? <StatusBadge tone="warn">숨김</StatusBadge> : <StatusBadge tone="on">정상</StatusBadge>}
                   </span>
-                  <span className="t-sub block truncate">
+                  <span className="t-sub block truncate lg:hidden">
                     {adminEventTime(e.startsAt, e.allDay)}, {e.group.name} #{e.group.id}, {e.creator?.nickname ?? "탈퇴한 멤버"}
                   </span>
                 </span>
+                {/* 넓은 화면은 열로 나눈다 */}
+                <span className="hidden w-44 shrink-0 text-[13px] tabular-nums text-ink-2 lg:block">{adminEventTime(e.startsAt, e.allDay)}</span>
+                <span className="hidden w-52 shrink-0 truncate text-[13px] text-ink-2 lg:block">
+                  {e.group.name} <span className="tabular-nums">#{e.group.id}</span>
+                </span>
+                <span className="hidden w-32 shrink-0 truncate text-[13px] text-ink-2 lg:block">{e.creator?.nickname ?? "탈퇴한 멤버"}</span>
               </Link>
             </li>
           ))}

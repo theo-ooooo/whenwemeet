@@ -46,7 +46,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
       <main className="min-w-0 px-4 pb-16 pt-2 fold:px-8 fold:py-7">
-        <div className="mx-auto w-full max-w-[1040px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1440px]">{children}</div>
       </main>
     </div>
   );
