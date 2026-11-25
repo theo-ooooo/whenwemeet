@@ -1,7 +1,7 @@
 // (#515) 공지 표시 규칙 (D-285). 본문은 일반 텍스트: 빈 줄로 문단을 나누고 https 주소만 링크로 그린다.
 // HTML 로 해석하지 않으므로 화면은 조각을 글자와 <a> 로만 그린다 (dangerouslySetInnerHTML 금지)
 import { dateKeyOf, formatDateKo } from "./date";
-import type { NoticeKind } from "./types";
+import type { NoticeKind, NoticeReadVia } from "./types";
 
 export const NOTICE_KIND_LABEL: Record<NoticeKind, string> = { notice: "공지", update: "업데이트", maintenance: "점검" };
 
@@ -56,4 +56,26 @@ export function noticeDate(publishedAt: string | null): string {
  */
 export function noticeBannerKey(id: number): string {
   return `notice.${id}`;
+}
+
+/** (#544) 공지를 처음 연 경로 (D-293). 관리자 결과의 필터 순서 */
+export const NOTICE_READ_VIAS: NoticeReadVia[] = ["push", "popup", "banner", "list", "detail"];
+
+/** (#544) 경로 배지 문구. detail 은 주소를 직접 열었거나(공유 링크, 옛 푸시) 경로를 모르는 경우 */
+export const NOTICE_VIA_LABEL: Record<NoticeReadVia, string> = { list: "목록", detail: "직접", push: "푸시", popup: "팝업", banner: "새 공지 띠" };
+
+/** (#544) 공지 상세 주소. from 을 주면 `?from=` 로 처음 연 경로를 알린다 (상세가 읽음을 기록하고 주소에서 지운다) */
+export function noticeHref(id: number, from?: Exclude<NoticeReadVia, "detail">): string {
+  return from ? `/notices/${id}?from=${from}` : `/notices/${id}`;
+}
+
+/** (#544) 상세 주소의 `?from=` 원문 → 경로. 없거나 모르는 값이면 detail */
+export function noticeReadVia(raw: string | string[] | null | undefined): NoticeReadVia {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === "list" || value === "push" || value === "popup" || value === "banner" ? value : "detail";
+}
+
+/** (#544) 읽은 비율 0~1 → "67%". 기준이 없으면(null) "-" */
+export function readRateText(rate: number | null): string {
+  return rate === null ? "-" : `${Math.round(rate * 100)}%`;
 }

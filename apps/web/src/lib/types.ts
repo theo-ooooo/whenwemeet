@@ -358,6 +358,37 @@ export type NoticePopup = NoticeBanner & { preview: string };
 /** (#538) GET /notices/attention */
 export type NoticeAttention = { popup: NoticePopup | null; banner: NoticeBanner | null };
 
+/** (#544) 공지를 처음 연 경로 (D-293). detail = 경로를 모름(주소 직접, 공유 링크, 옛 푸시) */
+export type NoticeReadVia = "list" | "detail" | "push" | "popup" | "banner";
+
+/** (#544) 관리자 공지 목록 한 줄. readCount = 읽은 사람 수 (옛 API 응답에는 없다) */
+export type AdminNotice = Notice & { readCount?: number };
+
+/** (#544) GET /admin/notices/:id/stats. 비율 기준: push = 푸시 대상 사용자 중, users = 전체 사용자 중 (푸시를 보내지 않은 공지) */
+export type NoticeStats = {
+  noticeId: number;
+  publishedAt: string | null;
+  pushedAt: string | null;
+  /** 푸시를 보내지 않았으면 null. status PENDING 이면 아직 펼치기 전 (대상 0) */
+  push: {
+    status: "PENDING" | "DISPATCHED" | "CANCELLED" | "SKIPPED";
+    dispatchedAt: string | null;
+    targetUsers: number;
+    devices: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    pending: number;
+  } | null;
+  reads: { total: number; byVia: Record<NoticeReadVia, number>; pushOpened: number };
+  /** 0~1. 기준 수가 0 이면 null */
+  readRate: number | null;
+  readRateBasis: { of: "push" | "users"; read: number; total: number };
+};
+
+/** (#544) 읽은 사람(또는 푸시 대상 중 안 읽은 사람) 한 줄. id 는 사용자 id. 안 읽은 사람은 firstReadAt, via 가 null */
+export type NoticeReader = { id: number; nickname: string; profileImageUrl: string | null; firstReadAt: string | null; via: NoticeReadVia | null };
+
 /** (#539) 기종별 앱 최신, 최소 버전 (D-292). 버전 null = 그 안내를 하지 않음. storeUrl 은 정하지 않았으면 기본 스토어 주소 */
 export type AppRelease = { platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string; updatedAt: string | null };
 

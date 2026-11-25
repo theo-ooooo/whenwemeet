@@ -1,7 +1,7 @@
 "use client";
 import { useCallback } from "react";
 import { api } from "@/lib/api";
-import type { Notice, NoticeAttention, NoticeListItem, Page } from "@/lib/types";
+import type { Notice, NoticeAttention, NoticeListItem, NoticeReadVia, Page } from "@/lib/types";
 import { useQuery, type QueryOptions } from "./_useQuery";
 import { useMutation, type MutationOptions } from "./_useMutation";
 import { usePaged } from "./_usePaged";
@@ -29,4 +29,16 @@ export function useNoticeAttention(opts?: QueryOptions<NoticeAttention>) {
 export function useDismissNotice(opts?: MutationOptions) {
   const fn = useCallback((id: number) => api<{ ok: true }>(`/notices/${id}/dismiss`, { method: "POST" }), []);
   return useMutation<number, { ok: true }>(fn, opts);
+}
+
+/**
+ * (#544) 공지 상세를 열었다 POST /notices/:id/read (D-293). 로그인했을 때만, 처음 한 번만 남는다(멱등).
+ * 공개 화면의 뒤편 기록이라 세션이 끝났어도(401) 로그인 화면으로 보내지 않는다
+ */
+export function useMarkNoticeRead(opts?: MutationOptions) {
+  const fn = useCallback(
+    ({ id, via }: { id: number; via: NoticeReadVia }) => api<{ firstReadAt: string; via: NoticeReadVia; first: boolean }>(`/notices/${id}/read`, { method: "POST", body: { via }, authRedirect: false }),
+    [],
+  );
+  return useMutation<{ id: number; via: NoticeReadVia }, { firstReadAt: string; via: NoticeReadVia; first: boolean }>(fn, opts);
 }

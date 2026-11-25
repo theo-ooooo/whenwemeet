@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -7,12 +8,14 @@ import { LegalPage } from "@/components/LegalPage";
 import { NoticeBody } from "@/components/NoticeBody";
 import { NoticeKindBadge, PinnedBadge } from "@/components/NoticeKindBadge";
 import { NoticeReadMark } from "@/components/NoticeReadMark";
+import { SESSION_COOKIE } from "@/lib/auth";
 import { parseId } from "@/lib/id";
-import { noticeDate } from "@/lib/notice";
+import { noticeDate, noticeReadVia } from "@/lib/notice";
 import { serverApi } from "@/lib/server-api";
 import type { Notice } from "@/lib/types";
 
-// (#515) 공지 상세. 로그인 없이 열린다. 초안은 관리자만(그 밖은 404 → 찾을 수 없음)
+// (#515) 공지 상세. 로그인 없이 열린다. 초안은 관리자만(그 밖은 404 → 찾을 수 없음).
+// (#544) `?from=push|popup|banner|list` 는 처음 연 경로. 로그인했으면 화면이 읽음을 기록하고 주소에서 지운다 (D-293). GET 은 기록하지 않는다
 export const dynamic = "force-dynamic";
 
 const loadNotice = cache(async (raw: string) => {
@@ -27,17 +30,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: notice.title, description: notice.body.slice(0, 120), robots: notice.publishedAt ? undefined : { index: false, follow: false } };
 }
 
-export default async function NoticePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function NoticePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ from?: string | string[] }> }) {
   const notice = await loadNotice((await params).id);
   if (!notice) notFound();
+  const from = (await searchParams).from;
+  const loggedIn = Boolean((await cookies()).get(SESSION_COOKIE)?.value);
   return (
     <LegalPage title="공지사항" card={false}>
       <Link href="/notices" className="hit -ml-1 inline-flex h-8 items-center gap-0.5 rounded-sm px-1 text-[13px] font-semibold text-ink-2 hover:text-ink">
         <IconChevronLeft size={16} />
         목록
       </Link>
-      {/* (#538) 읽었으니 이 공지의 달력 위 새 공지 띠를 감춘다 */}
-      {notice.publishedAt && <NoticeReadMark id={notice.id} />}
+      {/* (#538) 읽었으니 이 공지의 달력 위 새 공지 띠를 감춘다. (#544) 로그인했으면 읽음 기록 */}
+      {notice.publishedAt && <NoticeReadMark id={notice.id} via={noticeReadVia(from)} loggedIn={loggedIn} stripFrom={from !== undefined} />}
       <article className="rounded-xl bg-paper px-4 py-5">
         <div className="flex flex-wrap items-center gap-1.5">
           {notice.pinned && <PinnedBadge />}

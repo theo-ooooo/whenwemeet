@@ -124,6 +124,8 @@ model User {
   clients                 UserClient[]
   /// (#538) 내가 닫은 팝업 공지 (D-291)
   noticeDismissals        NoticeDismissal[]
+  /// (#544) 내가 처음 읽은 공지 (D-293)
+  noticeReads             NoticeRead[]
   /// (#536) 내가 한 신고, 내가 처리한 신고 (D-289)
   reports                 Report[]      @relation("ReportReporter")
   resolvedReports         Report[]      @relation("ReportResolvedBy")
@@ -264,6 +266,8 @@ model Notice {
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
   /// (#538) 이 팝업을 닫은 사용자들
   dismissals NoticeDismissal[]
+  /// (#544) 이 공지를 읽은 사용자들 (처음 한 번)
+  reads      NoticeRead[]
 
   @@index([publishedAt])
 }
@@ -279,6 +283,31 @@ model NoticeDismissal {
 
   @@id([userId, noticeId])
   @@index([noticeId])
+}
+
+/// (#544) 공지를 처음 연 경로 (D-293). list = 공지 목록, detail = 그 밖(주소 직접, 공유 링크 등), push = 푸시 누름, popup = 팝업 자세히 보기, banner = 달력 위 새 공지 띠
+enum NoticeReadVia {
+  list
+  detail
+  push
+  popup
+  banner
+}
+
+/// (#544) 로그인한 사용자가 게시된 공지 상세를 처음 연 기록 (D-293). 사용자 + 공지당 한 행, 처음 것만 남긴다(다시 열어도 바꾸지 않음).
+/// 로그인하지 않고 읽은 경우는 셀 수 없다
+model NoticeRead {
+  userId      Int
+  noticeId    Int
+  firstReadAt DateTime      @default(now())
+  via         NoticeReadVia
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, noticeId])
+  /// 관리자 읽은 사람 목록 (공지별 읽은 시각 내림차순)
+  @@index([noticeId, firstReadAt])
 }
 
 /// (#450) AI 비서 하루 사용 횟수. 사용자 + KST 날짜당 한 행 (D-269). 대화, 답은 어디에도 저장하지 않는다

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockHandle } from "../handler";
-import { ME_ID, MOM_ID, OTHER_ID } from "../fixtures";
+import { DAD_ID, ME_ID, MOM_ID, OTHER_ID } from "../fixtures";
 import { resetStore } from "../routes/shared";
 
 type Res = { status: number; body: { data: Record<string, unknown> & { items: Record<string, unknown>[] } } };
@@ -191,3 +191,47 @@ describe("목 관리자 사용자 쓰는 곳 (#528, #532)", () => {
   });
 });
 
+
+describe("목 공지 읽음과 결과 (#544, D-293)", () => {
+  beforeEach(() => resetStore());
+
+  it("읽음: 처음 한 번만, 경로도 처음 것. 로그인 안 하면 401, 초안 404, 모르는 경로 400", () => {
+    const first = call("POST", "/notices/1/read", ME_ID, { via: "push" });
+    expect(first.status).toBe(200);
+    expect(first.body.data).toMatchObject({ via: "push", first: true });
+    expect(call("POST", "/notices/1/read", ME_ID, { via: "list" }).body.data).toMatchObject({ via: "push", first: false });
+    expect(call("POST", "/notices/1/read", null, { via: "push" }).status).toBe(401);
+    expect(call("POST", "/notices/3/read", ME_ID, {}).status).toBe(404);
+    expect(call("POST", "/notices/1/read", OTHER_ID, { via: "email" }).status).toBe(400);
+    expect(call("POST", "/notices/1/read", OTHER_ID, {}).body.data.via).toBe("detail");
+  });
+
+  it("결과: 기기별 발송, 경로별 읽음, 푸시 대상 중 비율. 나를 읽으면 안 읽은 사람에서 빠진다", () => {
+    const stats = call("GET", "/admin/notices/1/stats").body.data;
+    expect(stats).toMatchObject({
+      push: { status: "DISPATCHED", targetUsers: 5, devices: 5, sent: 4, delivered: 3, failed: 2, pending: 0 },
+      reads: { total: 4, pushOpened: 1 },
+      readRateBasis: { of: "push", read: 3, total: 5 },
+      readRate: 0.6,
+    });
+    const unread = () => call("GET", "/admin/notices/1/readers", ME_ID, null, "unread=1").body.data.items.map((r) => r.nickname);
+    expect(unread()).toEqual(["하늘", "지우"]);
+    call("POST", "/notices/1/read", ME_ID, { via: "push" });
+    expect(unread()).toEqual(["하늘"]);
+    const readers = call("GET", "/admin/notices/1/readers").body.data.items;
+    expect(readers[0]).toMatchObject({ id: ME_ID, via: "push" });
+    expect(call("GET", "/admin/notices/1/readers", ME_ID, null, "via=popup").body.data.items).toEqual([]);
+    expect(call("GET", "/admin/notices/2/readers", ME_ID, null, "q=아빠").body.data.items.map((r) => r.id)).toEqual([DAD_ID]);
+    expect(call("GET", "/admin/notices/2/stats").body.data).toMatchObject({ push: null, readRateBasis: { of: "users", read: 2 } });
+  });
+
+  it("관리자 목록 readCount, 일반 사용자는 결과 403, 푸시하면 바로 펼쳐 대상이 생긴다", () => {
+    const items = call("GET", "/admin/notices").body.data.items;
+    expect(items.find((n) => n.id === 1)?.readCount).toBe(4);
+    expect(call("GET", "/admin/notices/1/stats", MOM_ID).status).toBe(403);
+    expect(call("GET", "/admin/notices/1/readers", MOM_ID).status).toBe(403);
+    const created = call("POST", "/admin/notices", ME_ID, { title: "새 공지", body: "본문", kind: "notice", published: true, push: true });
+    const id = created.body.data.id as number;
+    expect(call("GET", `/admin/notices/${id}/stats`).body.data.push).toMatchObject({ status: "DISPATCHED", targetUsers: 1, delivered: 1 }); // 기기가 있고 공지 알림을 켠 사람은 수경뿐 (민지는 끔)
+  });
+});

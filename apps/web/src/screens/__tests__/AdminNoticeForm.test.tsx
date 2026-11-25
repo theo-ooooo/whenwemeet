@@ -18,6 +18,9 @@ vi.mock("@/hooks", () => ({
   useDeleteNotice: () => ({ mutate: vi.fn(), isPending: false, error: null }),
 }));
 
+// (#544) 결과 칸은 따로 검사한다 (AdminNoticeResults.test). 여기서는 언제 붙는지만
+vi.mock("../admin/AdminNoticeResults", () => ({ AdminNoticeResults: ({ id }: { id: number }) => <section aria-label={`결과 ${id}`} /> }));
+
 const { AdminNoticeForm } = await import("../admin/AdminNoticeForm");
 
 const pushSwitch = () => screen.getByRole("switch", { name: /^푸시로도 알리기/ });
@@ -96,5 +99,21 @@ describe("AdminNoticeForm 푸시 (#528)", () => {
     render(<AdminNoticeForm id={7} />);
     expect(screen.getByRole("switch", { name: /^팝업으로 띄우기/ }).getAttribute("aria-checked")).toBe("true");
   });
-});
 
+  it("(#544) 결과 칸: 게시된 공지와 푸시를 보낸 공지(게시 취소했어도)에만, 새 공지와 초안에는 없다", () => {
+    render(<AdminNoticeForm id={null} />);
+    expect(screen.queryByLabelText(/^결과/)).toBeNull();
+    cleanup();
+    notice = { ...base };
+    render(<AdminNoticeForm id={7} />);
+    expect(screen.queryByLabelText(/^결과/)).toBeNull();
+    cleanup();
+    notice = { ...base, publishedAt: "2026-11-24T01:00:00.000Z" };
+    render(<AdminNoticeForm id={7} />);
+    expect(screen.getByLabelText("결과 7")).toBeTruthy();
+    cleanup();
+    notice = { ...base, publishedAt: null, pushedAt: "2026-11-24T01:00:00.000Z" };
+    render(<AdminNoticeForm id={7} />);
+    expect(screen.getByLabelText("결과 7")).toBeTruthy();
+  });
+});

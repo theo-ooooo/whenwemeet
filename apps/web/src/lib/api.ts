@@ -39,6 +39,8 @@ export async function api<T>(
     headers?: Record<string, string>;
     /** false 면 서버 장애여도 점검 화면으로 보내지 않는다. 점검 화면의 health 확인 전용 (무한 이동 방지, #54) */
     outageRedirect?: boolean;
+    /** (#544) false 면 401 이어도 로그인 화면으로 보내지 않고 오류만 던진다. 공개 화면의 뒤편 기록(공지 읽음) 전용 */
+    authRedirect?: boolean;
   } = {},
 ): Promise<T> {
   let res: Response;
@@ -65,7 +67,7 @@ export async function api<T>(
   }
   const env = readEnvelope<T>(res.status, json);
 
-  if (res.status === 401) {
+  if (res.status === 401 && init.authRedirect !== false) {
     // 세션이 끝났다. 쿠키(wwm_session, wwm_group)를 지우는 route handler 를 거쳐 로그인으로 보내고 돌아올 자리를 남긴다 (#37)
     const expired = new URL(EXPIRED_PATH, window.location.origin);
     expired.searchParams.set("next", currentPath());
