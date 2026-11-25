@@ -4,6 +4,7 @@
 // (#538) "팝업으로 띄우기": 게시된 동안 앱, 웹을 열 때 한 번 창으로 (D-291). 초안에서도 켤 수 있다
 // (#528) "푸시로도 알리기": 켜고 [게시]/[저장] 하면 확인 창 뒤 전체 푸시 (D-287). [초안 저장], [게시 취소] 에는 보내지 않는다.
 //   한 공지는 한 번만이라 이미 보냈으면 켜진 채 잠기고 "푸시 보냄: 날짜". 서버가 409 를 주면(다른 관리자가 먼저 보냄) 그 문구를 보인다
+// (#544) 게시했거나 푸시를 보낸 공지는 "결과" 칸(푸시 발송, 읽은 사람). 넓은 화면(lg)은 오른쪽 열, 그보다 좁으면 폼 아래 (D-293)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +15,7 @@ import { adminDateTime } from "@/lib/admin";
 import { messageOf, useAdminNotice, useCreateNotice, useDeleteNotice, useUpdateNotice, type NoticeInput } from "@/hooks";
 import { NOTICE_BODY_MAX, NOTICE_KIND_LABEL, NOTICE_KINDS, NOTICE_TITLE_MAX, noticeDate } from "@/lib/notice";
 import type { Notice, NoticeKind } from "@/lib/types";
+import { AdminNoticeResults } from "./AdminNoticeResults";
 
 const KIND_OPTIONS = NOTICE_KINDS.map((k) => ({ value: k, label: NOTICE_KIND_LABEL[k] }));
 
@@ -49,6 +51,8 @@ function Form({ notice }: { notice: Notice | null }) {
   const busy = create.isPending || update.isPending || remove.isPending;
   const published = Boolean(notice?.publishedAt);
   const pushedAt = notice?.pushedAt ?? null;
+  // (#544) 게시된 공지와 푸시를 보낸 공지(게시 취소했어도)만 결과를 보인다
+  const showResults = notice !== null && (published || pushedAt !== null);
   const titleOk = title.trim().length >= 1 && title.trim().length <= NOTICE_TITLE_MAX;
   const bodyOk = body.trim().length >= 1 && body.trim().length <= NOTICE_BODY_MAX;
 
@@ -95,7 +99,7 @@ function Form({ notice }: { notice: Notice | null }) {
   }
 
   return (
-    <div className="max-w-[960px]">
+    <div className={showResults ? "max-w-[1320px]" : "max-w-[960px]"}>
       <AdminTitle
         title={notice ? "공지 수정" : "새 공지"}
         sub={notice ? `${published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)"}${pushedAt ? `, 푸시 보냄 ${adminDateTime(pushedAt)}` : ""}` : undefined}
@@ -107,89 +111,94 @@ function Form({ notice }: { notice: Notice | null }) {
           ) : undefined
         }
       />
-      <div className="space-y-4 rounded-xl bg-paper px-4 py-5">
-        <Field label={`제목 (${title.trim().length}/${NOTICE_TITLE_MAX})`}>
-          {(fid, describedBy) => (
-            <input id={fid} aria-describedby={describedBy} className={inputClass} value={title} maxLength={NOTICE_TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} />
-          )}
-        </Field>
-        <div>
-          <p id="notice-kind" className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
-            종류
-          </p>
-          <Segmented labelledBy="notice-kind" value={kind} options={KIND_OPTIONS} onChange={setKind} />
-        </div>
-        <RowGroup inset>
-          <ToggleRow label="상단 고정" description="목록 맨 위에 보여요" checked={pinned} onChange={setPinned} />
-          {/* (#538) 앱, 웹을 열 때 한 번 창으로 (D-291) */}
-          <ToggleRow label="팝업으로 띄우기" description="앱, 웹을 열 때 한 번 창으로 보여요" checked={popup} onChange={setPopup} />
-          {pushedAt ? (
-            <ToggleRow label="푸시로도 알리기" description={`푸시 보냄: ${adminDateTime(pushedAt)}`} checked disabled onChange={() => {}} />
-          ) : (
-            <ToggleRow
-              label="푸시로도 알리기"
-              description={published ? "저장할 때 모든 사용자에게 한 번 보내요" : "게시할 때 모든 사용자에게 한 번 보내요"}
-              checked={push}
-              onChange={setPush}
-            />
-          )}
-        </RowGroup>
-        <div>
-          <div className="mb-1.5 flex items-center">
-            <label htmlFor="notice-body" className="text-[12px] font-medium leading-4 text-ink-2">
-              본문
-            </label>
-            <button type="button" onClick={() => setPreview((v) => !v)} className="hit ml-auto rounded-sm px-1 text-[12px] font-semibold text-ink-2 hover:text-ink">
-              {preview ? "고치기" : "미리 보기"}
-            </button>
-          </div>
-          {preview ? (
-            <div className="min-h-[240px] rounded-sm bg-surface px-3.5 py-3">
-              <NoticeBody body={body} />
+      <div className={showResults ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)] lg:items-start lg:gap-5" : undefined}>
+        <div className="min-w-0">
+          <div className="space-y-4 rounded-xl bg-paper px-4 py-5">
+            <Field label={`제목 (${title.trim().length}/${NOTICE_TITLE_MAX})`}>
+              {(fid, describedBy) => (
+                <input id={fid} aria-describedby={describedBy} className={inputClass} value={title} maxLength={NOTICE_TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} />
+              )}
+            </Field>
+            <div>
+              <p id="notice-kind" className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+                종류
+              </p>
+              <Segmented labelledBy="notice-kind" value={kind} options={KIND_OPTIONS} onChange={setKind} />
             </div>
-          ) : (
-            <textarea
-              id="notice-body"
-              aria-describedby="notice-body-hint"
-              className={`${inputClass} min-h-[240px] resize-y`}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
+            <RowGroup inset>
+              <ToggleRow label="상단 고정" description="목록 맨 위에 보여요" checked={pinned} onChange={setPinned} />
+              {/* (#538) 앱, 웹을 열 때 한 번 창으로 (D-291) */}
+              <ToggleRow label="팝업으로 띄우기" description="앱, 웹을 열 때 한 번 창으로 보여요" checked={popup} onChange={setPopup} />
+              {pushedAt ? (
+                <ToggleRow label="푸시로도 알리기" description={`푸시 보냄: ${adminDateTime(pushedAt)}`} checked disabled onChange={() => {}} />
+              ) : (
+                <ToggleRow
+                  label="푸시로도 알리기"
+                  description={published ? "저장할 때 모든 사용자에게 한 번 보내요" : "게시할 때 모든 사용자에게 한 번 보내요"}
+                  checked={push}
+                  onChange={setPush}
+                />
+              )}
+            </RowGroup>
+            <div>
+              <div className="mb-1.5 flex items-center">
+                <label htmlFor="notice-body" className="text-[12px] font-medium leading-4 text-ink-2">
+                  본문
+                </label>
+                <button type="button" onClick={() => setPreview((v) => !v)} className="hit ml-auto rounded-sm px-1 text-[12px] font-semibold text-ink-2 hover:text-ink">
+                  {preview ? "고치기" : "미리 보기"}
+                </button>
+              </div>
+              {preview ? (
+                <div className="min-h-[240px] rounded-sm bg-surface px-3.5 py-3">
+                  <NoticeBody body={body} />
+                </div>
+              ) : (
+                <textarea
+                  id="notice-body"
+                  aria-describedby="notice-body-hint"
+                  className={`${inputClass} min-h-[240px] resize-y`}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+              )}
+              <p id="notice-body-hint" className="t-sub mt-1.5">
+                빈 줄로 문단을 나누고, https 로 시작하는 주소는 링크가 돼요
+              </p>
+            </div>
+            {error && <InlineError>{error}</InlineError>}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {published ? (
+                <>
+                  <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
+                    게시 취소
+                  </Button>
+                  <Button className="ml-auto" loading={update.isPending} disabled={busy} onClick={() => requestSave(true)}>
+                    {push && !pushedAt ? "저장하고 푸시 보내기" : "저장"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
+                    초안 저장
+                  </Button>
+                  <Button className="ml-auto" loading={create.isPending || update.isPending} disabled={busy} onClick={() => requestSave(true)}>
+                    {push && !pushedAt ? "게시하고 푸시 보내기" : "게시"}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          {notice && (
+            <div className="mt-4 text-center">
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
+                공지 삭제
+              </Button>
+            </div>
           )}
-          <p id="notice-body-hint" className="t-sub mt-1.5">
-            빈 줄로 문단을 나누고, https 로 시작하는 주소는 링크가 돼요
-          </p>
         </div>
-        {error && <InlineError>{error}</InlineError>}
-        <div className="flex flex-wrap gap-2 pt-1">
-          {published ? (
-            <>
-              <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
-                게시 취소
-              </Button>
-              <Button className="ml-auto" loading={update.isPending} disabled={busy} onClick={() => requestSave(true)}>
-                {push && !pushedAt ? "저장하고 푸시 보내기" : "저장"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="secondary" disabled={busy} onClick={() => void save(false, false)}>
-                초안 저장
-              </Button>
-              <Button className="ml-auto" loading={create.isPending || update.isPending} disabled={busy} onClick={() => requestSave(true)}>
-                {push && !pushedAt ? "게시하고 푸시 보내기" : "게시"}
-              </Button>
-            </>
-          )}
-        </div>
+        {showResults && notice && <AdminNoticeResults id={notice.id} />}
       </div>
-      {notice && (
-        <div className="mt-4 text-center">
-          <Button variant="danger" size="sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
-            공지 삭제
-          </Button>
-        </div>
-      )}
       <ConfirmDialog
         open={confirmPush}
         title="모든 사용자에게 푸시를 보낼까요?"

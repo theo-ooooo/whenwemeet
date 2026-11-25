@@ -811,7 +811,7 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
 - 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
-### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287, #538 D-291, (#536) 숨김과 삭제는 접수 중 신고를 닫는다 2.18)
+### 2.16 공지사항과 관리자 (#515, D-285, D-286, #528 D-287, #538 D-291, #544 D-293, (#536) 숨김과 삭제는 접수 중 신고를 닫는다 2.18)
 
 | 메서드 | 경로 | 인증 | 요청 | 응답 |
 |--------|------|------|------|------|
@@ -820,7 +820,10 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 | POST | `/notices/seen` | 유저 | - | `{ data: { noticesSeenAt } }`. 멱등이라 200. 화면은 목록을 받은 뒤 부른다 (GET → POST) |
 | GET | `/notices/attention` | 유저 | - | (#538) `{ data: { popup: NoticePopup \| null, banner: NoticeBanner \| null } }`. popup 은 닫지 않은 게시된 팝업 공지 중 게시 시각이 가장 늦은 것, banner 는 `noticesSeenAt` 보다 늦게 게시된 공지 중 가장 최근 것 (D-291) |
 | POST | `/notices/:id/dismiss` | 유저 | - | (#538) `{ data: { ok: true } }`. 팝업을 닫았다. 멱등이라 200. 없거나 초안이면 404 NOT_FOUND |
-| GET | `/admin/notices` | 관리자 | `limit?`, `cursor?` | `{ data: { items: Notice[], nextCursor } }` 초안 포함, id 내림차순 |
+| POST | `/notices/:id/read` | 유저 | `{ via?: NoticeReadVia }` (생략은 `detail`) | (#544) `{ data: { firstReadAt, via, first: boolean } }`. 상세를 열었다. 처음 한 번만 남고 경로와 시각은 처음 것(다시 불러도 그 값, `first: false`). 멱등이라 200. 없거나 초안이면 404, via 가 다섯 값 밖이면 400 |
+| GET | `/admin/notices` | 관리자 | `limit?`, `cursor?` | `{ data: { items: (Notice & { readCount })[], nextCursor } }` 초안 포함, id 내림차순. (#544) `readCount` = 읽은 사람 수 |
+| GET | `/admin/notices/:id/stats` | 관리자 | - | (#544) `{ data: NoticeStats }`. 없으면 404 |
+| GET | `/admin/notices/:id/readers` | 관리자 | `q?`(닉네임 부분 일치, 50자), `via?`(NoticeReadVia, 그 밖 400), `unread?`(`1` \| `0`), `limit?`, `cursor?`(앞 페이지 마지막 사용자 id) | (#544) `{ data: { items: NoticeReader[], nextCursor } }`. 읽은 사람은 읽은 시각 내림차순. `unread=1` 은 푸시 대상 중 안 읽은 사람(사용자 id 내림차순, via 무시, 푸시를 보내지 않았으면 빈 목록) |
 | GET | `/admin/notices/:id` | 관리자 | - | `{ data: Notice }` |
 | POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published?, push?, popup? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안. (#528) `push: true` 는 `published: true` 일 때만(아니면 400 VALIDATION_FAILED `field: 'push'`), 전체 푸시를 예약한다 |
 | PATCH | `/admin/notices/:id` | 관리자 | 같은 필드 모두 선택 | `{ data: Notice }`. `published: true` 는 초안일 때만 지금 게시(이미 게시면 시각 유지), `false` 는 게시 취소. (#528) `push: true` 는 고친 결과가 게시 상태일 때만(아니면 400 `field: 'push'`), 이미 보낸 공지면 409 NOTICE_ALREADY_PUSHED 이고 아무것도 바꾸지 않는다 |
@@ -846,6 +849,15 @@ NoticeListItem = { id, title, kind: NoticeKind, pinned, publishedAt, unread: boo
 Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, pushedAt: string | null, popup: boolean, createdAt, updatedAt }   // publishedAt null = 초안. (#528) pushedAt null = 푸시 안 보냄. (#538) popup = 앱, 웹을 열 때 한 번 창으로
 NoticeBanner   = { id, title, kind: NoticeKind, publishedAt }   // (#538)
 NoticePopup    = NoticeBanner & { preview: string }             // (#538) 본문 첫 문단(빈 줄 앞), 200자 넘으면 자르고 …
+NoticeReadVia  = 'list' | 'detail' | 'push' | 'popup' | 'banner' // (#544) 처음 연 경로. detail = 주소 직접, 공유 링크, 옛 푸시 경로
+NoticeStats    = { noticeId, publishedAt, pushedAt,                // (#544)
+                   push: { status: 'PENDING' | 'DISPATCHED' | 'CANCELLED' | 'SKIPPED', dispatchedAt,
+                           targetUsers /* 발송 행이 있는 서로 다른 사용자 */, devices, sent /* Expo 접수 */, delivered /* 영수증 ok */,
+                           failed /* FAILED 또는 영수증 오류 */, pending /* 보내는 중이거나 영수증 전 */ } | null,   // 푸시를 보내지 않았으면 null
+                   reads: { total, byVia: Record<NoticeReadVia, number>, pushOpened /* via push */ },
+                   readRate: number | null /* 0~1, 기준 0 이면 null */,
+                   readRateBasis: { of: 'push' | 'users', read, total } }   // push = 푸시 대상 중 읽은 사람 / 푸시 대상, users = 읽은 사람 / 전체 사용자
+NoticeReader   = { id /* 사용자 */, nickname, profileImageUrl, firstReadAt: string | null, via: NoticeReadVia | null }   // (#544) 안 읽은 사람은 둘 다 null
 AdminUser      = { id, nickname, role: 'user' | 'admin', createdAt, providers: AuthProvider[],
                    platforms: ('ios' | 'android' | 'web')[],                        // (#528) 아래 "쓰는 곳"
                    platformLastSeen: { platform: 'ios' | 'android' | 'web', appVersion: string | null, lastSeenAt }[], // (#528, #532) 기종마다 앱 버전과 마지막 접속
@@ -872,6 +884,9 @@ AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event'
 - (#532, D-288) 쓰는 곳은 접속 기록(`UserClient`)을 먼저 본다. 기종마다 접속 기록이 있으면 그 앱 버전과 마지막 접속, 없는 ios, android 는 그 기종 푸시 기기 중 마지막 확인이 가장 늦은 것(그 기기의 앱 버전). `platforms` 는 그렇게 나온 기종들(ios, android, web 순)이고, 하나도 없으면 위 #528 규칙(앱 로그인 기록 없으면 `['web']`, 있으면 `[]`). 필터 `ios`, `android` 는 그 기종 접속 기록이나 푸시 기기가 있는 사람, `web` 은 웹 접속 기록이 있거나 아무 기록도 앱 로그인 기록도 없는 사람(목록의 `platforms` 에 web 이 들어가는 사람과 같다). 과거 기록은 없어 배포 뒤 접속한 사람부터 쌓인다
 - (#538, D-291) 팝업: 관리자가 `popup: true` 로 둔 게시된 공지. 사용자가 닫으면(`POST /notices/:id/dismiss`) `NoticeDismissal` 한 행이 남아 기기가 바뀌어도 다시 띄우지 않고, 그다음으로 늦은 닫지 않은 팝업 공지가 있으면 그것이 다음에 뜬다. 웹은 팀 화면 뼈대에서 한 번 띄우고 [자세히 보기], [닫기] 둘 다 닫은 기록을 남긴다("다시 보지 않기" 를 따로 두지 않음). 공지 목록 seen 은 팝업에 영향이 없다. 띠는 seen 으로 사라지고, 그 밖에는 웹이 공지별로 이 기기에서 감춘다(×, 상세 열기)
 - (#528) 개인 달력은 이름이 모두 "내 달력" 이라 관리자 화면은 `owner` 로 "{닉네임}의 개인 달력" 이라 부른다
+- (#544, D-293) 읽음: `NoticeRead { userId, noticeId, firstReadAt, via }` PK (userId, noticeId). 로그인한 사용자가 게시된 공지 상세를 열면 웹이 `POST /notices/:id/read` 를 부른다(`GET /notices/:id` 는 기록하지 않는다). 경로는 상세 주소의 `?from=`: 공지 푸시 경로 `/notices/{id}?from=push`(이미 보낸 `/notices/{id}` 는 detail), 팝업 자세히 보기 `popup`, 달력 위 새 공지 띠 `banner`, 공지 목록 `list`, 그 밖 detail. 웹은 기록을 보낸 뒤 주소에서 `from` 을 지우고, 이 요청은 401 이어도 로그인 화면으로 보내지 않는다. 로그인하지 않고 읽은 사람은 셀 수 없다
+- (#544) 결과의 푸시 수는 그 공지의 푸시 예약(`N:{id}`) 기기별 발송(`PushDelivery`)에서 센다. 공지 알림을 끈 사람, 기기가 없는 사람은 대상이 아니다. 예약 뒤 틱이 펼치기 전이면 `status: PENDING` 이고 수는 0
+- (#544) 목(`API_MOCK=1`): 공지 1(푸시 보냄)에 기기별 발송 5건(나, 엄마, 수경 전달 성공, 아빠 영수증 오류, 하늘 보내기 실패)과 읽음 4건(엄마 푸시, 수경 목록, 아빠 직접, 민지 띠)이 있어 나와 하늘이 "안 읽음" 이다. 목은 푸시를 바로 펼치고 전달 성공으로 둔다
 
 ### 2.17 앱 업데이트 안내 (#539, D-292)
 

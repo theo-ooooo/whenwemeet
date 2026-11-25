@@ -7,7 +7,7 @@ import { IconMegaphone } from "@/components/icons";
 import { NoticeKindBadge, PinnedBadge } from "@/components/NoticeKindBadge";
 import { Button, EmptyState, ErrorState, SkeletonList } from "@/components/ui";
 import { messageOf, useMarkNoticesSeen, useNotices } from "@/hooks";
-import { noticeDate } from "@/lib/notice";
+import { noticeDate, noticeHref } from "@/lib/notice";
 import type { NoticeListItem, Page } from "@/lib/types";
 
 export function NoticesScreen({ initial, loggedIn }: { initial: Page<NoticeListItem> | null; loggedIn: boolean }) {
@@ -40,7 +40,7 @@ export function NoticesScreen({ initial, loggedIn }: { initial: Page<NoticeListI
       <ul className="divide-y divide-line rounded-xl bg-paper px-4">
         {q.items.map((n) => (
           <li key={n.id}>
-            <Link href={`/notices/${n.id}`} className="flex min-h-[60px] items-start gap-3 py-3.5 hover:brightness-95">
+            <Link href={noticeHref(n.id, "list")} className="flex min-h-[60px] items-start gap-3 py-3.5 hover:brightness-95">
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-1.5">
                   {n.pinned && <PinnedBadge />}

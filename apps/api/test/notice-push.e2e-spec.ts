@@ -77,7 +77,7 @@ describe('공지 푸시 (e2e, #528)', () => {
     // 끈 사람(off), 기기 없는 사람(noDevice)은 빠지고, 관리자 자신은 받는다. 기기마다 한 번
     expect(messages.map((m) => m.to).sort()).toEqual([TOKENS.admin, TOKENS.onAndroid, TOKENS.onIos].sort());
     for (const m of messages) {
-      expect(m).toMatchObject({ title: '12월 점검 안내', body: '12월 1일 새벽 2시부터 30분 동안 점검해요', data: { url: `/notices/${notice.id}`, kind: 'NOTICE' } });
+      expect(m).toMatchObject({ title: '12월 점검 안내', body: '12월 1일 새벽 2시부터 30분 동안 점검해요', data: { url: `/notices/${notice.id}?from=push`, kind: 'NOTICE' } });
       // 팀이 없어 iOS 부제, Android 앞머리가 없다
       expect(m.subtitle).toBeUndefined();
     }
