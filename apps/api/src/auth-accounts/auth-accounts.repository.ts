@@ -74,8 +74,8 @@ export const ABSORB_CHECKED_USER_RELATIONS = [
   'adminActions',
 ] as const;
 
-/** 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수는 User 삭제 Cascade) */
-export const ABSORB_CLEANED_USER_RELATIONS = ['avatar', 'authHandoffs', 'authLinkTickets', 'pushDevices', 'pushDeliveries', 'assistantUsages'] as const;
+/** 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수, (#532) 접속 기종은 User 삭제 Cascade) */
+export const ABSORB_CLEANED_USER_RELATIONS = ['avatar', 'authHandoffs', 'authLinkTickets', 'pushDevices', 'pushDeliveries', 'assistantUsages', 'clients'] as const;
 
 /** 빈 계정의 개인 팀에서 0 이어야 하는 Group 관계. startUsers 는 개인 팀을 고정할 수 없어(D-191) 판정 밖 */
 export const ABSORB_CHECKED_GROUP_RELATIONS = [

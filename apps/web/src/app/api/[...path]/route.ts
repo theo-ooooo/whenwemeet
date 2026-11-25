@@ -46,6 +46,8 @@ async function handle(req: NextRequest, ctx: Ctx) {
     internal: { clientIp: clientIpOf(req.headers.get("x-forwarded-for"), req.headers.get("x-real-ip")) },
     // (#450) AI 비서 카드에서 저장한 요청의 출처. 허용 값만 넘긴다 (AI-비서.md 6-1)
     clientSource: clientSourceOf(req.headers.get(CLIENT_SOURCE_HEADER)),
+    // (#532) 앱 셸이면 UA 에 WhenwemeetApp/<버전> (ios|android). API 는 내부 키가 맞을 때만 읽고 기종과 버전만 남긴다 (D-288)
+    userAgent: req.headers.get("user-agent"),
   });
 
   const res = NextResponse.json(result.body ?? null, { status: result.status });

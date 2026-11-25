@@ -27,6 +27,7 @@ import { PollsModule } from './polls/polls.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PushModule } from './push/push.module.js';
 import { TodosModule } from './todos/todos.module.js';
+import { UserClientsModule } from './user-clients/user-clients.module.js';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { TodosModule } from './todos/todos.module.js';
     MeModule,
     AuthAccountsModule,
     PushModule,
+    UserClientsModule,
   ],
   controllers: [HealthController],
   providers: [

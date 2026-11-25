@@ -32,6 +32,8 @@ export async function serverApi<T>(
     token,
     // (#186) API 요청 제한이 사용자 IP 로 세도록
     internal: { clientIp: clientIpOf(h.get("x-forwarded-for"), h.get("x-real-ip")) },
+    // (#532) 로그인한 요청의 기종 기록 (D-288)
+    userAgent: h.get("user-agent"),
   });
   const env = readEnvelope<T>(res.status, res.body);
   if (!env.ok && isOutage(res.status, env.error?.code)) redirect(maintenanceUrl(init.from ?? "/"));

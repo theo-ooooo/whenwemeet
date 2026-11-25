@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminPlatformFilterOf, adminPlatformLabels, adminTabOf, adminTargetLabel, providerText } from "../admin";
+import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminPlatformFilterOf, adminPlatformLabels, adminPlatformSeenText, adminTabOf, adminTargetLabel, providerText } from "../admin";
 
 describe("관리자 표기 (#515)", () => {
   it("탭: 하위 주소도 같은 탭", () => {
@@ -44,7 +44,14 @@ describe("(#528) 쓰는 곳 표기와 필터", () => {
   it("iOS, Android, 웹만, 빈 배열은 앱 (기종 모름)", () => {
     expect(adminPlatformLabels(["ios", "android"])).toEqual(["iOS", "Android"]);
     expect(adminPlatformLabels(["web"])).toEqual(["웹만"]);
+    expect(adminPlatformLabels(["ios", "web"])).toEqual(["iOS", "웹"]);
     expect(adminPlatformLabels([])).toEqual(["앱 (기종 모름)"]);
+  });
+
+  it("(#532) 기종 한 줄은 이름, 앱 버전, 마지막 접속 월.일 (KST)", () => {
+    expect(adminPlatformSeenText({ platform: "ios", appVersion: "1.3.0", lastSeenAt: "2026-11-25T03:00:00.000Z" })).toBe("iOS 1.3.0 · 마지막 11.25");
+    expect(adminPlatformSeenText({ platform: "android", appVersion: "1.2.1", lastSeenAt: "2026-11-24T16:30:00.000Z" })).toBe("Android 1.2.1 · 마지막 11.25");
+    expect(adminPlatformSeenText({ platform: "web", appVersion: null, lastSeenAt: "2026-11-24T00:00:00.000Z" })).toBe("웹 · 마지막 11.24");
   });
 
   it("?platform= 은 ios, android, web 만, 그 밖은 전체", () => {

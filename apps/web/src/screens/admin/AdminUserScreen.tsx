@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AdminTitle } from "@/components/admin/AdminShell";
 import { Avatar, ErrorState, Skeleton } from "@/components/ui";
 import { messageOf, useAdminUser } from "@/hooks";
-import { adminDateTime, providerText } from "@/lib/admin";
+import { adminDateTime, adminPlatformSeenText, providerText } from "@/lib/admin";
 import { NOTIFICATION_KINDS } from "@/lib/notification-kinds";
 import type { AdminUserNotifications } from "@/lib/types";
 import { PlatformBadges, StatusBadge } from "./AdminMore";
@@ -86,14 +86,14 @@ export function AdminUserScreen({ id }: { id: number }) {
             </InfoRow>
             <InfoRow label="가입">{adminDateTime(user.createdAt)}</InfoRow>
             <InfoRow label="로그인">{providerText(user.providers)}</InfoRow>
-            {/* (#528) 기종은 푸시 기기에서만 안다. 기기마다 마지막 확인 */}
+            {/* (#528, #532) 기종마다 앱 버전과 마지막 접속. 접속 기록을 먼저, 없으면 푸시 기기 */}
             <InfoRow label="쓰는 곳">
               <span className="flex flex-wrap items-center gap-1">
                 <PlatformBadges platforms={user.platforms} />
               </span>
               {user.platformLastSeen.map((p) => (
-                <span key={p.platform} className="t-sub block">
-                  {p.platform === "ios" ? "iOS" : "Android"} 마지막 확인 {adminDateTime(p.lastSeenAt)}
+                <span key={p.platform} className="t-sub block" title={adminDateTime(p.lastSeenAt)}>
+                  {adminPlatformSeenText(p)}
                 </span>
               ))}
             </InfoRow>

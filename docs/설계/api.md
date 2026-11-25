@@ -104,6 +104,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 
 웹 프록시(`/api/[...path]`, 서버 컴포넌트 `serverApi`, `/auth/app` handoff 교환, 로그아웃 기기 해제)는 모든 API 호출에 `X-Internal-Key` 와 사용자 IP(`X-Client-IP` = Vercel 의 `X-Forwarded-For` 첫 값)를 싣는다. 웹은 429 의 `Retry-After` 를 그대로 브라우저에 넘기고, 화면은 RATE_LIMITED 면 "잠시 후 다시 시도해 주세요" 를 보여준다. `/auth/app` 이 429 를 받으면 `/login?error=RATE_LIMITED`.
 
+**접속 기종 (#532, D-288)** — 웹 프록시(`/api/[...path]`)와 서버 컴포넌트(`serverApi`)는 내부 키가 있을 때 브라우저 User-Agent(512자까지)를 `X-Client-UA` 로 같이 싣는다. API 는 전역 인터셉터(`user-clients/`)에서 로그인한 요청(가드가 서명을 확인한 JWT 의 사용자)이고 `X-Internal-Key` 가 맞을 때만 이 헤더를 읽는다. `WhenwemeetApp/<버전> (ios|android)` 가 있으면 그 기종과 앱 버전(32자까지), 아니면 `web`(버전 없음). 키가 없거나 틀린 요청(API 직접 호출, 키를 비운 개발 환경), UA 헤더가 없는 요청(웹 서버 자신의 호출), 익명 요청은 기록하지 않는다. `UserClient (userId, platform)` 한 줄을 upsert(`firstSeenAt` 은 처음만, `lastSeenAt`, `appVersion` 갱신)하고, 같은 사용자, 기종은 인스턴스 메모리 캐시(1만 개, 오래된 것부터 버림)로 1시간에 한 번만 쓴다(앱 버전이 바뀌면 바로). 쓰기는 응답을 기다리지 않고, 실패는 로그 한 줄로 끝난다(요청은 그대로). UA 원문은 저장하지 않는다
+
 **운영 주의**: Railway(api)와 Vercel(web)의 `INTERNAL_API_KEY` 가 다르거나 한쪽이 비면 웹 경유 요청이 모두 Vercel 의 나가는 IP 몇 개로 묶여 기본 IP 한도(600/1분)를 사용자 전체가 나눠 쓰게 된다. 키를 바꿀 때는 두 곳을 같이 바꾼다.
 
 ### 환경 변수 (apps/api/.env)
@@ -841,7 +843,7 @@ NoticeListItem = { id, title, kind: NoticeKind, pinned, publishedAt, unread: boo
 Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, pushedAt: string | null, createdAt, updatedAt }   // publishedAt null = 초안. (#528) pushedAt null = 푸시 안 보냄
 AdminUser      = { id, nickname, role: 'user' | 'admin', createdAt, providers: AuthProvider[],
                    platforms: ('ios' | 'android' | 'web')[],                        // (#528) 아래 "쓰는 곳"
-                   platformLastSeen: { platform: 'ios' | 'android', lastSeenAt }[], // (#528) 기종마다 그 기종 푸시 기기의 마지막 확인
+                   platformLastSeen: { platform: 'ios' | 'android' | 'web', appVersion: string | null, lastSeenAt }[], // (#528, #532) 기종마다 앱 버전과 마지막 접속
                    lastAppLoginAt: string | null }                                  // (#528) 마지막 앱 로그인 (D-97)
 Hidden         = { reason, hiddenAt, hiddenBy: { id, nickname } | null }
 AdminPerson    = { id, nickname, profileImageUrl: string | null }   // (#528)
@@ -862,6 +864,7 @@ AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event'
 - 웹 프록시는 `GET /notices`, `/notices/:id` 를 쿠키 없이도 넘긴다(초대 미리보기와 같이)
 - (#528, D-287) 공지 푸시: `push: true` 가 받아들여지면 같은 트랜잭션에서 `Notice.pushedAt = 지금` 과 `PushNotification { kind NOTICE, dedupeKey N:{id}, groupId null }` 을 만들고 조치 기록 `notice_push` 를 남긴 뒤 푸시 틱을 한 번 깨운다. 요청 안에서 기기로 보내지 않는다. 한 공지는 한 번만: 이미 보냈으면 409, 동시에 두 요청이 와도 하나만 된다(`pushedAt IS NULL` 조건부 갱신). 게시 취소 뒤 다시 게시해도 다시 보내지 않는다. 받는 사람과 문구는 푸시-알림.md 16장
 - (#528) 쓰는 곳: 앱이 기종을 남기는 곳은 푸시 기기(`PushDevice.platform`)뿐이다(앱 로그인 기록 `lastAppLoginAt` 에는 기종이 없고, UA 는 저장하지 않는다). 기기가 있으면 그 기종들(ios 먼저), 기기도 앱 로그인 기록도 없으면 `['web']`(웹만), 앱 로그인 기록만 있으면 `[]`(앱을 쓰지만 알림을 허용하지 않아 기종 모름). 필터 `web` 은 기기도 앱 로그인 기록도 없는 사람. 앱 로그인 기록은 #188(1.1) 뒤부터라 그 전에만 앱으로 로그인한 사람은 웹만으로 보일 수 있다
+- (#532, D-288) 쓰는 곳은 접속 기록(`UserClient`)을 먼저 본다. 기종마다 접속 기록이 있으면 그 앱 버전과 마지막 접속, 없는 ios, android 는 그 기종 푸시 기기 중 마지막 확인이 가장 늦은 것(그 기기의 앱 버전). `platforms` 는 그렇게 나온 기종들(ios, android, web 순)이고, 하나도 없으면 위 #528 규칙(앱 로그인 기록 없으면 `['web']`, 있으면 `[]`). 필터 `ios`, `android` 는 그 기종 접속 기록이나 푸시 기기가 있는 사람, `web` 은 웹 접속 기록이 있거나 아무 기록도 앱 로그인 기록도 없는 사람(목록의 `platforms` 에 web 이 들어가는 사람과 같다). 과거 기록은 없어 배포 뒤 접속한 사람부터 쌓인다
 - (#528) 개인 달력은 이름이 모두 "내 달력" 이라 관리자 화면은 `owner` 로 "{닉네임}의 개인 달력" 이라 부른다
 
 ## 3. 기획 기능 → API 추적
