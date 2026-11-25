@@ -52,7 +52,7 @@ export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
 /** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
 /** (#189) poll 약속 투표(열림, 마감, 정함). 기본 켬 */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean };
+export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean; notice: boolean };
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -343,6 +343,8 @@ export type Notice = {
   kind: NoticeKind;
   pinned: boolean;
   publishedAt: string | null;
+  /** (#528) 푸시를 보낸 시각. null = 안 보냄. 한 공지는 한 번만 (D-287) */
+  pushedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -351,13 +353,42 @@ export type Notice = {
 export type Page<T> = { items: T[]; nextCursor: number | null };
 
 /** (#515) 관리자 사용자 목록 한 줄 */
-export type AdminUser = { id: number; nickname: string; role: UserRole; profileImageUrl: string | null; createdAt: string; providers: string[] };
+/** (#528) 관리자 화면의 쓰는 곳. 기종은 푸시 기기에서만 안다 */
+export type AdminPlatform = "ios" | "android" | "web";
+
+export type AdminUser = {
+  id: number;
+  nickname: string;
+  role: UserRole;
+  profileImageUrl: string | null;
+  createdAt: string;
+  providers: string[];
+  /** (#528) 푸시 기기 기종(ios 먼저). 기기도 앱 로그인 기록도 없으면 ["web"], 앱 로그인만 있으면 [] (기종 모름) */
+  platforms: AdminPlatform[];
+  /** (#528) 기종마다 마지막 확인 */
+  platformLastSeen: { platform: "ios" | "android"; lastSeenAt: string }[];
+  /** (#528) 마지막 앱 로그인. 없으면 null */
+  lastAppLoginAt: string | null;
+};
 
 /** (#515) 운영 숨김 상태 (D-286) */
 export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };
 
-/** (#515) 관리자 팀 목록 한 줄 */
-export type AdminGroup = { id: number; name: string; type: GroupType; memberCount: number; eventCount: number; createdAt: string; hidden: HiddenState | null };
+/** (#528) 관리자 화면의 사람 요약 (개인 달력 주인, 팀 멤버 미리 보기) */
+export type AdminPerson = { id: number; nickname: string; profileImageUrl: string | null };
+
+/** (#515) 관리자 팀 목록 한 줄. (#528) owner 는 개인 달력의 주인(팀은 null), memberPreview 는 먼저 들어온 3명까지 */
+export type AdminGroup = {
+  id: number;
+  name: string;
+  type: GroupType;
+  owner: AdminPerson | null;
+  memberPreview: AdminPerson[];
+  memberCount: number;
+  eventCount: number;
+  createdAt: string;
+  hidden: HiddenState | null;
+};
 
 /** (#515) 관리자 팀 상세 */
 export type AdminGroupDetail = AdminGroup & {
@@ -369,7 +400,8 @@ export type AdminGroupDetail = AdminGroup & {
 export type AdminEvent = {
   id: number;
   title: string;
-  group: { id: number; name: string; hidden: boolean };
+  /** (#528) type, 개인 달력이면 주인 */
+  group: { id: number; name: string; hidden: boolean; type: GroupType; owner: AdminPerson | null };
   startsAt: string;
   endsAt: string;
   allDay: boolean;
@@ -382,7 +414,13 @@ export type AdminEvent = {
 export type AdminEventDetail = AdminEvent & { memo: string | null; place: string | null };
 
 /** (#515) 관리자 사용자 상세 */
-export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[] };
+/** (#528) 관리자 사용자 상세의 푸시 기기 한 줄 (토큰 없음) */
+export type AdminPushDevice = { platform: "IOS" | "ANDROID"; appVersion: string; createdAt: string; lastSeenAt: string };
+
+/** (#528) 관리자 사용자 상세의 알림 설정 (읽기 전용). settings 는 그 사람의 내 정보 > 알림 과 같은 모양 */
+export type AdminUserNotifications = { settings: NotificationSettings; devices: AdminPushDevice[] };
+
+export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[]; notifications: AdminUserNotifications };
 
 /** (#515) 관리자 조치 기록 한 줄 (D-286) */
 export type AdminActionLog = {

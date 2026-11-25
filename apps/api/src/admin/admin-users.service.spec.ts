@@ -1,5 +1,5 @@
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { UsersRepository } from '../users/users.repository.js';
+import { adminPlatformsOf, UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 import { AdminUsersService } from './admin-users.service.js';
 
@@ -7,7 +7,7 @@ describe('AdminUsersService (#515)', () => {
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
   let service: AdminUsersService;
-  const row = { id: 8, nickname: '하늘', role: 'admin' as const, profileImageUrl: null, createdAt: new Date(0), providers: ['KAKAO' as const] };
+  const row = { id: 8, nickname: '하늘', role: 'admin' as const, profileImageUrl: null, createdAt: new Date(0), providers: ['KAKAO' as const], platforms: ['ios' as const], platformLastSeen: [], lastAppLoginAt: null };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);
@@ -33,7 +33,15 @@ describe('AdminUsersService (#515)', () => {
 
   it('list 는 저장소에 그대로', async () => {
     users.listForAdmin.mockResolvedValue({ items: [row], nextCursor: null });
-    expect(await service.list({ q: '하', limit: 20, cursor: null })).toEqual({ items: [row], nextCursor: null });
-    expect(users.listForAdmin).toHaveBeenCalledWith({ q: '하', limit: 20, cursor: null });
+    expect(await service.list({ q: '하', platform: 'android', limit: 20, cursor: null })).toEqual({ items: [row], nextCursor: null });
+    expect(users.listForAdmin).toHaveBeenCalledWith({ q: '하', platform: 'android', limit: 20, cursor: null });
+  });
+
+  it('(#528) adminPlatformsOf: 푸시 기기 기종(ios 먼저), 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 모름([])', () => {
+    const at = new Date('2026-11-20T00:00:00.000Z');
+    expect(adminPlatformsOf([{ platform: 'ANDROID' }, { platform: 'IOS' }, { platform: 'IOS' }], null)).toEqual(['ios', 'android']);
+    expect(adminPlatformsOf([{ platform: 'ANDROID' }], at)).toEqual(['android']);
+    expect(adminPlatformsOf([], null)).toEqual(['web']);
+    expect(adminPlatformsOf([], at)).toEqual([]);
   });
 });

@@ -93,6 +93,44 @@ describe('관리자 숨김, 삭제 (e2e, #515)', () => {
     expect(user.body.data.teams.map((t: { name: string }) => t.name)).toEqual(['내 달력', '저녁 모임']);
   });
 
+  it('(#528) 팀 목록 종류 필터와 개인 달력 주인: type=TEAM|PERSONAL, q 는 주인 닉네임도, 팀은 멤버 3명까지 미리 보기', async () => {
+    type Row = { id: number; name: string; type: string; owner: { id: number; nickname: string; profileImageUrl: string | null } | null; memberPreview: { nickname: string }[] };
+    const list = async (query: Record<string, string>) => (await api(app).get('/v1/admin/groups').query(query).set(auth(admin)).expect(200)).body.data.items as Row[];
+
+    const teams = await list({ type: 'TEAM' });
+    expect(teams.map((g) => g.id)).toEqual([groupId]);
+    expect(teams[0]).toMatchObject({ owner: null, memberPreview: [{ nickname: '앨리스' }, { nickname: '밥' }] });
+
+    const personal = await list({ type: 'PERSONAL' });
+    expect(personal.every((g) => g.type === 'PERSONAL' && g.name === '내 달력')).toBe(true);
+    expect(personal.map((g) => g.owner?.nickname).sort((a, b) => (a ?? '').localeCompare(b ?? ''))).toEqual(['밥', '앨리스', '운영자'].sort((a, b) => a.localeCompare(b)));
+    expect(personal.find((g) => g.owner?.id === alice.userId)?.memberPreview.map((m) => m.nickname)).toEqual(['앨리스']);
+    expect(await list({})).toHaveLength(teams.length + personal.length);
+
+    // 이름이 모두 "내 달력" 이라 개인 달력은 주인 닉네임으로 찾는다. 팀은 멤버 이름으로 찾지 않는다
+    const byOwner = await list({ q: '앨리스' });
+    expect(byOwner.map((g) => [g.type, g.owner?.nickname])).toEqual([['PERSONAL', '앨리스']]);
+    expect((await list({ q: '앨리스', type: 'TEAM' })).length).toBe(0);
+    await api(app).get('/v1/admin/groups').query({ type: 'team' }).set(auth(admin)).expect(400);
+
+    const bobPersonal = personal.find((g) => g.owner?.id === bob.userId)!;
+    const detail = await api(app).get(`/v1/admin/groups/${bobPersonal.id}`).set(auth(admin)).expect(200);
+    expect(detail.body.data.owner).toMatchObject({ id: bob.userId, nickname: '밥' });
+    const user = await api(app).get(`/v1/admin/users/${bob.userId}`).set(auth(admin)).expect(200);
+    expect(user.body.data.teams.map((t: Row) => [t.type, t.owner?.nickname ?? null])).toEqual([
+      ['PERSONAL', '밥'],
+      ['TEAM', null],
+    ]);
+
+    // 일정 목록의 팀 칸: 개인 달력이면 주인
+    const own = (await api(app).post(`/v1/groups/${bobPersonal.id}/events`).set(auth(bob)).send({ title: '밥 개인 일정', allDay: false, startsAt: '2027-03-20T10:00:00+09:00', endsAt: '2027-03-20T11:00:00+09:00' }).expect(201)).body.data.id as number;
+    const events = await api(app).get('/v1/admin/events').query({ q: '밥 개인' }).set(auth(admin)).expect(200);
+    expect(events.body.data.items[0]).toMatchObject({ id: own, group: { id: bobPersonal.id, type: 'PERSONAL', owner: { id: bob.userId, nickname: '밥' } } });
+    const teamEvent = await api(app).get(`/v1/admin/events/${dinnerId}`).set(auth(admin)).expect(200);
+    expect(teamEvent.body.data.group).toMatchObject({ type: 'TEAM', owner: null });
+    await api(app).delete(`/v1/groups/${bobPersonal.id}/events/${own}`).set(auth(bob)).expect(200);
+  });
+
   it('일정 숨기기: 사유 필수, 멤버 목록, 상세, 검색, 빈 시간, 구독 피드, 공유 링크, 알림에서 빠진다. 해제하면 돌아온다', async () => {
     await api(app).post(`/v1/admin/events/${dinnerId}/hide`).set(auth(admin)).send({ reason: '  ' }).expect(400);
     await api(app).post(`/v1/admin/events/${dinnerId}/hide`).set(auth(admin)).send({}).expect(400);

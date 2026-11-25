@@ -1,3 +1,5 @@
+import { NotificationPreferencesRepository } from '../notification-preferences/notification-preferences.repository.js';
+import { PREFERENCE_DEFAULTS } from '../notification-preferences/notification-preferences.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
@@ -5,11 +7,11 @@ import { type AdminEventDetail, type AdminGroupDetail, AdminModerationRepository
 import { AdminModerationService } from './admin-moderation.service.js';
 
 const at = new Date('2026-11-25T00:00:00.000Z');
-const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
+const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', owner: null, memberPreview: [], memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
 const event: AdminEventDetail = {
   id: 9,
   title: '광고',
-  group: { id: 5, name: '팀', hidden: false },
+  group: { id: 5, name: '팀', hidden: false, type: 'TEAM', owner: null },
   startsAt: at,
   endsAt: at,
   allDay: false,
@@ -25,6 +27,7 @@ describe('AdminModerationService (#515, D-286)', () => {
   let repo: RepositoryMock<AdminModerationRepository>;
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
+  let preferences: RepositoryMock<NotificationPreferencesRepository>;
   let service: AdminModerationService;
 
   beforeEach(() => {
@@ -32,7 +35,8 @@ describe('AdminModerationService (#515, D-286)', () => {
     users = mockRepository(UsersRepository);
     actions = mockRepository(AdminActionsRepository);
     actions.record.mockResolvedValue(undefined);
-    service = new AdminModerationService(repo as never, users as never, actions as never);
+    preferences = mockRepository(NotificationPreferencesRepository);
+    service = new AdminModerationService(repo as never, users as never, actions as never, preferences as never);
   });
 
   it('팀 숨기기: 사유와 관리자, 시각을 저장하고 group_hide 기록. 없는 팀은 404 (기록 없음)', async () => {
@@ -80,8 +84,24 @@ describe('AdminModerationService (#515, D-286)', () => {
     expect(repo.setEventHidden).toHaveBeenCalledWith(9, { reason: '스팸', hiddenAt: at, hiddenById: 2 });
     users.findForAdmin.mockResolvedValueOnce(null);
     await expect(service.user(3)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [] });
+    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
     repo.listGroupsOfUser.mockResolvedValueOnce([group]);
+    preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS });
+    repo.listPushDevicesOfUser.mockResolvedValueOnce([]);
     expect((await service.user(3)).teams).toEqual([group]);
+  });
+
+  it('(#528) 사용자 상세: 알림 설정은 내 정보 > 알림 과 같은 키(공지 포함), 기기는 토큰 없이', async () => {
+    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
+    repo.listGroupsOfUser.mockResolvedValueOnce([]);
+    preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS, NOTICE: false, CHANGE: false });
+    const device = { platform: 'IOS' as const, appVersion: '1.3.0', createdAt: at, lastSeenAt: at };
+    repo.listPushDevicesOfUser.mockResolvedValueOnce([device]);
+    const { notifications } = await service.user(3);
+    expect(preferences.find).toHaveBeenCalledWith(3);
+    expect(notifications).toEqual({
+      settings: { reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: false },
+      devices: [device],
+    });
   });
 });

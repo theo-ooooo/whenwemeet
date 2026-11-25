@@ -2,12 +2,12 @@ import { AdminAccess } from '../admin/admin-access.js';
 import { AdminActionsRepository } from '../admin/admin-actions.repository.js';
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { UsersRepository } from '../users/users.repository.js';
-import { type NoticeRow, NoticesRepository } from './notices.repository.js';
+import { NoticeAlreadyPushedError, type NoticeRow, NoticesRepository } from './notices.repository.js';
 import { isUnread, NoticesService } from './notices.service.js';
 
 function notice(id: number, overrides: Partial<NoticeRow> = {}): NoticeRow {
   const at = new Date('2026-11-20T00:00:00.000Z');
-  return { id, title: `공지 ${id}`, body: '본문', kind: 'notice', pinned: false, publishedAt: at, createdAt: at, updatedAt: at, ...overrides };
+  return { id, title: `공지 ${id}`, body: '본문', kind: 'notice', pinned: false, publishedAt: at, pushedAt: null, createdAt: at, updatedAt: at, ...overrides };
 }
 
 describe('NoticesService (#515)', () => {
@@ -15,6 +15,7 @@ describe('NoticesService (#515)', () => {
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
   let service: NoticesService;
+  let scheduler: { kick: ReturnType<typeof vi.fn> };
   const now = new Date('2026-11-25T00:00:00.000Z');
   const page = { limit: 20, cursor: null };
 
@@ -23,7 +24,8 @@ describe('NoticesService (#515)', () => {
     users = mockRepository(UsersRepository);
     actions = mockRepository(AdminActionsRepository);
     actions.record.mockResolvedValue(undefined);
-    service = new NoticesService(notices as never, users as never, new AdminAccess(users as never), actions as never);
+    scheduler = { kick: vi.fn() };
+    service = new NoticesService(notices as never, users as never, new AdminAccess(users as never), actions as never, scheduler as never);
   });
 
   it('isUnread: 본 적 없으면 새 공지, 본 시각보다 늦게 게시된 것만 새 공지 (같은 시각은 읽음)', () => {
@@ -85,9 +87,9 @@ describe('NoticesService (#515)', () => {
   it('create: published 면 지금 게시, 아니면 초안. pinned 기본 false. 조치 기록', async () => {
     notices.create.mockImplementation(async (data) => notice(10, { ...data, publishedAt: data.publishedAt ?? null }));
     await service.create(1, { title: 't', body: 'b', kind: 'update', published: true }, now);
-    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'update', pinned: false, publishedAt: now, createdById: 1 });
+    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'update', pinned: false, publishedAt: now, createdById: 1 }, null);
     await service.create(1, { title: 't', body: 'b', kind: 'notice', pinned: true }, now);
-    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'notice', pinned: true, publishedAt: null, createdById: 1 });
+    expect(notices.create).toHaveBeenLastCalledWith({ title: 't', body: 'b', kind: 'notice', pinned: true, publishedAt: null, createdById: 1 }, null);
     expect(actions.record).toHaveBeenCalledWith({ adminId: 1, action: 'notice_create', targetType: 'notice', targetId: 10 });
   });
 
@@ -96,15 +98,15 @@ describe('NoticesService (#515)', () => {
     notices.update.mockImplementation(async (id) => notice(id));
     notices.findById.mockResolvedValueOnce(notice(1, { publishedAt: null }));
     await service.update(1, 1, { published: true }, now);
-    expect(notices.update).toHaveBeenLastCalledWith(1, { publishedAt: now });
+    expect(notices.update).toHaveBeenLastCalledWith(1, { publishedAt: now }, null);
 
     notices.findById.mockResolvedValueOnce(notice(1, { publishedAt: first }));
     await service.update(1, 1, { published: true, title: '새 제목' }, now);
-    expect(notices.update).toHaveBeenLastCalledWith(1, { title: '새 제목', publishedAt: first });
+    expect(notices.update).toHaveBeenLastCalledWith(1, { title: '새 제목', publishedAt: first }, null);
 
     notices.findById.mockResolvedValueOnce(notice(1, { publishedAt: first }));
     await service.update(1, 1, { published: false, pinned: true }, now);
-    expect(notices.update).toHaveBeenLastCalledWith(1, { pinned: true, publishedAt: null });
+    expect(notices.update).toHaveBeenLastCalledWith(1, { pinned: true, publishedAt: null }, null);
     expect(actions.record).toHaveBeenCalledWith({ adminId: 1, action: 'notice_update', targetType: 'notice', targetId: 1 });
 
     notices.findById.mockResolvedValueOnce(null);
@@ -119,5 +121,70 @@ describe('NoticesService (#515)', () => {
     notices.remove.mockResolvedValueOnce(false);
     await expect(service.remove(1, 5)).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(actions.record).not.toHaveBeenCalled();
+  });
+
+  describe('(#528) 푸시 (D-287)', () => {
+    it('create: 게시와 push 면 같은 시각으로 예약하고 notice_create, notice_push 기록, 틱을 깨운다', async () => {
+      notices.create.mockImplementation(async (data, pushAt) => notice(11, { ...data, publishedAt: data.publishedAt ?? null, pushedAt: pushAt ?? null }));
+      const row = await service.create(1, { title: 't', body: 'b', kind: 'notice', published: true, push: true }, now);
+      expect(notices.create).toHaveBeenLastCalledWith(expect.objectContaining({ publishedAt: now }), now);
+      expect(row.pushedAt).toEqual(now);
+      expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual(['notice_create', 'notice_push']);
+      expect(actions.record).toHaveBeenLastCalledWith({ adminId: 1, action: 'notice_push', targetType: 'notice', targetId: 11 });
+      expect(scheduler.kick).toHaveBeenCalledTimes(1);
+    });
+
+    it('create: 초안에 push 는 400 (field push), 저장도 기록도 없다. push false 는 보내지 않는다', async () => {
+      await expect(service.create(1, { title: 't', body: 'b', kind: 'notice', push: true }, now)).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'push', message: expect.any(String) }],
+      });
+      expect(notices.create).not.toHaveBeenCalled();
+      expect(actions.record).not.toHaveBeenCalled();
+
+      notices.create.mockImplementation(async (data) => notice(12, { ...data, publishedAt: data.publishedAt ?? null }));
+      await service.create(1, { title: 't', body: 'b', kind: 'notice', published: true, push: false }, now);
+      expect(notices.create).toHaveBeenLastCalledWith(expect.anything(), null);
+      expect(scheduler.kick).not.toHaveBeenCalled();
+    });
+
+    it('update: 초안을 게시하면서 push, 이미 게시된 공지에 push 는 예약. 고친 결과가 초안이면 400', async () => {
+      notices.update.mockImplementation(async (id) => notice(id, { pushedAt: now }));
+      notices.findById.mockResolvedValueOnce(notice(1, { publishedAt: null }));
+      await service.update(1, 1, { published: true, push: true }, now);
+      expect(notices.update).toHaveBeenLastCalledWith(1, { publishedAt: now }, now);
+
+      notices.findById.mockResolvedValueOnce(notice(2));
+      await service.update(1, 2, { title: '고침', push: true }, now);
+      expect(notices.update).toHaveBeenLastCalledWith(2, { title: '고침' }, now);
+      expect(scheduler.kick).toHaveBeenCalledTimes(2);
+
+      notices.update.mockClear();
+      notices.findById.mockResolvedValueOnce(notice(3, { publishedAt: null }));
+      await expect(service.update(1, 3, { push: true }, now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      notices.findById.mockResolvedValueOnce(notice(4));
+      await expect(service.update(1, 4, { published: false, push: true }, now)).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(notices.update).not.toHaveBeenCalled();
+    });
+
+    it('update: 이미 보낸 공지에 push 는 409 이고 아무것도 바꾸지 않는다. push 없이 고치기는 된다', async () => {
+      notices.findById.mockResolvedValueOnce(notice(5, { pushedAt: now }));
+      await expect(service.update(1, 5, { title: 'x', push: true }, now)).rejects.toMatchObject({ code: 'NOTICE_ALREADY_PUSHED' });
+      expect(notices.update).not.toHaveBeenCalled();
+      expect(actions.record).not.toHaveBeenCalled();
+
+      notices.update.mockImplementation(async (id) => notice(id, { pushedAt: now }));
+      notices.findById.mockResolvedValueOnce(notice(5, { pushedAt: now }));
+      await service.update(1, 5, { title: 'x' }, now);
+      expect(notices.update).toHaveBeenLastCalledWith(5, { title: 'x' }, null);
+      expect(scheduler.kick).not.toHaveBeenCalled();
+    });
+
+    it('update: 동시에 두 번 눌러 저장소가 NoticeAlreadyPushedError 를 던지면 409', async () => {
+      notices.findById.mockResolvedValueOnce(notice(6));
+      notices.update.mockRejectedValueOnce(new NoticeAlreadyPushedError());
+      await expect(service.update(1, 6, { push: true }, now)).rejects.toMatchObject({ code: 'NOTICE_ALREADY_PUSHED' });
+      expect(actions.record).not.toHaveBeenCalled();
+    });
   });
 });

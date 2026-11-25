@@ -17,7 +17,8 @@ function birthdayOf(u: { birthday?: string | null; birthdayReminders?: Anniversa
   return { date: u.birthday ?? null, reminders: u.birthdayReminders ?? ["DAY_OF"] };
 }
 
-const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true };
+/** 행이 없을 때 기본값. (#528) 공지 기본 켬. 관리자 사용자 상세 목도 쓴다 */
+export const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true };
 const NOTIFY_KEYS = Object.keys(DEFAULT_NOTIFY) as (keyof NotificationSettings)[];
 
 /** /me 로 시작하는 요청. 맞는 라우트가 없으면 null (다음 라우트로) */

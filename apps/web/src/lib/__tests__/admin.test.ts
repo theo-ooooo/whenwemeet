@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminActionLabel, adminDateTime, adminEventTime, adminTabOf, adminTargetLabel, providerText } from "../admin";
+import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminPlatformFilterOf, adminPlatformLabels, adminTabOf, adminTargetLabel, providerText } from "../admin";
 
 describe("관리자 표기 (#515)", () => {
   it("탭: 하위 주소도 같은 탭", () => {
@@ -23,3 +23,32 @@ describe("관리자 표기 (#515)", () => {
     expect(adminEventTime("2026-11-24T15:00:00.000Z", true)).toBe("2026.11.25 종일");
   });
 });
+
+describe("(#528) 관리자 팀 이름과 종류 필터", () => {
+  it("개인 달력은 주인으로 부르고(주인이 없으면 '개인 달력'), 팀은 이름 그대로", () => {
+    expect(adminGroupName({ name: "내 달력", type: "PERSONAL", owner: { nickname: "지우" } })).toBe("지우의 개인 달력");
+    expect(adminGroupName({ name: "내 달력", type: "PERSONAL", owner: null })).toBe("개인 달력");
+    expect(adminGroupName({ name: "우리 둘", type: "TEAM", owner: null })).toBe("우리 둘");
+  });
+
+  it("주소 ?type= 은 기본 team, 모르는 값도 team. API 값으로 바꾼다", () => {
+    expect(adminGroupFilterOf(null)).toBe("team");
+    expect(adminGroupFilterOf("x")).toBe("team");
+    expect(adminGroupFilterOf("personal")).toBe("personal");
+    expect(adminGroupFilterOf("all")).toBe("all");
+    expect([adminGroupTypeParam("team"), adminGroupTypeParam("personal"), adminGroupTypeParam("all")]).toEqual(["TEAM", "PERSONAL", null]);
+  });
+});
+
+describe("(#528) 쓰는 곳 표기와 필터", () => {
+  it("iOS, Android, 웹만, 빈 배열은 앱 (기종 모름)", () => {
+    expect(adminPlatformLabels(["ios", "android"])).toEqual(["iOS", "Android"]);
+    expect(adminPlatformLabels(["web"])).toEqual(["웹만"]);
+    expect(adminPlatformLabels([])).toEqual(["앱 (기종 모름)"]);
+  });
+
+  it("?platform= 은 ios, android, web 만, 그 밖은 전체", () => {
+    expect([adminPlatformFilterOf(null), adminPlatformFilterOf("IOS"), adminPlatformFilterOf("web")]).toEqual(["all", "all", "web"]);
+  });
+});
+

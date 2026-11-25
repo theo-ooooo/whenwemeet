@@ -5,7 +5,7 @@ import { PushDevicesRepository } from './push-devices.repository.js';
 describe('PushDevicesService (설계 7-1)', () => {
   let push: RepositoryMock<PushDevicesRepository>;
   let service: PushDevicesService;
-  const settings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true };
+  const settings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true };
 
   beforeEach(() => {
     push = mockRepository(PushDevicesRepository);

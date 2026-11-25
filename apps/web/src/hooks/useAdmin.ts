@@ -37,9 +37,13 @@ export function useDeleteNotice(opts?: MutationOptions) {
 }
 
 /** 사용자 목록. q 는 닉네임 검색 (빈 값이면 전체) */
-export function useAdminUsers(q: string, opts?: QueryOptions<Page<AdminUser>>) {
+/** (#528) platform 은 ios, android, web 중 하나 (null = 전체) */
+export function useAdminUsers(q: string, platform: "ios" | "android" | "web" | null = null, opts?: QueryOptions<Page<AdminUser>>) {
+  const params = new URLSearchParams({ limit: "20" });
   const query = q.trim();
-  return usePaged<AdminUser>(`/admin/users?limit=20${query ? `&q=${encodeURIComponent(query)}` : ""}`, { debounceMs: 250, ...opts });
+  if (query) params.set("q", query);
+  if (platform) params.set("platform", platform);
+  return usePaged<AdminUser>(`/admin/users?${params.toString()}`, { debounceMs: 250, ...opts });
 }
 
 export function useUpdateUserRole(opts?: MutationOptions) {
@@ -58,9 +62,13 @@ export function useAdminUser(id: number, opts?: QueryOptions<AdminUserDetail>) {
 }
 
 /** (#515) 팀 목록. q 는 팀 이름 검색 */
-export function useAdminGroups(q: string, opts?: QueryOptions<Page<AdminGroup>>) {
+/** (#528) type 은 TEAM, PERSONAL 중 하나 (null = 전체). q 는 팀 이름, 개인 달력은 주인 닉네임도 */
+export function useAdminGroups(q: string, type: "TEAM" | "PERSONAL" | null = null, opts?: QueryOptions<Page<AdminGroup>>) {
+  const params = new URLSearchParams({ limit: "20" });
   const query = q.trim();
-  return usePaged<AdminGroup>(`/admin/groups?limit=20${query ? `&q=${encodeURIComponent(query)}` : ""}`, { debounceMs: 250, ...opts });
+  if (query) params.set("q", query);
+  if (type) params.set("type", type);
+  return usePaged<AdminGroup>(`/admin/groups?${params.toString()}`, { debounceMs: 250, ...opts });
 }
 
 export function useAdminGroup(id: number, opts?: QueryOptions<AdminGroupDetail>) {
