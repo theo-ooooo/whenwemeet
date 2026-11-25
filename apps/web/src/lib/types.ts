@@ -353,8 +353,10 @@ export type Notice = {
 export type Page<T> = { items: T[]; nextCursor: number | null };
 
 /** (#515) 관리자 사용자 목록 한 줄 */
-/** (#528) 관리자 화면의 쓰는 곳. 기종은 푸시 기기에서만 안다 */
+/** (#528) 관리자 화면의 쓰는 곳. (#532) 접속 기록(UserClient)을 먼저, 없으면 푸시 기기 */
 export type AdminPlatform = "ios" | "android" | "web";
+/** (#532) 기종 하나의 마지막 접속. appVersion 은 앱만 (web 은 null) */
+export type AdminPlatformSeen = { platform: AdminPlatform; appVersion: string | null; lastSeenAt: string };
 
 export type AdminUser = {
   id: number;
@@ -363,10 +365,10 @@ export type AdminUser = {
   profileImageUrl: string | null;
   createdAt: string;
   providers: string[];
-  /** (#528) 푸시 기기 기종(ios 먼저). 기기도 앱 로그인 기록도 없으면 ["web"], 앱 로그인만 있으면 [] (기종 모름) */
+  /** (#528, #532) 접속 기록이나 푸시 기기가 있는 기종(ios, android, web 순). 아무 기록도 앱 로그인도 없으면 ["web"], 앱 로그인만 있으면 [] (기종 모름) */
   platforms: AdminPlatform[];
-  /** (#528) 기종마다 마지막 확인 */
-  platformLastSeen: { platform: "ios" | "android"; lastSeenAt: string }[];
+  /** (#528, #532) 기종마다 앱 버전과 마지막 접속 */
+  platformLastSeen: AdminPlatformSeen[];
   /** (#528) 마지막 앱 로그인. 없으면 null */
   lastAppLoginAt: string | null;
 };

@@ -1,6 +1,6 @@
 "use client";
 // (#515) 관리자 사용자 목록 (최근 가입 먼저, 닉네임 검색) 과 역할 바꾸기. 내 역할은 바꿀 수 없다(버튼 끔, API 도 403)
-// (#528) 쓰는 곳 배지(iOS, Android, 웹만, 앱 기종 모름)와 기종 필터(전체 | iOS | Android | 웹만, 주소 ?platform=). 기종은 푸시 기기에서만 안다
+// (#528) 쓰는 곳 배지(iOS, Android, 웹 또는 웹만, 앱 기종 모름)와 기종 필터(전체 | iOS | Android | 웹, 주소 ?platform=). (#532) 기종은 접속 기록을 먼저, 없으면 푸시 기기
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";

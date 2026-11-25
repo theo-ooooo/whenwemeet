@@ -83,19 +83,21 @@ function readNoticeInput(body: Record<string, unknown> | null, partial: boolean)
 }
 
 /**
- * (#515) 관리자 사용자 한 줄. (#528) platforms: 푸시 기기 기종(ios 먼저), 기기도 앱 로그인도 없으면 web, 앱 로그인만 있으면 [] (API adminPlatformsOf)
+ * (#515) 관리자 사용자 한 줄. (#528, #532) platformLastSeen: 기종마다 접속 기록(UserClient)을 먼저, 없는 ios, android 는 그 기종 푸시 기기 중 가장 늦은 것.
+ * platforms: 그 기종들(ios, android, web 순). 아무 기록도 앱 로그인도 없으면 web, 앱 로그인만 있으면 [] (API adminPlatformSeenOf, adminPlatformsOf)
  */
 export function adminUserOut(s: Store, u: Store["users"][number]) {
+  const clients = (s.userClients ?? []).filter((c) => c.userId === u.id);
   const devices = (s.pushDevices ?? []).filter((d) => d.userId === u.id);
-  const lastSeen = (platform: "IOS" | "ANDROID") =>
-    devices
-      .filter((d) => d.platform === platform)
-      .map((d) => d.lastSeenAt)
-      .sort()
+  const platformLastSeen = (["ios", "android", "web"] as const).flatMap((platform) => {
+    const client = clients.find((c) => c.platform === platform);
+    if (client) return [{ platform, appVersion: client.appVersion, lastSeenAt: client.lastSeenAt }];
+    if (platform === "web") return [];
+    const latest = devices
+      .filter((d) => d.platform === (platform === "ios" ? "IOS" : "ANDROID"))
+      .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt))
       .at(-1);
-  const platformLastSeen = (["IOS", "ANDROID"] as const).flatMap((p) => {
-    const at = lastSeen(p);
-    return at ? [{ platform: p === "IOS" ? ("ios" as const) : ("android" as const), lastSeenAt: at }] : [];
+    return latest ? [{ platform, appVersion: latest.appVersion as string | null, lastSeenAt: latest.lastSeenAt }] : [];
   });
   const lastAppLoginAt = u.lastAppLoginAt ?? null;
   const platforms: ("ios" | "android" | "web")[] = platformLastSeen.map((p) => p.platform);
