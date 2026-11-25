@@ -129,7 +129,12 @@ export class CalendarFeedService {
     if (!hash) throw feedNotFound();
     const row = await this.feeds.findByHash(hash);
     if (!row || !tokenMatches(this.key(), row, token)) throw feedNotFound();
-    if (!(await this.memberships.isMember(row.userId, row.groupId))) throw feedNotFound();
+    // (#515) 숨긴 팀(GROUP_HIDDEN)도 같은 404. 피드는 사유를 알릴 곳이 없다
+    const member = await this.memberships.isMember(row.userId, row.groupId).catch((error: unknown) => {
+      if (error instanceof ApiException && error.code === 'GROUP_HIDDEN') return false;
+      throw error;
+    });
+    if (!member) throw feedNotFound();
 
     const window = feedWindow(now);
     // (#305) 멤버 생일은 "기념일 포함" 을 따른다 (D-233)

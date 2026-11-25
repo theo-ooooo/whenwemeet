@@ -5,6 +5,8 @@ import { AssistantService } from '../assistant/assistant.service.js';
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
+import type { UserRole } from '../generated/prisma/enums.js';
+import { NoticesService } from '../notices/notices.service.js';
 import { AccountCleanupPlan, type BirthdayRow, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
 import { type AnniversaryReminder, DEFAULT_ANNIVERSARY_REMINDERS, fromReminderFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
 import type { UpdateBirthdayDto } from './dto/update-birthday.dto.js';
@@ -27,8 +29,15 @@ export interface AssistantStatus {
   usedToday: number;
 }
 
-/** (#300) GET /me 응답. (#305) 내 생일. (#450) AI 비서 */
-export type MeProfile = AuthUser & { startCalendar: StartCalendar; birthday: BirthdaySettings; assistant: AssistantStatus };
+/** (#300) GET /me 응답. (#305) 내 생일. (#450) AI 비서. (#515) 역할, 관리자 여부, 안 본 공지가 있는지 (D-285) */
+export type MeProfile = AuthUser & {
+  startCalendar: StartCalendar;
+  birthday: BirthdaySettings;
+  assistant: AssistantStatus;
+  role: UserRole;
+  isAdmin: boolean;
+  hasUnreadNotice: boolean;
+};
 
 const NO_BIRTHDAY: BirthdaySettings = { date: null, reminders: [...DEFAULT_ANNIVERSARY_REMINDERS] };
 
@@ -57,16 +66,28 @@ export class MeService {
     private readonly providers: AuthProviders,
     private readonly avatars: AvatarsService,
     private readonly assistant: AssistantService,
+    private readonly notices: NoticesService,
   ) {}
 
-  /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력. (#450) AI 비서 상태 */
+  /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력. (#450) AI 비서 상태. (#515) 역할(DB 값), 새 공지 */
   async getProfile(user: AuthUser): Promise<MeProfile> {
-    const [start, birthday, assistant] = await Promise.all([
+    const [start, birthday, assistant, role, hasUnreadNotice] = await Promise.all([
       this.users.findStartCalendar(user.id),
       this.users.findBirthday(user.id),
       this.assistant.status(user.id),
+      this.users.findRole(user.id),
+      this.notices.hasUnread(user.id),
     ]);
-    return { ...user, startCalendar: toStartCalendar(start), birthday: birthday ? toBirthdaySettings(birthday) : NO_BIRTHDAY, assistant };
+    const myRole: UserRole = role ?? 'user';
+    return {
+      ...user,
+      startCalendar: toStartCalendar(start),
+      birthday: birthday ? toBirthdaySettings(birthday) : NO_BIRTHDAY,
+      assistant,
+      role: myRole,
+      isAdmin: myRole === 'admin',
+      hasUnreadNotice,
+    };
   }
 
   /** (#450) POST /me/assistant-consent. 멱등 (이미 했으면 처음 값 그대로, D-270) */

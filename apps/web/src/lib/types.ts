@@ -24,6 +24,8 @@ export type GroupSummary = {
   memberCount: number;
   me: { color: string; displayName: string };
   unreadNewsCount: number;
+  /** (#515) 운영 숨김이면 사유와 시각 (D-286). 옛 API 는 없음 = 숨기지 않음 */
+  hidden?: { reason: string; hiddenAt: string } | null;
 };
 
 export type GroupDetail = {
@@ -318,6 +320,79 @@ export type Me = {
   birthday?: BirthdaySettings;
   /** (#450) AI 비서. GET /me 에만 있다. 옛 API 는 없음 = 버튼을 그리지 않는다 */
   assistant?: AssistantMeta;
+  /** (#515) 역할과 관리자 여부, 안 본 공지가 있는지. GET /me 에만 있다 (D-285) */
+  role?: UserRole;
+  isAdmin?: boolean;
+  hasUnreadNotice?: boolean;
+};
+
+/** (#515) 사용자 역할 (D-285) */
+export type UserRole = "user" | "admin";
+
+/** (#515) 공지 종류 */
+export type NoticeKind = "notice" | "update" | "maintenance";
+
+/** (#515) 공개 목록 한 줄. unread 는 로그인했을 때만 true 가 될 수 있다 */
+export type NoticeListItem = { id: number; title: string; kind: NoticeKind; pinned: boolean; publishedAt: string; unread: boolean };
+
+/** (#515) 공지 상세, 관리자 목록 한 줄. publishedAt null = 초안 */
+export type Notice = {
+  id: number;
+  title: string;
+  body: string;
+  kind: NoticeKind;
+  pinned: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** (#515) 페이지 응답. nextCursor 가 null 이면 끝 */
+export type Page<T> = { items: T[]; nextCursor: number | null };
+
+/** (#515) 관리자 사용자 목록 한 줄 */
+export type AdminUser = { id: number; nickname: string; role: UserRole; createdAt: string; providers: string[] };
+
+/** (#515) 운영 숨김 상태 (D-286) */
+export type HiddenState = { reason: string; hiddenAt: string; hiddenBy: { id: number; nickname: string } | null };
+
+/** (#515) 관리자 팀 목록 한 줄 */
+export type AdminGroup = { id: number; name: string; type: GroupType; memberCount: number; eventCount: number; createdAt: string; hidden: HiddenState | null };
+
+/** (#515) 관리자 팀 상세 */
+export type AdminGroupDetail = AdminGroup & {
+  members: { userId: number; nickname: string; displayName: string | null; joinedAt: string }[];
+  recentEvents: { id: number; title: string; startsAt: string; allDay: boolean; repeat: string | null; hidden: boolean }[];
+};
+
+/** (#515) 관리자 일정 목록 한 줄 (제목만, 메모와 장소는 상세) */
+export type AdminEvent = {
+  id: number;
+  title: string;
+  group: { id: number; name: string; hidden: boolean };
+  startsAt: string;
+  endsAt: string;
+  allDay: boolean;
+  repeat: string | null;
+  creator: { id: number; nickname: string } | null;
+  createdAt: string;
+  hidden: HiddenState | null;
+};
+
+export type AdminEventDetail = AdminEvent & { memo: string | null; place: string | null };
+
+/** (#515) 관리자 사용자 상세 */
+export type AdminUserDetail = { user: AdminUser; teams: AdminGroup[] };
+
+/** (#515) 관리자 조치 기록 한 줄 (D-286) */
+export type AdminActionLog = {
+  id: number;
+  action: string;
+  targetType: "notice" | "user" | "group" | "event";
+  targetId: number;
+  reason: string | null;
+  createdAt: string;
+  admin: { id: number; nickname: string } | null;
 };
 
 export type InvitePreview = {

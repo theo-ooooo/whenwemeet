@@ -14,10 +14,13 @@ import { confirmLeave } from "@/lib/leave-guard";
 import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, pollCodeOf, routeInfo } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
+import { GroupHiddenModal } from "./GroupHiddenModal";
+import { pickStartGroupId } from "@/lib/start-calendar";
 import { cycleColor } from "@/lib/colors";
 import { kstToIso, todayKey } from "@/lib/date";
 import { Symbol } from "./Logo";
-import { IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
+import { AvatarDot, IconBell, IconChevronDown, IconPlus, IconSearch } from "./icons";
+import { useMe } from "@/hooks";
 import { AssistantProvider } from "./AssistantProvider";
 import { AssistantPill } from "./AssistantPill";
 import { DockTabs } from "./PhoneDock";
@@ -63,7 +66,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const { pendingNav, onMenuNavigate } = usePendingNav();
 
   const groups = groupsQ.data;
-  const { gone, resolvingTeam, error } = useTeamSelection({ initialGroupId, groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent, searchParams, router });
+  const { gone, resolvingTeam, error, hidden } = useTeamSelection({ initialGroupId, groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent, searchParams, router });
   const group = groupQ.data;
   const { value, eventsVersion, fabAction } = useGroupContextValue({ groupId, groupsQ, groupQ, error, setGroupId, openSwitcher });
   const { wide, fold, animate } = useShellSidebar();
@@ -72,6 +75,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const menuTab = navTab(pathname, pendingNav);
   const info = routeInfo(pathname);
   const unread = groups?.find((g) => g.id === groupId)?.unreadNewsCount ?? 0;
+  // (#515) 안 본 공지가 있으면 내 정보(아바타)에 코랄 점 (D-285). /notices 는 이 뼈대 밖이라 돌아오면 다시 받는다
+  const noticeDot = useMe().data?.hasUnreadNotice === true;
 
   if (gone) return <GroupGone />;
 
@@ -87,6 +92,16 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
     });
   }
 
+  /**
+   * (#515) 숨긴 팀에서 다른 팀 열기. 숨기지 않은 팀 중 팀이 사라졌을 때와 같은 규칙(개인 달력 먼저)으로 고르고,
+   * 열 팀이 없으면 팀이 하나도 없을 때처럼 새 팀 만들기로
+   */
+  function openOtherTeam() {
+    const next = pickStartGroupId((groups ?? []).filter((g) => !g.hidden), null, null);
+    if (next === null) router.replace("/groups/new");
+    else switchTo(next);
+  }
+
   // + 버튼: 달력에서 고른 날(쿼리 date), 없으면 오늘 10:00~11:00
   const dateParam = searchParams.get("date");
   const baseDay = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayKey();
@@ -97,8 +112,11 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   // (#276) 할 일 목록 상세(/todos/<코드>)도 맨 아래 입력줄이 주 동작이라 독과 + 를 숨긴다 (D-209)
   // (#189) 약속 투표 화면(/polls/<코드>)도 맨 아래 "이 시간으로 정하기" 가 주 동작이라 같다
   // (#450) AI 비서 화면(/assistant)도 맨 아래 입력 줄이 주 동작이라 같다 (AI-비서.md 7-2)
-  const isForm = info.form || info.todoCode !== null || pollCodeOf(pathname) !== null || info.screen === "assistant";
+  // (#515) 운영 숨김 팀은 독과 + 도 숨긴다 (본문이 이용 제한 안내 하나라 갈 곳이 없다. 팀 바꾸기는 머리줄, 사이드바)
+  const isForm = info.form || info.todoCode !== null || pollCodeOf(pathname) !== null || info.screen === "assistant" || hidden !== null;
   const shownGroup = group && group.id === groupId ? group : null;
+  // (#515) 숨긴 팀은 상세가 403 이라 머리줄 이름, 아바타를 팀 목록 요약으로 그린다
+  const hiddenSummary = hidden ? (groups?.find((g) => g.id === groupId) ?? null) : null;
 
   return (
     <Ctx.Provider value={value}>
@@ -116,7 +134,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           tab={menuTab}
           onNavigate={onMenuNavigate}
           unread={unread}
-          enabled={wide && groupId !== null && !fold.collapsed}
+          noticeDot={noticeDot}
+          hiddenTeam={hiddenSummary}
+          enabled={wide && groupId !== null && !fold.collapsed && hidden === null}
           refreshKey={`${tab ?? ""}#${eventsVersion}`}
           onSwitchTeam={() => setSwitcher(true)}
           collapsed={fold.collapsed}
@@ -136,9 +156,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
               aria-haspopup="dialog"
               className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[20px] font-bold leading-7 tracking-[-0.02em]"
             >
-              {shownGroup ? (
+              {shownGroup || hiddenSummary ? (
                 <>
-                  <span className="truncate">{shownGroup.name}</span>
+                  <span className="truncate">{shownGroup?.name ?? hiddenSummary?.name}</span>
                   <IconChevronDown size={18} className="shrink-0 text-ink-2" />
                   <span className="sr-only">팀 바꾸기</span>
                 </>
@@ -161,8 +181,15 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
                 <IconBell size={24} unread={unread > 0} />
               </span>
             </Link>
-            <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-              {shownGroup ? <Avatar member={shownGroup.me} color={shownGroup.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+            <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
+              {noticeDot && <AvatarDot />}
+              {shownGroup ? (
+                <Avatar member={shownGroup.me} color={shownGroup.me.color} size={32} />
+              ) : hiddenSummary ? (
+                <Avatar member={{ displayName: hiddenSummary.me.displayName, profileImageUrl: null }} color={hiddenSummary.me.color} size={32} />
+              ) : (
+                <Skeleton className="size-8 rounded-full" />
+              )}
             </Link>
           </header>
 
@@ -180,7 +207,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             }`}
           >
             {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
-            {value !== null && !resolvingTeam ? (
+            {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
+            {hidden ? null : value !== null && !resolvingTeam ? (
               <Fragment key={groupId}>{children}</Fragment>
             ) : (
               <div className="space-y-3 pt-1" aria-busy="true" aria-label="불러오는 중">
@@ -227,6 +255,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         </div>
       </div>
 
+      {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
       <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
         <ul className="flex flex-col gap-1">
           {(groups ?? []).map((g) => {
@@ -242,7 +271,11 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
                   <span aria-hidden="true" className="size-2 shrink-0 rounded-[3px]" style={{ background: dots.get(g.id) }} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-semibold leading-5">{g.name}</span>
-                    <span className="t-sub block">{g.type === "PERSONAL" ? "나만 보는 달력" : `멤버 ${g.memberCount}명`}</span>
+                    <span className="t-sub block">
+                      {g.type === "PERSONAL" ? "나만 보는 달력" : `멤버 ${g.memberCount}명`}
+                      {/* (#515) 운영 숨김 팀 */}
+                      {g.hidden && <span className="font-semibold text-danger">, 이용 제한</span>}
+                    </span>
                   </span>
                   {g.unreadNewsCount > 0 && (
                     <span className="text-[12px] font-bold text-acc-ink">

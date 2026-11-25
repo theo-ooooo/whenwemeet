@@ -67,6 +67,11 @@ export const ABSORB_CHECKED_USER_RELATIONS = [
   'notificationPreferences',
   'birthdayReminders',
   'eventDeletions',
+  // (#515) 쓴 공지, 숨긴 팀과 일정, 관리자 조치 기록 (관리자 계정은 빈 계정으로 보지 않는다)
+  'notices',
+  'hiddenGroups',
+  'hiddenEvents',
+  'adminActions',
 ] as const;
 
 /** 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수는 User 삭제 Cascade) */
@@ -86,6 +91,8 @@ export const ABSORB_CHECKED_GROUP_RELATIONS = [
   'calendarFeeds',
   'polls',
   'eventDeletions',
+  // (#515) 운영 숨김된 개인 팀은 흡수(삭제)하지 않는다
+  'hiddenBy',
 ] as const;
 export const ABSORB_IGNORED_GROUP_RELATIONS = ['startUsers'] as const;
 
@@ -109,13 +116,15 @@ function isDefaultBirthdayReminders(rows: readonly { offset: string }[]): boolea
 export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string[]> {
   const user = await tx.user.findUnique({
     where: { id: userId },
-    select: { birthday: true, startCalendarMode: true, birthdayReminders: { select: { offset: true } } },
+    select: { birthday: true, startCalendarMode: true, role: true, birthdayReminders: { select: { offset: true } } },
   });
   if (!user) return ['user'];
   const blockers: string[] = [];
   if (user.birthday !== null) blockers.push('birthday');
   if (user.startCalendarMode !== 'LAST') blockers.push('startCalendar');
   if (!isDefaultBirthdayReminders(user.birthdayReminders)) blockers.push('birthdayReminders');
+  // (#515) 관리자 계정은 흡수하지 않는다
+  if (user.role !== 'user') blockers.push('role');
 
   const memberships = await tx.membership.findMany({ where: { userId }, select: { groupId: true, group: { select: { type: true } } } });
   if (memberships.some((m) => m.group.type !== 'PERSONAL')) blockers.push('memberships');
@@ -138,6 +147,7 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['group.calendarFeeds', tx.calendarFeed.count({ where: inGroup })],
     ['group.polls', tx.poll.count({ where: inGroup })],
     ['group.eventDeletions', tx.eventDeletion.count({ where: inGroup })],
+    ['group.hiddenBy', tx.group.count({ where: { id: { in: personal }, hiddenAt: { not: null } } })],
     ['createdEvents', tx.event.count({ where: { creatorId: userId } })],
     ['anniversaries', tx.anniversary.count({ where: { creatorId: userId } })],
     ['eventLogs', tx.eventLog.count({ where: { actorId: userId } })],
@@ -155,6 +165,10 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['pollParticipations', tx.pollParticipant.count({ where: { userId } })],
     ['notificationPreferences', tx.notificationPreference.count({ where: { userId } })],
     ['eventDeletions', tx.eventDeletion.count({ where: { actorId: userId } })],
+    ['notices', tx.notice.count({ where: { createdById: userId } })],
+    ['hiddenGroups', tx.group.count({ where: { hiddenById: userId } })],
+    ['hiddenEvents', tx.event.count({ where: { hiddenById: userId } })],
+    ['adminActions', tx.adminAction.count({ where: { adminId: userId } })],
   ];
   // 한 트랜잭션은 연결 하나라 차례로 센다
   for (const [name, count] of counts) {

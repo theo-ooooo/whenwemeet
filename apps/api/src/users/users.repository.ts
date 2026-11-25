@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type AnniversaryReminder, type AnniversaryReminderFlags, DEFAULT_ANNIVERSARY_REMINDERS, flagsFromRows, REMINDER_ROWS_SELECT, rowsFromFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
 import type { AuthProvider, LinkedAccount, ProviderCredentials, RawProfile } from '../auth/providers/auth-provider.js';
 import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../files/file-url.builder.js';
+import type { UserRole } from '../generated/prisma/enums.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -74,6 +75,27 @@ export interface AccountCleanupPlan {
   leave: { membershipId: number; groupId: number }[];
 }
 
+/** (#515) 관리자 사용자 목록 한 줄. providers 는 연결된 로그인 방법(가입 순) */
+export interface AdminUserRow {
+  id: number;
+  nickname: string;
+  role: UserRole;
+  createdAt: Date;
+  providers: AuthProvider[];
+}
+
+const ADMIN_USER_SELECT = {
+  id: true,
+  nickname: true,
+  role: true,
+  createdAt: true,
+  authAccounts: { select: { provider: true }, orderBy: { id: 'asc' } },
+} as const;
+
+function toAdminUserRow(row: { id: number; nickname: string; role: UserRole; createdAt: Date; authAccounts: { provider: AuthProvider }[] }): AdminUserRow {
+  return { id: row.id, nickname: row.nickname, role: row.role, createdAt: row.createdAt, providers: row.authAccounts.map((account) => account.provider) };
+}
+
 @Injectable()
 export class UsersRepository {
   constructor(
@@ -138,6 +160,56 @@ export class UsersRepository {
       select: BIRTHDAY_SELECT,
     });
     return toBirthdayRow(row);
+  }
+
+  /** (#515) 역할. 사용자가 없으면 null (D-285). 관리자 판정은 매 요청 이 값으로 한다 */
+  async findRole(id: number): Promise<UserRole | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: { role: true } });
+    return row?.role ?? null;
+  }
+
+  /** (#515) 역할 바꾸기. 없는 사용자면 null */
+  async updateRole(id: number, role: UserRole): Promise<AdminUserRow | null> {
+    const { count } = await this.prisma.user.updateMany({ where: { id }, data: { role } });
+    if (count === 0) return null;
+    const row = await this.prisma.user.findUniqueOrThrow({ where: { id }, select: ADMIN_USER_SELECT });
+    return toAdminUserRow(row);
+  }
+
+  /** (#515) 관리자 사용자 상세 한 줄. 없으면 null */
+  async findForAdmin(id: number): Promise<AdminUserRow | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT });
+    return row && toAdminUserRow(row);
+  }
+
+  /** (#515) 공지 목록을 마지막으로 본 시각. 아직이거나 사용자가 없으면 null */
+  async findNoticesSeenAt(id: number): Promise<Date | null> {
+    const row = await this.prisma.user.findUnique({ where: { id }, select: { noticesSeenAt: true } });
+    return row?.noticesSeenAt ?? null;
+  }
+
+  /** (#515) 공지 목록을 본 시각 기록 */
+  async markNoticesSeen(id: number, at: Date): Promise<Date> {
+    await this.prisma.user.updateMany({ where: { id }, data: { noticesSeenAt: at } });
+    return at;
+  }
+
+  /**
+   * (#515) 관리자 사용자 목록. id 내림차순(최근 가입 먼저), q 는 닉네임 부분 일치, cursor 는 앞 페이지 마지막 id(그보다 작은 것부터).
+   * limit + 1 개를 읽어 다음 페이지가 있는지 본다
+   */
+  async listForAdmin(query: { q: string | null; limit: number; cursor: number | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
+    const rows = await this.prisma.user.findMany({
+      where: {
+        ...(query.q ? { nickname: { contains: query.q } } : {}),
+        ...(query.cursor !== null ? { id: { lt: query.cursor } } : {}),
+      },
+      orderBy: { id: 'desc' },
+      take: query.limit + 1,
+      select: ADMIN_USER_SELECT,
+    });
+    const page = rows.slice(0, query.limit).map(toAdminUserRow);
+    return { items: page, nextCursor: rows.length > query.limit ? page[page.length - 1].id : null };
   }
 
   /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */

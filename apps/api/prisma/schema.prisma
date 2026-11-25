@@ -65,6 +65,10 @@ model User {
   birthday          String?   @db.Char(5)
   /// (#450) AI 비서 처음 쓸 때 안내에 동의한 시각. null = 아직 (D-270)
   assistantConsentAt DateTime?
+  /// (#515) 역할. admin 은 공지 작성과 사용자 역할 변경(관리자 화면). 첫 관리자는 운영자가 SQL 로 지정 (D-285)
+  role               UserRole  @default(user)
+  /// (#515) 공지 목록을 마지막으로 본 시각. 이보다 늦게 게시된 공지가 있으면 내 정보에 점. null = 아직 안 봄 (D-285)
+  noticesSeenAt      DateTime?
 
   avatar        File?         @relation("UserAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
   files         File[]        @relation("FileOwner")
@@ -110,6 +114,84 @@ model User {
   eventDeletions          EventDeletion[]
   /// (#450) AI 비서 하루 사용 횟수
   assistantUsages         AssistantUsage[]
+  /// (#515) 내가 쓴 공지
+  notices                 Notice[]
+  /// (#515) 내가 숨긴 팀, 일정과 관리자 조치 기록 (D-286)
+  hiddenGroups            Group[]       @relation("GroupHiddenBy")
+  hiddenEvents            Event[]       @relation("EventHiddenBy")
+  adminActions            AdminAction[]
+}
+
+/// (#515) 관리자 조치 종류 (D-286). 관리자 변경은 모두 한 줄씩 남긴다
+enum AdminActionType {
+  notice_create
+  notice_update
+  notice_delete
+  user_role
+  group_hide
+  group_unhide
+  group_delete
+  event_hide
+  event_unhide
+  event_delete
+}
+
+/// (#515) 조치 대상 종류
+enum AdminTargetType {
+  notice
+  user
+  group
+  event
+}
+
+/// (#515) 관리자 조치 기록 (D-286). 대상이 지워져도 남는다(FK 없음, 번호만). 관리자가 탈퇴하면 adminId null
+model AdminAction {
+  id         Int             @id @default(autoincrement())
+  adminId    Int?
+  action     AdminActionType
+  targetType AdminTargetType
+  targetId   Int
+  /// 숨김 사유, 역할 변경 내용 등 (200자)
+  reason     String?         @db.VarChar(200)
+  createdAt  DateTime        @default(now())
+
+  admin User? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+/// (#515) 사용자 역할 (D-285). 값은 소문자 그대로 (운영 SQL `role='admin'`)
+enum UserRole {
+  user
+  admin
+}
+
+/// (#515) 공지 종류 (D-285). 공지, 업데이트 소식, 점검 안내
+enum NoticeKind {
+  notice
+  update
+  maintenance
+}
+
+/// (#515) 서비스 공지 (D-285). 누구나 읽고 관리자만 쓴다. publishedAt 이 null 이면 초안(관리자만 보임)
+model Notice {
+  id          Int        @id @default(autoincrement())
+  title       String     @db.VarChar(100)
+  /// 일반 텍스트. 빈 줄로 문단을 나누고 https 주소는 화면이 링크로 그린다 (HTML 아님)
+  body        String     @db.Text
+  kind        NoticeKind @default(notice)
+  /// 목록 맨 위 고정
+  pinned      Boolean    @default(false)
+  /// 게시 시각. null = 초안
+  publishedAt DateTime?
+  /// 쓴 관리자. 탈퇴하면 null
+  createdById Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([publishedAt])
 }
 
 /// (#450) AI 비서 하루 사용 횟수. 사용자 + KST 날짜당 한 행 (D-269). 대화, 답은 어디에도 저장하지 않는다
@@ -340,6 +422,11 @@ model Group {
   publicCode String    @unique @db.Char(8)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  /// (#515) 운영 숨김 (D-286). 값이 있으면 운영 정책 위반으로 숨긴 상태. 사유는 필수(200자), 숨긴 관리자는 탈퇴하면 null
+  hiddenAt     DateTime?
+  hiddenReason String?   @db.VarChar(200)
+  hiddenById   Int?
+  hiddenBy     User?     @relation("GroupHiddenBy", fields: [hiddenById], references: [id], onDelete: SetNull)
 
   memberships       Membership[]
   events            Event[]
@@ -433,6 +520,11 @@ model Event {
   placeProvider PlaceProvider?
   placeQuery    String?       @db.VarChar(100)
   placeText     String?       @db.VarChar(100)
+  /// (#515) 운영 숨김 (D-286). 값이 있으면 운영 정책 위반으로 숨긴 상태. 사유는 필수(200자), 숨긴 관리자는 탈퇴하면 null
+  hiddenAt     DateTime?
+  hiddenReason String?   @db.VarChar(200)
+  hiddenById   Int?
+  hiddenBy     User?     @relation("EventHiddenBy", fields: [hiddenById], references: [id], onDelete: SetNull)
 
   group        Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
   creator      User?              @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)

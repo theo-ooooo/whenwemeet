@@ -180,6 +180,9 @@ export class PushDispatcher {
 
   /** 펼칠 때의 문구. REMINDER, ANNIVERSARY 는 예약 때 만든 값. 대상이 사라졌으면 null (SKIPPED) */
   private async payloadFor(row: DueNotification, now: Date): Promise<PushPayload | null> {
+    // (#515) 팀이 지워졌거나 운영 숨김이면 어떤 종류도 보내지 않는다 (D-286)
+    const group = await this.recipients.findGroupRef(row.groupId);
+    if (group === null) return null;
     if (row.kind === 'REMINDER') {
       // 원본이 사라졌으면 보내지 않는다 (예약과 펼치기가 같은 틱이라 드묾)
       if (row.eventId === null || !(await this.recipients.eventExists(row.eventId))) return null;
@@ -197,8 +200,6 @@ export class PushDispatcher {
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
     if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
 
-    const group = await this.recipients.findGroupRef(row.groupId);
-    if (group === null) return null;
     const groupName = group.name;
     const actorName = row.actorId === null ? DELETED_MEMBER_NAME : ((await this.recipients.findPersonName(row.groupId, row.actorId)) ?? DELETED_MEMBER_NAME);
     if (row.kind === 'JOIN') return joinPayload(group.publicCode, groupName, actorName, now);

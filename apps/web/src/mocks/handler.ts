@@ -1,5 +1,6 @@
 // API_MOCK=1 메모리 API. api.md 의 봉투와 상태 코드를 그대로 따른다. 응답은 전부 ok / err 를 거친다 (봉투 모양은 lib/envelope.ts).
 // 라우트는 기능별로 routes/ 에 나눠 두고, 여기서는 원래 순서대로 차례로 불러 본다 (#491)
+import { errorBody } from "@/lib/envelope";
 import { parseId } from "@/lib/id";
 import { ME_ID } from "./fixtures";
 import { mockEmailLogin } from "./email-login";
@@ -17,12 +18,17 @@ import { groupCalendarFeedRoute } from "./routes/calendar-feed";
 import { anniversaryRoutes, birthdaysRoute } from "./routes/anniversaries";
 import { freeSlotsRoute } from "./routes/free-slots";
 import { newsRoutes } from "./routes/news";
+import { noticeAuthedRoute, noticePublicRoute } from "./routes/notices";
+import { adminModerationRoute } from "./routes/admin-moderation";
 
 export type { MockResult };
 
 /** 로그인 뒤 라우트. 순서가 곧 우선순위다 (events/search 가 events/:code 보다 먼저) */
 const AUTHED_ROUTES: ((req: AuthedReq) => MockResult | null)[] = [
   meRoutes,
+  // (#515) 공지 읽음, 관리자 화면
+  noticeAuthedRoute,
+  adminModerationRoute,
   groupsRoute,
   joinRoute,
   // (#199) 일정 검색, 장소 검색, 다시 찾기 (events/:code 보다 먼저)
@@ -62,7 +68,7 @@ export function mockHandle(ctx: Ctx): MockResult {
 
   const req: Req = { s, ctx, method, path, seg, query, body, handle: mockHandle };
 
-  for (const route of [inviteRoute, eventShareRoute]) {
+  for (const route of [inviteRoute, eventShareRoute, noticePublicRoute]) {
     const r = route(req);
     if (r) return r;
   }
@@ -91,6 +97,10 @@ export function mockHandle(ctx: Ctx): MockResult {
     const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
     if (!ms) return err(403, "FORBIDDEN", "이 팀에 더 이상 속해 있지 않아요");
     const rest = seg.slice(2);
+    // (#515) 운영 숨김 팀은 나가기만 된다 (D-286)
+    if (grp.hidden && !(method === "DELETE" && rest.length === 1 && rest[0] === "me")) {
+      return { status: 403, body: errorBody(403, "GROUP_HIDDEN", "운영 정책 위반으로 이용이 제한된 팀이에요", { reason: grp.hidden.reason } as never) };
+    }
     const groupReq: GroupReq = { ...authed, groupId, grp, ms, rest };
     for (const route of GROUP_ROUTES) {
       const r = route(groupReq);

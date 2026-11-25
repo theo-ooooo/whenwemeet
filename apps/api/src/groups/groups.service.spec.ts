@@ -108,20 +108,20 @@ describe('GroupsService', () => {
 
   it('list: PERSONAL 먼저, unreadNewsCount 는 팀마다 lastSeenAt 이후 내 변경 제외로 센다', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
-      { color: '#2', displayName: '나', lastSeenAt: new Date('2026-11-02T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 21, type: 'PERSONAL', name: '내 달력', publicCode: 'mycalcod', _count: { memberships: 1 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', hiddenAt: null, hiddenReason: null, _count: { memberships: 3 } } },
+      { color: '#2', displayName: '나', lastSeenAt: new Date('2026-11-02T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 21, type: 'PERSONAL', name: '내 달력', publicCode: 'mycalcod', hiddenAt: null, hiddenReason: null, _count: { memberships: 1 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(0).mockResolvedValueOnce(4);
     const list = await service.list(1);
     expect(list.map((g) => g.id)).toEqual([21, 31]);
-    expect(list[0]).toEqual({ id: 21, type: 'PERSONAL', name: '내 달력', publicCode: 'mycalcod', memberCount: 1, me: { color: '#2', displayName: '나' }, unreadNewsCount: 0 });
+    expect(list[0]).toEqual({ id: 21, type: 'PERSONAL', name: '내 달력', publicCode: 'mycalcod', memberCount: 1, me: { color: '#2', displayName: '나' }, unreadNewsCount: 0, hidden: null });
     expect(list[1].unreadNewsCount).toBe(4);
     expect(eventLogs.countUnseenByOthers).toHaveBeenLastCalledWith(31, new Date('2026-11-01T00:00:00.000Z'), 1);
   });
 
   it('list: unreadNewsCount 는 일정 기록 + 팀 활동 기록 (#191, D-154)', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', hiddenAt: null, hiddenReason: null, _count: { memberships: 3 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
     activities.countUnseenByOthers.mockResolvedValueOnce(3);
@@ -132,7 +132,7 @@ describe('GroupsService', () => {
 
   it('(#189) list: 투표로 정한 수만큼 뺀다 (숨긴 CREATED 로그, D-236)', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-10-01T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', hiddenAt: null, hiddenReason: null, _count: { memberships: 3 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(2);
     activities.countUnseenByOthers.mockResolvedValueOnce(1);
@@ -143,7 +143,7 @@ describe('GroupsService', () => {
 
   it('(#297) list: lastSeenAt 이 joinedAt 보다 이르면 joinedAt 이후만 센다 (D-180)', async () => {
     membershipsRepo.listForUserWithGroup.mockResolvedValueOnce([
-      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-11-03T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', _count: { memberships: 3 } } },
+      { color: '#1', displayName: null, lastSeenAt: new Date('2026-11-01T00:00:00.000Z'), joinedAt: new Date('2026-11-03T00:00:00.000Z'), user: { nickname: '닉' }, group: { id: 31, type: 'TEAM', name: '팀', publicCode: 'teamcode', hiddenAt: null, hiddenReason: null, _count: { memberships: 3 } } },
     ]);
     eventLogs.countUnseenByOthers.mockResolvedValueOnce(0);
     await service.list(1);

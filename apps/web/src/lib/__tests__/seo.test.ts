@@ -26,9 +26,16 @@ describe("sitemap (#413)", () => {
   it("맨 / 와 공개 안내 화면", () => {
     expect(sitemapEntries(new Date(0)).map((e) => e.url)).toEqual([
       "https://whenwemeet.day",
+      "https://whenwemeet.day/notices",
       "https://whenwemeet.day/support",
       "https://whenwemeet.day/terms",
       "https://whenwemeet.day/privacy",
     ]);
+  });
+
+  it("(#515) 공지 목록은 자주 바뀌어 weekly, 관리자 화면은 막는다", () => {
+    expect(sitemapEntries(new Date(0)).find((e) => e.url.endsWith("/notices"))?.changeFrequency).toBe("weekly");
+    expect(ROBOTS_DISALLOW.some((d) => "/admin/notices".startsWith(d))).toBe(true);
+    expect(ROBOTS_DISALLOW.some((d) => "/notices/3".startsWith(d))).toBe(false);
   });
 });

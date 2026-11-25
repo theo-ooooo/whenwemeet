@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 
-/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375), LINK_TICKET_INVALID, REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE, LAST_AUTH_ACCOUNT 는 로그인 방법 연결 (#198, D-257), ASSISTANT_* 는 AI 비서 볼까 (#450, api.md 2.15) */
+/** api.md 1장 오류 코드 표. KAKAO_NOT_CONFIGURED 는 결정기록 D-29 (로컬에서 카카오 키 없이 기동), STORAGE_NOT_CONFIGURED 는 R2 키 없이 기동 (#32), PAYLOAD_TOO_LARGE 는 JSON 본문 크기 초과 (#60), DB_UNAVAILABLE 은 health 의 DB 확인 실패 (#50), SOCIAL_TOKEN_INVALID, HANDOFF_INVALID, APPLE_* 는 앱과 애플 로그인 (앱.md 8장), EMAIL_*, SIGNUP_TOKEN_INVALID 는 이메일 로그인 (#245, 이메일-로그인.md 4-3), RATE_LIMITED 는 요청 제한 (#186), IMPORT_* 는 ICS 가져오기 (#279), EVENT_SHARE_* 는 일정 공유 링크 (#274), TODO_LIMIT_REACHED 는 할 일 목록 상한 (#276), NOT_PARTICIPANT 는 참여자가 아닌 사람의 참석 응답 (#190)과 약속 투표 대상이 아닌 사람의 표 (#189), POLL_* 는 약속 투표 (#189), PLACE_SEARCH_* 는 장소 검색 프록시 (#199), EVENT_RESTORE_CONFLICT 는 일정 삭제 되돌리기 (#375), LINK_TICKET_INVALID, REAUTH_REQUIRED, PROVIDER_ALREADY_LINKED, AUTH_ACCOUNT_IN_USE, LAST_AUTH_ACCOUNT 는 로그인 방법 연결 (#198, D-257), ASSISTANT_* 는 AI 비서 볼까 (#450, api.md 2.15), GROUP_HIDDEN 은 관리자가 숨긴 팀 (#515, D-286, details { reason }) */
 export const ERROR_STATUS = {
   VALIDATION_FAILED: 400,
   EVENT_RANGE_INVALID: 400,
@@ -21,6 +21,7 @@ export const ERROR_STATUS = {
   SIGNUP_TOKEN_INVALID: 401,
   FORBIDDEN: 403,
   NOT_PARTICIPANT: 403,
+  GROUP_HIDDEN: 403,
   NOT_FOUND: 404,
   INVITE_NOT_FOUND: 404,
   EVENT_SHARE_NOT_FOUND: 404,
@@ -79,6 +80,7 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   SIGNUP_TOKEN_INVALID: '가입 시간이 지났어요. 다시 시작해 주세요',
   FORBIDDEN: '이 팀의 멤버가 아니에요',
   NOT_PARTICIPANT: '이 일정의 참여자만 응답할 수 있어요',
+  GROUP_HIDDEN: '운영 정책 위반으로 이용이 제한된 팀이에요',
   NOT_FOUND: '찾을 수 없어요',
   INVITE_NOT_FOUND: '초대 코드를 찾을 수 없어요',
   EVENT_SHARE_NOT_FOUND: '링크가 만료됐거나 끊겼어요',

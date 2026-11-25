@@ -10,6 +10,7 @@ import { ME_ID } from "../fixtures";
 import { consumeMockLinkCode } from "../email-login";
 import { mockAssistantConsent, mockAssistantMeta } from "../assistant";
 import { err, nextId, nowIso, ok, resetStore, START_LAST, type AuthedReq, type MockResult } from "./shared";
+import { hasUnreadNotice } from "./notices";
 
 /** (#305) GET /me, PATCH /me/birthday 의 birthday */
 function birthdayOf(u: { birthday?: string | null; birthdayReminders?: AnniversaryReminder[] }) {
@@ -34,6 +35,10 @@ export function meRoutes(req: AuthedReq): MockResult | null {
         startCalendar: u.startCalendar ?? START_LAST,
         birthday: birthdayOf(u),
         assistant: mockAssistantMeta(s, u.id),
+        // (#515) 역할, 관리자 여부, 새 공지
+        role: u.role ?? "user",
+        isAdmin: u.role === "admin",
+        hasUnreadNotice: hasUnreadNotice(s, u.id),
       });
     }
     if (method === "PATCH") {

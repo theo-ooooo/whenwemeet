@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "이용약관" };
 
 export default function TermsPage() {
   return (
-    <LegalPage title="이용약관" updated="2026년 11월 10일">
+    <LegalPage title="이용약관" updated="2026년 11월 25일">
       <h2>1. 서비스</h2>
       <p>
         언제볼까(이하 &quot;서비스&quot;)는 여러 사람이 하나의 달력을 함께 보며 일정을 맞추는 공유 일정
@@ -31,6 +31,10 @@ export default function TermsPage() {
       <p>
         다른 사람의 계정을 쓰거나, 서비스를 자동화된 수단으로 과도하게 호출하거나, 법령에 어긋나는 내용을
         올리는 행위를 금지합니다.
+      </p>
+      <p>
+        운영정책 위반 시 조치: 금지 행위가 확인되면 운영자는 해당 일정이나 팀을 숨기거나 삭제할 수 있습니다. 숨긴 팀의 멤버에게는
+        이용이 제한된 이유를 알리며, 이의가 있으면 고객 지원으로 문의할 수 있습니다.
       </p>
       <h2>6. 서비스 변경과 중단</h2>
       <p>
