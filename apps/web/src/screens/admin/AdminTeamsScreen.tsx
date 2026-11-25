@@ -75,7 +75,7 @@ export function AdminTeamsScreen() {
             <li key={g.id}>
               <Link href={`/admin/teams/${g.id}`} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 py-3 hover:brightness-95">
                 <span className="w-12 shrink-0 text-[12px] tabular-nums text-ink-2">#{g.id}</span>
-                <span className="flex w-[64px] shrink-0 items-center">
+                <span className="flex shrink-0 items-center lg:w-[64px]">
                   <GroupAvatars group={g} />
                 </span>
                 <span className="min-w-0 flex-1">

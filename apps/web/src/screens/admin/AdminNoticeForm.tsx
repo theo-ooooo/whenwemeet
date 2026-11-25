@@ -96,7 +96,7 @@ function Form({ notice }: { notice: Notice | null }) {
     <div className="max-w-[960px]">
       <AdminTitle
         title={notice ? "공지 수정" : "새 공지"}
-        sub={notice ? (published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)") : undefined}
+        sub={notice ? `${published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)"}${pushedAt ? `, 푸시 보냄 ${adminDateTime(pushedAt)}` : ""}` : undefined}
         right={
           notice && published ? (
             <Link href={`/notices/${notice.id}`} target="_blank" className="hit rounded-sm px-2 py-1 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink">
