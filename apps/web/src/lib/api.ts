@@ -20,6 +20,9 @@ export class ApiError extends Error {
 /** 팀 접근 권한이 사라졌을 때(403) window 에 쏘는 이벤트. AppShell 이 hooks/useGroupGone 으로 받아 안내 화면으로 바꾼다 (#18) */
 export const GROUP_GONE_EVENT = "wwm:group-gone";
 
+/** (#515) 팀이 운영 숨김(403 GROUP_HIDDEN)일 때 쏘는 이벤트. AppShell 이 팀 목록을 다시 받아 이용 제한 안내로 바꾼다 (D-286) */
+export const GROUP_HIDDEN_EVENT = "wwm:group-hidden";
+
 function currentPath(): string {
   if (typeof window === "undefined") return "/";
   return window.location.pathname + window.location.search;
@@ -68,6 +71,11 @@ export async function api<T>(
     expired.searchParams.set("next", currentPath());
     window.location.assign(expired.toString());
     throw new ApiError(401, "UNAUTHORIZED", env.error?.message ?? "");
+  }
+  if (res.status === 403 && env.error?.code === "GROUP_HIDDEN") {
+    // (#515) 관리자가 숨긴 팀. "접근할 수 없어요" 대신 이용 제한 안내(사유 포함)를 보이도록 따로 알린다
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(GROUP_HIDDEN_EVENT));
+    throw new ApiError(403, "GROUP_HIDDEN", env.error?.message ?? "", env.error?.details);
   }
   if (res.status === 403) {
     // 그 팀 멤버가 아니게 된 경우. 홈으로 튕기면 남은 wwm_group 쿠키가 다시 이 팀으로 보내 무한 반복되므로

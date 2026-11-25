@@ -25,7 +25,7 @@ export const MEMBERSHIP_WITH_USER = {
 } as const;
 
 /** (#300) 고정한 팀에서 나가거나 팀이 지워졌을 때 처음 여는 달력을 마지막에 본 달력으로 (D-192) */
-const START_CALENDAR_RESET = { startCalendarMode: 'LAST', startGroupId: null } as const;
+export const START_CALENDAR_RESET = { startCalendarMode: 'LAST', startGroupId: null } as const;
 
 /** notify: (#188) 팀 설정 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기" */
 export type MembershipWithUser = MembershipRow & { id: number; groupId: number; lastSeenAt: Date; notify: boolean; showBirthday: boolean };
@@ -43,8 +43,12 @@ export interface MembershipGroupRow {
   /** (#297) 안 읽은 새 소식 수의 기준 */
   joinedAt: Date;
   user: { nickname: string };
-  group: { id: number; type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string; _count: { memberships: number } };
+  /** (#515) hiddenAt, hiddenReason: 운영 숨김 (D-286). 숨기지 않았으면 null */
+  group: { id: number; type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string; hiddenAt: Date | null; hiddenReason: string | null; _count: { memberships: number } };
 }
+
+/** (#515) 멤버십 확인 결과. groupHidden 은 운영 숨김이면 사유, 아니면 null (D-286) */
+export type MembershipAccess = MembershipWithUser & { groupHidden?: { reason: string } | null };
 
 /** 탈퇴 처리용. 멤버십마다 팀 종류만 */
 export interface MembershipGroupTypeRow {
@@ -78,9 +82,15 @@ export class MembershipsRepository {
     private readonly calendarFeeds: CalendarFeedsRepository,
   ) {}
 
-  async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipWithUser | null> {
-    const row = await this.prisma.membership.findUnique({ where: { userId_groupId: { userId, groupId } }, ...MEMBERSHIP_WITH_USER });
-    return row && withUserRow(row, this.urls);
+  /** (#515) 팀 운영 숨김도 같이 읽는다 (멤버십 확인이 GROUP_HIDDEN 을 가른다) */
+  async findByUserAndGroup(userId: number, groupId: number): Promise<MembershipAccess | null> {
+    const row = await this.prisma.membership.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+      select: { ...MEMBERSHIP_WITH_USER.select, group: { select: { hiddenAt: true, hiddenReason: true } } },
+    });
+    if (!row) return null;
+    const { group, ...rest } = row;
+    return { ...withUserRow(rest, this.urls), groupHidden: group.hiddenAt ? { reason: group.hiddenReason ?? '' } : null };
   }
 
   /** joinedAt 오름차순 */
@@ -100,7 +110,7 @@ export class MembershipsRepository {
         lastSeenAt: true,
         joinedAt: true,
         user: { select: { nickname: true } },
-        group: { select: { id: true, type: true, name: true, publicCode: true, _count: { select: { memberships: true } } } },
+        group: { select: { id: true, type: true, name: true, publicCode: true, hiddenAt: true, hiddenReason: true, _count: { select: { memberships: true } } } },
       },
     });
   }

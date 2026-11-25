@@ -12,6 +12,7 @@ export function ConfirmDialog({
   danger = false,
   neutral = false,
   loading = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -25,6 +26,8 @@ export function ConfirmDialog({
   /** 위험은 아니지만 주 버튼(코랄) 대신 먹색으로 (#174 L10) */
   neutral?: boolean;
   loading?: boolean;
+  /** (#515) 입력이 모자랄 때 확인 버튼을 끈다 (사유, 이름 확인) */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   children?: React.ReactNode;
@@ -54,7 +57,7 @@ export function ConfirmDialog({
           <Button ref={cancelRef} variant="secondary" full onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </Button>
-          <Button variant={danger ? "dangerFill" : neutral ? "ink" : "primary"} full onClick={onConfirm} loading={loading}>
+          <Button variant={danger ? "dangerFill" : neutral ? "ink" : "primary"} full onClick={onConfirm} loading={loading} disabled={confirmDisabled}>
             {confirmLabel}
           </Button>
         </div>

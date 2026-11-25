@@ -15,10 +15,10 @@ import { nextOccurrences } from "@/lib/day-view";
 import { barColors, splitBackground, withWho } from "@/lib/participants";
 import { eventKey } from "@/lib/recurrence";
 import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH, SEARCH_PATH, TEAM_PATH, TODOS_PATH, UPCOMING_PATH } from "@/lib/routes";
-import type { GroupDetail } from "@/lib/types";
+import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { Symbol } from "./Logo";
 import { PollSideLine } from "./PollHomeSection";
-import { IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
+import { AvatarDot, IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -28,6 +28,10 @@ type Props = {
   /** 켤 메뉴 (lib/routes.ts activeTab). 일정 화면은 calendar 로 온다 */
   tab: string | null;
   unread: number;
+  /** (#515) 안 본 공지가 있으면 내 정보 아바타에 코랄 점 */
+  noticeDot?: boolean;
+  /** (#515) 지금 팀이 운영 숨김이면 팀 목록 요약. 상세(group)가 403 이라 팀 상자, 아바타를 이 값으로 그린다 (D-286) */
+  hiddenTeam?: GroupSummary | null;
   /** 넓은 화면일 때만 아래 묶음 데이터를 받는다 (폰은 이 사이드바가 숨어 있다) */
   enabled: boolean;
   /** 바뀌면 아래 묶음을 다시 받는다 (화면 이동, 달력에서 일정 추가/삭제) */
@@ -42,6 +46,11 @@ type Props = {
 };
 
 const nowMs = () => Date.now();
+
+/** (#515) 운영 숨김 팀의 점: 멤버 점 대신 `--danger` 하나 (상세가 없어 멤버 색을 모른다) */
+function HiddenDot({ small = false }: { small?: boolean }) {
+  return <i aria-hidden="true" className={`block shrink-0 ${small ? "size-2.5" : "size-3.5"} rounded-full bg-danger ring-2 ring-[var(--bg)]`} />;
+}
 
 /** 팀 선택 상자의 멤버 점 둘 (겹쳐 그린다). 개인 달력은 먹색 하나 */
 function TeamDots({ group, small = false }: { group: GroupDetail | null; small?: boolean }) {
@@ -91,7 +100,7 @@ export function Sidebar(props: Props) {
 }
 
 /** (#315) 접힌 72 레일. 칸 44, 먹색 칩은 폰 독과 같은 규칙 (디자인규칙.md 4-1, 4-3) */
-function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }: Props) {
+function SidebarRail({ group, tab, unread, noticeDot = false, hiddenTeam = null, onSwitchTeam, onToggle, onNavigate }: Props) {
   const calendarOn = tab === "calendar" || tab === "upcoming";
   const menu = [
     { key: "calendar", href: CALENDAR_PATH, label: "달력", on: calendarOn },
@@ -122,21 +131,21 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
           type="button"
           onClick={onSwitchTeam}
           aria-haspopup="dialog"
-          aria-label={group ? `${group.name}, 팀 바꾸기` : "팀 바꾸기"}
+          aria-label={group ? `${group.name}, 팀 바꾸기` : hiddenTeam ? `${hiddenTeam.name}, 이용 제한, 팀 바꾸기` : "팀 바꾸기"}
           className="relative grid size-11 place-items-center rounded-md bg-surface hover:brightness-[0.98]"
         >
-          {group ? (
+          {group || hiddenTeam ? (
             <span aria-hidden="true" className="text-[16px] font-bold leading-none">
-              {Array.from(group.name)[0] ?? ""}
+              {Array.from(group?.name ?? hiddenTeam?.name ?? "")[0] ?? ""}
             </span>
           ) : (
             <Skeleton className="size-5 rounded-full" />
           )}
           <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5">
-            <TeamDots group={group} small />
+            {hiddenTeam && !group ? <HiddenDot small /> : <TeamDots group={group} small />}
           </span>
         </button>
-        <RailTip label={group ? group.name : "팀 바꾸기"} />
+        <RailTip label={group ? group.name : hiddenTeam ? `${hiddenTeam.name} (이용 제한)` : "팀 바꾸기"} />
       </div>
 
       {/* (#199) 일정 검색 */}
@@ -173,8 +182,15 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
 
       <span aria-hidden="true" className="flex-1" />
       <div className={cell}>
-        <Link href="/me" aria-label="내 정보" className="grid size-11 place-items-center rounded-full">
-          {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
+        <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
+          {noticeDot && <AvatarDot />}
+          {group ? (
+            <Avatar member={group.me} color={group.me.color} size={32} />
+          ) : hiddenTeam ? (
+            <Avatar member={{ displayName: hiddenTeam.me.displayName, profileImageUrl: null }} color={hiddenTeam.me.color} size={32} />
+          ) : (
+            <Skeleton className="size-8 rounded-full" />
+          )}
         </Link>
         <RailTip label="내 정보" />
       </div>
@@ -188,7 +204,7 @@ function SidebarRail({ group, tab, unread, onSwitchTeam, onToggle, onNavigate }:
   );
 }
 
-function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
+function SidebarFull({ groupId, group, tab, unread, noticeDot = false, hiddenTeam = null, enabled, refreshKey, onSwitchTeam, onToggle, onNavigate }: Props) {
   const today = todayKey();
   const upcomingQ = useEvents(groupId ?? 0, { from: kstToIso(today), to: kstToIso(addDays(today, 31)) }, { enabled });
   const annQ = useAnniversaryItems(groupId ?? 0, { enabled });
@@ -243,9 +259,14 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
         aria-haspopup="dialog"
         className="mt-5 flex h-12 w-full shrink-0 items-center gap-2.5 rounded-md bg-surface px-3.5 text-left hover:brightness-[0.98]"
       >
-        <TeamDots group={group} />
+        {hiddenTeam && !group ? <HiddenDot /> : <TeamDots group={group} />}
         {group ? (
           <span className="min-w-0 flex-1 truncate text-[16px] font-bold leading-6">{group.name}</span>
+        ) : hiddenTeam ? (
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="min-w-0 truncate text-[16px] font-bold leading-6">{hiddenTeam.name}</span>
+            <span className="shrink-0 text-[12px] font-bold text-danger">이용 제한</span>
+          </span>
         ) : (
           <Skeleton className="h-4 flex-1" />
         )}
@@ -296,7 +317,11 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
 
       {/* (#429) 가운데 묶음(투표, 다가오는 일정, 다음 기념일): 남는 높이만 쓰고 넘치면 이 칸만 스크롤.
           스크롤바는 사이드바 끝에 붙게 좌우 여백을 안으로 옮기고, 넘친 내용은 바닥 16 을 흐리게 해 더 있다는 걸 보인다 */}
-      <div data-side-scroll className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 [mask-image:linear-gradient(to_bottom,#000_calc(100%-16px),transparent)]">
+      {/* (#515) 운영 숨김 팀이면 이 묶음은 받을 수 없어(403) 자리만 두고 그리지 않는다 */}
+      <div
+        data-side-scroll
+        className={`-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 [mask-image:linear-gradient(to_bottom,#000_calc(100%-16px),transparent)] ${hiddenTeam && !group ? "invisible" : ""}`}
+      >
         {/* (#189) 진행 중 약속 투표가 있으면 다가오는 일정 위에 한 줄 (설계 약속-투표.md 5-2) */}
         {groupId !== null && <PollSideLine groupId={groupId} enabled={enabled && group?.type === "TEAM"} refreshKey={refreshKey} />}
 
@@ -401,9 +426,18 @@ function SidebarFull({ groupId, group, tab, unread, enabled, refreshKey, onSwitc
 
       {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315). 가운데 묶음이 넘쳐도 밀리지 않는다 (#429) */}
       <div data-side-footer className="flex shrink-0 items-center gap-1">
-        <Link href="/me" className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
-          {group ? <Avatar member={group.me} color={group.me.color} size={32} /> : <Skeleton className="size-8 rounded-full" />}
-          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? ""}</span>
+        <Link href="/me" aria-label={noticeDot ? `${group?.me.displayName ?? ""} 내 정보, 새 공지` : undefined} className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
+          <span className="relative shrink-0">
+            {noticeDot && <AvatarDot />}
+            {group ? (
+              <Avatar member={group.me} color={group.me.color} size={32} />
+            ) : hiddenTeam ? (
+              <Avatar member={{ displayName: hiddenTeam.me.displayName, profileImageUrl: null }} color={hiddenTeam.me.color} size={32} />
+            ) : (
+              <Skeleton className="size-8 rounded-full" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{group?.me.displayName ?? hiddenTeam?.me.displayName ?? ""}</span>
           <span className="shrink-0 text-[12px] text-ink-2">내 정보</span>
         </Link>
         <button

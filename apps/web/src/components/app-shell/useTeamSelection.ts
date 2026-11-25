@@ -30,7 +30,7 @@ type Args = {
 };
 
 /**
- * @returns gone: 안내 화면으로 바꿀지, resolvingTeam: `?team=` 을 아직 맞추는 중(자식 화면을 그리지 않는다), error: 컨텍스트에 실을 오류 문구
+ * @returns gone: 안내 화면으로 바꿀지, hidden: (#515) 지금 팀의 운영 숨김(사유), resolvingTeam: `?team=` 을 아직 맞추는 중(자식 화면을 그리지 않는다), error: 컨텍스트에 실을 오류 문구
  */
 export function useTeamSelection({ initialGroupId, groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent, searchParams, router }: Args) {
   const groups = groupsQ.data;
@@ -75,7 +75,9 @@ export function useTeamSelection({ initialGroupId, groupId, setGroupId, setGroup
   const groupError = groupQ.error;
   // 팀 상세만 403/404 인 경우는 목록에 있는 팀일 때만 (목록에 없으면 위에서 다른 팀으로 바꾼다)
   const detailGone = isGone(groupError) && groups !== null && groups.some((g) => g.id === groupId);
-  const gone = goneByEvent || teamGone || detailGone || isGone(groupsError);
+  // (#515) 운영 숨김 팀은 "열 수 없어요" 대신 뼈대 안 이용 제한 안내 (팀 바꾸기를 그대로 쓸 수 있게, D-286)
+  const hidden = groups?.find((g) => g.id === groupId)?.hidden ?? null;
+  const gone = !hidden && (goneByEvent || teamGone || detailGone || isGone(groupsError));
   useEffect(() => {
     if (gone) forgetGroup();
   }, [gone]);
@@ -85,8 +87,8 @@ export function useTeamSelection({ initialGroupId, groupId, setGroupId, setGroup
     if (group && group.id === groupId) rememberGroup(groupId);
   }, [group, groupId]);
 
-  const failure = gone ? null : (groupError ?? groupsError);
+  const failure = gone ? null : hidden ? groupsError : (groupError ?? groupsError);
   const error = failure ? messageOf(failure, "팀 정보를 불러오지 못했어요") : null;
 
-  return { gone, resolvingTeam, error };
+  return { gone, resolvingTeam, error, hidden };
 }

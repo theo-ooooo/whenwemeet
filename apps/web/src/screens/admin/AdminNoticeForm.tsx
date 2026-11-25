@@ -1,0 +1,170 @@
+"use client";
+// (#515) 관리자 공지 작성, 수정 (D-285). 제목, 종류, 상단 고정, 본문(일반 텍스트: 빈 줄 = 문단, https 주소 = 링크).
+// 새 공지: [초안 저장] [게시]. 초안: [초안 저장] [게시]. 게시된 공지: [게시 취소] [저장]. 삭제는 확인 창
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { AdminTitle } from "@/components/admin/AdminShell";
+import { NoticeBody } from "@/components/NoticeBody";
+import { Button, ConfirmDialog, ErrorState, Field, InlineError, RowGroup, Segmented, Skeleton, ToggleRow, inputClass } from "@/components/ui";
+import { messageOf, useAdminNotice, useCreateNotice, useDeleteNotice, useUpdateNotice, type NoticeInput } from "@/hooks";
+import { NOTICE_BODY_MAX, NOTICE_KIND_LABEL, NOTICE_KINDS, NOTICE_TITLE_MAX, noticeDate } from "@/lib/notice";
+import type { Notice, NoticeKind } from "@/lib/types";
+
+const KIND_OPTIONS = NOTICE_KINDS.map((k) => ({ value: k, label: NOTICE_KIND_LABEL[k] }));
+
+export function AdminNoticeForm({ id }: { id: number | null }) {
+  const q = useAdminNotice(id);
+  if (id !== null && q.error) return <ErrorState message={messageOf(q.error, "공지를 불러오지 못했어요")} onRetry={q.refetch} />;
+  if (id !== null && !q.data) {
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label="불러오는 중">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-[320px] w-full rounded-xl" />
+      </div>
+    );
+  }
+  return <Form key={q.data?.id ?? "new"} notice={q.data} />;
+}
+
+function Form({ notice }: { notice: Notice | null }) {
+  const router = useRouter();
+  const [title, setTitle] = useState(notice?.title ?? "");
+  const [kind, setKind] = useState<NoticeKind>(notice?.kind ?? "notice");
+  const [pinned, setPinned] = useState(notice?.pinned ?? false);
+  const [body, setBody] = useState(notice?.body ?? "");
+  const [preview, setPreview] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const create = useCreateNotice({ keepPendingAfterSuccess: true });
+  const update = useUpdateNotice({ keepPendingAfterSuccess: true });
+  const remove = useDeleteNotice({ keepPendingAfterSuccess: true });
+  const busy = create.isPending || update.isPending || remove.isPending;
+  const published = Boolean(notice?.publishedAt);
+  const titleOk = title.trim().length >= 1 && title.trim().length <= NOTICE_TITLE_MAX;
+  const bodyOk = body.trim().length >= 1 && body.trim().length <= NOTICE_BODY_MAX;
+
+  async function save(publish: boolean) {
+    setError(null);
+    if (!titleOk || !bodyOk) {
+      setError("제목과 본문을 입력해 주세요");
+      return;
+    }
+    const input: NoticeInput = { title: title.trim(), body, kind, pinned, published: publish };
+    const r = notice ? await update.mutate({ id: notice.id, ...input }) : await create.mutate(input);
+    if (!r.ok) {
+      setError(messageOf(r.error, "저장하지 못했어요. 잠시 후 다시 시도해 주세요"));
+      return;
+    }
+    router.push("/admin/notices");
+    router.refresh();
+  }
+
+  async function onDelete() {
+    if (!notice) return;
+    const r = await remove.mutate(notice.id);
+    if (!r.ok) {
+      setConfirmDelete(false);
+      setError(messageOf(r.error, "삭제하지 못했어요"));
+      return;
+    }
+    router.push("/admin/notices");
+  }
+
+  return (
+    <div className="max-w-[720px]">
+      <AdminTitle
+        title={notice ? "공지 수정" : "새 공지"}
+        sub={notice ? (published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)") : undefined}
+        right={
+          notice && published ? (
+            <Link href={`/notices/${notice.id}`} target="_blank" className="hit rounded-sm px-2 py-1 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink">
+              공개 화면
+            </Link>
+          ) : undefined
+        }
+      />
+      <div className="space-y-4 rounded-xl bg-paper px-4 py-5">
+        <Field label={`제목 (${title.trim().length}/${NOTICE_TITLE_MAX})`}>
+          {(fid, describedBy) => (
+            <input id={fid} aria-describedby={describedBy} className={inputClass} value={title} maxLength={NOTICE_TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} />
+          )}
+        </Field>
+        <div>
+          <p id="notice-kind" className="mb-1.5 block text-[12px] font-medium leading-4 text-ink-2">
+            종류
+          </p>
+          <Segmented labelledBy="notice-kind" value={kind} options={KIND_OPTIONS} onChange={setKind} />
+        </div>
+        <RowGroup inset>
+          <ToggleRow label="상단 고정" description="목록 맨 위에 보여요" checked={pinned} onChange={setPinned} />
+        </RowGroup>
+        <div>
+          <div className="mb-1.5 flex items-center">
+            <label htmlFor="notice-body" className="text-[12px] font-medium leading-4 text-ink-2">
+              본문
+            </label>
+            <button type="button" onClick={() => setPreview((v) => !v)} className="hit ml-auto rounded-sm px-1 text-[12px] font-semibold text-ink-2 hover:text-ink">
+              {preview ? "고치기" : "미리 보기"}
+            </button>
+          </div>
+          {preview ? (
+            <div className="min-h-[240px] rounded-sm bg-surface px-3.5 py-3">
+              <NoticeBody body={body} />
+            </div>
+          ) : (
+            <textarea
+              id="notice-body"
+              aria-describedby="notice-body-hint"
+              className={`${inputClass} min-h-[240px] resize-y`}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+            />
+          )}
+          <p id="notice-body-hint" className="t-sub mt-1.5">
+            빈 줄로 문단을 나누고, https 로 시작하는 주소는 링크가 돼요
+          </p>
+        </div>
+        {error && <InlineError>{error}</InlineError>}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {published ? (
+            <>
+              <Button variant="secondary" disabled={busy} onClick={() => void save(false)}>
+                게시 취소
+              </Button>
+              <Button className="ml-auto" loading={update.isPending} disabled={busy} onClick={() => void save(true)}>
+                저장
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" disabled={busy} onClick={() => void save(false)}>
+                초안 저장
+              </Button>
+              <Button className="ml-auto" loading={create.isPending || update.isPending} disabled={busy} onClick={() => void save(true)}>
+                게시
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+      {notice && (
+        <div className="mt-4 text-center">
+          <Button variant="danger" size="sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
+            공지 삭제
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title="이 공지를 삭제할까요?"
+        body="삭제하면 되돌릴 수 없어요. 내리기만 하려면 게시 취소를 눌러 주세요"
+        confirmLabel="삭제"
+        danger
+        loading={remove.isPending}
+        onConfirm={() => void onDelete()}
+        onCancel={() => setConfirmDelete(false)}
+      />
+    </div>
+  );
+}

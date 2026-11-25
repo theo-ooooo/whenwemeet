@@ -1,7 +1,7 @@
 "use client";
 // (#490) 지금 보는 팀 번호(상태 + 쿠키), 팀 목록과 팀 상세 조회, 자식 화면이 받은 403 표시. AppShell 에서 옮김
 import { useCallback, useState } from "react";
-import { useGroup, useGroupGone, useGroups } from "@/hooks";
+import { useGroup, useGroupGone, useGroupHidden, useGroups } from "@/hooks";
 import { rememberGroup } from "@/lib/group-cookie";
 import type { GroupSummary } from "@/lib/types";
 
@@ -20,6 +20,9 @@ export function useCurrentGroup(initialGroupId: number | null, initialGroups: Gr
   const markGone = useCallback(() => setGoneFor(groupId), [groupId]);
   useGroupGone(markGone);
   const goneByEvent = goneFor !== null && goneFor === groupId;
+  // (#515) 보던 팀이 운영 숨김이 되면 목록을 다시 받아 hidden 을 읽는다 (안내는 AppShell)
+  const refetchGroups = groupsQ.refetch;
+  useGroupHidden(useCallback(() => void refetchGroups(), [refetchGroups]));
 
   return { groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent };
 }

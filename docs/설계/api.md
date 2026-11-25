@@ -30,6 +30,7 @@
 | GROUP_PERSONAL_LEAVE | 400 | PERSONAL 팀 나가기 시도 (탈퇴로만 삭제됨) |
 | UNAUTHORIZED | 401 | 토큰 없음, 서명 불일치, 만료, sub 사용자 없음(탈퇴) |
 | FORBIDDEN | 403 | 해당 팀 멤버가 아님 |
+| GROUP_HIDDEN | 403 | (#515) 관리자가 숨긴 팀의 팀 경로(멤버십 확인을 거치는 모든 곳, 공개 코드 조회 포함). `details: { reason }`(숨긴 사유). 팀 나가기 `DELETE /groups/:id/me` 만 통과. message "운영 정책 위반으로 이용이 제한된 팀이에요" (D-286) |
 | NOT_PARTICIPANT | 403 | (#190) 그 회차의 참여자가 아닌데 참석 여부를 보냄. message "이 일정의 참여자만 응답할 수 있어요". (#189) 약속 투표 대상이 아닌데 표를 보냄. message "이 투표의 대상이 아니에요" |
 | POLL_CLOSED | 409 | (#189) 정한 투표에 표, 정하기, 취소 ("이미 정해진 투표예요"), 마감 지난 투표에 표 ("투표가 끝났어요") |
 | EVENT_RESTORE_CONFLICT | 409 | (#375) 삭제를 되돌리려는데 그 사이 일정이 바뀌었다 ("그 사이 일정이 바뀌어서 되돌리지 못했어요", D-251) |
@@ -138,7 +139,7 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | GET | `/auth/apple` | 없음 | 쿼리 `next?` | 302 → Apple 인가 (앱.md 3.4). 웹 전용 |
 | POST | `/auth/apple/callback` | 없음 | form_post `code`, `state`, `id_token`, `user?` | 302 → 웹 `/auth/callback?token=` (앱.md 3.4) |
 | POST | `/auth/handoff` | 없음 | `{ handoff, verifier }` | `{ data: { token } }`. 웹 서버만 호출, 앱.md 2.2. 성공 시 `User.lastAppLoginAt = now` (#188, D-97. 응답 그대로) |
-| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings). (#450) `assistant: { available, consented, dailyLimit, usedToday }` AI 비서 (2.15) |
+| GET | `/me` | 유저 | - | `{ data: { id, nickname, profileImageUrl, createdAt, startCalendar, birthday } }`. `startCalendar` 는 처음 여는 달력 (#300, 아래 StartCalendar), `birthday` 는 내 생일 (#305, 2.4 BirthdaySettings). (#450) `assistant: { available, consented, dailyLimit, usedToday }` AI 비서 (2.15). (#515) `role: 'user'\|'admin'`, `isAdmin`, `hasUnreadNotice` (2.16) |
 | PATCH | `/me` | 유저 | `{ nickname }` (1~20자, 공백만 불가) | `{ data: { id, nickname, profileImageUrl, createdAt } }`. 닉네임은 우리 서비스 값이며 소셜 프로필과 독립 |
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
@@ -207,7 +208,8 @@ StartCalendar = { mode: 'LAST' | 'PERSONAL' | 'GROUP', groupId: number | null } 
 | DELETE | `/groups/:groupId/me` | 멤버 | - | `{ data: { groupDeleted: boolean } }`. 팀 나가기 (2.7) |
 
 ```ts
-GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, publicCode, memberCount, me: { color, displayName }, unreadNewsCount }   // publicCode: (#311) 주소용 공개 코드
+GroupSummary = { id, type: 'PERSONAL'|'TEAM', name, publicCode, memberCount, me: { color, displayName }, unreadNewsCount,
+                 hidden: { reason, hiddenAt } | null }   // publicCode: (#311) 주소용 공개 코드. hidden: (#515) 운영 숨김(D-286), 숨긴 팀은 unreadNewsCount 0
 GroupDetail  = { id, type, name, inviteCode: string|null, inviteUrl: string|null, inviteShareUrl: string|null, publicCode, createdAt,
                  members: Member[], me: Member & { notify: boolean; showBirthday: boolean } }   // notify: (#188) 나의 "이 팀 알림 받기", showBirthday: (#305) "이 팀 달력에 내 생일 보이기". 다른 멤버 값은 싣지 않는다
 Member       = { userId, displayName, color, profileImageUrl, joinedAt }
@@ -805,6 +807,53 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 - 대화, 답, 인자는 저장하지 않고 로그도 길이, 도구 이름, 결과 종류, 시간, 토큰 수만 (D-275)
 - 웹은 카드에서 저장하는 `POST /events`, `POST /polls` 에 `X-Client-Source: assistant|assistant-poll|assistant-edit|assistant-edit-changed` 를 싣고, API 는 만들기 로그 줄에만 남긴다(동작 변화 없음). (#511) 고치기 카드 [수정] 의 `PATCH`, 지우기 카드 [삭제] 의 `DELETE` 에도 `assistant` 를 싣고 API 는 `event_update`, `event_delete` 로그 줄에만 남긴다
 
+### 2.16 공지사항과 관리자 (#515, D-285, D-286)
+
+| 메서드 | 경로 | 인증 | 요청 | 응답 |
+|--------|------|------|------|------|
+| GET | `/notices` | 선택 | `limit?`(1~50, 기본 20), `cursor?` | `{ data: { items: NoticeListItem[], nextCursor } }` 게시된 것만, 고정 먼저 게시 시각 내림차순 |
+| GET | `/notices/:id` | 선택 | - | `{ data: Notice }`. 초안은 관리자만, 그 밖은 404 NOT_FOUND |
+| POST | `/notices/seen` | 유저 | - | `{ data: { noticesSeenAt } }`. 멱등이라 200. 화면은 목록을 받은 뒤 부른다 (GET → POST) |
+| GET | `/admin/notices` | 관리자 | `limit?`, `cursor?` | `{ data: { items: Notice[], nextCursor } }` 초안 포함, id 내림차순 |
+| GET | `/admin/notices/:id` | 관리자 | - | `{ data: Notice }` |
+| POST | `/admin/notices` | 관리자 | `{ title(1~100), body(1~20000), kind, pinned?, published? }` | 201 `{ data: Notice }`. `published: true` 면 지금 게시, 아니면 초안 |
+| PATCH | `/admin/notices/:id` | 관리자 | 같은 필드 모두 선택 | `{ data: Notice }`. `published: true` 는 초안일 때만 지금 게시(이미 게시면 시각 유지), `false` 는 게시 취소 |
+| DELETE | `/admin/notices/:id` | 관리자 | - | `{ data: { ok: true } }` |
+| GET | `/admin/users` | 관리자 | `q?`(닉네임 부분 일치, 50자), `limit?`, `cursor?` | `{ data: { items: AdminUser[], nextCursor } }` id 내림차순 |
+| GET | `/admin/users/:id` | 관리자 | - | `{ data: { user: AdminUser, teams: AdminGroup[] } }` |
+| PATCH | `/admin/users/:id/role` | 관리자 | `{ role: 'user'\|'admin' }` | `{ data: AdminUser }`. 내 역할이면 403 FORBIDDEN "내 역할은 바꿀 수 없어요" |
+| GET | `/admin/groups` | 관리자 | `q?`(팀 이름), `limit?`, `cursor?` | `{ data: { items: AdminGroup[], nextCursor } }` |
+| GET | `/admin/groups/:id` | 관리자 | - | `{ data: AdminGroupDetail }` |
+| POST | `/admin/groups/:id/hide` | 관리자 | `{ reason(1~200) }` | `{ data: AdminGroupDetail }` |
+| POST | `/admin/groups/:id/unhide` | 관리자 | - | `{ data: AdminGroupDetail }` |
+| DELETE | `/admin/groups/:id` | 관리자 | - | `{ data: { ok: true } }` 모든 멤버에게서 삭제 |
+| GET | `/admin/events` | 관리자 | `q?`(제목), `groupId?`, `limit?`, `cursor?` | `{ data: { items: AdminEvent[], nextCursor } }` 제목만 (메모, 장소 없음) |
+| GET | `/admin/events/:id` | 관리자 | - | `{ data: AdminEvent & { memo, place } }` |
+| POST | `/admin/events/:id/hide` | 관리자 | `{ reason(1~200) }` | `{ data: AdminEvent & { memo, place } }` |
+| POST | `/admin/events/:id/unhide` | 관리자 | - | 같음 |
+| DELETE | `/admin/events/:id` | 관리자 | - | `{ data: { ok: true } }` 반복이면 원본째 |
+| GET | `/admin/logs` | 관리자 | `limit?`, `cursor?` | `{ data: { items: AdminAction[], nextCursor } }` 최근 것 먼저 |
+
+```ts
+NoticeKind     = 'notice' | 'update' | 'maintenance'
+NoticeListItem = { id, title, kind: NoticeKind, pinned, publishedAt, unread: boolean }   // 본문 없음. 익명은 unread 늘 false
+Notice         = { id, title, body, kind: NoticeKind, pinned, publishedAt: string | null, createdAt, updatedAt }   // publishedAt null = 초안
+AdminUser      = { id, nickname, role: 'user' | 'admin', createdAt, providers: AuthProvider[] }
+Hidden         = { reason, hiddenAt, hiddenBy: { id, nickname } | null }
+AdminGroup     = { id, name, type, memberCount, eventCount, createdAt, hidden: Hidden | null }
+AdminGroupDetail = AdminGroup & { members: { userId, nickname, displayName, joinedAt }[], recentEvents: { id, title, startsAt, allDay, repeat, hidden }[] /* 시작 내림차순 20 */ }
+AdminEvent     = { id, title, group: { id, name, hidden }, startsAt, endsAt, allDay, repeat, creator: { id, nickname } | null, createdAt, hidden: Hidden | null }
+AdminAction    = { id, action, targetType: 'notice' | 'user' | 'group' | 'event', targetId, reason: string | null, createdAt, admin: { id, nickname } | null }
+```
+
+- 인증 열 `선택` 은 토큰이 없거나 틀려도 익명으로 답한다(401 없음). `관리자` 는 `User.role = 'admin'` 이고 가드가 매 요청 DB 역할을 읽는다. 아니면 403 FORBIDDEN "관리자만 할 수 있어요" (D-285)
+- 페이지: `nextCursor` 는 이 페이지 마지막 id. 다음 요청의 `cursor` 로 그대로 보낸다. null 이면 끝
+- `unread` 와 `hasUnreadNotice` 는 `publishedAt > User.noticesSeenAt`(본 적 없으면 게시된 것 모두)
+- 본문은 일반 텍스트. 빈 줄로 문단을 나누고 https 주소만 링크로 그린다(HTML 해석 없음)
+- 숨긴 일정, 숨긴 팀의 일정은 멤버 경로에서 없는 것과 같다(`VISIBLE_EVENT_WHERE`, D-286). 숨긴 팀은 GROUP_HIDDEN, 초대 코드 INVITE_NOT_FOUND, 구독 피드 404, 알림 안 보냄
+- 관리자 변경(공지 작성, 수정, 삭제, 역할 변경, 숨김, 해제, 삭제)은 모두 `AdminAction` 한 줄. 삭제는 대상 이름(제목)을 `reason` 에 남긴다
+- 웹 프록시는 `GET /notices`, `/notices/:id` 를 쿠키 없이도 넘긴다(초대 미리보기와 같이)
+
 ## 3. 기획 기능 → API 추적
 
 | 기획 기능 | 엔드포인트 |
@@ -836,6 +885,8 @@ AssistantCard    = eventDraft | eventEditDraft | eventDeleteDraft | eventChoice 
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |
 | 외부 캘린더 구독 (#193) | 2.12 전부 |
 | 약속 투표 (#189) | 2.13 전부, 알림 설정 `poll` |
+| 공지사항, 새 공지 점 (#515) | `GET /notices`, `GET /notices/:id`, `POST /notices/seen`, `GET /me` 의 `hasUnreadNotice` |
+| 관리자 화면 (#515) | 2.16 `/admin/*` 전부, `GET /me` 의 `role`, `isAdmin` |
 | AI 비서 볼까 (#450) | 2.15 전부, `GET /me` 의 `assistant`, 저장은 `POST /groups/:id/events`, `POST /groups/:id/polls`, (#511) 고치기, 지우기는 `PATCH`, `DELETE /groups/:id/events/:eventId` |
 
 ## 4. 개발 전용

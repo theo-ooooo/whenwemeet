@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { type Repeat, seriesCandidateWindow } from './recurrence.js';
+import { VISIBLE_EVENT_WHERE } from './visible-event.js';
 import { dateToDb, EVENT_EXCEPTION_SELECT, EVENT_SELECT, type EventExceptionRow, type EventRow, type SeriesRow, toEventRow, toExceptionRow } from './event-rows.js';
 
-/** 일정 읽기: 범위 목록, 반복 원본, 한 건 찾기, 예외. events.repository 에서 옮김 (#504) */
+/** 일정 읽기: 범위 목록, 반복 원본, 한 건 찾기, 예외. events.repository 에서 옮김 (#504). (#515) 숨긴 일정, 숨긴 팀의 일정은 없는 것과 같다 */
 @Injectable()
 export class EventReadsRepository {
   constructor(
@@ -15,7 +16,7 @@ export class EventReadsRepository {
   /** 한 번짜리 일정. 겹침 조건 `startsAt < to AND endsAt > from`, startsAt 오름차순 */
   async listInRange(groupId: number, from: Date, to: Date): Promise<EventRow[]> {
     const rows = await this.prisma.event.findMany({
-      where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from } },
+      where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from }, ...VISIBLE_EVENT_WHERE },
       orderBy: { startsAt: 'asc' },
       select: EVENT_SELECT,
     });
@@ -31,6 +32,7 @@ export class EventReadsRepository {
         repeat: { not: null },
         startsAt: { lt: window.startsBefore },
         OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+        ...VISIBLE_EVENT_WHERE,
       },
       orderBy: { id: 'asc' },
       select: { ...EVENT_SELECT, exceptions: { select: EVENT_EXCEPTION_SELECT } },
@@ -44,13 +46,13 @@ export class EventReadsRepository {
 
   /** 다른 팀 자원을 가리키는 ID 는 null */
   async findInGroup(groupId: number, eventId: number): Promise<EventRow | null> {
-    const row = await this.prisma.event.findFirst({ where: { id: eventId, groupId }, select: EVENT_SELECT });
+    const row = await this.prisma.event.findFirst({ where: { id: eventId, groupId, ...VISIBLE_EVENT_WHERE }, select: EVENT_SELECT });
     return row && toEventRow(row, this.urls);
   }
 
   /** (#311) 공개 코드로 찾는다 (팀 불문). 열 비교가 대소문자를 가리지 않으므로 호출자가 코드를 소문자로 맞춰 넘긴다 */
   async findByPublicCode(publicCode: string): Promise<EventRow | null> {
-    const row = await this.prisma.event.findUnique({ where: { publicCode }, select: EVENT_SELECT });
+    const row = await this.prisma.event.findFirst({ where: { publicCode, ...VISIBLE_EVENT_WHERE }, select: EVENT_SELECT });
     return row && toEventRow(row, this.urls);
   }
 

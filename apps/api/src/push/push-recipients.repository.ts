@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { kstDate, type Repeat } from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { VISIBLE_EVENT_WHERE } from '../events/visible-event.js';
 import type { ChangeLogSnapshot, Platform, PushKindName } from './push-copy.js';
 import { type PreferenceKind, preferenceOn } from '../notification-preferences/notification-preferences.js';
 import { dateToDb, dbToDate, idsOf } from './push-db.js';
@@ -29,13 +30,14 @@ export class PushRecipientsRepository {
 
   // ---------- 펼치기 (설계 5-6 A) ----------
 
+  /** (#515) 숨긴 일정, 숨긴 팀의 일정은 없는 것과 같다 (알림을 보내지 않는다, D-286) */
   async eventExists(eventId: number): Promise<boolean> {
-    return (await this.prisma.event.findUnique({ where: { id: eventId }, select: { id: true } })) !== null;
+    return (await this.prisma.event.findFirst({ where: { id: eventId, ...VISIBLE_EVENT_WHERE }, select: { id: true } })) !== null;
   }
 
-  /** 팀 이름과 (#311) 공개 코드. 팀이 지워졌으면 null */
+  /** 팀 이름과 (#311) 공개 코드. 팀이 지워졌거나 (#515) 숨겼으면 null (그 팀 알림은 보내지 않는다) */
   async findGroupRef(groupId: number): Promise<{ name: string; publicCode: string } | null> {
-    return this.prisma.group.findUnique({ where: { id: groupId }, select: { name: true, publicCode: true } });
+    return this.prisma.group.findFirst({ where: { id: groupId, hiddenAt: null }, select: { name: true, publicCode: true } });
   }
 
   /** 변경 알림 문구용 로그 스냅샷. (#311) eventCode 는 원본이 남아 있을 때만 (지워지면 로그의 eventId 가 SetNull) */
@@ -90,8 +92,8 @@ export class PushRecipientsRepository {
   ): Promise<Recipient[]> {
     let participantIds: number[] | null = null;
     if (kind === 'REMINDER' && eventId !== null) {
-      const event = await this.prisma.event.findUnique({
-        where: { id: eventId },
+      const event = await this.prisma.event.findFirst({
+        where: { id: eventId, ...VISIBLE_EVENT_WHERE },
         select: { allMembers: true, participants: { select: { userId: true } } },
       });
       if (!event) return [];

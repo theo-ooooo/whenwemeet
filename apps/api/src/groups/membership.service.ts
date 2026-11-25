@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { MemberResolver, MemberWithJoin, toMember } from '../common/member.js';
-import { MembershipsRepository, MembershipWithUser } from '../memberships/memberships.repository.js';
+import { type MembershipAccess, MembershipsRepository, type MembershipWithUser } from '../memberships/memberships.repository.js';
 import { GroupsRepository } from './groups.repository.js';
 import { INVITE_MARKER_KEY_INFO, inviteMarker, matchInviteMarker } from './invite-marker.js';
 
@@ -38,22 +38,29 @@ export class MembershipService {
     private readonly config: ConfigService,
   ) {}
 
-  /** 멤버가 아니면 403 FORBIDDEN. 팀이 없어도 멤버십이 없으므로 같은 403 */
-  async assertMember(userId: number, groupId: number): Promise<MembershipWithUser> {
+  /**
+   * 멤버가 아니면 403 FORBIDDEN. 팀이 없어도 멤버십이 없으므로 같은 403.
+   * (#515) 관리자가 숨긴 팀이면 403 GROUP_HIDDEN, details { reason } (D-286). 팀 나가기만 allowHidden 으로 통과시킨다
+   */
+  async assertMember(userId: number, groupId: number, opts: { allowHidden?: boolean } = {}): Promise<MembershipAccess> {
     const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
     if (!membership) throw new ApiException('FORBIDDEN');
+    if (membership.groupHidden && !opts.allowHidden) throw new ApiException('GROUP_HIDDEN', undefined, { reason: membership.groupHidden.reason });
     return membership;
   }
 
-  /** (#311) 멤버인지만. 공개 코드 조회처럼 403 대신 404 로 답해야 할 때 */
+  /** (#311) 멤버인지만. 공개 코드 조회처럼 403 대신 404 로 답해야 할 때. (#515) 숨긴 팀이면 403 GROUP_HIDDEN */
   async isMember(userId: number, groupId: number): Promise<boolean> {
-    return (await this.membershipsRepo.findByUserAndGroup(userId, groupId)) !== null;
+    const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
+    if (membership?.groupHidden) throw new ApiException('GROUP_HIDDEN', undefined, { reason: membership.groupHidden.reason });
+    return membership !== null;
   }
 
   /** (#199) 내가 속한 팀 (번호, 이름, 공개 코드), 가입순. 일정 검색의 팀 범위 */
   async listGroupsOf(userId: number): Promise<{ id: number; name: string; publicCode: string }[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
-    return rows.map(({ group }) => ({ id: group.id, name: group.name, publicCode: group.publicCode }));
+    // (#515) 숨긴 팀은 검색 범위에서 뺀다
+    return rows.filter(({ group }) => group.hiddenAt === null).map(({ group }) => ({ id: group.id, name: group.name, publicCode: group.publicCode }));
   }
 
   async listMembers(groupId: number): Promise<MembershipWithUser[]> {
