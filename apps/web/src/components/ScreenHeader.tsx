@@ -4,6 +4,11 @@
 // - ‹ 는 링크(fallbackHref). 이 앱 안에서 넘어왔으면 눌렀을 때 브라우저 뒤로(lib/back-nav.ts), 아니면 링크 그대로 이동
 // - 제목은 화면의 h1 (20/700, 한 줄 말줄임). 오른쪽 칸(right)에는 그 화면의 OverflowMenu 하나만 둔다
 // - ‹ 와 오른쪽 칸은 누르는 영역 44×44. 칸 안쪽 아이콘이 본문 왼쪽 선(좌우 여백)에 맞게 -10 씩 내민다
+// (#552, D-295) 폰(<600)에서는 이 머리줄이 있으면 앱 위쪽 바(심볼, 팀 이름, 검색, 종, 아바타)를 숨기고 이 줄 하나만 둔다.
+//   판단은 data-screen-header 하나로 CSS 가 한다(globals.css `[data-app-shell]:has(main [data-screen-header])`). 화면 목록을 따로 두지 않고,
+//   서버가 그린 첫 화면부터 적용돼 위쪽 바가 잠깐 비치지 않는다. 그래서 폰에서는 이 줄이 안전 영역(노치) 여백을 갖고,
+//   본문을 올려도 위에 붙어 있게 sticky + 화면 바탕색(--bg). 위 4 + 줄 44 + 아래 4 = 52 로 앱 위쪽 바와 높이가 같다.
+//   넓은 화면(≥600)은 사이드바 구조라 예전 그대로(붙지 않고 위 4)
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { IconChevronLeft } from "./icons";
@@ -29,7 +34,10 @@ type Props = {
 export function ScreenHeader({ title, fallbackHref, backLabel = "뒤로", right, subtitle, back = "always", onBack, className = "" }: Props) {
   const router = useRouter();
   return (
-    <div className={`pt-1 ${className}`}>
+    <div
+      data-screen-header=""
+      className={`sticky top-0 z-20 -mx-5 bg-surface px-5 pb-1 pt-[calc(4px+env(safe-area-inset-top))] fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1 ${className}`}
+    >
       <div className="flex h-11 items-center gap-1">
         <Link
           href={fallbackHref}

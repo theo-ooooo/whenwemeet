@@ -452,6 +452,16 @@ body {
   box-shadow: var(--dock-shadow);
 }
 
+/* (#552, D-295) 폰(<600): 본문에 하위 화면 머리줄(ScreenHeader, data-screen-header)이 있으면 앱 위쪽 바를 숨긴다.
+ * 화면 목록 없이 머리줄이 있는지만 본다. CSS 라 서버가 그린 첫 화면부터 맞고(위쪽 바가 잠깐 비치지 않음), 화면을 옮기면 바로 따라간다.
+ * 본문(main) 안만 본다(시트, 창에 머리줄이 들어가도 위쪽 바는 그대로). ≥600 은 위쪽 바가 원래 없다(fold:hidden).
+ * :has() 는 Safari 15.4, Chrome 105 부터. Tailwind 4 가 이미 Safari 16.4 이상을 요구하고 위 data-sticky-foot 도 쓴다 */
+@media (width < 600px) {
+  [data-app-shell]:has(main [data-screen-header]) [data-app-topbar] {
+    display: none;
+  }
+}
+
 /* (#378) 바닥에 붙는 저장 줄이 있는 폼(일정 작성): 포커스로 스크롤될 때 입력 칸이 그 줄(버튼 48 + 위아래 여백)에 가리지 않게 띄운다. 넓은 화면은 줄이 붙지 않는다 */
 html:has(form[data-sticky-foot]) {
   scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom));
