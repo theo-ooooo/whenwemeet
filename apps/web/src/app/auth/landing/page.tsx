@@ -20,7 +20,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
     redirect(next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`);
   }
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
       <Symbol size={32} />
       <div className="mt-auto pt-16">
         <h1 className="text-[28px] font-bold leading-9 tracking-[-0.03em]">로그인했어요</h1>

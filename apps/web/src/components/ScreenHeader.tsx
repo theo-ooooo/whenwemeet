@@ -36,7 +36,7 @@ export function ScreenHeader({ title, fallbackHref, backLabel = "뒤로", right,
   return (
     <div
       data-screen-header=""
-      className={`sticky top-0 z-20 -mx-5 bg-surface px-5 pb-1 pt-[calc(4px+env(safe-area-inset-top))] fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1 ${className}`}
+      className={`sticky top-0 z-20 -mx-5 bg-surface px-5 pb-1 pt-[calc(4px+var(--sat))] fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1 ${className}`}
     >
       <div className="flex h-11 items-center gap-1">
         <Link

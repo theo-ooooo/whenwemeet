@@ -51,7 +51,7 @@ export default async function EmailLinkPage({
   else view = "expired";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
       <Symbol size={32} />
       <div className="mt-auto pt-16">
         {view === "valid" ? (

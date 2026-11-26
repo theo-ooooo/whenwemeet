@@ -19,7 +19,7 @@ type Props = {
 
 // 바깥 틀(fixed inset-0) 높이 기준. dvh 는 모바일 에뮬레이션과 일부 WebView 에서 창 높이와 어긋난다
 const HALF = "70%";
-const FULL = "calc(100% - env(safe-area-inset-top) - 12px)";
+const FULL = "calc(100% - var(--sat) - 12px)";
 
 export function DaySheet({ titleId, onClose, paused = false, footer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
@@ -137,12 +137,12 @@ export function DaySheet({ titleId, onClose, paused = false, footer, children }:
           </button>
         </div>
         <div
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-3" : "pb-[calc(20px+env(safe-area-inset-bottom))]"}`}
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-3" : "pb-[calc(20px+var(--sab))]"}`}
         >
           {children}
         </div>
         {footer && (
-          <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3">{footer}</div>
+          <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+var(--sab))] pt-3">{footer}</div>
         )}
       </div>
     </div>

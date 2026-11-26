@@ -52,7 +52,7 @@ export function GroupHiddenModal({ team, reason, onOpenOther }: { team: GroupSum
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className="anim-sheet relative w-full rounded-t-2xl bg-paper px-6 pb-[calc(28px+env(safe-area-inset-bottom))] pt-3 outline-none fold:max-w-[520px] lg:max-w-[520px] lg:rounded-2xl lg:border lg:border-line lg:px-10 lg:pb-10 lg:pt-6 lg:shadow-[var(--pop-shadow)]"
+            className="anim-sheet relative w-full rounded-t-2xl bg-paper px-6 pb-[calc(28px+var(--sab))] pt-3 outline-none fold:max-w-[520px] lg:max-w-[520px] lg:rounded-2xl lg:border lg:border-line lg:px-10 lg:pb-10 lg:pt-6 lg:shadow-[var(--pop-shadow)]"
           >
             <div aria-hidden="true" className="mx-auto mb-1 h-1 w-9 rounded-full bg-[var(--grab)] lg:hidden" />
             <div className="flex justify-end">

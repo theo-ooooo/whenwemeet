@@ -131,14 +131,14 @@ function MapSheet({ place, onClose }: { place: PlaceCandidate; onClose: () => vo
         tabIndex={-1}
         className="anim-sheet relative flex h-full w-full flex-col bg-paper outline-none fold:h-[min(560px,90dvh)] fold:max-w-[720px] fold:overflow-hidden fold:rounded-lg fold:border fold:border-line fold:shadow-[var(--pop-shadow)]"
       >
-        <div className="flex h-[calc(52px+env(safe-area-inset-top))] shrink-0 items-center gap-2 px-4 pt-[env(safe-area-inset-top)] fold:h-14 fold:pt-0">
+        <div className="flex h-[calc(52px+var(--sat))] shrink-0 items-center gap-2 px-4 pt-[var(--sat)] fold:h-14 fold:pt-0">
           <h2 id={titleId} className="min-w-0 flex-1 truncate text-[18px] font-bold leading-6 tracking-[-0.02em]">
             {place.name}
           </h2>
           <CloseButton onClick={onClose} className="shrink-0" />
         </div>
         <PlaceMap lat={place.lat} lng={place.lng} interactive level={3} label={`${place.name} 위치 지도, 끌어서 옮기고 확대할 수 있어요`} className="min-h-0 flex-1" />
-        <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+env(safe-area-inset-bottom))] pt-3 fold:pb-4">
+        <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+var(--sab))] pt-3 fold:pb-4">
           {address && <p className="mb-2 break-words text-[13px] leading-[18px] text-soft">{address}</p>}
           <DirectionsLink place={{ text: null, query: null, kakaoPlaceId: place.kakaoPlaceId }} resolved={place} />
         </div>

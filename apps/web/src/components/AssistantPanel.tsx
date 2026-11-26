@@ -48,7 +48,7 @@ export function AssistantPanel({ onClose, onShowDate }: Props) {
       aria-labelledby={titleId}
       data-assistant-panel
       className={
-        "main-sheet:animate-[slide-in-right_200ms_var(--ease-sheet)] fixed inset-y-0 right-0 z-40 flex w-[min(400px,calc(100vw-48px))] flex-col overflow-hidden border-l border-line bg-paper pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-[var(--pop-shadow)] " +
+        "main-sheet:animate-[slide-in-right_200ms_var(--ease-sheet)] fixed inset-y-0 right-0 z-40 flex w-[min(400px,calc(100vw-48px))] flex-col overflow-hidden border-l border-line bg-paper pt-[var(--sat)] pb-[var(--sab)] shadow-[var(--pop-shadow)] " +
         "main-panel:animate-[fade-in_200ms_ease-out] main-panel:static main-panel:z-auto main-panel:ml-3 main-panel:w-[400px] main-panel:shrink-0 main-panel:rounded-xl main-panel:border-l-0 main-panel:p-0 main-panel:shadow-none"
       }
     >

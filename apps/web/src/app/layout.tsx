@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/Toast";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG_IMAGE, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/theme";
 import { FAKE_SHELL_SCRIPT } from "@/lib/fake-shell";
+import { IN_APP_SCRIPT } from "@/lib/app-bridge";
 import "./globals.css";
 
 const PRETENDARD_CSS =
@@ -59,6 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* 수동 테마를 첫 페인트 전에 적용 (깜빡임 방지). data-theme 가 서버 HTML 과 달라지므로 html 에 suppressHydrationWarning */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* (#557, D-296) 앱 셸 안이면 첫 페인트 전에 표시. 안전 영역은 셸이 비우므로 웹은 0 (globals.css --sat, --sab) */}
+        <script dangerouslySetInnerHTML={{ __html: IN_APP_SCRIPT }} />
         {/* (#549) 목 모드에서만: ?fakeShell=1 이면 앱 셸 흉내 (휴대폰 캘린더 설정을 브라우저에서 확인) */}
         {process.env.API_MOCK === "1" && <script dangerouslySetInnerHTML={{ __html: FAKE_SHELL_SCRIPT }} />}
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />

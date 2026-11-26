@@ -84,6 +84,18 @@
 @custom-variant main-sheet (@container main (width < 760px));
 
 /* 라이트 (기본) */
+/* (#557, D-296) 안전 영역. 앱 셸은 SafeAreaView(위, 아래)로 상태 표시줄과 내비게이션 바를 이미 비운다.
+ * 최신 안드로이드 웹뷰(edge-to-edge)는 env(safe-area-inset-*) 도 같은 값을 알려 줘 두 번 비게 되므로, 앱 안(html[data-in-app])에서는 0.
+ * 웹 브라우저(아이폰 사파리 등)는 env 그대로. 화면 코드는 env 대신 var(--sat), var(--sab) 를 쓴다 */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+html[data-in-app] {
+  --sat: 0px;
+  --sab: 0px;
+}
+
 :root {
   color-scheme: light;
   --bg: #f4f3f1;
@@ -238,11 +250,11 @@
 /* (#378) 아래 탭 여백 토큰 하나. 폰 독(64) + 독 아래 띄움(16) + 여유(24) + 안전 영역. 폭 390 미만은 + 가 독 위로 올라가므로 64 + 12 를 더한다 (4-1).
  * fold 이상(≥600)은 독이 없어 0. 본문 아래 여백은 pb-dock, 바닥에 붙는 버튼 줄은 bottom-[var(--dock-clearance)] 처럼 이 값을 쓴다 */
 :root {
-  --dock-clearance: calc(64px + 12px + 64px + 16px + 24px + env(safe-area-inset-bottom));
+  --dock-clearance: calc(64px + 12px + 64px + 16px + 24px + var(--sab));
 }
 @media (width >= 390px) {
   :root {
-    --dock-clearance: calc(64px + 16px + 24px + env(safe-area-inset-bottom));
+    --dock-clearance: calc(64px + 16px + 24px + var(--sab));
   }
 }
 @media (width >= 600px) {
@@ -464,7 +476,7 @@ body {
 
 /* (#378) 바닥에 붙는 저장 줄이 있는 폼(일정 작성): 포커스로 스크롤될 때 입력 칸이 그 줄(버튼 48 + 위아래 여백)에 가리지 않게 띄운다. 넓은 화면은 줄이 붙지 않는다 */
 html:has(form[data-sticky-foot]) {
-  scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(80px + var(--sab));
 }
 @media (width >= 600px) {
   html:has(form[data-sticky-foot]) {

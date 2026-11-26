@@ -61,7 +61,7 @@ export function DayDock({ date, titleId, onClose, paused = false, footer, childr
       className={
         // 시트(기본): 화면 오른쪽 끝에서 위아래 전체, 폭 400(창이 좁으면 왼쪽 48 은 남긴다), 팝오버 그림자.
         // 패널(main-panel): 달력 옆 흰 카드 400, 본문 높이 전체, 그림자 없음 (디자인규칙.md 5: 층은 면 차이로)
-        "main-sheet:animate-[slide-in-right_200ms_var(--ease-sheet)] fixed inset-y-0 right-0 z-40 flex w-[min(400px,calc(100vw-48px))] flex-col overflow-hidden border-l border-line bg-paper pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-[var(--pop-shadow)] " +
+        "main-sheet:animate-[slide-in-right_200ms_var(--ease-sheet)] fixed inset-y-0 right-0 z-40 flex w-[min(400px,calc(100vw-48px))] flex-col overflow-hidden border-l border-line bg-paper pt-[var(--sat)] pb-[var(--sab)] shadow-[var(--pop-shadow)] " +
         "main-panel:animate-[fade-in_200ms_ease-out] main-panel:static main-panel:z-auto main-panel:ml-3 main-panel:w-[400px] main-panel:shrink-0 main-panel:rounded-xl main-panel:border-l-0 main-panel:p-0 main-panel:shadow-none"
       }
     >

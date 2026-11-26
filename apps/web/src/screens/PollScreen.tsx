@@ -190,7 +190,7 @@ export function PollScreen({ code, initial }: { code: string; initial?: Poll | n
 
       {/* 맨 아래 주 버튼. 폰은 독과 + 가 숨는다(AppShell) */}
       {poll && (
-        <div className="sticky bottom-0 -mx-5 mt-4 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:-mx-1 fold:px-1 fold:pb-1">
+        <div className="sticky bottom-0 -mx-5 mt-4 bg-surface px-5 pb-[calc(12px+var(--sab))] pt-2 fold:-mx-1 fold:px-1 fold:pb-1">
           {closed ? (
             poll.eventCode ? (
               <Link

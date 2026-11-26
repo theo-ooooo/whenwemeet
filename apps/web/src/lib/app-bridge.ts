@@ -254,3 +254,6 @@ export function openAppSettings(): boolean {
 export function haptic(kind: HapticKind): void {
   postToApp({ type: "haptic", kind });
 }
+
+/** (#557, D-296) 첫 페인트 전 html 에 data-in-app 을 단다 (앱 셸 UA 일 때). 안전 영역 여백을 셸에 맡기려는 표시 */
+export const IN_APP_SCRIPT = `(function(){try{if(/\\bWhenwemeetApp\\//.test(navigator.userAgent))document.documentElement.setAttribute("data-in-app","")}catch(e){}})()`;
