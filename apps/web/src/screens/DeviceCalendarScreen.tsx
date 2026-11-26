@@ -5,7 +5,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useToast } from "@/components/Toast";
+import { IconArrowRight, IconCalendar, IconRepeat, IconShield } from "@/components/icons";
 import { Button, ErrorState, RowGroup, Skeleton, ToggleRow } from "@/components/ui";
+import { SwitchTrack } from "@/components/ui/SwitchTrack";
 import { messageOf, useGroups, useMe } from "@/hooks";
 import { appSupportsDeviceCalendar, isInApp, postToApp } from "@/lib/app-bridge";
 import {
@@ -15,6 +17,7 @@ import {
   requestCalendar,
   subscribeCalendarSettings,
   statusLine,
+  syncedAtText,
   writeCalendarSettings,
   type CalendarSettings,
   type CalendarStatus,
@@ -116,33 +119,58 @@ export function DeviceCalendarScreen() {
   } else {
     body = (
       <div className="space-y-5">
-        <section className="rounded-xl bg-paper px-3.5 py-1">
+        {/* 큰 스위치 카드: 아이콘, 제목, 두 줄까지 보이는 설명, 스위치. 켜면 아래에 맞춘 시각과 일정 수 */}
+        <section className="rounded-2xl bg-paper p-4">
           {settings && checked ? (
-            <ToggleRow
-              label="휴대폰 캘린더에 표시"
-              description="고른 팀 일정을 휴대폰 캘린더에 넣어요"
-              checked={enabled}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enabled}
               disabled={busy}
-              onChange={(v) => void toggle(v)}
-            />
+              onClick={() => void toggle(!enabled)}
+              className="flex w-full items-center gap-3 text-left disabled:opacity-45"
+            >
+              <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface text-acc-ink">
+                <IconCalendar size={22} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-bold">휴대폰 캘린더에 표시</span>
+                <span className="mt-0.5 block text-[13px] leading-[18px] text-soft">아이폰, 갤럭시 기본 캘린더에서도 언제볼까 일정을 볼 수 있어요</span>
+              </span>
+              <SwitchTrack checked={enabled} />
+            </button>
           ) : (
-            <div className="flex min-h-12 items-center justify-between py-2">
-              <span>
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="mt-1.5 h-3 w-52" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="size-11 rounded-xl" />
+              <span className="flex-1">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="mt-1.5 h-3 w-56" />
               </span>
               <Skeleton className="h-6 w-10 rounded-full" />
             </div>
           )}
-          {checked && !status && <p className="t-sub pb-2.5">상태를 확인하지 못했어요</p>}
+          {checked && !status && <p className="t-sub mt-3">상태를 확인하지 못했어요</p>}
           {enabled && status && (
-            <p role="status" className="t-sub pb-2.5">
-              {statusLine(status, reply?.at ?? 0)}
-            </p>
+            <div role="status" className="mt-4 border-t border-line pt-3">
+              {status.failed || !status.lastSyncedAt ? (
+                <p className="t-sub">{statusLine(status, reply?.at ?? 0)}</p>
+              ) : (
+                <dl className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
+                    <dt className="text-[12px] text-ink-2">마지막으로 맞춤</dt>
+                    <dd className="mt-0.5 text-[15px] font-semibold tabular-nums">{syncedAtText(status.lastSyncedAt, reply?.at ?? 0)}</dd>
+                  </div>
+                  <div className="rounded-xl bg-surface px-3 py-2.5">
+                    <dt className="text-[12px] text-ink-2">넣은 일정</dt>
+                    <dd className="mt-0.5 text-[15px] font-semibold tabular-nums">{status.count}개</dd>
+                  </div>
+                </dl>
+              )}
+            </div>
           )}
           {!enabled && denied && (
-            <div className="flex items-center gap-2 pb-2.5">
-              <p className="t-sub min-w-0 flex-1">캘린더 접근이 꺼져 있어요. 기기 설정에서 언제볼까의 캘린더 접근을 켜 주세요</p>
+            <div className="mt-4 flex items-center gap-2 border-t border-line pt-3">
+              <p className="t-sub min-w-0 flex-1">캘린더 접근이 꺼져 있어요. 기기 설정에서 켜 주세요</p>
               <Button size="sm" variant="secondary" onClick={() => postToApp({ type: "openSettings" })}>
                 설정 열기
               </Button>
@@ -166,12 +194,24 @@ export function DeviceCalendarScreen() {
           </RowGroup>
         )}
 
-        <ul className="list-disc space-y-1.5 pl-5 text-[13px] leading-5 text-ink-2">
-          <li>지난 30일부터 앞으로 180일까지의 일정이 들어가요. 반복 일정은 날마다 하나씩 들어가요</li>
-          <li>한쪽으로만 보내요. 휴대폰 캘린더에서 고치거나 지운 내용은 언제볼까에 반영되지 않고, 다음에 맞출 때 언제볼까 내용으로 돌아가요</li>
-          <li>제목, 시간, 장소, 참여자 이름이 들어가고 메모는 넣지 않아요</li>
-          <li>앱을 열 때와 일정을 바꿀 때 맞춰요. 끄거나 로그아웃하면 휴대폰의 언제볼까 캘린더를 지워요</li>
-        </ul>
+        {/* 알아 둘 것: 긴 글 대신 아이콘 줄 셋 */}
+        <RowGroup title="알아 두세요">
+          {[
+            { icon: <IconRepeat size={18} />, title: "지난 30일부터 앞으로 180일까지", sub: "반복 일정은 날마다 하나씩 들어가요" },
+            { icon: <IconArrowRight size={18} />, title: "언제볼까에서 휴대폰으로만 보내요", sub: "휴대폰 캘린더에서 고친 내용은 다음에 맞출 때 되돌아가요" },
+            { icon: <IconShield size={18} />, title: "메모는 넣지 않아요", sub: "끄거나 로그아웃하면 휴대폰의 언제볼까 캘린더를 지워요" },
+          ].map((n) => (
+            <div key={n.title} className="flex items-start gap-3 py-3">
+              <span aria-hidden="true" className="mt-0.5 text-ink-2">
+                {n.icon}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-semibold">{n.title}</span>
+                <span className="mt-0.5 block text-[13px] leading-[18px] text-soft">{n.sub}</span>
+              </span>
+            </div>
+          ))}
+        </RowGroup>
       </div>
     );
   }
