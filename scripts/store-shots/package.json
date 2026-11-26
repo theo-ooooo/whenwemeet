@@ -1,0 +1,14 @@
+{
+  "name": "whenwemeet-store-shots",
+  "private": true,
+  "type": "module",
+  "description": "스토어 스크린샷 만들기 (docs/운영/스토어-제출.md 5.3). pnpm 워크스페이스 밖이라 이 폴더에서 npm install 한다",
+  "scripts": {
+    "shoot": "node shoot.mjs",
+    "compose": "node compose.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1",
+    "sharp": "0.35.5"
+  }
+}
