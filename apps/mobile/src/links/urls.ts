@@ -161,14 +161,21 @@ export const WIDGET_UA_TOKEN = "Widget/1";
 export const ACCOUNT_LINK_UA_TOKEN = "AccountLink/1";
 
 /**
- * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
+ * (#549) 휴대폰 캘린더 브리지(calendarSync, calendarSyncEnable/Disable/Status)를 처리한다는 표시 (앱.md 4.9, D-294).
+ * 웹 lib/app-bridge.ts DEVICE_CALENDAR_UA_TOKEN 과 같은 값. expo-calendar 는 네이티브 모듈이라 1.3.0 바이너리부터 늘 붙는다
+ * (runtimeVersion=appVersion 이라 1.2.x 에는 이 JS 가 가지 않는다)
+ */
+export const DEVICE_CALENDAR_UA_TOKEN = "DeviceCalendar/1";
+
+/**
+ * 웹뷰 UA 접미사 `WhenwemeetApp/<버전> (<os>) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1 DeviceCalendar/1` (앱.md 4.1). 웹 정규식 APP_UA 는 앞부분만 본다.
  * KakaoShare/1 은 카카오 네이티브 앱 키가 있는 빌드만 (키 없는 빌드는 SDK 를 못 써서 웹이 지금 share 브리지를 쓰게 둔다).
  * AccountLink/1 도 카카오 키가 있는 빌드만 (위 ACCOUNT_LINK_UA_TOKEN 설명)
  */
 export function buildUserAgentSuffix(version: string, os: string, kakaoShare = false, accountLink = false): string {
   return `WhenwemeetApp/${version} (${os}) ${EMAIL_LOGIN_UA_TOKEN}${kakaoShare ? ` ${KAKAO_SHARE_UA_TOKEN}` : ""} ${WIDGET_UA_TOKEN}${
     accountLink ? ` ${ACCOUNT_LINK_UA_TOKEN}` : ""
-  }`;
+  } ${DEVICE_CALENDAR_UA_TOKEN}`;
 }
 
 /** 로그인 성공 후 웹뷰에 여는 주소 (2.3) */

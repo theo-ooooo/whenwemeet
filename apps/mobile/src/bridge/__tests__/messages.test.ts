@@ -242,3 +242,48 @@ describe("(#198) linkAccount (앱.md 4.8)", () => {
     expect(p(msg, "https://whenwemeet.day.evil.com/")).toBeNull();
   });
 });
+
+describe("(#549) 휴대폰 캘린더 메시지", () => {
+  const ev = {
+    uid: "e1@whenwemeet.day",
+    title: "저녁",
+    allDay: false,
+    start: "2026-11-27T10:00:00.000Z",
+    end: "2026-11-27T11:00:00.000Z",
+    url: "https://whenwemeet.day/events/abc?team=team1xxx",
+  };
+  const snapshot = { generatedAt: "2026-11-26T03:00:00.000Z", events: [ev] };
+
+  it("calendarSync: 검사를 통과한 스냅샷, id 는 있을 때만", () => {
+    expect(p({ v: 1, type: "calendarSync", snapshot })).toEqual({ v: 1, type: "calendarSync", snapshot });
+    expect(p({ v: 1, type: "calendarSync", snapshot, id: "c1" })).toEqual({ v: 1, type: "calendarSync", snapshot, id: "c1" });
+    expect(p({ v: 1, type: "calendarSync", snapshot, id: "" })).toBeNull();
+    expect(p({ v: 1, type: "calendarSync" })).toBeNull();
+    expect(p({ v: 1, type: "calendarSync", snapshot: { ...snapshot, events: [{ ...ev, url: "https://evil.com/x" }] } })).toBeNull();
+  });
+
+  it("calendarSync 만 4KB 넘게 받는다 (1.5MB 까지)", () => {
+    const many = Array.from({ length: 2000 }, (_, i) => ({ ...ev, uid: `e${i + 1}@whenwemeet.day`, notes: "참여: 모두" }));
+    const data = JSON.stringify({ v: 1, type: "calendarSync", snapshot: { ...snapshot, events: many } });
+    expect(data.length).toBeGreaterThan(16_384);
+    expect(parseBridgeMessage(data, SRC, WEB)?.type).toBe("calendarSync");
+    expect(parseBridgeMessage(JSON.stringify({ v: 1, type: "calendarSync", snapshot, filler: "x".repeat(1_500_001) }), SRC, WEB)).toBeNull();
+    // 다른 type 은 그대로 4KB, 위젯은 16KB
+    expect(p({ v: 1, type: "calendarSyncStatus", id: "a", filler: "x".repeat(5_000) })).toBeNull();
+    expect(p({ v: 1, type: "widgetClear", filler: "x".repeat(20_000) })).toBeNull();
+  });
+
+  it("enable, disable, status: id 필수", () => {
+    for (const type of ["calendarSyncEnable", "calendarSyncDisable", "calendarSyncStatus"]) {
+      expect(p({ v: 1, type, id: "r1" })).toEqual({ v: 1, type, id: "r1" });
+      expect(p({ v: 1, type })).toBeNull();
+      expect(p({ v: 1, type, id: "x".repeat(41) })).toBeNull();
+      expect(p({ v: 1, type, id: "a\nb" })).toBeNull();
+    }
+  });
+
+  it("출처가 웹 오리진이 아니면 버린다", () => {
+    expect(p({ v: 1, type: "calendarSync", snapshot }, "https://evil.com/")).toBeNull();
+    expect(p({ v: 1, type: "calendarSyncEnable", id: "r" }, "https://evil.com/")).toBeNull();
+  });
+});
