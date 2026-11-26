@@ -63,7 +63,7 @@ export function formatLunar(month: number, day: number, leap: boolean, year?: nu
  * 달력 칸의 작은 음력 글자 (D-297).
  * - text: 넓은 칸(숫자 줄 오른쪽). 보통 "10.6", 초하루 "음 11.1", 윤달은 "윤4.6"
  * - short: 낮은 넓은 칸(왼쪽 위 모서리). "10.6", 초하루 "11.1"
- * - compact: 폰 칸(왼쪽 위 모서리, 가운데 숫자 원과 겹치지 않게 짧게). 날만 "6", 초하루는 달까지 "11.1"
+ * - compact: 폰 칸(왼쪽 위 모서리). 칸마다 숫자가 둘이면 어느 게 날짜인지 헷갈려서 초하루와 보름만 "11.1", "11.15". 다른 날은 빈 문자열(안 그림)
  * first = 초하루 (글자를 조금 진하게), label = 읽기용 "음력 10월 6일"
  */
 export function lunarCellText(key: DateKey): { text: string; short: string; compact: string; first: boolean; label: string } | null {
@@ -72,5 +72,5 @@ export function lunarCellText(key: DateKey): { text: string; short: string; comp
   const leap = l.leap ? "윤" : "";
   const md = `${leap}${l.month}.${l.day}`;
   const first = l.day === 1;
-  return { text: first && !l.leap ? `음 ${md}` : md, short: md, compact: first ? md : `${l.day}`, first, label: formatLunar(l.month, l.day, l.leap) };
+  return { text: first && !l.leap ? `음 ${md}` : md, short: md, compact: first || l.day === 15 ? md : "", first, label: formatLunar(l.month, l.day, l.leap) };
 }

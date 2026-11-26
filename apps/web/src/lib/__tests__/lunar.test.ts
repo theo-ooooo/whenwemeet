@@ -36,7 +36,9 @@ describe("음력 변환", () => {
 
   it("달력 칸: 넓은 칸 10.6 / 초하루 '음 11.1', 폰은 날만 '6' / 초하루 '11.1'", () => {
     // 2026-11-14 = 음력 10월 6일, 2026-12-09 = 음력 11월 1일
-    expect(lunarCellText("2026-11-14")).toEqual({ text: "10.6", short: "10.6", compact: "6", first: false, label: "음력 10월 6일" });
+    expect(lunarCellText("2026-11-14")).toEqual({ text: "10.6", short: "10.6", compact: "", first: false, label: "음력 10월 6일" });
+    // 폰은 초하루와 보름만 (#562)
+    expect(lunarCellText("2026-11-23")?.compact).toBe("10.15");
     expect(lunarCellText("2026-12-09")).toEqual({ text: "음 11.1", short: "11.1", compact: "11.1", first: true, label: "음력 11월 1일" });
     expect(lunarCellText("2023-03-22")).toMatchObject({ text: "윤2.1", short: "윤2.1", compact: "윤2.1", first: true });
     expect(lunarCellText("2051-01-01")).toBeNull();

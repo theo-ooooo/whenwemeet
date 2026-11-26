@@ -180,11 +180,11 @@ export function DayCell({
           +{phoneMore}
         </b>
       )}
-      {/* (#562) 음력 (낮은 칸): 칸 왼쪽 위 모서리 8px. 가운데 숫자 원, 오른쪽 위 "+N" 배지와 겹치지 않게 폰은 날만("6", 초하루 "11.1"),
+      {/* (#562) 음력 (낮은 칸): 칸 왼쪽 위 모서리 8px. 폰은 초하루와 보름만("11.1", "11.15"),
           낮은 넓은 칸은 "10.6". 높은 칸(tall)은 숫자 줄 오른쪽 끝 */}
       {lunar && (
         <span aria-hidden="true" className={`pointer-events-none absolute top-[3px] left-[2px] z-[1] text-[8px] leading-[10px] tracking-[-0.04em] whitespace-nowrap tabular-nums tall:hidden ${lunarClass}`}>
-          <span className="fold:hidden">{lunar.compact}</span>
+          {lunar.compact && <span className="fold:hidden">{lunar.compact}</span>}
           <span className="hidden fold:inline">{lunar.short}</span>
         </span>
       )}
