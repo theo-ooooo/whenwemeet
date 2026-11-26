@@ -441,7 +441,8 @@ export function draftDate(when: WhenArg, context: NormalizeContext, startTime: s
 export function normalizeDraftEvent(args: DraftEventArgs, context: NormalizeContext): EventDraftCard {
   const today = kstDate(context.now);
   const title = cardTitle(args.title);
-  const date = draftDate(draftWhen(args.date, context), context, args.allDay ? null : args.startTime);
+  const startWhen = draftWhen(args.date, context);
+  const date = draftDate(startWhen, context, args.allDay ? null : args.startTime);
   let endDate: string | null = null;
   const endWhen = draftWhen(args.endDate, context);
   if (endWhen.kind !== null) {
@@ -479,6 +480,8 @@ export function normalizeDraftEvent(args: DraftEventArgs, context: NormalizeCont
     place,
     participants,
     members: membersOf(participants, context),
+    // (#566) "음력 3월 15일" 로 말했으면 음력으로 넣은 일정 (D-298). 카드와 저장한 일정이 음력 날짜를 같이 보인다
+    ...(startWhen.kind === 'lunarMonthDay' ? { lunarInput: true as const } : {}),
   };
 }
 

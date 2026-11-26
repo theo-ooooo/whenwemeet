@@ -45,6 +45,7 @@ const SERIES: EventRow = {
   allMembers: true,
   participantIds: [] as number[],
   color: null,
+  lunarInput: false,
   place: null,
 };
 const ONCE: EventRow = { ...SERIES, id: 100, title: '한 번', memo: null, repeat: null, startsAt: kst('2026-11-18T19:00:00'), endsAt: kst('2026-11-18T20:00:00') };
@@ -88,7 +89,7 @@ describe('EventsService 반복 일정', () => {
       events.createWithLogTx.mockResolvedValue({ ...SERIES, creatorId: 1, repeatUntil: '2026-12-31' });
       const view = await service.create(1, 10, { ...input, repeat: 'WEEKLY', repeatUntil: '2026-12-31' });
       expect(events.createWithLogTx).toHaveBeenCalledWith(
-        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, place: null },
+        { groupId: 10, title: '저녁', startsAt: SERIES.startsAt, endsAt: SERIES.endsAt, allDay: false, memo: null, creatorId: 1, repeat: 'WEEKLY', repeatUntil: '2026-12-31', reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, lunarInput: false, place: null },
         1,
       );
       expect(view).toMatchObject({ repeat: 'WEEKLY', repeatUntil: '2026-12-31', occurrence: '2026-11-11', seriesStartsAt: SERIES.startsAt });
@@ -206,6 +207,14 @@ describe('EventsService 반복 일정', () => {
       await expect(service.update(1, 10, 200, { title: 'x' }, { occurrence: '2026-11-18', scope: 'all' })).rejects.toMatchObject({ details: [{ field: 'scope' }] });
       await expect(service.update(1, 10, 200, { title: 'x' }, { scope: 'this' })).rejects.toMatchObject({ details: [{ field: 'occurrence' }] });
       await expect(service.update(1, 10, 200, { title: 'x' }, { scope: 'this', occurrence: '2026-11-19' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(events.saveExceptionWithLogTx).not.toHaveBeenCalled();
+    });
+
+    it('(#566) 반복 일정 "이 일정만" 에 lunarInput 을 싣으면 400 (field lunarInput, 원본 단위)', async () => {
+      await expect(service.update(1, 10, 200, { lunarInput: true }, { scope: 'this', occurrence: '2026-11-18' })).rejects.toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [{ field: 'lunarInput' }],
+      });
       expect(events.saveExceptionWithLogTx).not.toHaveBeenCalled();
     });
 
@@ -384,6 +393,7 @@ describe('EventsService 반복 일정', () => {
           reminderSetAt: expect.any(Date),
           participants: { allMembers: true, ids: [] },
           color: null,
+          lunarInput: false,
           place: null,
         },
       );

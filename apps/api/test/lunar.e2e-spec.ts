@@ -178,6 +178,58 @@ describe('음력 (e2e)', () => {
     });
   });
 
+  describe('(#566) 음력으로 넣은 일정 lunarInput', () => {
+    it('만들기, 단건, 목록, 수정으로 오간다. 생략은 false, 수정 생략은 그대로, 이것만 바꾸면 새 소식 로그 없음', async () => {
+      const created = await api(app)
+        .post(events())
+        .set(auth(alice))
+        .send({ title: '할머니 생신 잔치', startsAt: kst('2026-11-24T18:00:00'), endsAt: kst('2026-11-24T20:00:00'), allDay: false, lunarInput: true })
+        .expect(201);
+      expect(created.body.data).toMatchObject({ lunarInput: true });
+      const id = created.body.data.id as number;
+      expect((await api(app).get(`${events()}/${id}`).set(auth(bob)).expect(200)).body.data.lunarInput).toBe(true);
+      const list = (await api(app).get(events()).set(auth(bob)).query({ from: kst('2026-11-24T00:00:00'), to: kst('2026-11-25T00:00:00') }).expect(200)).body.data as {
+        id: number;
+        lunarInput: boolean;
+      }[];
+      expect(list.find((e) => e.id === id)?.lunarInput).toBe(true);
+
+      // 수정에서 생략하면 그대로
+      const renamed = await api(app).patch(`${events()}/${id}`).set(auth(alice)).send({ title: '생신 잔치' }).expect(200);
+      expect(renamed.body.data).toMatchObject({ title: '생신 잔치', lunarInput: true });
+      // 이것만 끄면 저장하되 UPDATED 로그는 늘지 않는다 (색과 같은 규칙)
+      const logs = await prisma.eventLog.count({ where: { eventId: id } });
+      const off = await api(app).patch(`${events()}/${id}`).set(auth(alice)).send({ lunarInput: false }).expect(200);
+      expect(off.body.data.lunarInput).toBe(false);
+      expect(await prisma.eventLog.count({ where: { eventId: id } })).toBe(logs);
+
+      const plain = await api(app).post(events()).set(auth(alice)).send({ title: '저녁', startsAt: kst('2026-11-25T18:00:00'), endsAt: kst('2026-11-25T19:00:00'), allDay: false }).expect(201);
+      expect(plain.body.data.lunarInput).toBe(false);
+      await api(app).post(events()).set(auth(alice)).send({ title: '틀림', startsAt: kst('2026-11-25T18:00:00'), endsAt: kst('2026-11-25T19:00:00'), allDay: false, lunarInput: 'yes' }).expect(400);
+    });
+
+    it('반복 일정: "이 일정만" 은 400, "이후 모두" 는 원본에 저장. 구독 피드 설명 첫 줄에 음력 날짜', async () => {
+      const created = await api(app)
+        .post(events())
+        .set(auth(alice))
+        .send({ title: '모임', startsAt: kst('2026-11-24T18:00:00'), endsAt: kst('2026-11-24T19:00:00'), allDay: false, repeat: 'WEEKLY' })
+        .expect(201);
+      const id = created.body.data.id as number;
+      const thisOnly = await api(app).patch(`${events()}/${id}`).query({ occurrence: '2026-12-01', scope: 'this' }).set(auth(alice)).send({ lunarInput: true }).expect(400);
+      expect(thisOnly.body.error.details[0].field).toBe('lunarInput');
+      const following = await api(app).patch(`${events()}/${id}`).query({ occurrence: '2026-11-24', scope: 'following' }).set(auth(alice)).send({ lunarInput: true }).expect(200);
+      expect(following.body.data.lunarInput).toBe(true);
+      expect((await api(app).get(`${events()}/${id}`).query({ occurrence: '2026-12-01' }).set(auth(bob)).expect(200)).body.data.lunarInput).toBe(true);
+
+      const feedPath = `/v1/groups/${teamId}/calendar-feed`;
+      const { httpsUrl } = (await api(app).put(feedPath).set(auth(alice)).send({}).expect(200)).body.data as { httpsUrl: string };
+      const body = (await request(app.getHttpServer()).get(new URL(httpsUrl).pathname).expect(200)).text.replace(/\r\n /g, '');
+      // 2026-11-24 = 음력 10월 16일, 2026-12-01 = 음력 10월 23일
+      expect(body).toContain('DESCRIPTION:음력 10월 16일\\n참여: 앨리스');
+      expect(body).toContain('DESCRIPTION:음력 10월 23일\\n참여: 앨리스');
+    });
+  });
+
   it('달력 음력 표시: 기본 끔, PATCH /me/lunar-display 로 켜고 GET /me 에 실린다', async () => {
     expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.showLunar).toBe(false);
     expect((await api(app).patch('/v1/me/lunar-display').set(auth(alice)).send({ showLunar: true }).expect(200)).body.data).toEqual({ showLunar: true });

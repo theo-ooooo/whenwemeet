@@ -12,6 +12,7 @@ import {
   assertEventRange,
   assertRepeatRule,
   COLOR_THIS_SCOPE_MESSAGE,
+  LUNAR_THIS_SCOPE_MESSAGE,
   colorInput,
   type EventValues,
   isUnchanged,
@@ -272,6 +273,7 @@ export class EventsService {
         reminderSetAt: new Date(),
         participants,
         color: colorInput(dto.color) ?? null,
+        lunarInput: dto.lunarInput ?? false,
         place: parsePlace(dto.place) ?? null,
       },
       userId,
@@ -305,6 +307,8 @@ export class EventsService {
     if (scope === 'this' && participants !== undefined) throw participantsFailed(PARTICIPANTS_THIS_SCOPE_MESSAGE);
     // (#343) 색도 원본 단위 (D-215)
     if (scope === 'this' && dto.color !== undefined) throw validationFailed('color', COLOR_THIS_SCOPE_MESSAGE);
+    // (#566) 음력 입력 표시도 원본 단위 (D-298)
+    if (scope === 'this' && dto.lunarInput !== undefined) throw validationFailed('lunarInput', LUNAR_THIS_SCOPE_MESSAGE);
     const exceptions = await this.events.listExceptions(current.id);
     const occurrence = resolveOccurrence(current, exceptions, date);
     return scope === 'this'
@@ -368,10 +372,17 @@ export class EventsService {
     const color = colorInput(dto.color);
     const colorChanged = color !== undefined && color !== current.color;
 
+    // (#566) 음력 입력 표시 (D-298). 색과 같이 이것만 바꾸면 조용히 저장
+    const lunarChanged = dto.lunarInput !== undefined && dto.lunarInput !== current.lunarInput;
+
     const unchanged = !repeat && !participantsChanged && isUnchanged(current, next);
     // (#343) 색만 바꾸면 로그, 새 소식, 푸시 없이 색만 저장 (D-215)
-    if (unchanged) return toEventView(colorChanged ? await this.writes.updateColor(current.id, color) : current, resolver);
+    if (unchanged) {
+      if (lunarChanged) return toEventView(await this.writes.updateDisplay(current.id, { ...(colorChanged ? { color } : {}), lunarInput: dto.lunarInput }), resolver);
+      return toEventView(colorChanged ? await this.writes.updateColor(current.id, color) : current, resolver);
+    }
     if (colorChanged) next.color = color;
+    if (lunarChanged) next.lunarInput = dto.lunarInput;
     // (#188) 반복을 켜면 회차마다 틱에서 계산. 시각, 종일, 알림, 반복이 바뀌면 기준 시각을 지금으로 (D-85, D-86)
     next.remindAt = storedRemindAt(next, repeat);
     if (repeat || reminderTimingChanged(current, next)) next.reminderSetAt = new Date();

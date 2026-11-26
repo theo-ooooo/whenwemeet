@@ -97,13 +97,19 @@ export class EventSeriesService {
     const inputColor = colorInput(dto.color);
     const color = inputColor === undefined ? series.color : inputColor;
     const colorChanged = color !== series.color;
+    // (#566) 음력 입력 표시도 색과 같은 규칙 (본문에 없으면 원본 값, 이것만 바꾸면 조용히, D-298)
+    const lunarInput = dto.lunarInput ?? series.lunarInput;
+    const lunarChanged = lunarInput !== series.lunarInput;
+    const displayChanged = colorChanged || lunarChanged;
     const log: ScopeLog = { actorId: userId, scope: 'FOLLOWING', occurrence: occurrence.occurrence };
 
     if (isFirst) {
       if (sameRule && sameMembers && exceptions.length === 0 && isUnchanged(series, next)) {
-        // (#343) 색만 바꾸면 원본 색만 저장. 로그, 새 소식, 푸시 없음 (D-215)
-        if (!colorChanged) return toOccurrenceView(series, occurrence, resolver);
-        const row = await this.writes.updateColor(series.id, color);
+        // (#343) 색만 바꾸면 원본 색만 저장. 로그, 새 소식, 푸시 없음 (D-215). (#566) 음력 입력 표시도 같다
+        if (!displayChanged) return toOccurrenceView(series, occurrence, resolver);
+        const row = lunarChanged
+          ? await this.writes.updateDisplay(series.id, { ...(colorChanged ? { color } : {}), lunarInput })
+          : await this.writes.updateColor(series.id, color);
         return toOccurrenceView(row, occurrence, resolver);
       }
       // (#188) 예외를 모두 지우면 옮긴 회차의 시각도 바뀌므로 반복 규칙, 예외 유무까지 기준 시각 대상 (D-86)
@@ -119,6 +125,7 @@ export class EventSeriesService {
           ...(timing ? { reminderSetAt: new Date() } : {}),
           ...(sameMembers ? {} : { participants }),
           ...(colorChanged ? { color } : {}),
+          ...(lunarChanged ? { lunarInput } : {}),
         },
         log,
       );
@@ -128,7 +135,7 @@ export class EventSeriesService {
     // 원래 회차 값과 같고 이 회차부터 예외가 없으면 나눠도 펼친 결과가 같다 (#62)
     const hasFollowingExceptions = exceptions.some((exception) => exception.occurrence >= occurrence.occurrence);
     const onlyColor = sameRule && sameMembers && !hasFollowingExceptions && isUnchanged(original, next);
-    if (onlyColor && !colorChanged) return toOccurrenceView(series, occurrence, resolver);
+    if (onlyColor && !displayChanged) return toOccurrenceView(series, occurrence, resolver);
 
     const created: EventCreateInput = {
       groupId: series.groupId,
@@ -142,6 +149,7 @@ export class EventSeriesService {
       reminderSetAt: new Date(),
       participants,
       color,
+      lunarInput,
     };
     // (#343) 색만 바꾸면 나누되 로그, 새 소식, 푸시 없음 (D-215)
     const row = onlyColor

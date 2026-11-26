@@ -35,6 +35,7 @@ const ONCE: EventRow = {
   allMembers: false,
   participantIds: [1, 2],
   color: null,
+  lunarInput: false,
   place: null,
 };
 /** 매주 수요일 2026-11-11 시작 */

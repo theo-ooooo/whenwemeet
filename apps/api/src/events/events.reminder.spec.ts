@@ -34,6 +34,7 @@ const ONCE: EventRow = {
   allMembers: true,
   participantIds: [] as number[],
   color: null,
+  lunarInput: false,
   place: null,
 };
 /** 2026-11-11(수) 19:00~21:00 KST 매주, 1시간 전 */
