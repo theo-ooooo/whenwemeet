@@ -516,8 +516,10 @@ describe("목 멤버 생일 (#305)", () => {
     const list = () => call("GET", `/groups/${TEAM_ID}/birthdays`).body.data as unknown as { member: { userId: number }; date: string }[];
     expect(call("PATCH", "/me/birthday", { date: "02-30" }).status).toBe(400);
     expect(call("PATCH", "/me/birthday", { date: "03-05", reminders: ["NOW"] }).status).toBe(400);
-    expect(call("PATCH", "/me/birthday", { date: "02-29", reminders: ["DAY_BEFORE", "DAY_OF"] }).body.data).toEqual({ date: "02-29", reminders: ["DAY_OF", "DAY_BEFORE"] });
-    expect(call("GET", "/me").body.data.birthday).toEqual({ date: "02-29", reminders: ["DAY_OF", "DAY_BEFORE"] });
+    // (#562) 응답에 달력 종류와 윤달 (생략하면 양력)
+    const SOLAR = { calendar: "SOLAR", isLeapMonth: false };
+    expect(call("PATCH", "/me/birthday", { date: "02-29", reminders: ["DAY_BEFORE", "DAY_OF"] }).body.data).toEqual({ date: "02-29", ...SOLAR, reminders: ["DAY_OF", "DAY_BEFORE"] });
+    expect(call("GET", "/me").body.data.birthday).toEqual({ date: "02-29", ...SOLAR, reminders: ["DAY_OF", "DAY_BEFORE"] });
     expect(list().find((b) => b.member.userId === ME_ID)?.date).toBe("02-29");
     expect(call("GET", `/groups/${PERSONAL_ID}/birthdays`).body.data).toHaveLength(1);
 
@@ -715,5 +717,40 @@ describe("(#198) 목 로그인 방법", () => {
     expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "" }).status).toBe(400);
     expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "at" }).status).toBe(200);
     expect(list().map((a) => a.provider)).toEqual(["KAKAO", "APPLE"]);
+  });
+});
+
+describe("(#562) 목 음력", () => {
+  it("음력 기념일: 만들기, 없는 윤달 400, 양력으로 바꾸면 윤달 꺼짐", () => {
+    const made = call("POST", `/groups/${TEAM_ID}/anniversaries`, { name: "제사", date: "2025-06-15", kind: "YEARLY", calendar: "LUNAR", isLeapMonth: true });
+    expect(made.status).toBe(201);
+    expect(made.body.data).toMatchObject({ date: "2025-06-15", calendar: "LUNAR", isLeapMonth: true });
+    expect(call("POST", `/groups/${TEAM_ID}/anniversaries`, { name: "제사", date: "2026-06-15", calendar: "LUNAR", isLeapMonth: true }).status).toBe(400);
+    expect(call("POST", `/groups/${TEAM_ID}/anniversaries`, { name: "제사", date: "2026-02-30", calendar: "LUNAR" }).status).toBe(400);
+    const id = made.body.data.id as number;
+    expect(call("PATCH", `/groups/${TEAM_ID}/anniversaries/${id}`, { calendar: "SOLAR" }).body.data).toMatchObject({ calendar: "SOLAR", isLeapMonth: false });
+  });
+
+  it("음력 생일과 달력 음력 표시", () => {
+    expect(call("PATCH", "/me/birthday", { date: "02-30", calendar: "LUNAR", isLeapMonth: true }).body.data).toMatchObject({ date: "02-30", calendar: "LUNAR", isLeapMonth: true });
+    expect(call("PATCH", "/me/birthday", { date: "03-05", isLeapMonth: true }).status).toBe(400);
+    expect(call("GET", "/me").body.data.showLunar).toBe(false);
+    expect(call("PATCH", "/me/lunar-display", { showLunar: true }).body.data).toEqual({ showLunar: true });
+    expect(call("GET", "/me").body.data.showLunar).toBe(true);
+    expect(call("PATCH", "/me/lunar-display", { showLunar: "yes" }).status).toBe(400);
+  });
+
+  it("매년(음력) 일정: 해마다 음력 같은 날로 펼친다", () => {
+    const made = call("POST", `/groups/${TEAM_ID}/events`, {
+      title: "추석 저녁",
+      startsAt: "2026-09-25T10:00:00.000Z",
+      endsAt: "2026-09-25T12:00:00.000Z",
+      allDay: false,
+      repeat: "YEARLY_LUNAR",
+    });
+    expect(made.status).toBe(201);
+    const id = made.body.data.id as number;
+    const list = call("GET", `/groups/${TEAM_ID}/events`, null, "from=2027-09-01T00:00:00.000Z&to=2027-10-01T00:00:00.000Z").body.data as unknown as { id: number; occurrence: string }[];
+    expect(list.filter((e) => e.id === id).map((e) => e.occurrence)).toEqual(["2027-09-15"]);
   });
 });

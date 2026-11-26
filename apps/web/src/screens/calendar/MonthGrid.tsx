@@ -1,7 +1,9 @@
 "use client";
 // (#484) 월 달력 타일: 요일 머리 + 날짜 칸 격자 + 겹쳐 그리는 여러 날 막대(넓은 화면), 이름 칩(폰). CalendarScreen 에서 옮김
+import { useMemo } from "react";
 import type { Occurrence } from "@/lib/anniversary";
 import { parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
+import { lunarCellText } from "@/lib/lunar";
 import type { PhoneWeek } from "@/lib/month-lanes";
 import type { Event } from "@/lib/types";
 import { DayCell, WeekBar } from "./DayCell";
@@ -26,6 +28,8 @@ type Props = {
   phoneWeeks: PhoneWeek<Event>[];
   byDay: Map<DateKey, Event[]>;
   annByDay: Map<DateKey, Occurrence[]>;
+  /** (#562) 칸에 음력 날짜 작게 (내 정보 설정) */
+  showLunar?: boolean;
   events: Event[] | null;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onCell: (date: DateKey) => void;
@@ -48,12 +52,15 @@ export function MonthGrid({
   phoneWeeks,
   byDay,
   annByDay,
+  showLunar = false,
   events,
   onKeyDown,
   onCell,
   onFocusDay,
   onOpenEvent,
 }: Props) {
+  // (#562) 보이는 칸(35~42개)의 음력. 켰을 때만 계산한다
+  const lunarByDay = useMemo(() => (showLunar ? new Map(grid.map((key) => [key, lunarCellText(key)])) : null), [showLunar, grid]);
   return (
     // (#201) 격자: role=grid > row(요일 머리) + rowgroup > row(주, display:contents 라 모양은 그대로 7열 한 격자) > gridcell > 칸 버튼.
     // 겹쳐 그리는 막대, 이름 칩 층은 칸 내용의 시각 사본이라 읽지 않는다(aria-hidden). 키는 lib/calendar-keys.ts
@@ -92,6 +99,7 @@ export function MonthGrid({
                   tabbable={key === tabKey}
                   events={byDay.get(key) ?? []}
                   anniversaries={annByDay.get(key) ?? []}
+                  lunar={lunarByDay?.get(key) ?? null}
                   week={w.packed}
                   col={col}
                   fit2={w.fit2.days[col]}

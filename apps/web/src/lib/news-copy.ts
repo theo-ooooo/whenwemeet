@@ -1,6 +1,7 @@
 // 새 소식 문구 (#187, 설계 4-3, 기획 3-6). React 를 import 하지 않는다 (단위 테스트 대상)
 // 화면은 "{이름}님이 '{제목}' " 뒤에 newsPhrase 를 붙인다
 import { KIND_OPTIONS } from "./anniversary";
+import { formatLunar } from "./lunar";
 import { addDays, dateKeyOf, formatDateKo, formatEventTime, parseKey, startOfWeek, type DateKey } from "./date";
 import { REPEAT_NAME } from "./recurrence";
 import { pollActivityPhrase, pollActivitySubline } from "./poll";
@@ -194,7 +195,13 @@ export function activitySubline(item: Pick<ActivityNewsItem, "type" | "payload">
   if (item.type === "POLL_CLOSED") return pollActivitySubline(item.payload ?? {}, today);
   if (!item.type.startsWith("ANNIVERSARY_") || !item.payload?.date) return null;
   const { y, m, d } = parseKey(item.payload.date);
-  const day = y === parseKey(today).y ? `${m}월 ${d}일` : `${y}년 ${m}월 ${d}일`;
+  // (#562) 음력 기념일은 "음력 2000년 3월 15일" (윤달 "윤4월")
+  const day =
+    item.payload.calendar === "LUNAR"
+      ? formatLunar(m, d, item.payload.isLeapMonth === true, y === parseKey(today).y ? undefined : y)
+      : y === parseKey(today).y
+        ? `${m}월 ${d}일`
+        : `${y}년 ${m}월 ${d}일`;
   const kind = KIND_OPTIONS.find((option) => option.value === (item.payload.kind ?? "COUNT_UP"));
   return kind ? `${day}, ${kind.label}` : day;
 }

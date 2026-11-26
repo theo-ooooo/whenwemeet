@@ -10,12 +10,13 @@ export function eventKey(ev: { id: number; occurrence?: string | null }): string
 }
 
 /** 주기별 일정 길이 상한 (이 값 이상이면 거부) */
-export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 28, YEARLY: 365 };
+/** (#562) 매년(음력)은 서버와 같이 300 (윤달 기준이 평달로 가면 간격이 짧아진다) */
+export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 28, YEARLY: 365, YEARLY_LUNAR: 300 };
 
-export const REPEATS: readonly Repeat[] = ["WEEKLY", "BIWEEKLY", "MONTHLY", "YEARLY"];
+export const REPEATS: readonly Repeat[] = ["WEEKLY", "BIWEEKLY", "MONTHLY", "YEARLY", "YEARLY_LUNAR"];
 
-/** 주기 이름 "매주" "격주" "매월" "매년" */
-export const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: "매주", BIWEEKLY: "격주", MONTHLY: "매월", YEARLY: "매년" };
+/** 주기 이름 "매주" "격주" "매월" "매년" "매년(음력)" */
+export const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: "매주", BIWEEKLY: "격주", MONTHLY: "매월", YEARLY: "매년", YEARLY_LUNAR: "매년(음력)" };
 
 /**
  * 반복 규칙 클라이언트 검증 (설계 4-1 앞 두 줄). 문제 없으면 null.

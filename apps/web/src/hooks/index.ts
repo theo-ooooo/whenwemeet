@@ -77,6 +77,7 @@ export { useDeleteMe } from "./useDeleteMe";
 export { useUpdateMe } from "./useUpdateMe";
 export { useUpdateStartCalendar } from "./useUpdateStartCalendar";
 export { useUpdateBirthday } from "./useUpdateBirthday";
+export { useUpdateLunarDisplay } from "./useUpdateLunarDisplay";
 export { useUploadAvatar } from "./useUploadAvatar";
 export { useDeleteAvatar } from "./useDeleteAvatar";
 export { useImportEvents, usePreviewImport, type ImportInput } from "./useImportEvents";

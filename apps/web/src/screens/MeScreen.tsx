@@ -12,9 +12,9 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
 import { useDeviceCalendarSupported } from "@/screens/DeviceCalendarScreen";
 import { useToast } from "@/components/Toast";
-import { Avatar, Button, ErrorState, InlineError, RowGroup, RowLink, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
+import { Avatar, Button, ErrorState, InlineError, RowGroup, RowLink, Segmented, Sheet, Skeleton, Spinner, ToggleRow, inputClass } from "@/components/ui";
 import { useGroupContext } from "@/components/AppShell";
-import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
+import { messageOf, useDeleteAvatar, useDeleteMe, useGroups, useMe, useUpdateLunarDisplay, useUpdateMe, useUploadAvatar, type ApiFailure } from "@/hooks";
 import { postToApp } from "@/lib/app-bridge";
 import { forgetGroup } from "@/lib/group-cookie";
 import { shrinkImage } from "@/lib/image";
@@ -32,6 +32,29 @@ function photoErrorText(e: ApiFailure): string {
   if (e.code === "STORAGE_NOT_CONFIGURED" || e.status === 503) return "사진 업로드를 지금 사용할 수 없어요";
   if (e.code === "VALIDATION_FAILED") return messageOf(e, "jpg, png, webp 10MB 까지 올릴 수 있어요");
   return messageOf(e, "사진을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요");
+}
+
+/** (#562) "달력에 음력 표시" 스위치. 바로 바꾸고 실패하면 되돌린다 */
+function LunarDisplayRow({ value, onChange }: { value: boolean | undefined; onChange: (next: boolean) => void }) {
+  const toast = useToast();
+  const { mutate, isPending } = useUpdateLunarDisplay();
+  async function toggle(next: boolean) {
+    onChange(next);
+    const r = await mutate(next);
+    if (!r.ok) {
+      onChange(!next);
+      toast.show(messageOf(r.error, "음력 표시를 바꾸지 못했어요. 다시 시도해 주세요"));
+    }
+  }
+  return (
+    <ToggleRow
+      label="달력에 음력 표시"
+      icon={<IconMoon size={18} />}
+      checked={value === true}
+      disabled={value === undefined || isPending}
+      onChange={(next) => void toggle(next)}
+    />
+  );
 }
 
 /**
@@ -348,6 +371,8 @@ export function MeScreen() {
             <RowGroup>
               <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
               <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
+              {/* (#562) 달력 칸에 음력 날짜 작게 (기본 끔, 사람마다 서버에 저장해 웹과 앱이 같다) */}
+              <LunarDisplayRow value={me?.showLunar} onChange={(next) => setMe((prev) => prev && { ...prev, showLunar: next })} />
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
               {/* (#549) 휴대폰 캘린더에 일정 쓰기. 휴대폰 캘린더를 아는 앱 셸(1.3.0~)에서만 */}
               {deviceCalendar && <RowLink href="/me/device-calendar" label="휴대폰 캘린더" icon={<IconCalendar size={18} />} value="" />}

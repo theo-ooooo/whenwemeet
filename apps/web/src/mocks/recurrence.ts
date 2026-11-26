@@ -1,6 +1,7 @@
 // API_MOCK 전용 반복 회차 펼치기 (#187). 서버 apps/api/src/events/recurrence.ts 의 규칙을 ISO 문자열로 옮긴 것.
 // 화면을 눌러 보는 데 필요한 만큼만: 주기 4종, 말일 보정, 반복 기준 날짜(D-71), repeatUntil, 예외(취소, 값 덮기)
 import { addDays, dateKeyOf, daysBetween, daysInMonth, kstToIso, parseKey, keyOf } from "@/lib/date";
+import { lunarOccurrence, solarToLunar } from "@/lib/lunar";
 import type { EventReminder, Repeat } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
@@ -44,10 +45,18 @@ export type MockOccurrence = {
   place?: MockPlace;
 };
 
-/** k 번째 회차의 원래 날짜 (첫 회차 d0 의 연월에서 k, 날짜는 기준 anchor 의 일/월일, 없는 날은 말일) */
+/**
+ * k 번째 회차의 원래 날짜 (첫 회차 d0 의 연월에서 k, 날짜는 기준 anchor 의 일/월일, 없는 날은 말일).
+ * (#562) 매년(음력)은 d0 의 음력 해 + k 에서 기준의 음력 월일 (윤달 없는 해는 평달, 없는 30일은 그 달 마지막 날). 범위 밖이면 "9999-12-31"(멈춤)
+ */
 function nth(repeat: Repeat, d0: string, k: number, anchor: string = d0): string {
   if (repeat === "WEEKLY") return addDays(d0, 7 * k);
   if (repeat === "BIWEEKLY") return addDays(d0, 14 * k);
+  if (repeat === "YEARLY_LUNAR") {
+    const first = solarToLunar(d0);
+    const base = solarToLunar(anchor);
+    return (first && base && lunarOccurrence(first.year + k, base.month, base.day, base.leap)) || "9999-12-31";
+  }
   const { y, m } = parseKey(d0);
   const a = parseKey(anchor);
   const d = a.d;

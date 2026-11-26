@@ -66,6 +66,3 @@ export function lunarOccurrence(year: number, month: number, day: number, leap: 
   }
   return null;
 }
-
-/** "음력 3월 15일", 윤달이면 "음력 윤4월 15일" */
-export const formatLunarMonthDay = (month: number, day: number, leap: boolean): string => `음력 ${leap ? '윤' : ''}${month}월 ${day}일`;

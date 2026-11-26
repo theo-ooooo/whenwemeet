@@ -1,4 +1,5 @@
 // docs/설계/api.md 의 응답 타입. 필드명은 명세와 동일하게 유지한다
+import type { CalendarKind } from "./lunar";
 import type { AssistantMeta } from "./assistant";
 
 export type GroupType = "PERSONAL" | "TEAM";
@@ -44,7 +45,8 @@ export type GroupDetail = {
 };
 
 /** 반복 주기 (#187, api.md 2.3). null 이면 한 번짜리 */
-export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
+/** (#562) YEARLY_LUNAR = 매년(음력). 기준 날짜의 음력 월일로 해마다 양력 날짜 (D-297) */
+export type Repeat = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY" | "YEARLY_LUNAR";
 
 /** (#188) 일정 알림 시각 (푸시-알림.md 4-1, 7-2). 기본 NONE */
 export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" | "DAY_OF_0900" | "DAY_BEFORE_0900";
@@ -184,8 +186,12 @@ export type Anniversary = {
   id: number;
   groupId: number;
   name: string;
-  date: string; // YYYY-MM-DD (KST)
+  date: string; // YYYY-MM-DD (KST). (#562) calendar LUNAR 면 음력 연월일
   kind: AnniversaryKind;
+  /** (#562) 달력 종류. 응답에 없으면(옛 캐시) SOLAR */
+  calendar?: CalendarKind;
+  /** (#562) 음력 윤달 */
+  isLeapMonth?: boolean;
   /** (#269) 당일, 하루 전, 일주일 전 순. #269 전 API 응답에는 없다 (lib/anniversary-reminder.ts remindersOf) */
   reminders?: AnniversaryReminder[];
   creator: Member;
@@ -194,13 +200,21 @@ export type Anniversary = {
   birthdayOf?: number;
 };
 
-/** (#305) GET /groups/:id/birthdays 한 줄. date 는 'MM-DD' (연도 없음) */
-export type Birthday = { member: Member; date: string };
+/** (#305) GET /groups/:id/birthdays 한 줄. date 는 'MM-DD' (연도 없음). (#562) 음력이면 음력 월일 */
+export type Birthday = { member: Member; date: string; calendar?: CalendarKind; isLeapMonth?: boolean };
 
-/** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null, reminders 는 팀원에게 알리는 시점 */
-export type BirthdaySettings = { date: string | null; reminders: AnniversaryReminder[] };
+/** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null, reminders 는 팀원에게 알리는 시점. (#562) 달력 종류, 윤달 */
+export type BirthdaySettings = { date: string | null; calendar?: CalendarKind; isLeapMonth?: boolean; reminders: AnniversaryReminder[] };
 
-export type AnniversaryInput = { name: string; date: string; kind?: AnniversaryKind; reminders?: AnniversaryReminder[] };
+export type AnniversaryInput = {
+  name: string;
+  date: string;
+  kind?: AnniversaryKind;
+  reminders?: AnniversaryReminder[];
+  /** (#562) */
+  calendar?: CalendarKind;
+  isLeapMonth?: boolean;
+};
 
 export type FreeSlots = {
   slots: { startsAt: string; endsAt: string }[];
@@ -268,8 +282,11 @@ export type AnniversaryActivityPayload = {
   name: string;
   date: string;
   kind: AnniversaryKind;
+  /** (#562) 음력이면 "LUNAR" (date 는 음력 연월일), 윤달이면 true. 양력 기록에는 없다 */
+  calendar?: "LUNAR";
+  isLeapMonth?: true;
   changed?: AnniversaryField[];
-  before?: Partial<{ name: string; date: string; kind: AnniversaryKind }>;
+  before?: Partial<{ name: string; date: string; kind: AnniversaryKind; calendar: "LUNAR"; isLeapMonth: true }>;
 };
 
 /** (#191) 팀 활동 한 줄 (기념일 변경, 멤버 합류와 나가기, 팀 이름 변경) */
@@ -318,6 +335,8 @@ export type Me = {
   startCalendar?: StartCalendar;
   /** (#305) GET /me 에만 있다 (PATCH /me 응답에는 없어 앞 값을 이어 쓴다) */
   birthday?: BirthdaySettings;
+  /** (#562) 달력 칸에 음력 날짜 보이기 (D-297). GET /me 에만, 옛 API 는 없음 = 끔 */
+  showLunar?: boolean;
   /** (#450) AI 비서. GET /me 에만 있다. 옛 API 는 없음 = 버튼을 그리지 않는다 */
   assistant?: AssistantMeta;
   /** (#515) 역할과 관리자 여부, 안 본 공지가 있는지. GET /me 에만 있다 (D-285) */
