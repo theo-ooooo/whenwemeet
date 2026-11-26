@@ -134,9 +134,7 @@ function RowBody({
 function RsvpPill({ value }: { value: Rsvp }) {
   const on = value === "GOING";
   return (
-    <span
-      className={`shrink-0 rounded-full px-2 py-px text-[11px] font-bold leading-4 ${on ? "bg-hover text-ink" : "border border-line text-ink-2"}`}
-    >
+    <span className={`shrink-0 rounded-full px-2 py-px text-[11px] font-bold leading-4 ${on ? "bg-hover text-ink" : "border border-line text-ink-2"}`}>
       {RSVP_LABEL[value]}
     </span>
   );

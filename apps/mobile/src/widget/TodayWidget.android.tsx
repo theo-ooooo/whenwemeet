@@ -50,12 +50,7 @@ function Body({ p, c, medium }: { p: WidgetProps; c: Palette; medium: boolean })
     </FlexWidget>
   );
   const noticeView = n ? (
-    <TextWidget
-      text={n}
-      maxLines={3}
-      truncate="END"
-      style={{ fontSize: 14, fontWeight: "600", color: p.kind === "signedOut" ? c.ink : c.mute }}
-    />
+    <TextWidget text={n} maxLines={3} truncate="END" style={{ fontSize: 14, fontWeight: "600", color: p.kind === "signedOut" ? c.ink : c.mute }} />
   ) : null;
   const staleView =
     p.kind === "today" && p.stale && p.known ? (
@@ -87,11 +82,7 @@ function Body({ p, c, medium }: { p: WidgetProps; c: Palette; medium: boolean })
           ) : null}
         </FlexWidget>
         {ann ? (
-          <FlexWidget
-            clickAction="OPEN_URI"
-            clickActionData={{ uri: ann.url }}
-            style={{ flexDirection: "row", alignItems: "center", width: "match_parent" }}
-          >
+          <FlexWidget clickAction="OPEN_URI" clickActionData={{ uri: ann.url }} style={{ flexDirection: "row", alignItems: "center", width: "match_parent" }}>
             <TextWidget text={ann.title} maxLines={1} truncate="END" style={{ fontSize: 12, fontWeight: "500", color: c.ink }} />
             <FlexWidget style={{ flex: 1 }} />
             <TextWidget text={ann.dday} style={{ fontSize: 13, fontWeight: "800", color: c.pri, marginLeft: 4 }} />
@@ -116,9 +107,7 @@ function Body({ p, c, medium }: { p: WidgetProps; c: Palette; medium: boolean })
             <Dot color={c.members[r.color] ?? c.mute} />
             <TextWidget text={r.time} maxLines={1} style={{ fontSize: 12, fontWeight: "500", color: c.mute, width: 48 }} />
             <TextWidget text={r.title} maxLines={1} truncate="END" style={{ fontSize: 14, fontWeight: "600", color: c.ink }} />
-            {r.team ? (
-              <TextWidget text={r.team} maxLines={1} truncate="END" style={{ fontSize: 10, color: c.mute, marginLeft: 4 }} />
-            ) : null}
+            {r.team ? <TextWidget text={r.team} maxLines={1} truncate="END" style={{ fontSize: 10, color: c.mute, marginLeft: 4 }} /> : null}
           </FlexWidget>
         ))}
         {p.more > 0 ? <TextWidget text={`+${p.more}개`} style={{ fontSize: 11, fontWeight: "500", color: c.mute }} /> : null}

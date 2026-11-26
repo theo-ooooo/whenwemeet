@@ -8,7 +8,13 @@ export function NoticeBody({ body, className = "" }: { body: string; className?:
         <p key={i} className="whitespace-pre-line break-words">
           {segments.map((s, j) =>
             s.type === "link" ? (
-              <a key={j} href={s.href} target="_blank" rel="noopener noreferrer nofollow" className="break-all font-semibold text-ink underline underline-offset-2">
+              <a
+                key={j}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="break-all font-semibold text-ink underline underline-offset-2"
+              >
                 {s.href}
               </a>
             ) : (

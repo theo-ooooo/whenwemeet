@@ -25,9 +25,7 @@ function freeSlots(s: Store, groupId: number, q: URLSearchParams): MockResult {
   }
 
   const memberIds = s.memberships.filter((m) => m.groupId === groupId).map((m) => m.userId);
-  const allGroupIds = new Set(
-    s.memberships.filter((m) => memberIds.includes(m.userId)).map((m) => m.groupId),
-  );
+  const allGroupIds = new Set(s.memberships.filter((m) => memberIds.includes(m.userId)).map((m) => m.groupId));
   const memberSet = new Set(memberIds);
   const busy = s.events
     .filter((e) => allGroupIds.has(e.groupId) && isBusyForAny(e, memberSet))

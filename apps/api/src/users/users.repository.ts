@@ -1,13 +1,35 @@
 import { Injectable } from '@nestjs/common';
-import { type AnniversaryReminder, type AnniversaryReminderFlags, DEFAULT_ANNIVERSARY_REMINDERS, flagsFromRows, REMINDER_ROWS_SELECT, rowsFromFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
-import type { AuthProvider, LinkedAccount, ProviderCredentials, RawProfile } from '../auth/providers/auth-provider.js';
-import { FILE_LOCATION_SELECT, FileUrlBuilder, type FileLocation } from '../files/file-url.builder.js';
+import {
+  type AnniversaryReminder,
+  type AnniversaryReminderFlags,
+  DEFAULT_ANNIVERSARY_REMINDERS,
+  flagsFromRows,
+  REMINDER_ROWS_SELECT,
+  rowsFromFlags,
+  toReminderFlags,
+} from '../anniversaries/anniversary-reminders.js';
+import type {
+  AuthProvider,
+  LinkedAccount,
+  ProviderCredentials,
+  RawProfile,
+} from '../auth/providers/auth-provider.js';
+import {
+  FILE_LOCATION_SELECT,
+  FileUrlBuilder,
+  type FileLocation,
+} from '../files/file-url.builder.js';
 import type { CalendarType, UserRole } from '../generated/prisma/enums.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** 사진은 File 의 provider/key 로 읽는다 (결정기록 D-38, D-56). 밖으로는 `toUserSummary` 로 `profileImageUrl` 로 바꿔 내보낸다 */
-export const USER_SELECT = { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT }, createdAt: true } as const;
+export const USER_SELECT = {
+  id: true,
+  nickname: true,
+  avatar: { select: FILE_LOCATION_SELECT },
+  createdAt: true,
+} as const;
 
 /** 응답과 request.user 에 쓰는 사용자 요약 */
 export interface UserSummary {
@@ -25,11 +47,21 @@ interface UserRecord {
 }
 
 function toUserSummary(record: UserRecord, urls: FileUrlBuilder): UserSummary {
-  return { id: record.id, nickname: record.nickname, profileImageUrl: urls.publicUrlOrNull(record.avatar), createdAt: record.createdAt };
+  return {
+    id: record.id,
+    nickname: record.nickname,
+    profileImageUrl: urls.publicUrlOrNull(record.avatar),
+    createdAt: record.createdAt,
+  };
 }
 
 /** (#300) 처음 여는 달력 (D-191). LAST 마지막에 본 달력, PERSONAL 내 달력, GROUP 고정한 팀 */
-const BIRTHDAY_SELECT = { birthday: true, birthdayCalendar: true, birthdayLeapMonth: true, birthdayReminders: REMINDER_ROWS_SELECT } as const;
+const BIRTHDAY_SELECT = {
+  birthday: true,
+  birthdayCalendar: true,
+  birthdayLeapMonth: true,
+  birthdayReminders: REMINDER_ROWS_SELECT,
+} as const;
 
 /** (#305) 내 생일과 팀원에게 알리는 시점. (#369) 시점은 BirthdayReminder 행 (켜진 시점마다 하나, D-249) */
 export interface BirthdayRow extends AnniversaryReminderFlags {
@@ -40,7 +72,12 @@ export interface BirthdayRow extends AnniversaryReminderFlags {
   birthdayLeapMonth: boolean;
 }
 
-function toBirthdayRow({ birthdayReminders, ...row }: Omit<BirthdayRow, keyof AnniversaryReminderFlags> & { birthdayReminders: { offset: AnniversaryReminder }[] }): BirthdayRow {
+function toBirthdayRow({
+  birthdayReminders,
+  ...row
+}: Omit<BirthdayRow, keyof AnniversaryReminderFlags> & {
+  birthdayReminders: { offset: AnniversaryReminder }[];
+}): BirthdayRow {
   return { ...row, ...flagsFromRows(birthdayReminders) };
 }
 
@@ -105,8 +142,16 @@ export interface AdminPlatformSeen {
   lastSeenAt: Date;
 }
 
-type ClientRow = { platform: AdminPlatform; appVersion: string | null; lastSeenAt: Date };
-type DeviceRow = { platform: 'IOS' | 'ANDROID'; appVersion: string; lastSeenAt: Date };
+type ClientRow = {
+  platform: AdminPlatform;
+  appVersion: string | null;
+  lastSeenAt: Date;
+};
+type DeviceRow = {
+  platform: 'IOS' | 'ANDROID';
+  appVersion: string;
+  lastSeenAt: Date;
+};
 
 const PLATFORM_ORDER: readonly AdminPlatform[] = ['ios', 'android', 'web'];
 
@@ -114,15 +159,36 @@ const PLATFORM_ORDER: readonly AdminPlatform[] = ['ios', 'android', 'web'];
  * (#532) 기종별 마지막 접속 (D-288). 접속 기록(UserClient)이 있는 기종은 그 값, 없는 ios, android 는 그 기종 푸시 기기 중 가장 늦게 확인한 것.
  * 순서는 ios, android, web
  */
-export function adminPlatformSeenOf(clients: readonly ClientRow[], devices: readonly DeviceRow[]): AdminPlatformSeen[] {
+export function adminPlatformSeenOf(
+  clients: readonly ClientRow[],
+  devices: readonly DeviceRow[],
+): AdminPlatformSeen[] {
   return PLATFORM_ORDER.flatMap((platform): AdminPlatformSeen[] => {
     const client = clients.find((c) => c.platform === platform);
-    if (client) return [{ platform, appVersion: client.appVersion, lastSeenAt: client.lastSeenAt }];
+    if (client)
+      return [
+        {
+          platform,
+          appVersion: client.appVersion,
+          lastSeenAt: client.lastSeenAt,
+        },
+      ];
     if (platform === 'web') return [];
     const latest = devices
       .filter((d) => d.platform === (platform === 'ios' ? 'IOS' : 'ANDROID'))
-      .reduce<DeviceRow | null>((best, d) => (!best || best.lastSeenAt < d.lastSeenAt ? d : best), null);
-    return latest ? [{ platform, appVersion: latest.appVersion, lastSeenAt: latest.lastSeenAt }] : [];
+      .reduce<DeviceRow | null>(
+        (best, d) => (!best || best.lastSeenAt < d.lastSeenAt ? d : best),
+        null,
+      );
+    return latest
+      ? [
+          {
+            platform,
+            appVersion: latest.appVersion,
+            lastSeenAt: latest.lastSeenAt,
+          },
+        ]
+      : [];
   });
 }
 
@@ -132,8 +198,13 @@ export function adminPlatformSeenOf(clients: readonly ClientRow[], devices: read
  * - 아무 기록도 없고 앱 로그인 기록도 없으면 ['web'] (웹만, 기존 규칙)
  * - 아무 기록도 없는데 앱 로그인 기록이 있으면 [] (앱을 쓰지만 기종을 모름. 배포 전에만 앱을 연 사람)
  */
-export function adminPlatformsOf(seen: readonly { platform: AdminPlatform }[], lastAppLoginAt: Date | null): AdminPlatform[] {
-  const out = PLATFORM_ORDER.filter((platform) => seen.some((s) => s.platform === platform));
+export function adminPlatformsOf(
+  seen: readonly { platform: AdminPlatform }[],
+  lastAppLoginAt: Date | null,
+): AdminPlatform[] {
+  const out = PLATFORM_ORDER.filter((platform) =>
+    seen.some((s) => s.platform === platform),
+  );
   if (out.length === 0 && lastAppLoginAt === null) out.push('web');
   return out;
 }
@@ -141,10 +212,24 @@ export function adminPlatformsOf(seen: readonly { platform: AdminPlatform }[], l
 /** (#528, #532) 기종 필터 → 조건. 목록의 platforms 에 그 값이 들어가는 사람과 같다 */
 function platformWhere(platform: AdminPlatform) {
   if (platform === 'web') {
-    return { OR: [{ clients: { some: { platform: 'web' as const } } }, { clients: { none: {} }, pushDevices: { none: {} }, lastAppLoginAt: null }] };
+    return {
+      OR: [
+        { clients: { some: { platform: 'web' as const } } },
+        {
+          clients: { none: {} },
+          pushDevices: { none: {} },
+          lastAppLoginAt: null,
+        },
+      ],
+    };
   }
   const device = platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const);
-  return { OR: [{ clients: { some: { platform } } }, { pushDevices: { some: { platform: device } } }] };
+  return {
+    OR: [
+      { clients: { some: { platform } } },
+      { pushDevices: { some: { platform: device } } },
+    ],
+  };
 }
 
 const ADMIN_USER_SELECT = {
@@ -156,7 +241,9 @@ const ADMIN_USER_SELECT = {
   authAccounts: { select: { provider: true }, orderBy: { id: 'asc' } },
   // (#528) 기종. 토큰은 읽지 않는다. (#532) 접속 기록
   lastAppLoginAt: true,
-  pushDevices: { select: { platform: true, appVersion: true, lastSeenAt: true } },
+  pushDevices: {
+    select: { platform: true, appVersion: true, lastSeenAt: true },
+  },
   clients: { select: { platform: true, appVersion: true, lastSeenAt: true } },
 } as const;
 
@@ -197,23 +284,39 @@ export class UsersRepository {
   ) {}
 
   async findById(id: number): Promise<UserSummary | null> {
-    const record = await this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
+    const record = await this.prisma.user.findUnique({
+      where: { id },
+      select: USER_SELECT,
+    });
     return record && toUserSummary(record, this.urls);
   }
 
   /** 닉네임 변경 (D-36). 우리 서비스 값이라 소셜 프로필과 독립 */
   async updateNickname(id: number, nickname: string): Promise<UserSummary> {
-    return toUserSummary(await this.prisma.user.update({ where: { id }, data: { nickname }, select: USER_SELECT }), this.urls);
+    return toUserSummary(
+      await this.prisma.user.update({
+        where: { id },
+        data: { nickname },
+        select: USER_SELECT,
+      }),
+      this.urls,
+    );
   }
 
   /** (#300) 처음 여는 달력. 사용자가 없으면 null */
   async findStartCalendar(id: number): Promise<StartCalendarRow | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: { startCalendarMode: true, startGroupId: true } });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { startCalendarMode: true, startGroupId: true },
+    });
     return row && { mode: row.startCalendarMode, groupId: row.startGroupId };
   }
 
   /** (#300) 처음 여는 달력 저장. 짝 검사와 멤버십 확인은 Service 가 끝낸 값 */
-  async updateStartCalendar(id: number, value: StartCalendarRow): Promise<StartCalendarRow> {
+  async updateStartCalendar(
+    id: number,
+    value: StartCalendarRow,
+  ): Promise<StartCalendarRow> {
     const row = await this.prisma.user.update({
       where: { id },
       data: { startCalendarMode: value.mode, startGroupId: value.groupId },
@@ -225,26 +328,43 @@ export class UsersRepository {
   /** (#305) 내 생일과 팀원에게 알리는 시점. 사용자가 없으면 null */
   /** (#450) AI 비서 안내 동의 시각. 아직이면 null (D-270) */
   async findAssistantConsent(id: number): Promise<Date | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: { assistantConsentAt: true } });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { assistantConsentAt: true },
+    });
     return row?.assistantConsentAt ?? null;
   }
 
   /** (#450) 동의 시각을 처음 한 번만 넣고 저장된 값을 돌려준다 (멱등. 이미 있으면 처음 값 그대로) */
   async recordAssistantConsent(id: number, at: Date): Promise<Date> {
-    await this.prisma.user.updateMany({ where: { id, assistantConsentAt: null }, data: { assistantConsentAt: at } });
-    const row = await this.prisma.user.findUniqueOrThrow({ where: { id }, select: { assistantConsentAt: true } });
+    await this.prisma.user.updateMany({
+      where: { id, assistantConsentAt: null },
+      data: { assistantConsentAt: at },
+    });
+    const row = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: { assistantConsentAt: true },
+    });
     return row.assistantConsentAt ?? at;
   }
 
   async findBirthday(id: number): Promise<BirthdayRow | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: BIRTHDAY_SELECT });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: BIRTHDAY_SELECT,
+    });
     return row && toBirthdayRow(row);
   }
 
   /** (#305) 내 생일 저장. birthday null 이면 지운다 (알림 칸은 그대로 두어 다시 넣을 때 이어 쓴다) */
   async updateBirthday(
     id: number,
-    data: { birthday: string | null; birthdayCalendar: CalendarType; birthdayLeapMonth: boolean; reminders?: AnniversaryReminderFlags },
+    data: {
+      birthday: string | null;
+      birthdayCalendar: CalendarType;
+      birthdayLeapMonth: boolean;
+      reminders?: AnniversaryReminderFlags;
+    },
   ): Promise<BirthdayRow> {
     const row = await this.prisma.user.update({
       where: { id },
@@ -252,7 +372,14 @@ export class UsersRepository {
         birthday: data.birthday,
         birthdayCalendar: data.birthdayCalendar,
         birthdayLeapMonth: data.birthdayLeapMonth,
-        ...(data.reminders ? { birthdayReminders: { deleteMany: {}, create: rowsFromFlags(data.reminders) } } : {}),
+        ...(data.reminders
+          ? {
+              birthdayReminders: {
+                deleteMany: {},
+                create: rowsFromFlags(data.reminders),
+              },
+            }
+          : {}),
       },
       select: BIRTHDAY_SELECT,
     });
@@ -261,45 +388,70 @@ export class UsersRepository {
 
   /** (#562) 달력 칸 음력 표시 설정. 사용자가 없으면 false */
   async findShowLunar(id: number): Promise<boolean> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: { showLunar: true } });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { showLunar: true },
+    });
     return row?.showLunar ?? false;
   }
 
   /** (#562) 달력 칸 음력 표시 저장 */
   async updateShowLunar(id: number, showLunar: boolean): Promise<boolean> {
-    const row = await this.prisma.user.update({ where: { id }, data: { showLunar }, select: { showLunar: true } });
+    const row = await this.prisma.user.update({
+      where: { id },
+      data: { showLunar },
+      select: { showLunar: true },
+    });
     return row.showLunar;
   }
 
   /** (#515) 역할. 사용자가 없으면 null (D-285). 관리자 판정은 매 요청 이 값으로 한다 */
   async findRole(id: number): Promise<UserRole | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: { role: true } });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
     return row?.role ?? null;
   }
 
   /** (#515) 역할 바꾸기. 없는 사용자면 null */
   async updateRole(id: number, role: UserRole): Promise<AdminUserRow | null> {
-    const { count } = await this.prisma.user.updateMany({ where: { id }, data: { role } });
+    const { count } = await this.prisma.user.updateMany({
+      where: { id },
+      data: { role },
+    });
     if (count === 0) return null;
-    const row = await this.prisma.user.findUniqueOrThrow({ where: { id }, select: ADMIN_USER_SELECT });
+    const row = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      select: ADMIN_USER_SELECT,
+    });
     return toAdminUserRow(row, this.urls);
   }
 
   /** (#515) 관리자 사용자 상세 한 줄. 없으면 null */
   async findForAdmin(id: number): Promise<AdminUserRow | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: ADMIN_USER_SELECT });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: ADMIN_USER_SELECT,
+    });
     return row && toAdminUserRow(row, this.urls);
   }
 
   /** (#515) 공지 목록을 마지막으로 본 시각. 아직이거나 사용자가 없으면 null */
   async findNoticesSeenAt(id: number): Promise<Date | null> {
-    const row = await this.prisma.user.findUnique({ where: { id }, select: { noticesSeenAt: true } });
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: { noticesSeenAt: true },
+    });
     return row?.noticesSeenAt ?? null;
   }
 
   /** (#515) 공지 목록을 본 시각 기록 */
   async markNoticesSeen(id: number, at: Date): Promise<Date> {
-    await this.prisma.user.updateMany({ where: { id }, data: { noticesSeenAt: at } });
+    await this.prisma.user.updateMany({
+      where: { id },
+      data: { noticesSeenAt: at },
+    });
     return at;
   }
 
@@ -307,7 +459,12 @@ export class UsersRepository {
    * (#515) 관리자 사용자 목록. id 내림차순(최근 가입 먼저), q 는 닉네임 부분 일치, cursor 는 앞 페이지 마지막 id(그보다 작은 것부터).
    * limit + 1 개를 읽어 다음 페이지가 있는지 본다
    */
-  async listForAdmin(query: { q: string | null; platform?: AdminPlatform | null; limit: number; cursor: number | null }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
+  async listForAdmin(query: {
+    q: string | null;
+    platform?: AdminPlatform | null;
+    limit: number;
+    cursor: number | null;
+  }): Promise<{ items: AdminUserRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.user.findMany({
       where: {
         ...(query.q ? { nickname: { contains: query.q } } : {}),
@@ -319,17 +476,28 @@ export class UsersRepository {
       take: query.limit + 1,
       select: ADMIN_USER_SELECT,
     });
-    const page = rows.slice(0, query.limit).map((row) => toAdminUserRow(row, this.urls));
-    return { items: page, nextCursor: rows.length > query.limit ? page[page.length - 1].id : null };
+    const page = rows
+      .slice(0, query.limit)
+      .map((row) => toAdminUserRow(row, this.urls));
+    return {
+      items: page,
+      nextCursor: rows.length > query.limit ? page[page.length - 1].id : null,
+    };
   }
 
   /** (#188) 앱 로그인(handoff 교환) 성공 시각. 권한 허용률 지표의 분모 (D-97) */
   async markAppLogin(id: number, at: Date): Promise<void> {
-    await this.prisma.user.updateMany({ where: { id }, data: { lastAppLoginAt: at } });
+    await this.prisma.user.updateMany({
+      where: { id },
+      data: { lastAppLoginAt: at },
+    });
   }
 
   /** (provider, providerUserId) 로 연결 계정 하나 */
-  findAuthAccount(provider: AuthProvider, providerUserId: string): Promise<{ id: number } | null> {
+  findAuthAccount(
+    provider: AuthProvider,
+    providerUserId: string,
+  ): Promise<{ id: number } | null> {
     return this.prisma.authAccount.findUnique({
       where: { provider_providerUserId: { provider, providerUserId } },
       select: { id: true },
@@ -337,7 +505,10 @@ export class UsersRepository {
   }
 
   /** (#245) (provider, providerUserId) 연결 계정의 사용자 ID. 이메일 로그인이 기존 계정인지 가를 때 쓴다 */
-  async findUserIdByAccount(provider: AuthProvider, providerUserId: string): Promise<number | null> {
+  async findUserIdByAccount(
+    provider: AuthProvider,
+    providerUserId: string,
+  ): Promise<number | null> {
     const account = await this.prisma.authAccount.findUnique({
       where: { provider_providerUserId: { provider, providerUserId } },
       select: { userId: true },
@@ -349,7 +520,11 @@ export class UsersRepository {
    * 재로그인 시 제공자 원본 프로필(과 애플이면 새 refresh token) 만 갱신하고 연결된 사용자를 돌려준다.
    * User 의 닉네임/사진은 건드리지 않는다 (D-36)
    */
-  async updateRawProfile(authAccountId: number, rawProfile: RawProfile, credentials?: ProviderCredentials): Promise<UserSummary> {
+  async updateRawProfile(
+    authAccountId: number,
+    rawProfile: RawProfile,
+    credentials?: ProviderCredentials,
+  ): Promise<UserSummary> {
     const account = await this.prisma.authAccount.update({
       where: { id: authAccountId },
       data: { rawProfile, ...credentials },
@@ -362,24 +537,38 @@ export class UsersRepository {
     return this.prisma.authAccount.findMany({
       where: { userId },
       orderBy: { id: 'asc' },
-      select: { provider: true, providerUserId: true, providerClientId: true, refreshToken: true },
+      select: {
+        provider: true,
+        providerUserId: true,
+        providerClientId: true,
+        refreshToken: true,
+      },
     });
   }
 
   /** 사용자 + 연결 계정 + PERSONAL 팀 + 첫 멤버십을 한 트랜잭션으로 */
-  createWithAccountTx(input: NewAccountInput, personalGroup: { name: string; color: string; publicCode: string }): Promise<UserSummary> {
+  createWithAccountTx(
+    input: NewAccountInput,
+    personalGroup: { name: string; color: string; publicCode: string },
+  ): Promise<UserSummary> {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           nickname: input.nickname,
           // (#369) 내 생일 알림 시점의 기본(당일만, D-232). 생일을 넣기 전에도 저장해 두고 PATCH /me/birthday 가 바꾼다
-          birthdayReminders: { create: rowsFromFlags(toReminderFlags(DEFAULT_ANNIVERSARY_REMINDERS)) },
+          birthdayReminders: {
+            create: rowsFromFlags(
+              toReminderFlags(DEFAULT_ANNIVERSARY_REMINDERS),
+            ),
+          },
           authAccounts: {
             create: {
               provider: input.provider,
               providerUserId: input.providerUserId,
               email: input.email,
-              ...(input.rawProfile === null ? {} : { rawProfile: input.rawProfile }),
+              ...(input.rawProfile === null
+                ? {}
+                : { rawProfile: input.rawProfile }),
               ...input.credentials,
             },
           },
@@ -392,7 +581,9 @@ export class UsersRepository {
           name: personalGroup.name,
           inviteCode: null,
           publicCode: personalGroup.publicCode,
-          memberships: { create: { userId: user.id, color: personalGroup.color } },
+          memberships: {
+            create: { userId: user.id, color: personalGroup.color },
+          },
         },
       });
       return toUserSummary(user, this.urls);
@@ -404,21 +595,40 @@ export class UsersRepository {
    * (FK SetNull 로 "탈퇴한 멤버") 를 한 트랜잭션으로.
    * 파일 객체는 Service 가 이 호출 전에 저장소에서 지운다
    */
-  async deleteAccountTx(userId: number, plan: AccountCleanupPlan): Promise<void> {
+  async deleteAccountTx(
+    userId: number,
+    plan: AccountCleanupPlan,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const groupId of plan.deleteGroupIds) {
         await tx.group.delete({ where: { id: groupId } });
       }
       for (const { membershipId, groupId } of plan.leave) {
-        await this.memberships.removeWithGroupPrune(tx, membershipId, groupId, 'MEMBER_DELETED');
+        await this.memberships.removeWithGroupPrune(
+          tx,
+          membershipId,
+          groupId,
+          'MEMBER_DELETED',
+        );
       }
       await tx.file.deleteMany({ where: { ownerId: userId } });
-      const emailAccounts = await tx.authAccount.findMany({ where: { userId, provider: 'EMAIL' }, select: { providerUserId: true } });
+      const emailAccounts = await tx.authAccount.findMany({
+        where: { userId, provider: 'EMAIL' },
+        select: { providerUserId: true },
+      });
       if (emailAccounts.length > 0) {
-        await tx.emailLoginChallenge.deleteMany({ where: { email: { in: emailAccounts.map((account) => account.providerUserId) } } });
+        await tx.emailLoginChallenge.deleteMany({
+          where: {
+            email: {
+              in: emailAccounts.map((account) => account.providerUserId),
+            },
+          },
+        });
       }
       // (#198) 내가 요청한 이메일 연결 메일 행 (다른 주소일 수 있다)
-      await tx.emailLoginChallenge.deleteMany({ where: { purpose: 'LINK', userId } });
+      await tx.emailLoginChallenge.deleteMany({
+        where: { purpose: 'LINK', userId },
+      });
       await tx.authAccount.deleteMany({ where: { userId } });
       await tx.user.delete({ where: { id: userId } });
     });

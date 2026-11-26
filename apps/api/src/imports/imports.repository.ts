@@ -26,12 +26,22 @@ export class ImportsRepository {
     private readonly push: PushNotificationsRepository,
   ) {}
 
-  async findGroup(groupId: number): Promise<{ type: 'PERSONAL' | 'TEAM'; name: string; publicCode: string } | null> {
-    return this.prisma.group.findUnique({ where: { id: groupId }, select: { type: true, name: true, publicCode: true } });
+  async findGroup(groupId: number): Promise<{
+    type: 'PERSONAL' | 'TEAM';
+    name: string;
+    publicCode: string;
+  } | null> {
+    return this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { type: true, name: true, publicCode: true },
+    });
   }
 
   /** 이 팀에 이미 가져온 해시 (일정을 지웠어도 남는다, 기획 Q5) */
-  async findImportedHashes(groupId: number, hashes: string[]): Promise<Set<string>> {
+  async findImportedHashes(
+    groupId: number,
+    hashes: string[],
+  ): Promise<Set<string>> {
     const found = new Set<string>();
     for (let i = 0; i < hashes.length; i += HASH_CHUNK) {
       const rows = await this.prisma.eventImportItem.findMany({
@@ -44,7 +54,10 @@ export class ImportsRepository {
   }
 
   async startImport(groupId: number, userId: number): Promise<number> {
-    const row = await this.prisma.eventImport.create({ data: { groupId, userId }, select: { id: true } });
+    const row = await this.prisma.eventImport.create({
+      data: { groupId, userId },
+      select: { id: true },
+    });
     return row.id;
   }
 
@@ -52,12 +65,23 @@ export class ImportsRepository {
    * 일정 한 묶음(최대 200)을 한 트랜잭션으로: 일정 + 회차 예외 + 참여자 + 가져온 키. 알림은 모두 NONE.
    * 같은 (팀, 해시) 가 이미 있으면(동시에 두 번 올림) 유일 제약으로 묶음 전체가 롤백된다. 넣은 수
    */
-  async insertBatchTx(importId: number, groupId: number, creatorId: number, participants: ParticipantSet, events: PlannedEvent[]): Promise<number> {
+  async insertBatchTx(
+    importId: number,
+    groupId: number,
+    creatorId: number,
+    participants: ParticipantSet,
+    events: PlannedEvent[],
+  ): Promise<number> {
     if (events.length === 0) return 0;
     return this.prisma.$transaction(async (tx) => {
       await assertParticipantsTx(tx, groupId, participants);
       const reminderSetAt = new Date();
-      const items: { importId: number; groupId: number; uidHash: string; eventId: number }[] = [];
+      const items: {
+        importId: number;
+        groupId: number;
+        uidHash: string;
+        eventId: number;
+      }[] = [];
       for (const event of events) {
         const created = await tx.event.create({
           data: {
@@ -70,12 +94,17 @@ export class ImportsRepository {
             memo: event.memo,
             creatorId,
             repeat: event.repeat,
-            repeatUntil: event.repeatUntil === null ? null : dateToDb(event.repeatUntil),
+            repeatUntil:
+              event.repeatUntil === null ? null : dateToDb(event.repeatUntil),
             reminder: 'NONE',
             remindAt: null,
             reminderSetAt,
             allMembers: participants.allMembers,
-            participants: { create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
+            participants: {
+              create: participants.allMembers
+                ? []
+                : participants.ids.map((userId) => ({ userId })),
+            },
             exceptions: {
               create: event.exceptions.map((exception) => ({
                 occurrence: dateToDb(exception.occurrence),
@@ -90,10 +119,19 @@ export class ImportsRepository {
           },
           select: { id: true },
         });
-        items.push({ importId, groupId, uidHash: event.uidHash, eventId: created.id });
+        items.push({
+          importId,
+          groupId,
+          uidHash: event.uidHash,
+          eventId: created.id,
+        });
       }
       await tx.eventImportItem.createMany({ data: items });
-      await tx.eventImport.update({ where: { id: importId }, data: { created: { increment: items.length } }, select: { id: true } });
+      await tx.eventImport.update({
+        where: { id: importId },
+        data: { created: { increment: items.length } },
+        select: { id: true },
+      });
       return items.length;
     });
   }
@@ -102,18 +140,48 @@ export class ImportsRepository {
    * 가져오기를 마친다: 넣은 게 있으면 새 소식 한 줄(EVENTS_IMPORTED) + 팀원 변경 푸시 한 건 (D-166).
    * done 이면 doneAt 을 채운다 (중간 실패 후 넣은 만큼 알릴 때는 비워 둔다)
    */
-  async finishTx(input: { importId: number; groupId: number; actor: ActivityActor; count: number; push: PushPayload | null; done: boolean }): Promise<void> {
+  async finishTx(input: {
+    importId: number;
+    groupId: number;
+    actor: ActivityActor;
+    count: number;
+    push: PushPayload | null;
+    done: boolean;
+  }): Promise<void> {
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
-      if (input.done) await tx.eventImport.update({ where: { id: input.importId }, data: { doneAt: now }, select: { id: true } });
+      if (input.done)
+        await tx.eventImport.update({
+          where: { id: input.importId },
+          data: { doneAt: now },
+          select: { id: true },
+        });
       if (input.count === 0) return;
-      await this.activities.recordTx(tx, { groupId: input.groupId, type: 'EVENTS_IMPORTED', actor: input.actor, payload: { count: input.count } });
-      if (input.push) await this.push.scheduleImportTx(tx, { importId: input.importId, groupId: input.groupId, actorId: input.actor.id, payload: input.push }, now);
+      await this.activities.recordTx(tx, {
+        groupId: input.groupId,
+        type: 'EVENTS_IMPORTED',
+        actor: input.actor,
+        payload: { count: input.count },
+      });
+      if (input.push)
+        await this.push.scheduleImportTx(
+          tx,
+          {
+            importId: input.importId,
+            groupId: input.groupId,
+            actorId: input.actor.id,
+            payload: input.push,
+          },
+          now,
+        );
     });
   }
 }
 
 /** 동시에 같은 파일을 넣어 (팀, 해시) 유일 제약에 걸렸는지 */
 export function isDuplicateItemError(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
 }

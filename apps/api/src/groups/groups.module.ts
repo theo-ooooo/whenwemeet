@@ -10,7 +10,13 @@ import { GroupsService } from './groups.service.js';
 import { MembershipService } from './membership.service.js';
 
 @Module({
-  imports: [MembershipsModule, EventLogsModule, PushModule, GroupActivitiesModule, EventSharesDataModule],
+  imports: [
+    MembershipsModule,
+    EventLogsModule,
+    PushModule,
+    GroupActivitiesModule,
+    EventSharesDataModule,
+  ],
   controllers: [GroupsController, InvitesController],
   providers: [GroupsService, MembershipService, GroupsRepository],
   exports: [GroupsService, MembershipService, GroupsRepository],

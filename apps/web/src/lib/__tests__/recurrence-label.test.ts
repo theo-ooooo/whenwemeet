@@ -58,7 +58,7 @@ describe("반복 기준 날짜 repeatAnchor (QA3-M3, D-71)", () => {
     repeatAnchor: "2026-10-31",
     occurrence: "2027-04-30",
   };
-  it("상세: 기준이 있으면 그 날짜로 \"매월 31일\", 매년은 월일", () => {
+  it('상세: 기준이 있으면 그 날짜로 "매월 31일", 매년은 월일', () => {
     expect(recurrenceLines(split, "2026-11-10")?.rule).toBe("매월 31일");
     expect(ruleDateKey({ ...split, repeat: "YEARLY", repeatAnchor: "2024-02-29" })).toBe("2024-02-29");
     expect(recurrenceLines({ ...split, repeat: "YEARLY", repeatAnchor: "2024-02-29" }, "2026-11-10")?.rule).toBe("매년 2월 29일");
@@ -69,7 +69,13 @@ describe("반복 기준 날짜 repeatAnchor (QA3-M3, D-71)", () => {
   });
   it("폼: 주기와 날짜를 그대로 두면 기준 날짜, 시각만 바꿔도 원래 회차 날짜면 기준 날짜", () => {
     // 매월 31일 원본(기준 없음)을 11-30 회차로 열었다 (QA 스크린샷 상황)
-    const original = { ...split, repeatAnchor: null, seriesStartsAt: kstToIso("2026-10-31", "09:00"), startsAt: kstToIso("2026-11-30", "09:00"), occurrence: "2026-11-30" };
+    const original = {
+      ...split,
+      repeatAnchor: null,
+      seriesStartsAt: kstToIso("2026-10-31", "09:00"),
+      startsAt: kstToIso("2026-11-30", "09:00"),
+      occurrence: "2026-11-30",
+    };
     expect(repeatLabel("MONTHLY", formRuleDate(original, "MONTHLY", "2026-11-30", true))).toBe("매월 31일");
     expect(repeatLabel("MONTHLY", formRuleDate(original, "MONTHLY", "2026-11-30", false))).toBe("매월 31일");
   });
@@ -99,6 +105,8 @@ describe("(#562) 매년(음력) 설명", () => {
   });
 
   it("기준 날짜(repeatAnchor)를 잇는다", () => {
-    expect(ruleDateKey({ repeat: "YEARLY_LUNAR", seriesStartsAt: "2027-03-06T15:00:00.000Z", startsAt: "2027-03-06T15:00:00.000Z", repeatAnchor: "2026-03-18" })).toBe("2026-03-18");
+    expect(
+      ruleDateKey({ repeat: "YEARLY_LUNAR", seriesStartsAt: "2027-03-06T15:00:00.000Z", startsAt: "2027-03-06T15:00:00.000Z", repeatAnchor: "2026-03-18" }),
+    ).toBe("2026-03-18");
   });
 });

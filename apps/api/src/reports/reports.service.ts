@@ -20,27 +20,50 @@ export type ReportResult = ReportReceipt & { duplicate: boolean };
 export class ReportsService {
   constructor(private readonly repo: ReportsRepository) {}
 
-  async create(reporterId: number, dto: CreateReportDto): Promise<ReportResult> {
+  async create(
+    reporterId: number,
+    dto: CreateReportDto,
+  ): Promise<ReportResult> {
     await this.assertReportable(reporterId, dto.targetType, dto.targetId);
     const detail = dto.detail?.trim() ? dto.detail.trim() : null;
-    const { report, duplicate } = await this.repo.createUnlessOpen({ reporterId, targetType: dto.targetType, targetId: dto.targetId, reason: dto.reason, detail });
+    const { report, duplicate } = await this.repo.createUnlessOpen({
+      reporterId,
+      targetType: dto.targetType,
+      targetId: dto.targetId,
+      reason: dto.reason,
+      detail,
+    });
     return { ...report, duplicate };
   }
 
-  private async assertReportable(reporterId: number, targetType: CreateReportDto['targetType'], targetId: number): Promise<void> {
+  private async assertReportable(
+    reporterId: number,
+    targetType: CreateReportDto['targetType'],
+    targetId: number,
+  ): Promise<void> {
     if (targetType === 'group') {
       const type = await this.repo.findMemberGroupType(reporterId, targetId);
       if (type === null) throw new ApiException('NOT_FOUND', NOT_FOUND);
-      if (type === 'PERSONAL') throw new ApiException('FORBIDDEN', '내 개인 달력은 신고할 수 없어요');
+      if (type === 'PERSONAL')
+        throw new ApiException('FORBIDDEN', '내 개인 달력은 신고할 수 없어요');
       return;
     }
     if (targetType === 'event') {
-      const event = await this.repo.findVisibleEventCreator(reporterId, targetId);
+      const event = await this.repo.findVisibleEventCreator(
+        reporterId,
+        targetId,
+      );
       if (!event) throw new ApiException('NOT_FOUND', NOT_FOUND);
-      if (event.creatorId === reporterId) throw new ApiException('FORBIDDEN', '내가 만든 일정은 신고할 수 없어요');
+      if (event.creatorId === reporterId)
+        throw new ApiException(
+          'FORBIDDEN',
+          '내가 만든 일정은 신고할 수 없어요',
+        );
       return;
     }
-    if (targetId === reporterId) throw new ApiException('FORBIDDEN', '나를 신고할 수는 없어요');
-    if (!(await this.repo.sharesGroup(reporterId, targetId))) throw new ApiException('NOT_FOUND', NOT_FOUND);
+    if (targetId === reporterId)
+      throw new ApiException('FORBIDDEN', '나를 신고할 수는 없어요');
+    if (!(await this.repo.sharesGroup(reporterId, targetId)))
+      throw new ApiException('NOT_FOUND', NOT_FOUND);
   }
 }

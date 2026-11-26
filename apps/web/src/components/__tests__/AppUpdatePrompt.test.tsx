@@ -4,7 +4,13 @@ import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppRelease } from "@/lib/types";
 
-const release: AppRelease = { platform: "ios", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: "https://apps.apple.com/kr/app/id6832865813", updatedAt: null };
+const release: AppRelease = {
+  platform: "ios",
+  latestVersion: "1.4.0",
+  minVersion: "1.1.0",
+  storeUrl: "https://apps.apple.com/kr/app/id6832865813",
+  updatedAt: null,
+};
 const asked: (string | null)[] = [];
 vi.mock("@/hooks", () => ({
   useAppRelease: (platform: string | null) => {

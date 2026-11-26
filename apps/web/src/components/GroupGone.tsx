@@ -14,10 +14,7 @@ export function GroupGone() {
     <div className="min-h-dvh bg-[var(--login-bg)]">
       {/* 옛 주소의 없는 팀(/g/99999)과 내 팀이 아닌 ?team= 도 여기로 온다. 탭 제목이 하위 페이지 metadata("달력" 등)로 남지 않게 화면 제목으로 덮는다 (#82) */}
       <title>{`${TITLE} | 언제볼까`}</title>
-      <main
-        role="alert"
-        className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]"
-      >
+      <main role="alert" className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
         <Symbol size={40} />
         <div className="mt-auto pt-16">
           <span className="inline-flex text-[13px] font-bold text-acc-ink">접근 불가</span>

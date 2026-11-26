@@ -10,7 +10,18 @@ import { IconCheck } from "./icons";
 import { Avatar, InlineError, RowButton, Sheet } from "./ui";
 import { useToast } from "./Toast";
 import { messageOf, useEvent, useSetReaction, useSetRsvp } from "@/hooks";
-import { REACTION_OPTIONS, RSVP_LABEL, RSVP_OPTIONS, applyMyReaction, applyMyRsvp, isParticipant, nextReaction, occurrenceQuery, rsvpSummaryText, EMPTY_REACTIONS } from "@/lib/rsvp";
+import {
+  REACTION_OPTIONS,
+  RSVP_LABEL,
+  RSVP_OPTIONS,
+  applyMyReaction,
+  applyMyRsvp,
+  isParticipant,
+  nextReaction,
+  occurrenceQuery,
+  rsvpSummaryText,
+  EMPTY_REACTIONS,
+} from "@/lib/rsvp";
 import type { Event, EventDetailData, Member, Reaction, ReactionMember, ReactionSummary, Rsvp, RsvpMember, RsvpSummary } from "@/lib/types";
 
 const NOT_PARTICIPANT_TOAST = "이 일정의 참여자가 아니라서 응답할 수 없어요";
@@ -42,8 +53,7 @@ export function EventResponses({
   const live = ov.base === fresh;
   const rsvp = (live ? ov.rsvp : undefined) ?? fresh?.rsvp ?? ev.rsvp;
   const reactions = (live ? ov.reactions : undefined) ?? fresh?.reactions ?? ev.reactions ?? EMPTY_REACTIONS;
-  const override = (patch: { rsvp?: RsvpSummary; reactions?: ReactionSummary }) =>
-    setOv((o) => ({ ...(o.base === fresh ? o : {}), base: fresh, ...patch }));
+  const override = (patch: { rsvp?: RsvpSummary; reactions?: ReactionSummary }) => setOv((o) => ({ ...(o.base === fresh ? o : {}), base: fresh, ...patch }));
   const [sheetOpen, setSheetOpen] = useState(false);
   const setRsvpM = useSetRsvp(groupId);
   const setReactionM = useSetReaction(groupId);
@@ -259,4 +269,3 @@ function PersonRow({ member, meId, note = null, value }: { member: Member; meId:
     </li>
   );
 }
-

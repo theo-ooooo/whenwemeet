@@ -2,18 +2,7 @@
 import type { NextRequest } from "next/server";
 import { safeNext } from "@/lib/auth";
 import { EMAIL_MAX_LENGTH } from "@/lib/email-login";
-import {
-  badRequest,
-  callEmailApi,
-  dataOf,
-  forbidden,
-  notConfigured,
-  ok,
-  readUpstreamError,
-  relayError,
-  sameOrigin,
-  webEmailEnabled,
-} from "@/lib/email-route";
+import { badRequest, callEmailApi, dataOf, forbidden, notConfigured, ok, readUpstreamError, relayError, sameOrigin, webEmailEnabled } from "@/lib/email-route";
 
 export async function POST(req: NextRequest) {
   if (!sameOrigin(req)) return forbidden();

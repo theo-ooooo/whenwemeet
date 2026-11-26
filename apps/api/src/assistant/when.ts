@@ -206,12 +206,22 @@ function monthDayDate(
  * (#562, D-297) 음력 월일 → 양력 날짜. 월과 일이 다 있어야 한다. 양력 월일과 같은 기준(오늘 31일 전 또는 notBefore 이후)으로
  * 작년, 올해, 내년 음력 중 가장 이른 해. 그 달에 없는 30일은 그 달 마지막 날(기념일 규칙과 같음). 윤달은 말로 받지 않는다(평달)
  */
-function lunarMonthDayDate(month: number | null, day: number | null, options: ResolveOptions): string | null {
+function lunarMonthDayDate(
+  month: number | null,
+  day: number | null,
+  options: ResolveOptions,
+): string | null {
   if (!isInt(month, 1, 12) || !isInt(day, 1, 30)) return null;
   const lunarToday = solarToLunar(options.today);
   if (lunarToday === null) return null;
-  const floor = options.notBefore ?? addDays(options.today, -MONTH_DAY_LOOKBACK_DAYS);
-  for (const y of [lunarToday.year - 1, lunarToday.year, lunarToday.year + 1, lunarToday.year + 2]) {
+  const floor =
+    options.notBefore ?? addDays(options.today, -MONTH_DAY_LOOKBACK_DAYS);
+  for (const y of [
+    lunarToday.year - 1,
+    lunarToday.year,
+    lunarToday.year + 1,
+    lunarToday.year + 2,
+  ]) {
     const date = lunarOccurrence(y, month, day, false);
     if (date && date >= floor) return date;
   }
@@ -304,7 +314,15 @@ export function inferWhenKind(when: WhenArg): WhenArg {
   return when;
 }
 
-const WHEN_KEYS = ['kind', 'date', 'days', 'weekday', 'which', 'month', 'day'] as const;
+const WHEN_KEYS = [
+  'kind',
+  'date',
+  'days',
+  'weekday',
+  'which',
+  'month',
+  'day',
+] as const;
 const isWhenArg = (value: unknown): value is WhenArg =>
   typeof value === 'object' &&
   value !== null &&
@@ -317,7 +335,9 @@ export function fillWhenKinds(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(fillWhenKinds);
   if (isWhenArg(value)) return inferWhenKind(value);
   if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillWhenKinds(item)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, fillWhenKinds(item)]),
+    );
   }
   return value;
 }

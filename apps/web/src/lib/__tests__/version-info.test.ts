@@ -7,9 +7,7 @@ const WEB_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.
 
 describe("formatVersionInfo (#333)", () => {
   it("웹 버전, 커밋 7자리, 앱 버전을 모두 쓴다", () => {
-    expect(formatVersionInfo({ webVersion: "0.15.0", commitSha: "abcdef1234567890", appVersion: "1.2.0" })).toBe(
-      "언제볼까 웹 v0.15.0 (abcdef1), 앱 1.2.0",
-    );
+    expect(formatVersionInfo({ webVersion: "0.15.0", commitSha: "abcdef1234567890", appVersion: "1.2.0" })).toBe("언제볼까 웹 v0.15.0 (abcdef1), 앱 1.2.0");
   });
 
   it("커밋이 없거나 비면 괄호를 뺀다", () => {

@@ -26,7 +26,20 @@ export function mockEventsRepositories(): EventsRepositoryMock {
 }
 
 /** (#504) 합친 목을 각 저장소 자리에 넘겨 EventsService (EventSeriesService 포함) 를 만든다 */
-export function eventsServiceWith(events: object, memberships: MembershipService, responses: object): EventsService {
+export function eventsServiceWith(
+  events: object,
+  memberships: MembershipService,
+  responses: object,
+): EventsService {
   const repo = events as never;
-  return new EventsService(repo, repo, repo, repo, repo, memberships, responses as never, new EventSeriesService(repo, repo, memberships));
+  return new EventsService(
+    repo,
+    repo,
+    repo,
+    repo,
+    repo,
+    memberships,
+    responses as never,
+    new EventSeriesService(repo, repo, memberships),
+  );
 }

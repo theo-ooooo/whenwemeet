@@ -60,9 +60,7 @@ export type AppLinkCredentials =
   | { provider: "APPLE"; credentials: { identityToken: string; authorizationCode: string; nonce: string } };
 
 /** 셸 응답. timeout 은 웹이 기다리다 그만둔 것 (셸이 모르는 메시지로 버렸거나 응답이 오지 않음) */
-export type AppLinkOutcome =
-  | ({ ok: true } & AppLinkCredentials)
-  | { ok: false; reason: "cancelled" | "unavailable" | "error" | "timeout" };
+export type AppLinkOutcome = ({ ok: true } & AppLinkCredentials) | { ok: false; reason: "cancelled" | "unavailable" | "error" | "timeout" };
 
 /** 응답 기다리는 시간. 사람이 카카오톡이나 Apple 로그인 시트에서 고르는 동안이라 넉넉히 */
 export const APP_LINK_TIMEOUT_MS = 120_000;
@@ -169,7 +167,10 @@ export function linkedMessage(provider: string, absorbed: boolean): string {
 }
 
 /** /me/link 가 결과를 싣고 돌아갈 곳. next 가 규칙 밖이거나 `/` 면 로그인 방법 화면 */
-export function linkReturnPath(next: string | null | undefined, result: { linked?: string; absorbed?: boolean; error?: string; provider?: string | null }): string {
+export function linkReturnPath(
+  next: string | null | undefined,
+  result: { linked?: string; absorbed?: boolean; error?: string; provider?: string | null },
+): string {
   const safe = safeNext(next);
   const base = safe === "/" ? ACCOUNTS_PATH : safe;
   const url = new URL(base, "http://wwm.invalid");

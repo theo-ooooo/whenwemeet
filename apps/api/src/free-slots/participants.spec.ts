@@ -10,7 +10,10 @@ describe('isBusyForAny (설계 4장 예시 표)', () => {
   const AUNT = 3;
   const teamA = new Set([MOM, DAD]);
   const all = { allMembers: true, participantIds: [] };
-  const only = (...ids: number[]) => ({ allMembers: false, participantIds: ids });
+  const only = (...ids: number[]) => ({
+    allMembers: false,
+    participantIds: ids,
+  });
 
   it.each([
     ['아이 병원', 'A', '아빠', true, only(DAD)],

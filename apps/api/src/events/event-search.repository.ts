@@ -4,7 +4,15 @@ import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Repeat } from './recurrence.js';
 import { VISIBLE_EVENT_WHERE, visibleEventSql } from './visible-event.js';
-import { dbToDate, EVENT_EXCEPTION_SELECT, EVENT_SELECT, type EventRow, type SeriesRow, toEventRow, toExceptionRow } from './event-rows.js';
+import {
+  dbToDate,
+  EVENT_EXCEPTION_SELECT,
+  EVENT_SELECT,
+  type EventRow,
+  type SeriesRow,
+  toEventRow,
+  toExceptionRow,
+} from './event-rows.js';
 
 /** (#199) 일정 검색. events.repository 에서 옮김 (#504) */
 @Injectable()
@@ -18,7 +26,12 @@ export class EventSearchRepository {
    * (#199) 검색: 한 번짜리 일정 중 제목, 메모, 장소 글자(직접 적은 것, 고를 때 검색어)에 pattern(LIKE, 이스케이프 '!')이 맞는 것.
    * upcoming 은 끝이 now 뒤(시작 오름차순), past 는 그 밖(시작 내림차순). 각각 take 개까지 (D-245)
    */
-  async searchOnce(groupIds: number[], pattern: string, now: Date, take: number): Promise<{ upcoming: EventRow[]; past: EventRow[] }> {
+  async searchOnce(
+    groupIds: number[],
+    pattern: string,
+    now: Date,
+    take: number,
+  ): Promise<{ upcoming: EventRow[]; past: EventRow[] }> {
     if (groupIds.length === 0) return { upcoming: [], past: [] };
     const groups = Prisma.join(groupIds);
     const [upcomingIds, pastIds] = await Promise.all([
@@ -33,11 +46,19 @@ export class EventSearchRepository {
     ]);
     const load = async (ids: { id: number }[]) => {
       if (ids.length === 0) return [];
-      const rows = await this.prisma.event.findMany({ where: { id: { in: ids.map((row) => row.id) }, ...VISIBLE_EVENT_WHERE }, select: EVENT_SELECT });
-      const byId = new Map(rows.map((row) => [row.id, toEventRow(row, this.urls)]));
+      const rows = await this.prisma.event.findMany({
+        where: { id: { in: ids.map((row) => row.id) }, ...VISIBLE_EVENT_WHERE },
+        select: EVENT_SELECT,
+      });
+      const byId = new Map(
+        rows.map((row) => [row.id, toEventRow(row, this.urls)]),
+      );
       return ids.flatMap((row) => byId.get(row.id) ?? []);
     };
-    const [upcoming, past] = await Promise.all([load(upcomingIds), load(pastIds)]);
+    const [upcoming, past] = await Promise.all([
+      load(upcomingIds),
+      load(pastIds),
+    ]);
     return { upcoming, past };
   }
 
@@ -49,8 +70,13 @@ export class EventSearchRepository {
     groupIds: number[],
     pattern: string,
     cap: number,
-  ): Promise<{ series: SeriesRow[]; matchedIds: number[]; exceptionHits: { eventId: number; occurrence: string }[] }> {
-    if (groupIds.length === 0) return { series: [], matchedIds: [], exceptionHits: [] };
+  ): Promise<{
+    series: SeriesRow[];
+    matchedIds: number[];
+    exceptionHits: { eventId: number; occurrence: string }[];
+  }> {
+    if (groupIds.length === 0)
+      return { series: [], matchedIds: [], exceptionHits: [] };
     const groups = Prisma.join(groupIds);
     const [matched, hits] = await Promise.all([
       this.prisma.$queryRaw<{ id: number }[]>`
@@ -62,12 +88,21 @@ export class EventSearchRepository {
         WHERE e.groupId IN (${groups}) AND e.\`repeat\` IS NOT NULL AND x.cancelled = false AND ${matchSql('x.', pattern)} AND ${visibleEventSql('e.')}
         ORDER BY x.eventId ASC, x.occurrence ASC LIMIT ${cap}`,
     ]);
-    const ids = [...new Set([...matched.map((row) => row.id), ...hits.map((row) => row.eventId)])];
-    if (ids.length === 0) return { series: [], matchedIds: [], exceptionHits: [] };
+    const ids = [
+      ...new Set([
+        ...matched.map((row) => row.id),
+        ...hits.map((row) => row.eventId),
+      ]),
+    ];
+    if (ids.length === 0)
+      return { series: [], matchedIds: [], exceptionHits: [] };
     const rows = await this.prisma.event.findMany({
       where: { id: { in: ids }, repeat: { not: null }, ...VISIBLE_EVENT_WHERE },
       orderBy: { id: 'asc' },
-      select: { ...EVENT_SELECT, exceptions: { select: EVENT_EXCEPTION_SELECT } },
+      select: {
+        ...EVENT_SELECT,
+        exceptions: { select: EVENT_EXCEPTION_SELECT },
+      },
     });
     return {
       series: rows.map(({ exceptions, ...row }) => ({
@@ -76,7 +111,10 @@ export class EventSearchRepository {
         exceptions: exceptions.map(toExceptionRow),
       })),
       matchedIds: matched.map((row) => row.id),
-      exceptionHits: hits.map((row) => ({ eventId: row.eventId, occurrence: dbToDate(row.occurrence) })),
+      exceptionHits: hits.map((row) => ({
+        eventId: row.eventId,
+        occurrence: dbToDate(row.occurrence),
+      })),
     };
   }
 }

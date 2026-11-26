@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { FILE_LOCATION_SELECT, FileUrlBuilder } from '../files/file-url.builder.js';
+import {
+  FILE_LOCATION_SELECT,
+  FileUrlBuilder,
+} from '../files/file-url.builder.js';
 import type { NoticeReadVia } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { noticeDedupeKey } from '../push/push-notifications.repository.js';
@@ -50,9 +53,14 @@ export interface ReaderQuery {
 }
 
 /** COUNT, SUM 은 드라이버에 따라 bigint, 문자열(DECIMAL)로 온다 */
-const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
+const num = (v: unknown): number =>
+  v === null || v === undefined ? 0 : Number(v);
 
-const READER_USER_SELECT = { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT } } as const;
+const READER_USER_SELECT = {
+  id: true,
+  nickname: true,
+  avatar: { select: FILE_LOCATION_SELECT },
+} as const;
 
 @Injectable()
 export class NoticeReadsRepository {
@@ -65,35 +73,63 @@ export class NoticeReadsRepository {
    * 게시된 공지면 처음 읽은 기록을 남기고(이미 있으면 그대로) 남아 있는 기록을 돌려준다. 없거나 초안이면 null.
    * created 는 이번 요청이 처음 기록했는지
    */
-  async recordFirstRead(userId: number, noticeId: number, via: NoticeReadVia): Promise<(NoticeReadRecord & { created: boolean }) | null> {
-    const notice = await this.prisma.notice.findFirst({ where: { id: noticeId, publishedAt: { not: null } }, select: { id: true } });
+  async recordFirstRead(
+    userId: number,
+    noticeId: number,
+    via: NoticeReadVia,
+  ): Promise<(NoticeReadRecord & { created: boolean }) | null> {
+    const notice = await this.prisma.notice.findFirst({
+      where: { id: noticeId, publishedAt: { not: null } },
+      select: { id: true },
+    });
     if (!notice) return null;
-    const { count } = await this.prisma.noticeRead.createMany({ data: [{ userId, noticeId, via }], skipDuplicates: true });
-    const row = await this.prisma.noticeRead.findUniqueOrThrow({ where: { userId_noticeId: { userId, noticeId } }, select: { firstReadAt: true, via: true } });
+    const { count } = await this.prisma.noticeRead.createMany({
+      data: [{ userId, noticeId, via }],
+      skipDuplicates: true,
+    });
+    const row = await this.prisma.noticeRead.findUniqueOrThrow({
+      where: { userId_noticeId: { userId, noticeId } },
+      select: { firstReadAt: true, via: true },
+    });
     return { ...row, created: count === 1 };
   }
 
   /** 공지별 읽은 사람 수 (관리자 공지 목록 "읽음 N"). 기록이 없는 공지는 맵에 없다 */
   async countByNotice(noticeIds: number[]): Promise<Map<number, number>> {
     if (noticeIds.length === 0) return new Map();
-    const rows = await this.prisma.noticeRead.groupBy({ by: ['noticeId'], where: { noticeId: { in: noticeIds } }, _count: { _all: true } });
+    const rows = await this.prisma.noticeRead.groupBy({
+      by: ['noticeId'],
+      where: { noticeId: { in: noticeIds } },
+      _count: { _all: true },
+    });
     return new Map(rows.map((r) => [r.noticeId, r._count._all]));
   }
 
   /** 경로별 읽은 사람 수 */
-  async countByVia(noticeId: number): Promise<Partial<Record<NoticeReadVia, number>>> {
-    const rows = await this.prisma.noticeRead.groupBy({ by: ['via'], where: { noticeId }, _count: { _all: true } });
+  async countByVia(
+    noticeId: number,
+  ): Promise<Partial<Record<NoticeReadVia, number>>> {
+    const rows = await this.prisma.noticeRead.groupBy({
+      by: ['via'],
+      where: { noticeId },
+      _count: { _all: true },
+    });
     return Object.fromEntries(rows.map((r) => [r.via, r._count._all]));
   }
 
   /** 이 공지의 푸시 예약. 보낸 적이 없으면 null */
   findPush(noticeId: number): Promise<NoticePushRow | null> {
-    return this.prisma.pushNotification.findUnique({ where: { dedupeKey: noticeDedupeKey(noticeId) }, select: { id: true, status: true, dispatchedAt: true } });
+    return this.prisma.pushNotification.findUnique({
+      where: { dedupeKey: noticeDedupeKey(noticeId) },
+      select: { id: true, status: true, dispatchedAt: true },
+    });
   }
 
   /** 기기별 발송 집계 (한 쿼리) */
   async deliveryCounts(notificationId: number): Promise<DeliveryCounts> {
-    const [row] = await this.prisma.$queryRaw<Record<keyof DeliveryCounts, unknown>[]>`
+    const [row] = await this.prisma.$queryRaw<
+      Record<keyof DeliveryCounts, unknown>[]
+    >`
       SELECT
         COUNT(DISTINCT userId) AS targetUsers,
         COUNT(*) AS devices,
@@ -113,7 +149,10 @@ export class NoticeReadsRepository {
   }
 
   /** 푸시 대상(기기별 발송이 하나라도 있는 사람) 중 읽은 사람 수 */
-  async countReadAmongTargets(noticeId: number, notificationId: number): Promise<number> {
+  async countReadAmongTargets(
+    noticeId: number,
+    notificationId: number,
+  ): Promise<number> {
     const [row] = await this.prisma.$queryRaw<{ n: unknown }[]>`
       SELECT COUNT(*) AS n FROM \`NoticeRead\` r
       WHERE r.noticeId = ${noticeId}
@@ -126,13 +165,29 @@ export class NoticeReadsRepository {
   }
 
   /** 읽은 사람. 읽은 시각 내림차순(같으면 사용자 id 내림차순), 이름 부분 일치, 경로 필터. cursor 는 앞 페이지 마지막 사용자 id */
-  async listReaders(noticeId: number, query: ReaderQuery): Promise<{ items: NoticeReaderRow[]; nextCursor: number | null }> {
+  async listReaders(
+    noticeId: number,
+    query: ReaderQuery,
+  ): Promise<{ items: NoticeReaderRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.noticeRead.findMany({
-      where: { noticeId, ...(query.via ? { via: query.via } : {}), ...(query.q ? { user: { nickname: { contains: query.q } } } : {}) },
+      where: {
+        noticeId,
+        ...(query.via ? { via: query.via } : {}),
+        ...(query.q ? { user: { nickname: { contains: query.q } } } : {}),
+      },
       orderBy: [{ firstReadAt: 'desc' }, { userId: 'desc' }],
       take: query.limit + 1,
-      ...(query.cursor !== null ? { cursor: { userId_noticeId: { userId: query.cursor, noticeId } }, skip: 1 } : {}),
-      select: { firstReadAt: true, via: true, user: { select: READER_USER_SELECT } },
+      ...(query.cursor !== null
+        ? {
+            cursor: { userId_noticeId: { userId: query.cursor, noticeId } },
+            skip: 1,
+          }
+        : {}),
+      select: {
+        firstReadAt: true,
+        via: true,
+        user: { select: READER_USER_SELECT },
+      },
     });
     const items = rows.slice(0, query.limit).map((r) => ({
       id: r.user.id,
@@ -141,7 +196,10 @@ export class NoticeReadsRepository {
       firstReadAt: r.firstReadAt,
       via: r.via,
     }));
-    return { items, nextCursor: rows.length > query.limit ? items[items.length - 1].id : null };
+    return {
+      items,
+      nextCursor: rows.length > query.limit ? items[items.length - 1].id : null,
+    };
   }
 
   /** 푸시 대상 중 안 읽은 사람. 사용자 id 내림차순, 이름 부분 일치. cursor 는 앞 페이지 마지막 사용자 id */
@@ -168,6 +226,9 @@ export class NoticeReadsRepository {
       firstReadAt: null,
       via: null,
     }));
-    return { items, nextCursor: rows.length > query.limit ? items[items.length - 1].id : null };
+    return {
+      items,
+      nextCursor: rows.length > query.limit ? items[items.length - 1].id : null,
+    };
   }
 }

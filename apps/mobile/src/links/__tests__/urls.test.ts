@@ -1,4 +1,14 @@
-import { buildAuthAppUrl, buildEmailLoginUrl, buildUserAgentSuffix, decideNavigation, deepLinkToWebUrl, isWebOrigin, notificationTarget, parseSchemeLink, safeNext } from "../urls";
+import {
+  buildAuthAppUrl,
+  buildEmailLoginUrl,
+  buildUserAgentSuffix,
+  decideNavigation,
+  deepLinkToWebUrl,
+  isWebOrigin,
+  notificationTarget,
+  parseSchemeLink,
+  safeNext,
+} from "../urls";
 
 const WEB = "https://whenwemeet.day";
 
@@ -71,26 +81,18 @@ describe("safeNext", () => {
 describe("deepLinkToWebUrl", () => {
   it("초대 링크와 팀 달력 링크는 같은 경로를 웹 오리진에서", () => {
     expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123", WEB)).toBe("https://whenwemeet.day/join/ABC123");
-    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe(
-      "https://whenwemeet.day/join/ABC123?auto=1",
-    );
+    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
     expect(deepLinkToWebUrl("https://whenwemeet.day/g/12/events", WEB)).toBe("https://whenwemeet.day/g/12/events");
   });
   it("스테이징 웹 오리진으로 바꿔 연다", () => {
-    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC", "https://staging.example.com/")).toBe(
-      "https://staging.example.com/join/ABC",
-    );
+    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC", "https://staging.example.com/")).toBe("https://staging.example.com/join/ABC");
   });
   it("커스텀 스킴 whenwemeet://join, //g 도 같은 경로로 (#154)", () => {
     expect(deepLinkToWebUrl("whenwemeet://join/ABC123", WEB)).toBe("https://whenwemeet.day/join/ABC123");
     expect(deepLinkToWebUrl("whenwemeet://join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
     expect(deepLinkToWebUrl("whenwemeet:///join/ABC123", WEB)).toBe("https://whenwemeet.day/join/ABC123");
-    expect(deepLinkToWebUrl("whenwemeet://g/12/events?date=2026-11-10", WEB)).toBe(
-      "https://whenwemeet.day/g/12/events?date=2026-11-10",
-    );
-    expect(deepLinkToWebUrl("whenwemeet://join/ABC", "https://staging.example.com/")).toBe(
-      "https://staging.example.com/join/ABC",
-    );
+    expect(deepLinkToWebUrl("whenwemeet://g/12/events?date=2026-11-10", WEB)).toBe("https://whenwemeet.day/g/12/events?date=2026-11-10");
+    expect(deepLinkToWebUrl("whenwemeet://join/ABC", "https://staging.example.com/")).toBe("https://staging.example.com/join/ABC");
   });
   it("(#274) 일정 공유 링크 /join/e/<토큰> 은 기존 /join 앱 링크로 열린다 (네이티브 변경 없음)", () => {
     const token = "Ab3_-Ab3_-Ab3_-Ab3_-AB";
@@ -159,7 +161,9 @@ describe("RN URL 구현에서도 같은 결과 (#154)", () => {
     expect(deepLinkToWebUrl("whenwemeet://g/12", WEB)).toBe("https://whenwemeet.day/g/12");
   });
   it("(#311) 커스텀 스킴은 새 화면 주소도 연다 (위젯 누름). https 는 /join 과 옛 /g 만", () => {
-    expect(deepLinkToWebUrl("whenwemeet://calendar?date=2026-11-12&day=1&team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/calendar?date=2026-11-12&day=1&team=k3x9ab12");
+    expect(deepLinkToWebUrl("whenwemeet://calendar?date=2026-11-12&day=1&team=k3x9ab12", WEB)).toBe(
+      "https://whenwemeet.day/calendar?date=2026-11-12&day=1&team=k3x9ab12",
+    );
     expect(deepLinkToWebUrl("whenwemeet://anniversaries?team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/anniversaries?team=k3x9ab12");
     expect(deepLinkToWebUrl("whenwemeet://events/evntcode?team=k3x9ab12", WEB)).toBe("https://whenwemeet.day/events/evntcode?team=k3x9ab12");
     expect(deepLinkToWebUrl("whenwemeet://team/import", WEB)).toBe("https://whenwemeet.day/team/import");
@@ -170,9 +174,7 @@ describe("RN URL 구현에서도 같은 결과 (#154)", () => {
     // https 새 주소는 앱 링크가 아니다 (AASA, intentFilters 에 없다)
     expect(deepLinkToWebUrl("https://whenwemeet.day/calendar?team=k3x9ab12", WEB)).toBeNull();
     expect(deepLinkToWebUrl("https://whenwemeet.day/events/evntcode", WEB)).toBeNull();
-    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe(
-      "https://whenwemeet.day/join/ABC123?auto=1",
-    );
+    expect(deepLinkToWebUrl("https://whenwemeet.day/join/ABC123?auto=1", WEB)).toBe("https://whenwemeet.day/join/ABC123?auto=1");
     expect(deepLinkToWebUrl("whenwemeet://auth?h=x", WEB)).toBeNull();
   });
 });
@@ -213,9 +215,7 @@ describe("notificationTarget (#188, 푸시-알림.md 9장)", () => {
 describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () => {
   it("웹뷰가 여는 /login/email 주소. next 는 safeNext 후 인코딩, / 면 생략", () => {
     expect(buildEmailLoginUrl("https://whenwemeet.day/", "/")).toBe("https://whenwemeet.day/login/email");
-    expect(buildEmailLoginUrl("https://whenwemeet.day", "/join/ABC123?auto=1")).toBe(
-      "https://whenwemeet.day/login/email?next=%2Fjoin%2FABC123%3Fauto%3D1",
-    );
+    expect(buildEmailLoginUrl("https://whenwemeet.day", "/join/ABC123?auto=1")).toBe("https://whenwemeet.day/login/email?next=%2Fjoin%2FABC123%3Fauto%3D1");
     expect(buildEmailLoginUrl("https://whenwemeet.day", "//evil.com")).toBe("https://whenwemeet.day/login/email");
   });
   it("웹뷰가 /login/email 과 /auth/email 을 가로채지 않는다 (네이티브 로그인은 /auth/kakao, /auth/apple, /login 만)", () => {
@@ -233,7 +233,9 @@ describe("(#245) 이메일 로그인 (이메일-로그인.md 7장, D-116)", () =
   });
 
   it("(#198) 카카오 키가 있는 빌드만 UA 끝에 AccountLink/1 (웹 appSupportsAccountLink 와 같은 식)", () => {
-    expect(buildUserAgentSuffix("1.2.0", "ios", true, true)).toBe("WhenwemeetApp/1.2.0 (ios) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1 DeviceCalendar/1");
+    expect(buildUserAgentSuffix("1.2.0", "ios", true, true)).toBe(
+      "WhenwemeetApp/1.2.0 (ios) EmailLogin/1 KakaoShare/1 Widget/1 AccountLink/1 DeviceCalendar/1",
+    );
     expect(buildUserAgentSuffix("1.2.0", "android", false, false)).toBe("WhenwemeetApp/1.2.0 (android) EmailLogin/1 Widget/1 DeviceCalendar/1");
     expect(buildUserAgentSuffix("1.2.0", "ios", true)).not.toContain("AccountLink");
     const re = /(?:^|\s)AccountLink\/1(?:\s|$)/;
@@ -277,9 +279,7 @@ describe("(D-178) /login 문서 이동은 웹 화면 대신 네이티브 로그�
 describe("(#271) 메일 로그인 링크 /auth/email 은 웹뷰로", () => {
   const TOKEN = "a".repeat(43);
   it("https 링크는 같은 주소를 웹 오리진에서 (토큰 쿼리 유지)", () => {
-    expect(deepLinkToWebUrl(`https://whenwemeet.day/auth/email?token=${TOKEN}`, WEB)).toBe(
-      `${WEB}/auth/email?token=${TOKEN}`,
-    );
+    expect(deepLinkToWebUrl(`https://whenwemeet.day/auth/email?token=${TOKEN}`, WEB)).toBe(`${WEB}/auth/email?token=${TOKEN}`);
     expect(deepLinkToWebUrl(`https://whenwemeet.day/auth/email?token=${TOKEN}`, "https://staging.whenwemeet.day/")).toBe(
       `https://staging.whenwemeet.day/auth/email?token=${TOKEN}`,
     );

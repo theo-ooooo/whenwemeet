@@ -73,19 +73,19 @@ export function TimePicker({
         {/* "오전 10:00" 과 "10:00" 을 같이 쓰지 않는다 (#140 L4). 24시간 표기는 목록에서만 보조로 */}
       </button>
       {!inline && (
-      <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={248}>
-        <TimeList
-          value={value}
-          from={from}
-          to={last}
-          step={step}
-          allow24={allow24}
-          onPick={(v) => {
-            onChange(v);
-            setOpen(false);
-          }}
-        />
-      </PickerShell>
+        <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={248}>
+          <TimeList
+            value={value}
+            from={from}
+            to={last}
+            step={step}
+            allow24={allow24}
+            onPick={(v) => {
+              onChange(v);
+              setOpen(false);
+            }}
+          />
+        </PickerShell>
       )}
     </>
   );

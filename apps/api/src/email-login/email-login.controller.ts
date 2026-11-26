@@ -1,12 +1,33 @@
-import { Body, Controller, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
-import { extractBearer, Public, verifySessionClaims } from '../auth/jwt-auth.guard.js';
+import {
+  extractBearer,
+  Public,
+  verifySessionClaims,
+} from '../auth/jwt-auth.guard.js';
 import { assertFreshSession } from '../auth/link-tickets.service.js';
 import { ApiException } from '../common/errors.js';
-import { EmailCodeDto, EmailLinkDto, EmailLinkInspectDto, EmailRequestDto, EmailSignupDto } from './dto/email-login.dto.js';
+import {
+  EmailCodeDto,
+  EmailLinkDto,
+  EmailLinkInspectDto,
+  EmailRequestDto,
+  EmailSignupDto,
+} from './dto/email-login.dto.js';
 import { ClientIp, EmailLoginGuard } from './email-login.guard.js';
-import { AuthResult, EmailLoginService, LinkState } from './email-login.service.js';
+import {
+  AuthResult,
+  EmailLoginService,
+  LinkState,
+} from './email-login.service.js';
 
 /**
  * (#245) 이메일 로그인 (이메일-로그인.md 4장). 웹 서버 전용(X-Internal-Key, D-115), 모두 no-store.
@@ -27,18 +48,33 @@ export class EmailLoginController {
    */
   @Post('request')
   @HttpCode(200)
-  async request(@Body() dto: EmailRequestDto, @ClientIp() clientIp: string, @Req() req: Request): Promise<{ cooldownSec: number; expiresInSec: number }> {
-    if (dto.purpose !== 'LINK') return this.emailLogin.request({ email: dto.email, next: dto.next, clientIp });
+  async request(
+    @Body() dto: EmailRequestDto,
+    @ClientIp() clientIp: string,
+    @Req() req: Request,
+  ): Promise<{ cooldownSec: number; expiresInSec: number }> {
+    if (dto.purpose !== 'LINK')
+      return this.emailLogin.request({
+        email: dto.email,
+        next: dto.next,
+        clientIp,
+      });
     const token = extractBearer(req.headers.authorization);
     const claims = token ? await verifySessionClaims(this.jwt, token) : null;
     if (!claims) throw new ApiException('UNAUTHORIZED');
     assertFreshSession(claims.iat);
-    return this.emailLogin.request({ email: dto.email, clientIp, linkUserId: claims.sub });
+    return this.emailLogin.request({
+      email: dto.email,
+      clientIp,
+      linkUserId: claims.sub,
+    });
   }
 
   @Post('link/inspect')
   @HttpCode(200)
-  inspect(@Body() dto: EmailLinkInspectDto): Promise<{ state: LinkState; emailMasked: string | null }> {
+  inspect(
+    @Body() dto: EmailLinkInspectDto,
+  ): Promise<{ state: LinkState; emailMasked: string | null }> {
     return this.emailLogin.inspect(dto.token);
   }
 
@@ -56,7 +92,13 @@ export class EmailLoginController {
 
   @Post('signup')
   @HttpCode(200)
-  signup(@Body() dto: EmailSignupDto): Promise<{ token: string; next: string }> {
-    return this.emailLogin.signup(dto.signupToken, dto.nickname, dto.client ?? 'web');
+  signup(
+    @Body() dto: EmailSignupDto,
+  ): Promise<{ token: string; next: string }> {
+    return this.emailLogin.signup(
+      dto.signupToken,
+      dto.nickname,
+      dto.client ?? 'web',
+    );
   }
 }

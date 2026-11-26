@@ -36,10 +36,20 @@ export function PhoneTitleBar({ week, days, y, m, thisYear, view, onChangeView, 
       <button type="button" onClick={onToday} className="hit h-8 shrink-0 rounded-full bg-paper px-3 text-[13px] font-bold">
         오늘
       </button>
-      <button type="button" onClick={() => onGo(-1)} aria-label={week ? "이전 주" : "이전 달"} className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover">
+      <button
+        type="button"
+        onClick={() => onGo(-1)}
+        aria-label={week ? "이전 주" : "이전 달"}
+        className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover"
+      >
         <IconChevronLeft size={18} />
       </button>
-      <button type="button" onClick={() => onGo(1)} aria-label={week ? "다음 주" : "다음 달"} className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover">
+      <button
+        type="button"
+        onClick={() => onGo(1)}
+        aria-label={week ? "다음 주" : "다음 달"}
+        className="hit ml-2 grid size-8 shrink-0 place-items-center rounded-full hover:bg-hover"
+      >
         <IconChevronRight size={18} />
       </button>
     </div>
@@ -89,10 +99,20 @@ export function WideTitleBar({
         오늘
       </button>
       {/* 화살표는 보이는 크기 32, 누르는 칸 44 가 겹치지 않게 중심 간격 44 (#133) */}
-      <button type="button" onClick={() => onGo(-1)} aria-label={week ? "이전 주" : "이전 달"} className="hit ml-1 grid size-8 place-items-center rounded-full hover:bg-paper">
+      <button
+        type="button"
+        onClick={() => onGo(-1)}
+        aria-label={week ? "이전 주" : "이전 달"}
+        className="hit ml-1 grid size-8 place-items-center rounded-full hover:bg-paper"
+      >
         <IconChevronLeft size={20} />
       </button>
-      <button type="button" onClick={() => onGo(1)} aria-label={week ? "다음 주" : "다음 달"} className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-paper">
+      <button
+        type="button"
+        onClick={() => onGo(1)}
+        aria-label={week ? "다음 주" : "다음 달"}
+        className="hit ml-3 grid size-8 place-items-center rounded-full hover:bg-paper"
+      >
         <IconChevronRight size={20} />
       </button>
       <span className="flex-1" />

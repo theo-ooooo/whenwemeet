@@ -1,6 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT, type CryptoKey, type JWTVerifyGetKey } from 'jose';
+import {
+  createRemoteJWKSet,
+  importPKCS8,
+  jwtVerify,
+  SignJWT,
+  type CryptoKey,
+  type JWTVerifyGetKey,
+} from 'jose';
 import { ApiException } from '../../common/errors.js';
 import type { AuthProviderClient, LinkedAccount } from './auth-provider.js';
 
@@ -81,7 +88,9 @@ export class AppleProvider implements AuthProviderClient {
   ) {}
 
   isConfigured(): boolean {
-    return APPLE_ENV_KEYS.every((key) => Boolean(this.config.get<string>(key)?.trim()));
+    return APPLE_ENV_KEYS.every((key) =>
+      Boolean(this.config.get<string>(key)?.trim()),
+    );
   }
 
   assertConfigured(): void {
@@ -117,7 +126,10 @@ export class AppleProvider implements AuthProviderClient {
    * identity token / id_token 검증 (앱.md 3.2 표). RS256, iss, aud 하나, exp(오차 60초), nonce.
    * 토큰 위반 → 401 SOCIAL_TOKEN_INVALID, JWKS 조회 실패 → 502 APPLE_ERROR. 돌려주는 것은 sub 뿐
    */
-  async verifyIdToken(token: string, options: AppleVerifyOptions): Promise<{ sub: string }> {
+  async verifyIdToken(
+    token: string,
+    options: AppleVerifyOptions,
+  ): Promise<{ sub: string }> {
     let payload: Record<string, unknown>;
     try {
       ({ payload } = await jwtVerify(token, this.keys, {
@@ -129,15 +141,21 @@ export class AppleProvider implements AuthProviderClient {
       }));
     } catch (error) {
       const code = (error as { code?: unknown }).code;
-      if (typeof code === 'string' && INVALID_TOKEN_CODES.has(code)) throw new ApiException('SOCIAL_TOKEN_INVALID');
+      if (typeof code === 'string' && INVALID_TOKEN_CODES.has(code))
+        throw new ApiException('SOCIAL_TOKEN_INVALID');
       throw new ApiException('APPLE_ERROR');
     }
 
-    if (typeof payload.sub !== 'string' || !payload.sub) throw new ApiException('SOCIAL_TOKEN_INVALID');
+    if (typeof payload.sub !== 'string' || !payload.sub)
+      throw new ApiException('SOCIAL_TOKEN_INVALID');
     if (payload.nonce === undefined) {
       // 코드 교환 응답의 id_token 은 nonce 를 빼먹는 경우가 있다. Apple 안내대로 nonce_supported 가 false 일 때만 넘어간다
       const supported = payload.nonce_supported;
-      if (options.nonceRequired || (supported !== false && supported !== 'false')) throw new ApiException('SOCIAL_TOKEN_INVALID');
+      if (
+        options.nonceRequired ||
+        (supported !== false && supported !== 'false')
+      )
+        throw new ApiException('SOCIAL_TOKEN_INVALID');
     } else if (payload.nonce !== options.nonce) {
       throw new ApiException('SOCIAL_TOKEN_INVALID');
     }
@@ -149,7 +167,11 @@ export class AppleProvider implements AuthProviderClient {
    * redirect_uri 는 인가 요청에 redirect_uri 를 보낸 웹 경로에서만 싣는다.
    * invalid_grant → 401 SOCIAL_TOKEN_INVALID, 그 밖의 실패 → 502 APPLE_ERROR
    */
-  async exchangeCode(code: string, clientId: string, redirectUri?: string): Promise<AppleTokens> {
+  async exchangeCode(
+    code: string,
+    clientId: string,
+    redirectUri?: string,
+  ): Promise<AppleTokens> {
     this.assertConfigured();
     const body = new URLSearchParams({
       client_id: clientId,
@@ -160,15 +182,24 @@ export class AppleProvider implements AuthProviderClient {
     if (redirectUri) body.set('redirect_uri', redirectUri);
 
     const res = await this.post(APPLE_TOKEN_URL, body);
-    const json = (await res.json().catch(() => ({}))) as { id_token?: unknown; refresh_token?: unknown; error?: unknown };
+    const json = (await res.json().catch(() => ({}))) as {
+      id_token?: unknown;
+      refresh_token?: unknown;
+      error?: unknown;
+    };
     if (!res.ok) {
-      if (json.error === 'invalid_grant') throw new ApiException('SOCIAL_TOKEN_INVALID');
+      if (json.error === 'invalid_grant')
+        throw new ApiException('SOCIAL_TOKEN_INVALID');
       throw new ApiException('APPLE_ERROR');
     }
-    if (typeof json.id_token !== 'string' || !json.id_token) throw new ApiException('APPLE_ERROR');
+    if (typeof json.id_token !== 'string' || !json.id_token)
+      throw new ApiException('APPLE_ERROR');
     return {
       idToken: json.id_token,
-      refreshToken: typeof json.refresh_token === 'string' && json.refresh_token ? json.refresh_token : null,
+      refreshToken:
+        typeof json.refresh_token === 'string' && json.refresh_token
+          ? json.refresh_token
+          : null,
     };
   }
 
@@ -178,7 +209,9 @@ export class AppleProvider implements AuthProviderClient {
    */
   async unlink(account: LinkedAccount): Promise<void> {
     if (!account.refreshToken || !account.providerClientId) {
-      this.logger.warn(`폐기할 애플 refresh token 이 없어 건너뜀 (sub ${account.providerUserId})`);
+      this.logger.warn(
+        `폐기할 애플 refresh token 이 없어 건너뜀 (sub ${account.providerUserId})`,
+      );
       return;
     }
     this.assertConfigured();

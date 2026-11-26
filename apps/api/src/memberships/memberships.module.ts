@@ -6,7 +6,12 @@ import { PushModule } from '../push/push.module.js';
 import { MembershipsRepository } from './memberships.repository.js';
 
 @Module({
-  imports: [PushModule, GroupActivitiesModule, EventSharesDataModule, CalendarFeedsDataModule],
+  imports: [
+    PushModule,
+    GroupActivitiesModule,
+    EventSharesDataModule,
+    CalendarFeedsDataModule,
+  ],
   providers: [MembershipsRepository],
   exports: [MembershipsRepository],
 })

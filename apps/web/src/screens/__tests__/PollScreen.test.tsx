@@ -19,7 +19,13 @@ const member = (userId: number, displayName: string): Member => ({ userId, displ
 const ME = member(2, "지훈");
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, back: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show }) }));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ groupId: 10, group: { me: ME }, eventsChanged }) }));
 vi.mock("@/hooks", () => ({
@@ -80,7 +86,11 @@ describe("PollScreen (#189)", () => {
   });
 
   it("만든 사람이 아니면 확인 창을 거쳐 정하고, 일정으로 간다. BUSY_NOW 는 알림 문구", async () => {
-    confirm.mockResolvedValue({ ok: true, data: { poll: base({ status: "CLOSED" }), event: { publicCode: "evnt9xxx", occurrence: null }, warning: "BUSY_NOW" }, error: null });
+    confirm.mockResolvedValue({
+      ok: true,
+      data: { poll: base({ status: "CLOSED" }), event: { publicCode: "evnt9xxx", occurrence: null }, warning: "BUSY_NOW" },
+      error: null,
+    });
     render(<PollScreen code="poll5xxx" />);
     fireEvent.click(screen.getByRole("button", { name: "이 시간으로 정하기" }));
     expect(screen.getByRole("alertdialog")).toBeTruthy();

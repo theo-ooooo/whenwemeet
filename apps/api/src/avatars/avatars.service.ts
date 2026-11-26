@@ -3,7 +3,11 @@ import { ulid } from 'ulid';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { FilesRepository, StoredObjectRef } from '../files/files.repository.js';
 import { StorageService } from '../storage/storage.service.js';
-import { AVATAR_MAX_BYTES, avatarInvalid, toAvatarWebp } from './avatar-image.js';
+import {
+  AVATAR_MAX_BYTES,
+  avatarInvalid,
+  toAvatarWebp,
+} from './avatar-image.js';
 
 /** 가입 시 소셜 프로필 사진을 받아 올 때 기다리는 최대 시간 */
 export const AVATAR_IMPORT_TIMEOUT_MS = 5_000;
@@ -30,7 +34,10 @@ export class AvatarsService {
   ) {}
 
   /** POST /me/avatar. 저장소 미설정이면 503, 파일이 없거나 형식/크기 오류면 400 */
-  async upload(userId: number, file: UploadedImage | undefined): Promise<{ profileImageUrl: string }> {
+  async upload(
+    userId: number,
+    file: UploadedImage | undefined,
+  ): Promise<{ profileImageUrl: string }> {
     this.storage.assertConfigured();
     if (!file) throw avatarInvalid('사진 파일을 골라 주세요');
     return { profileImageUrl: await this.store(userId, file.buffer, null) };
@@ -47,17 +54,25 @@ export class AvatarsService {
    * 가입 직후 소셜 프로필 사진을 R2 로 복사 (D-37). 어떤 실패든 로그만 남기고 null — 가입은 계속된다.
    * 저장소 미설정이거나 사진이 없으면 아무것도 하지 않는다
    */
-  async importFromUrl(userId: number, sourceUrl: string | null): Promise<string | null> {
+  async importFromUrl(
+    userId: number,
+    sourceUrl: string | null,
+  ): Promise<string | null> {
     if (!sourceUrl || !this.storage.isConfigured()) return null;
     try {
-      const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(AVATAR_IMPORT_TIMEOUT_MS), redirect: 'follow' });
+      const res = await fetch(sourceUrl, {
+        signal: AbortSignal.timeout(AVATAR_IMPORT_TIMEOUT_MS),
+        redirect: 'follow',
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const declared = Number(res.headers.get('content-length') ?? '0');
       if (declared > AVATAR_MAX_BYTES) throw new Error(`크기 초과 ${declared}`);
       const buffer = Buffer.from(await res.arrayBuffer());
       return await this.store(userId, buffer, sourceUrl);
     } catch (error) {
-      this.logger.warn(`소셜 프로필 사진 복사 실패 (user ${userId}): ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `소셜 프로필 사진 복사 실패 (user ${userId}): ${error instanceof Error ? error.message : String(error)}`,
+      );
       return null;
     }
   }
@@ -68,11 +83,17 @@ export class AvatarsService {
   }
 
   /** (#198) 이미 행을 지운 파일들의 저장소 객체 삭제 (빈 계정 흡수 뒤, D-257). 실패는 로그만 */
-  async purgeFiles(files: readonly Omit<StoredObjectRef, 'id'>[]): Promise<void> {
+  async purgeFiles(
+    files: readonly Omit<StoredObjectRef, 'id'>[],
+  ): Promise<void> {
     for (const file of files) await this.deleteObjectQuietly(file);
   }
 
-  private async store(userId: number, source: Buffer, sourceUrl: string | null): Promise<string> {
+  private async store(
+    userId: number,
+    source: Buffer,
+    sourceUrl: string | null,
+  ): Promise<string> {
     const image = await toAvatarWebp(source);
     const key = `avatars/${userId}/${ulid()}.webp`;
     await this.storage.put(key, image.buffer, image.mimeType);
@@ -91,22 +112,32 @@ export class AvatarsService {
       });
     } catch (error) {
       // 행을 못 만들었으면 방금 올린 객체는 아무도 가리키지 않는다
-      await this.deleteObjectQuietly({ provider: this.storage.provider, bucket: this.storage.bucket, key });
+      await this.deleteObjectQuietly({
+        provider: this.storage.provider,
+        bucket: this.storage.bucket,
+        key,
+      });
       throw error;
     }
     if (result.previous) await this.deleteObjectQuietly(result.previous);
     return this.urls.requirePublicUrl({ provider: this.storage.provider, key });
   }
 
-  private async deleteObjectQuietly(file: Omit<StoredObjectRef, 'id'>): Promise<void> {
+  private async deleteObjectQuietly(
+    file: Omit<StoredObjectRef, 'id'>,
+  ): Promise<void> {
     if (file.provider !== 'R2' || !this.storage.isConfigured()) {
-      this.logger.warn(`객체를 지울 저장소가 없어 건너뜀: ${file.provider} ${file.bucket}/${file.key}`);
+      this.logger.warn(
+        `객체를 지울 저장소가 없어 건너뜀: ${file.provider} ${file.bucket}/${file.key}`,
+      );
       return;
     }
     try {
       await this.storage.delete(file.key, file.bucket);
     } catch (error) {
-      this.logger.warn(`객체 삭제 실패 ${file.bucket}/${file.key}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `객체 삭제 실패 ${file.bucket}/${file.key}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

@@ -7,7 +7,10 @@ describe('sanitizeNext (로그인 next 검증, D-41)', () => {
     ['/g/x_y-z/calendar', '/g/x_y-z/calendar'],
     ['/join/ABC123?auto=1', '/join/ABC123?auto=1'],
     ['/g/3?date=2026-11-12', '/g/3?date=2026-11-12'],
-    ['/g/3/calendar?date=2026-11-12&view=month', '/g/3/calendar?date=2026-11-12&view=month'],
+    [
+      '/g/3/calendar?date=2026-11-12&view=month',
+      '/g/3/calendar?date=2026-11-12&view=month',
+    ],
     // 비ASCII 는 퍼센트 인코딩된 꼴로만
     ['/g/3/free?q=%ED%95%9C%EA%B8%80', '/g/3/free?q=%ED%95%9C%EA%B8%80'],
     // 쿼리 안의 / 는 출처를 바꾸지 못하므로 허용

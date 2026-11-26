@@ -146,11 +146,7 @@ export const occurrenceTitle = (o: Occurrence) => (o.label ? `${o.anniversary.na
 export const occurrenceCellText = (o: Occurrence) => o.label ?? o.anniversary.name;
 
 /** 여러 기념일의 범위 안 항목을 날짜별로. 각 날의 첫 항목이 칸에 보일 1개 */
-export function occurrencesByDay(
-  list: Anniversary[] | null | undefined,
-  fromKey: DateKey,
-  toKey: DateKey,
-): Map<DateKey, Occurrence[]> {
+export function occurrencesByDay(list: Anniversary[] | null | undefined, fromKey: DateKey, toKey: DateKey): Map<DateKey, Occurrence[]> {
   const map = new Map<DateKey, Occurrence[]>();
   for (const a of list ?? []) {
     for (const o of occurrencesInRange(a, fromKey, toKey)) {
@@ -164,12 +160,7 @@ export function occurrencesByDay(
 }
 
 /** 다가오는 일정에 섞을 기념일 항목: 오늘 ~ 오늘 + days, 날짜순 최대 limit 개 (3-6) */
-export function upcomingOccurrences(
-  list: Anniversary[] | null | undefined,
-  today: DateKey,
-  days = 30,
-  limit = 2,
-): Occurrence[] {
+export function upcomingOccurrences(list: Anniversary[] | null | undefined, today: DateKey, days = 30, limit = 2): Occurrence[] {
   const end = addDays(today, days);
   return (list ?? [])
     .flatMap((a) => occurrencesInRange(a, today, end))
@@ -205,10 +196,7 @@ export function sortByNext(list: Anniversary[], today: DateKey): Anniversary[] {
  * - value: 다음 항목까지 "D-n" / 당일 "오늘". 다음이 없는 지난 '그날만' 은 "D+n" (tone past)
  * - sub: 보조 줄. 함께한 날 세기는 누적 "N일째" 와 다음 라벨("1092일째, 다음 3주년 11월 15일", 당일이면 "오늘 100일"). 그 밖은 null
  */
-export function listValue(
-  a: Anniversary,
-  today: DateKey,
-): { value: string; tone: "today" | "ahead" | "past"; sub: string | null } {
+export function listValue(a: Anniversary, today: DateKey): { value: string; tone: "today" | "ahead" | "past"; sub: string | null } {
   const next = nextOccurrence(a, today);
   const origin = anniversaryOrigin(a) ?? a.date;
   if (!next) return { value: dday(origin, today).label, tone: "past", sub: null };

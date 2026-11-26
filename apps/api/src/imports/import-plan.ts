@@ -20,14 +20,29 @@ import {
   withinShiftLimit,
 } from '../events/recurrence.js';
 import { MAX_EVENT_DAYS } from '../events/event-input.js';
-import { hasFixedOffset, INVALID_START, instantOf, type IcsEvent, type IcsTime, type ParsedCalendar } from './ics-parse.js';
+import {
+  hasFixedOffset,
+  INVALID_START,
+  instantOf,
+  type IcsEvent,
+  type IcsTime,
+  type ParsedCalendar,
+} from './ics-parse.js';
 
 /** future 오늘 이후, year 지난 1년부터, all 파일 전체 (#314) */
 export type ImportRange = 'future' | 'year' | 'all';
-export type SkipReason = 'DUPLICATE' | 'CANCELLED' | 'TOO_OLD' | 'TOO_LONG' | 'INVALID' | 'OVER_LIMIT';
+export type SkipReason =
+  'DUPLICATE' | 'CANCELLED' | 'TOO_OLD' | 'TOO_LONG' | 'INVALID' | 'OVER_LIMIT';
 export type ImportWarning = 'UNKNOWN_TZID' | 'TRUNCATED_TITLE';
 
-export const SKIP_REASONS: readonly SkipReason[] = ['DUPLICATE', 'CANCELLED', 'TOO_OLD', 'TOO_LONG', 'INVALID', 'OVER_LIMIT'];
+export const SKIP_REASONS: readonly SkipReason[] = [
+  'DUPLICATE',
+  'CANCELLED',
+  'TOO_OLD',
+  'TOO_LONG',
+  'INVALID',
+  'OVER_LIMIT',
+];
 
 /** 한 번에 넣는 일정 수 상한 (펼친 회차 포함, 반복으로 옮긴 것은 1개) */
 export const IMPORT_MAX_EVENTS = 1000;
@@ -135,8 +150,16 @@ interface Window {
 /** 기간 창. 오늘(KST) 00:00, 365일 전 00:00, 전체(1900-01-01) 부터. 펼치는 반복의 끝은 셋 다 오늘부터 366일 */
 export function importWindow(range: ImportRange, now: Date): Window {
   const today = kstDate(now);
-  const loDate = range === 'year' ? addDays(today, -PAST_YEAR_DAYS) : range === 'all' ? ALL_RANGE_FROM : today;
-  return { lo: kstMidnight(loDate), hi: kstMidnight(addDays(today, EXPAND_HORIZON_DAYS)) };
+  const loDate =
+    range === 'year'
+      ? addDays(today, -PAST_YEAR_DAYS)
+      : range === 'all'
+        ? ALL_RANGE_FROM
+        : today;
+  return {
+    lo: kstMidnight(loDate),
+    hi: kstMidnight(addDays(today, EXPAND_HORIZON_DAYS)),
+  };
 }
 
 export function sha256Hex(value: string): string {
@@ -144,7 +167,10 @@ export function sha256Hex(value: string): string {
 }
 
 /** UTF-16 길이 max 안으로 자른다 (서로게이트 쌍을 가르지 않는다). 잘렸으면 끝에 '…' */
-export function clip(value: string, max: number): { text: string; clipped: boolean } {
+export function clip(
+  value: string,
+  max: number,
+): { text: string; clipped: boolean } {
   if (value.length <= max) return { text: value, clipped: false };
   let out = '';
   for (const ch of Array.from(value)) {
@@ -167,7 +193,10 @@ export function toTitle(summary: string): { title: string; clipped: boolean } {
 export function toMemo(location: string, description: string): string | null {
   const place = location.replace(/\s+/g, ' ').trim();
   // eslint-disable-next-line no-control-regex -- 줄바꿈과 탭 말고 제어 문자를 지운다
-  const body = description.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim();
+  const body = description
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+    .trim();
   const memo = [place ? `장소: ${place}` : '', body].filter(Boolean).join('\n');
   return memo === '' ? null : clip(memo, MEMO_MAX).text;
 }
@@ -180,9 +209,13 @@ export function spanOf(event: IcsEvent): Span {
   const allDay = event.start.allDay;
   let endsAt: Date;
   if (event.end) endsAt = instantOf(event.end);
-  else if (event.durationSec !== null) endsAt = new Date(startsAt.getTime() + event.durationSec * 1000);
+  else if (event.durationSec !== null)
+    endsAt = new Date(startsAt.getTime() + event.durationSec * 1000);
   else endsAt = startsAt;
-  if (endsAt.getTime() <= startsAt.getTime()) endsAt = new Date(startsAt.getTime() + (allDay ? DAY_MS : DEFAULT_TIMED_MS));
+  if (endsAt.getTime() <= startsAt.getTime())
+    endsAt = new Date(
+      startsAt.getTime() + (allDay ? DAY_MS : DEFAULT_TIMED_MS),
+    );
   // 종일인데 끝이 자정이 아니면(시각이 섞인 파일) 끝 날짜의 다음 날 00:00 으로 올린다
   if (allDay && (endsAt.getTime() - startsAt.getTime()) % DAY_MS !== 0) {
     endsAt = kstMidnight(addDays(kstDate(new Date(endsAt.getTime() - 1)), 1));
@@ -190,7 +223,8 @@ export function spanOf(event: IcsEvent): Span {
   return { startsAt, endsAt, allDay };
 }
 
-const tooLong = (span: Span) => span.endsAt.getTime() - span.startsAt.getTime() > MAX_EVENT_DAYS * DAY_MS;
+const tooLong = (span: Span) =>
+  span.endsAt.getTime() - span.startsAt.getTime() > MAX_EVENT_DAYS * DAY_MS;
 
 /** 회차 비교 키: 종일 반복은 KST 날짜, 시간 반복은 순간(ms) */
 function occurrenceKey(time: IcsTime, allDaySeries: boolean): string {
@@ -202,11 +236,17 @@ const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
 /** 그 벽시계 날짜의 요일 코드 */
 function wallWeekday(time: IcsTime): string {
-  return WEEKDAY_CODES[new Date(Date.UTC(time.wall.y, time.wall.mo - 1, time.wall.d)).getUTCDay()];
+  return WEEKDAY_CODES[
+    new Date(Date.UTC(time.wall.y, time.wall.mo - 1, time.wall.d)).getUTCDay()
+  ];
 }
 
-const sameList = (list: (string | number)[] | undefined, value: string | number) =>
-  list === undefined || (list.length === 1 && String(list[0]).toUpperCase() === String(value));
+const sameList = (
+  list: (string | number)[] | undefined,
+  value: string | number,
+) =>
+  list === undefined ||
+  (list.length === 1 && String(list[0]).toUpperCase() === String(value));
 
 /**
  * RRULE 을 우리 반복으로 옮길 수 있으면 그 주기 (기획 3장 표, D-162). 아니면 null (펼친다).
@@ -231,14 +271,25 @@ export function mappableRepeat(event: IcsEvent): Repeat | null {
       return rule.interval === 1 ? 'WEEKLY' : 'BIWEEKLY';
     }
     case 'MONTHLY': {
-      if (rule.interval !== 1 || keys.some((key) => key !== 'BYMONTHDAY')) return null;
+      if (rule.interval !== 1 || keys.some((key) => key !== 'BYMONTHDAY'))
+        return null;
       if (!sameList(parts.BYMONTHDAY, start.wall.d)) return null;
       return start.wall.d <= 28 && kstDay <= 28 ? 'MONTHLY' : null;
     }
     case 'YEARLY': {
-      if (rule.interval !== 1 || keys.some((key) => key !== 'BYMONTH' && key !== 'BYMONTHDAY')) return null;
-      if (!sameList(parts.BYMONTH, start.wall.mo) || !sameList(parts.BYMONTHDAY, start.wall.d)) return null;
-      const leapDay = (start.wall.mo === 2 && start.wall.d === 29) || (kstMonth === 2 && kstDay === 29);
+      if (
+        rule.interval !== 1 ||
+        keys.some((key) => key !== 'BYMONTH' && key !== 'BYMONTHDAY')
+      )
+        return null;
+      if (
+        !sameList(parts.BYMONTH, start.wall.mo) ||
+        !sameList(parts.BYMONTHDAY, start.wall.d)
+      )
+        return null;
+      const leapDay =
+        (start.wall.mo === 2 && start.wall.d === 29) ||
+        (kstMonth === 2 && kstDay === 29);
       return leapDay ? null : 'YEARLY';
     }
     default:
@@ -271,24 +322,38 @@ const FAST_FORWARD_MARGIN_DAYS = 40;
  * COUNT 없는 매일, 매주 반복은 시작을 주기의 배수만큼 창 40일 앞까지 당겨 돈다 (1990년부터 매일 같은 규칙에 1만 번 넘게 돌지 않게).
  * 주기의 배수만 옮기므로 회차 날짜는 같다. 당긴 시작 자체는 창 밖이라 결과에 들지 않는다. 그 밖의 규칙은 그대로
  */
-function fastForward(event: IcsEvent, notBefore: Date): { y: number; mo: number; d: number } {
+function fastForward(
+  event: IcsEvent,
+  notBefore: Date,
+): { y: number; mo: number; d: number } {
   const rule = event.rule!;
   const wall = event.start.wall;
-  if (rule.count !== null || (rule.freq !== 'DAILY' && rule.freq !== 'WEEKLY')) return wall;
+  if (rule.count !== null || (rule.freq !== 'DAILY' && rule.freq !== 'WEEKLY'))
+    return wall;
   const period = rule.interval * (rule.freq === 'WEEKLY' ? 7 : 1);
   const startDay = Math.floor(Date.UTC(wall.y, wall.mo - 1, wall.d) / DAY_MS);
-  const targetDay = Math.floor(notBefore.getTime() / DAY_MS) - FAST_FORWARD_MARGIN_DAYS;
+  const targetDay =
+    Math.floor(notBefore.getTime() / DAY_MS) - FAST_FORWARD_MARGIN_DAYS;
   const steps = Math.floor((targetDay - startDay) / period);
   if (steps <= 0) return wall;
   const shifted = new Date((startDay + steps * period) * DAY_MS);
-  return { y: shifted.getUTCFullYear(), mo: shifted.getUTCMonth() + 1, d: shifted.getUTCDate() };
+  return {
+    y: shifted.getUTCFullYear(),
+    mo: shifted.getUTCMonth() + 1,
+    d: shifted.getUTCDate(),
+  };
 }
 
 /**
  * RRULE(+RDATE) 회차를 시작 순으로. COUNT, UNTIL 은 여기서 적용한다 (EXDATE 는 회차 수에 들어가므로 빼지 않는다).
  * `stop(startsAt)` 이 true 면 거기서 멈춘다. 상한을 넘으면 null
  */
-function ruleOccurrences(event: IcsEvent, budget: StepBudget, notBefore: Date, stop: (startsAt: Date) => boolean): RuleOccurrence[] | null {
+function ruleOccurrences(
+  event: IcsEvent,
+  budget: StepBudget,
+  notBefore: Date,
+  stop: (startsAt: Date) => boolean,
+): RuleOccurrence[] | null {
   const rule = event.rule!;
   const start = event.start;
   const seedDate = fastForward(event, notBefore);
@@ -303,8 +368,10 @@ function ruleOccurrences(event: IcsEvent, budget: StepBudget, notBefore: Date, s
   });
   // BY 부분 없는 매월/매년은 ical.js 가 없는 날(2/29, 31일)을 다음 달 1일로 넘긴다. RFC 5545 대로 건너뛰게 시작 날짜를 BY 로 밝힌다
   const recur = rule.recur.clone();
-  if (Object.keys(rule.parts).length === 0 && rule.freq === 'MONTHLY') recur.parts = { BYMONTHDAY: [start.wall.d] };
-  if (Object.keys(rule.parts).length === 0 && rule.freq === 'YEARLY') recur.parts = { BYMONTH: [start.wall.mo], BYMONTHDAY: [start.wall.d] };
+  if (Object.keys(rule.parts).length === 0 && rule.freq === 'MONTHLY')
+    recur.parts = { BYMONTHDAY: [start.wall.d] };
+  if (Object.keys(rule.parts).length === 0 && rule.freq === 'YEARLY')
+    recur.parts = { BYMONTH: [start.wall.mo], BYMONTHDAY: [start.wall.d] };
   const iterator = recur.iterator(seed);
   const result: RuleOccurrence[] = [];
   for (let index = 0; ; index += 1) {
@@ -312,9 +379,20 @@ function ruleOccurrences(event: IcsEvent, budget: StepBudget, notBefore: Date, s
     if (rule.count !== null && index >= rule.count) break;
     const next = iterator.next();
     if (!next) break;
-    const wall = { y: next.year, mo: next.month, d: next.day, h: next.hour, mi: next.minute, s: next.second };
+    const wall = {
+      y: next.year,
+      mo: next.month,
+      d: next.day,
+      h: next.hour,
+      mi: next.minute,
+      s: next.second,
+    };
     const time: IcsTime = start.allDay
-      ? { allDay: true, date: `${String(wall.y).padStart(4, '0')}-${String(wall.mo).padStart(2, '0')}-${String(wall.d).padStart(2, '0')}`, wall }
+      ? {
+          allDay: true,
+          date: `${String(wall.y).padStart(4, '0')}-${String(wall.mo).padStart(2, '0')}-${String(wall.d).padStart(2, '0')}`,
+          wall,
+        }
       : { allDay: false, wall, zone: start.zone };
     const startsAt = instantOf(time);
     if (rule.until && startsAt.getTime() > rule.until.getTime()) break;
@@ -357,7 +435,11 @@ function groupByUid(events: IcsEvent[]): Group[] {
   const groups: Group[] = [];
   for (const event of events) {
     if (event.uid === null) {
-      groups.push(event.recurrenceId ? { master: null, overrides: [event] } : { master: event, overrides: [] });
+      groups.push(
+        event.recurrenceId
+          ? { master: null, overrides: [event] }
+          : { master: event, overrides: [] },
+      );
       continue;
     }
     let group = byUid.get(event.uid);
@@ -367,7 +449,8 @@ function groupByUid(events: IcsEvent[]): Group[] {
       groups.push(group);
     }
     if (event.recurrenceId) group.overrides.push(event);
-    else if (group.master) groups.push({ master: event, overrides: [] }); // 같은 UID 원본이 둘이면 따로 (해시가 같아 뒤의 것은 DUPLICATE)
+    else if (group.master)
+      groups.push({ master: event, overrides: [] }); // 같은 UID 원본이 둘이면 따로 (해시가 같아 뒤의 것은 DUPLICATE)
     else group.master = event;
   }
   return groups;
@@ -375,11 +458,20 @@ function groupByUid(events: IcsEvent[]): Group[] {
 
 /** UID 가 없으면 (제목, 시작, 끝) 으로 대신한다 */
 function baseKey(event: IcsEvent, span: Span): string {
-  return event.uid ?? `~${event.summary}|${span.startsAt.toISOString()}|${span.endsAt.toISOString()}`;
+  return (
+    event.uid ??
+    `~${event.summary}|${span.startsAt.toISOString()}|${span.endsAt.toISOString()}`
+  );
 }
 
 /** 한 번짜리 일정 하나를 계획에 넣는다 (바뀐 회차를 따로 넣을 때도) */
-function addOnce(c: Collector, event: IcsEvent, key: string, window: Window, source: PlannedEvent['source'] = 'ONCE'): void {
+function addOnce(
+  c: Collector,
+  event: IcsEvent,
+  key: string,
+  window: Window,
+  source: PlannedEvent['source'] = 'ONCE',
+): void {
   if (event.status === 'CANCELLED') return c.skip('CANCELLED');
   const span = spanOf(event);
   if (tooLong(span)) return c.skip('TOO_LONG');
@@ -397,23 +489,39 @@ function addOnce(c: Collector, event: IcsEvent, key: string, window: Window, sou
 }
 
 /** 바뀐 회차를 따로 넣을 때의 키 */
-const overrideKey = (uid: string | null, override: IcsEvent) => `${uid ?? ''}#${instantOf(override.recurrenceId!).toISOString()}`;
+const overrideKey = (uid: string | null, override: IcsEvent) =>
+  `${uid ?? ''}#${instantOf(override.recurrenceId!).toISOString()}`;
 
-function addSeries(c: Collector, group: Group, window: Window, budget: StepBudget): void {
+function addSeries(
+  c: Collector,
+  group: Group,
+  window: Window,
+  budget: StepBudget,
+): void {
   const master = group.master!;
-  if (master.status === 'CANCELLED') return c.skip('CANCELLED', 1 + group.overrides.length);
+  if (master.status === 'CANCELLED')
+    return c.skip('CANCELLED', 1 + group.overrides.length);
   const span = spanOf(master);
   if (tooLong(span)) return c.skip('TOO_LONG', 1 + group.overrides.length);
-  if (master.ruleUnsupported || UNEXPANDABLE_FREQS.has(master.rule!.freq)) return c.skip('INVALID', 1 + group.overrides.length);
+  if (master.ruleUnsupported || UNEXPANDABLE_FREQS.has(master.rule!.freq))
+    return c.skip('INVALID', 1 + group.overrides.length);
 
   const repeat = mappableRepeat(master);
-  if (repeat && !fitsInPeriod(repeat, span.startsAt, span.endsAt)) return c.skip('TOO_LONG', 1 + group.overrides.length);
+  if (repeat && !fitsInPeriod(repeat, span.startsAt, span.endsAt))
+    return c.skip('TOO_LONG', 1 + group.overrides.length);
   if (repeat) return keepSeries(c, group, span, repeat, window, budget);
   return expandSeries(c, group, span, window, budget);
 }
 
 /** 반복을 우리 규칙으로 옮긴다. 시작은 기간 창 안 첫 회차로 당긴다 (D-163) */
-function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, window: Window, budget: StepBudget): void {
+function keepSeries(
+  c: Collector,
+  group: Group,
+  span: Span,
+  repeat: Repeat,
+  window: Window,
+  budget: StepBudget,
+): void {
   const master = group.master!;
   const rule = master.rule!;
   const duration = span.endsAt.getTime() - span.startsAt.getTime();
@@ -426,11 +534,15 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
     return false;
   });
   if (!occurrences) return c.skip('INVALID', 1 + group.overrides.length);
-  const firstIndex = occurrences.findIndex((occurrence) => occurrence.startsAt.getTime() + duration > window.lo.getTime());
+  const firstIndex = occurrences.findIndex(
+    (occurrence) =>
+      occurrence.startsAt.getTime() + duration > window.lo.getTime(),
+  );
   if (firstIndex < 0) {
     // 원본 회차는 모두 지났다. 옮겨 온 바뀐 회차만 따로 본다
     c.skip('TOO_OLD');
-    for (const override of group.overrides) addOnce(c, override, overrideKey(master.uid, override), window);
+    for (const override of group.overrides)
+      addOnce(c, override, overrideKey(master.uid, override), window);
     return;
   }
   const startsAt = occurrences[firstIndex].startsAt;
@@ -439,15 +551,26 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
     endsAt: new Date(startsAt.getTime() + duration),
     allDay: span.allDay,
     repeat,
-    repeatUntil: finite ? kstDate(occurrences[occurrences.length - 1].startsAt) : null,
+    repeatUntil: finite
+      ? kstDate(occurrences[occurrences.length - 1].startsAt)
+      : null,
   };
   const startDate = kstDate(startsAt);
   const title = c.title(master.summary);
   const memo = toMemo(master.location, master.description);
   const exceptions = new Map<string, PlannedException>();
   const cancel = (occurrence: string) =>
-    exceptions.set(occurrence, { occurrence, cancelled: true, title: null, startsAt: null, endsAt: null, allDay: null, memo: null });
-  const inSeries = (date: string) => date >= startDate && isOccurrenceDate(series, date);
+    exceptions.set(occurrence, {
+      occurrence,
+      cancelled: true,
+      title: null,
+      startsAt: null,
+      endsAt: null,
+      allDay: null,
+      memo: null,
+    });
+  const inSeries = (date: string) =>
+    date >= startDate && isOccurrenceDate(series, date);
 
   for (const exdate of master.exdates) {
     const date = kstDate(instantOf(exdate));
@@ -465,7 +588,10 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
       continue;
     }
     const moved = spanOf(override);
-    if (tooLong(moved) || !withinShiftLimit(date, moved.startsAt, moved.endsAt)) {
+    if (
+      tooLong(moved) ||
+      !withinShiftLimit(date, moved.startsAt, moved.endsAt)
+    ) {
       // 앞뒤 30일 밖으로 옮긴 회차는 원본에서 취소하고 따로 넣는다 (기획 3장)
       cancel(date);
       addOnce(c, override, overrideKey(master.uid, override), window);
@@ -478,8 +604,14 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
       occurrence: date,
       cancelled: false,
       title: overrideTitle !== title ? overrideTitle : null,
-      startsAt: moved.startsAt.getTime() !== original.startsAt.getTime() ? moved.startsAt : null,
-      endsAt: moved.endsAt.getTime() !== original.endsAt.getTime() ? moved.endsAt : null,
+      startsAt:
+        moved.startsAt.getTime() !== original.startsAt.getTime()
+          ? moved.startsAt
+          : null,
+      endsAt:
+        moved.endsAt.getTime() !== original.endsAt.getTime()
+          ? moved.endsAt
+          : null,
       allDay: moved.allDay !== span.allDay ? moved.allDay : null,
       memo: overrideMemo !== memo ? (overrideMemo ?? '') : null,
     });
@@ -494,21 +626,41 @@ function keepSeries(c: Collector, group: Group, span: Span, repeat: Repeat, wind
     allDay: span.allDay,
     repeat,
     repeatUntil: series.repeatUntil,
-    exceptions: [...exceptions.values()].sort((a, b) => a.occurrence.localeCompare(b.occurrence)),
+    exceptions: [...exceptions.values()].sort((a, b) =>
+      a.occurrence.localeCompare(b.occurrence),
+    ),
     source: 'KEPT',
   });
 }
 
 /** 옮길 수 없는 반복: 기간 창 ~ 오늘부터 1년 안 회차를 한 번짜리로 (D-163) */
-function expandSeries(c: Collector, group: Group, span: Span, window: Window, budget: StepBudget): void {
+function expandSeries(
+  c: Collector,
+  group: Group,
+  span: Span,
+  window: Window,
+  budget: StepBudget,
+): void {
   const master = group.master!;
   const allDay = span.allDay;
   const duration = span.endsAt.getTime() - span.startsAt.getTime();
-  const occurrences = ruleOccurrences(master, budget, window.lo, (startsAt) => startsAt.getTime() >= window.hi.getTime());
+  const occurrences = ruleOccurrences(
+    master,
+    budget,
+    window.lo,
+    (startsAt) => startsAt.getTime() >= window.hi.getTime(),
+  );
   if (!occurrences) return c.skip('INVALID', 1 + group.overrides.length);
 
-  const excluded = new Set(master.exdates.map((time) => occurrenceKey(time, allDay)));
-  const overrides = new Map(group.overrides.map((override) => [occurrenceKey(override.recurrenceId!, allDay), override]));
+  const excluded = new Set(
+    master.exdates.map((time) => occurrenceKey(time, allDay)),
+  );
+  const overrides = new Map(
+    group.overrides.map((override) => [
+      occurrenceKey(override.recurrenceId!, allDay),
+      override,
+    ]),
+  );
   const title = c.title(master.summary);
   const memo = toMemo(master.location, master.description);
   const before = c.events.length;
@@ -520,14 +672,22 @@ function expandSeries(c: Collector, group: Group, span: Span, window: Window, bu
     const override = overrides.get(key);
     if (override) {
       overrides.delete(key);
-      addOnce(c, override, overrideKey(master.uid, override), window, 'EXPANDED');
+      addOnce(
+        c,
+        override,
+        overrideKey(master.uid, override),
+        window,
+        'EXPANDED',
+      );
       continue;
     }
     if (excluded.has(key)) continue;
     const endsAt = new Date(occurrence.startsAt.getTime() + duration);
     if (endsAt.getTime() <= window.lo.getTime()) continue;
     c.events.push({
-      uidHash: sha256Hex(`${baseKey(master, span)}@${occurrence.startsAt.toISOString()}`),
+      uidHash: sha256Hex(
+        `${baseKey(master, span)}@${occurrence.startsAt.toISOString()}`,
+      ),
       title,
       memo,
       startsAt: occurrence.startsAt,
@@ -540,17 +700,23 @@ function expandSeries(c: Collector, group: Group, span: Span, window: Window, bu
     });
   }
   // 규칙 회차와 짝이 없는 바뀐 회차 (창 밖 회차를 창 안으로 옮긴 것 등)
-  for (const override of overrides.values()) addOnce(c, override, overrideKey(master.uid, override), window);
+  for (const override of overrides.values())
+    addOnce(c, override, overrideKey(master.uid, override), window);
   if (c.events.length === before) c.skip('TOO_OLD');
   else c.expandedSeries += 1;
 }
 
 /** 파일 → 후보 (DB 를 보기 전). 기간 창 밖, 취소, 너무 긴 것, 못 읽은 것은 이유별로 센다 */
-export function buildCandidates(calendar: ParsedCalendar, range: ImportRange, now: Date): ImportCandidates {
+export function buildCandidates(
+  calendar: ParsedCalendar,
+  range: ImportRange,
+  now: Date,
+): ImportCandidates {
   const c = new Collector();
   const window = importWindow(range, now);
   const budget = new StepBudget(STEP_LIMIT_PER_FILE);
-  for (const event of calendar.events) if (event.unknownTzid) c.warnings.add('UNKNOWN_TZID');
+  for (const event of calendar.events)
+    if (event.unknownTzid) c.warnings.add('UNKNOWN_TZID');
 
   for (const group of groupByUid(calendar.events)) {
     const master = group.master;
@@ -569,7 +735,8 @@ export function buildCandidates(calendar: ParsedCalendar, range: ImportRange, no
     if (!master.rule && !master.ruleUnsupported && master.rdates.length === 0) {
       addOnce(c, master, baseKey(master, spanOf(master)), window);
       // 반복이 아닌데 바뀐 회차가 있으면 각자 한 번짜리로
-      for (const override of group.overrides) addOnce(c, override, overrideKey(master.uid, override), window);
+      for (const override of group.overrides)
+        addOnce(c, override, overrideKey(master.uid, override), window);
       continue;
     }
     if (!master.rule && master.rdates.length > 0) {
@@ -579,7 +746,13 @@ export function buildCandidates(calendar: ParsedCalendar, range: ImportRange, no
     }
     addSeries(c, group, window, budget);
   }
-  return { total: calendar.veventCount, events: c.events, expandedSeries: c.expandedSeries, skipped: c.skipped, warnings: c.warnings };
+  return {
+    total: calendar.veventCount,
+    events: c.events,
+    expandedSeries: c.expandedSeries,
+    skipped: c.skipped,
+    warnings: c.warnings,
+  };
 }
 
 /** RRULE 없이 RDATE 만 있는 VEVENT. DTSTART 와 RDATE 날짜마다 같은 길이로 */
@@ -588,13 +761,28 @@ function addRdateOnly(c: Collector, group: Group, window: Window): void {
   const span = spanOf(master);
   const duration = span.endsAt.getTime() - span.startsAt.getTime();
   const times = [master.start, ...master.rdates];
-  const excluded = new Set(master.exdates.map((time) => occurrenceKey(time, span.allDay)));
+  const excluded = new Set(
+    master.exdates.map((time) => occurrenceKey(time, span.allDay)),
+  );
   const before = c.events.length;
   for (const time of times) {
     if (excluded.has(occurrenceKey(time, span.allDay))) continue;
     const startsAt = instantOf(time);
-    const event: IcsEvent = { ...master, start: time, end: null, durationSec: duration / 1000, rdates: [], rule: null };
-    addOnce(c, event, `${baseKey(master, span)}@${startsAt.toISOString()}`, window, 'EXPANDED');
+    const event: IcsEvent = {
+      ...master,
+      start: time,
+      end: null,
+      durationSec: duration / 1000,
+      rdates: [],
+      rule: null,
+    };
+    addOnce(
+      c,
+      event,
+      `${baseKey(master, span)}@${startsAt.toISOString()}`,
+      window,
+      'EXPANDED',
+    );
   }
   if (c.events.length > before) c.expandedSeries += 1;
 }
@@ -603,7 +791,10 @@ function addRdateOnly(c: Collector, group: Group, window: Window): void {
  * 이미 넣은 것(DUPLICATE)과 같은 파일 안 겹침을 빼고, 시작 순 1,000개까지 (넘는 것은 OVER_LIMIT).
  * 미리보기와 넣기가 같은 결과를 쓴다
  */
-export function finalizePlan(candidates: ImportCandidates, existing: ReadonlySet<string>): ImportPlan {
+export function finalizePlan(
+  candidates: ImportCandidates,
+  existing: ReadonlySet<string>,
+): ImportPlan {
   const skipped = { ...candidates.skipped };
   const add = (reason: SkipReason, count = 1) => {
     if (count > 0) skipped[reason] = (skipped[reason] ?? 0) + count;
@@ -618,7 +809,11 @@ export function finalizePlan(candidates: ImportCandidates, existing: ReadonlySet
     seen.add(event.uidHash);
     fresh.push(event);
   }
-  fresh.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.uidHash.localeCompare(b.uidHash));
+  fresh.sort(
+    (a, b) =>
+      a.startsAt.getTime() - b.startsAt.getTime() ||
+      a.uidHash.localeCompare(b.uidHash),
+  );
   const events = fresh.slice(0, IMPORT_MAX_EVENTS);
   add('OVER_LIMIT', fresh.length - events.length);
 
@@ -628,10 +823,20 @@ export function finalizePlan(candidates: ImportCandidates, existing: ReadonlySet
     recurringKept: events.filter((event) => event.source === 'KEPT').length,
     expanded: events.filter((event) => event.source === 'EXPANDED').length,
     expandedSeries: candidates.expandedSeries,
-    skipped: SKIP_REASONS.filter((reason) => (skipped[reason] ?? 0) > 0).map((reason) => ({ reason, count: skipped[reason]! })),
+    skipped: SKIP_REASONS.filter((reason) => (skipped[reason] ?? 0) > 0).map(
+      (reason) => ({ reason, count: skipped[reason]! }),
+    ),
     firstStartsAt: events[0]?.startsAt ?? null,
-    lastStartsAt: events.length > 0 ? events.reduce((max, event) => (event.startsAt > max ? event.startsAt : max), events[0].startsAt) : null,
-    warnings: (['UNKNOWN_TZID', 'TRUNCATED_TITLE'] as const).filter((warning) => candidates.warnings.has(warning)),
+    lastStartsAt:
+      events.length > 0
+        ? events.reduce(
+            (max, event) => (event.startsAt > max ? event.startsAt : max),
+            events[0].startsAt,
+          )
+        : null,
+    warnings: (['UNKNOWN_TZID', 'TRUNCATED_TITLE'] as const).filter((warning) =>
+      candidates.warnings.has(warning),
+    ),
     sample: events.slice(0, 5).map((event) => ({
       title: event.title,
       startsAt: event.startsAt,
@@ -655,8 +860,14 @@ export function finalizePlan(candidates: ImportCandidates, existing: ReadonlySet
  * (#314, D-194) 미리보기에서 고른 것만 넣는다. include 가 없으면 전부, 이번 파일에 없는 키는 무시.
  * 뺀 일정은 건너뜀으로 세지 않고 기록도 남기지 않아 다음에 같은 파일을 올리면 다시 넣을 일정으로 나온다
  */
-export function selectEvents(plan: ImportPlan, include: readonly string[] | undefined): ImportPlan {
+export function selectEvents(
+  plan: ImportPlan,
+  include: readonly string[] | undefined,
+): ImportPlan {
   if (!include) return plan;
   const keys = new Set(include);
-  return { ...plan, events: plan.events.filter((event) => keys.has(event.uidHash)) };
+  return {
+    ...plan,
+    events: plan.events.filter((event) => keys.has(event.uidHash)),
+  };
 }

@@ -20,16 +20,26 @@ const TOKEN = "Ab3_-Ab3_-Ab3_-Ab3_-AB";
 
 describe("eventShareTimeLabel (#274)", () => {
   it("시간 일정 하루: 오전/오후가 같으면 끝에 생략, 다르면 붙인다. 정오와 자정", () => {
-    expect(eventShareTimeLabel({ startsAt: kst("2026-11-15T19:00:00"), endsAt: kst("2026-11-15T21:00:00"), allDay: false })).toBe("11월 15일 (일) 오후 7:00 ~ 9:00");
-    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T11:30:00"), endsAt: kst("2026-11-14T13:00:00"), allDay: false })).toBe("11월 14일 (토) 오전 11:30 ~ 오후 1:00");
-    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T00:00:00"), endsAt: kst("2026-11-14T12:00:00"), allDay: false })).toBe("11월 14일 (토) 오전 12:00 ~ 오후 12:00");
+    expect(eventShareTimeLabel({ startsAt: kst("2026-11-15T19:00:00"), endsAt: kst("2026-11-15T21:00:00"), allDay: false })).toBe(
+      "11월 15일 (일) 오후 7:00 ~ 9:00",
+    );
+    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T11:30:00"), endsAt: kst("2026-11-14T13:00:00"), allDay: false })).toBe(
+      "11월 14일 (토) 오전 11:30 ~ 오후 1:00",
+    );
+    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T00:00:00"), endsAt: kst("2026-11-14T12:00:00"), allDay: false })).toBe(
+      "11월 14일 (토) 오전 12:00 ~ 오후 12:00",
+    );
   });
 
   it("종일 하루, 여러 날(같은 달, 달 넘김), 여러 날 시간 일정", () => {
     expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T00:00:00"), endsAt: kst("2026-11-15T00:00:00"), allDay: true })).toBe("11월 14일 (토) 종일");
     expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T00:00:00"), endsAt: kst("2026-11-17T00:00:00"), allDay: true })).toBe("11월 14일 (토) ~ 16일 (월)");
-    expect(eventShareTimeLabel({ startsAt: kst("2026-11-30T00:00:00"), endsAt: kst("2026-12-03T00:00:00"), allDay: true })).toBe("11월 30일 (월) ~ 12월 2일 (수)");
-    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T22:00:00"), endsAt: kst("2026-11-15T02:00:00"), allDay: false })).toBe("11월 14일 (토) 오후 10:00 ~ 15일 (일) 오전 2:00");
+    expect(eventShareTimeLabel({ startsAt: kst("2026-11-30T00:00:00"), endsAt: kst("2026-12-03T00:00:00"), allDay: true })).toBe(
+      "11월 30일 (월) ~ 12월 2일 (수)",
+    );
+    expect(eventShareTimeLabel({ startsAt: kst("2026-11-14T22:00:00"), endsAt: kst("2026-11-15T02:00:00"), allDay: false })).toBe(
+      "11월 14일 (토) 오후 10:00 ~ 15일 (일) 오전 2:00",
+    );
   });
 
   it("반복 표시", () => {
@@ -53,7 +63,9 @@ describe("토큰, 경로, 착지", () => {
 
   it("착지: 일정 상세 /events/<일정 코드>?team=<팀 코드>, 반복이면 회차까지 (#311)", () => {
     expect(eventShareLandingHref({ groupCode: "teamcode", eventCode: "evntcode", occurrence: null })).toBe("/events/evntcode?team=teamcode");
-    expect(eventShareLandingHref({ groupCode: "teamcode", eventCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/evntcode?occurrence=2026-11-18&team=teamcode");
+    expect(eventShareLandingHref({ groupCode: "teamcode", eventCode: "evntcode", occurrence: "2026-11-18" })).toBe(
+      "/events/evntcode?occurrence=2026-11-18&team=teamcode",
+    );
   });
 });
 

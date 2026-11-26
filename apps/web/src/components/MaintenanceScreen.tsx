@@ -28,9 +28,7 @@ export function MaintenanceScreen({ from }: { from?: string }) {
       <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
         <Symbol size={40} />
         <div role="alert" className="mt-auto pt-16">
-          <span className="inline-flex text-[13px] font-bold text-acc-ink">
-            서버 점검
-          </span>
+          <span className="inline-flex text-[13px] font-bold text-acc-ink">서버 점검</span>
           <h1 className="mt-2 text-[32px] font-bold leading-[1.15] tracking-[-0.03em]">점검 중이에요</h1>
           <p className="mt-3 text-[15px] leading-[22px] text-soft">
             잠시 후 다시 시도해 주세요

@@ -9,12 +9,22 @@ const create = vi.fn();
 const update = vi.fn();
 
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/AppShell", () => ({
   useGroupContext: () => ({
     groupId: 10,
     setFabAction: vi.fn(),
-    group: { id: 10, type: "TEAM", me: { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null, showBirthday: true } } as unknown as GroupDetail,
+    group: {
+      id: 10,
+      type: "TEAM",
+      me: { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null, showBirthday: true },
+    } as unknown as GroupDetail,
   }),
 }));
 let anniversaries: Anniversary[] = [];
@@ -31,7 +41,16 @@ vi.mock("@/lib/date", async (orig) => ({ ...(await orig<typeof import("@/lib/dat
 const { AnniversariesScreen } = await import("../AnniversariesScreen");
 
 const jiu = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
-const ANN: Anniversary = { id: 5, groupId: 10, name: "결혼기념일", date: "2020-05-02", kind: "YEARLY", reminders: ["DAY_BEFORE"], creator: jiu, createdAt: "2026-03-01T00:00:00.000Z" };
+const ANN: Anniversary = {
+  id: 5,
+  groupId: 10,
+  name: "결혼기념일",
+  date: "2020-05-02",
+  kind: "YEARLY",
+  reminders: ["DAY_BEFORE"],
+  creator: jiu,
+  createdAt: "2026-03-01T00:00:00.000Z",
+};
 
 beforeEach(() => {
   anniversaries = [ANN];

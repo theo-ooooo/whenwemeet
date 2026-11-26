@@ -18,7 +18,13 @@ export class EventResponsesController {
     @Query('occurrence') occurrence: unknown,
     @Body() dto: RsvpDto,
   ) {
-    return this.responses.setRsvp(user.id, groupId, eventId, occurrence, dto.status);
+    return this.responses.setRsvp(
+      user.id,
+      groupId,
+      eventId,
+      occurrence,
+      dto.status,
+    );
   }
 
   @Put('reaction')
@@ -29,6 +35,12 @@ export class EventResponsesController {
     @Query('occurrence') occurrence: unknown,
     @Body() dto: ReactionDto,
   ) {
-    return this.responses.setReaction(user.id, groupId, eventId, occurrence, dto.reaction);
+    return this.responses.setReaction(
+      user.id,
+      groupId,
+      eventId,
+      occurrence,
+      dto.reaction,
+    );
   }
 }

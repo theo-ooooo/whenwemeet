@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { ApiException } from '../common/errors.js';
@@ -12,8 +21,16 @@ import { HideDto } from './dto/moderation.dto.js';
 /** `?groupId=` 원문. 없거나 빈 값이면 null, 양의 정수가 아니면 400 */
 function parseGroupFilter(raw: unknown): number | null {
   if (raw === undefined || raw === '') return null;
-  if (typeof raw !== 'string' || !/^[1-9]\d{0,9}$/.test(raw) || Number(raw) > 2_147_483_647) {
-    throw new ApiException('VALIDATION_FAILED', 'groupId 는 양의 정수여야 해요', [{ field: 'groupId', message: 'groupId 는 양의 정수여야 해요' }]);
+  if (
+    typeof raw !== 'string' ||
+    !/^[1-9]\d{0,9}$/.test(raw) ||
+    Number(raw) > 2_147_483_647
+  ) {
+    throw new ApiException(
+      'VALIDATION_FAILED',
+      'groupId 는 양의 정수여야 해요',
+      [{ field: 'groupId', message: 'groupId 는 양의 정수여야 해요' }],
+    );
   }
   return Number(raw);
 }
@@ -22,7 +39,11 @@ function parseGroupFilter(raw: unknown): number | null {
 function parseGroupType(raw: unknown): GroupType | null {
   if (raw === undefined || raw === '') return null;
   if (raw === 'TEAM' || raw === 'PERSONAL') return raw;
-  throw new ApiException('VALIDATION_FAILED', 'type 은 TEAM, PERSONAL 중 하나여야 해요', [{ field: 'type', message: 'type 은 TEAM, PERSONAL 중 하나여야 해요' }]);
+  throw new ApiException(
+    'VALIDATION_FAILED',
+    'type 은 TEAM, PERSONAL 중 하나여야 해요',
+    [{ field: 'type', message: 'type 은 TEAM, PERSONAL 중 하나여야 해요' }],
+  );
 }
 
 /** (#515) 관리자 팀 관리 (api.md 2.16, D-286). 관리자만 */
@@ -32,8 +53,17 @@ export class AdminGroupsController {
   constructor(private readonly moderation: AdminModerationService) {}
 
   @Get()
-  list(@Query('q') q?: unknown, @Query('type') type?: unknown, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
-    return this.moderation.listGroups({ q: parseSearchText(q), type: parseGroupType(type), ...parsePageQuery({ limit, cursor }) });
+  list(
+    @Query('q') q?: unknown,
+    @Query('type') type?: unknown,
+    @Query('limit') limit?: unknown,
+    @Query('cursor') cursor?: unknown,
+  ) {
+    return this.moderation.listGroups({
+      q: parseSearchText(q),
+      type: parseGroupType(type),
+      ...parsePageQuery({ limit, cursor }),
+    });
   }
 
   @Get(':id')
@@ -43,7 +73,11 @@ export class AdminGroupsController {
 
   @Post(':id/hide')
   @HttpCode(200)
-  hide(@CurrentUser() user: AuthUser, @IdParam('id') id: number, @Body() dto: HideDto) {
+  hide(
+    @CurrentUser() user: AuthUser,
+    @IdParam('id') id: number,
+    @Body() dto: HideDto,
+  ) {
     return this.moderation.hideGroup(user.id, id, dto.reason);
   }
 
@@ -66,8 +100,17 @@ export class AdminEventsController {
   constructor(private readonly moderation: AdminModerationService) {}
 
   @Get()
-  list(@Query('q') q?: unknown, @Query('groupId') groupId?: unknown, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
-    return this.moderation.listEvents({ q: parseSearchText(q), groupId: parseGroupFilter(groupId), ...parsePageQuery({ limit, cursor }) });
+  list(
+    @Query('q') q?: unknown,
+    @Query('groupId') groupId?: unknown,
+    @Query('limit') limit?: unknown,
+    @Query('cursor') cursor?: unknown,
+  ) {
+    return this.moderation.listEvents({
+      q: parseSearchText(q),
+      groupId: parseGroupFilter(groupId),
+      ...parsePageQuery({ limit, cursor }),
+    });
   }
 
   @Get(':id')
@@ -77,7 +120,11 @@ export class AdminEventsController {
 
   @Post(':id/hide')
   @HttpCode(200)
-  hide(@CurrentUser() user: AuthUser, @IdParam('id') id: number, @Body() dto: HideDto) {
+  hide(
+    @CurrentUser() user: AuthUser,
+    @IdParam('id') id: number,
+    @Body() dto: HideDto,
+  ) {
     return this.moderation.hideEvent(user.id, id, dto.reason);
   }
 

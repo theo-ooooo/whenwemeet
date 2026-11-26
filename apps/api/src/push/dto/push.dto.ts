@@ -1,7 +1,15 @@
-import { IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
 
 /** Expo 푸시 토큰 형식 (설계 7-1) */
-export const EXPO_TOKEN_PATTERN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,180}\]$/;
+export const EXPO_TOKEN_PATTERN =
+  /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,180}\]$/;
 const TOKEN_MESSAGE = 'token 은 Expo 푸시 토큰 형식이어야 해요';
 const PLATFORMS = ['IOS', 'ANDROID'] as const;
 

@@ -1,6 +1,7 @@
 import { LOGIN_MAIL_SUBJECT, renderLoginMail } from './mail-template.js';
 
-const LINK = 'https://whenwemeet.day/auth/email?token=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde';
+const LINK =
+  'https://whenwemeet.day/auth/email?token=AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcde';
 
 describe('로그인 메일 문구 (5장)', () => {
   const mail = renderLoginMail({ link: LINK, code: '012345' });
@@ -13,8 +14,12 @@ describe('로그인 메일 문구 (5장)', () => {
     expect(mail.html).toContain(`href="${LINK}"`);
     expect(mail.html).toContain('언제볼까 시작하기');
     expect(mail.html).toContain('#C8432D');
-    expect(mail.html).toContain('15분 안에 사용해 주세요. 링크와 코드는 한 번만 쓸 수 있어요.');
-    expect(mail.html).toContain('요청하지 않았다면 이 메일을 무시하세요. 계정에는 아무 일도 일어나지 않아요.');
+    expect(mail.html).toContain(
+      '15분 안에 사용해 주세요. 링크와 코드는 한 번만 쓸 수 있어요.',
+    );
+    expect(mail.html).toContain(
+      '요청하지 않았다면 이 메일을 무시하세요. 계정에는 아무 일도 일어나지 않아요.',
+    );
     expect(mail.html).not.toMatch(/<img/i);
   });
 
@@ -26,7 +31,9 @@ describe('로그인 메일 문구 (5장)', () => {
   });
 
   it('링크의 특수문자는 HTML 로 이스케이프', () => {
-    expect(renderLoginMail({ link: 'https://x/?a=1&b="2"', code: '000000' }).html).toContain('href="https://x/?a=1&amp;b=&quot;2&quot;"');
+    expect(
+      renderLoginMail({ link: 'https://x/?a=1&b="2"', code: '000000' }).html,
+    ).toContain('href="https://x/?a=1&amp;b=&quot;2&quot;"');
   });
 
   it('스냅샷', () => {

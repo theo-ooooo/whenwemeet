@@ -18,7 +18,9 @@ import {
 
 describe('이메일 정규화, 검증 (D-110)', () => {
   it('앞뒤 공백 제거 + 소문자. 점과 + 는 그대로', () => {
-    expect(normalizeEmail('  Kim.Theo+Cal@GMail.COM \n')).toBe('kim.theo+cal@gmail.com');
+    expect(normalizeEmail('  Kim.Theo+Cal@GMail.COM \n')).toBe(
+      'kim.theo+cal@gmail.com',
+    );
   });
 
   it('ASCII 로컬@도메인.최상위 만, 191자 경계', () => {
@@ -30,7 +32,9 @@ describe('이메일 정규화, 검증 (D-110)', () => {
     const at191 = `${local}@${'c'.repeat(60)}.${'d'.repeat(60)}.${'e'.repeat(2)}xy`;
     expect(at191.length).toBe(191);
     expect(isAcceptableEmail(at191)).toBe(true);
-    expect(isAcceptableEmail(`${at191.slice(0, 66)}z${at191.slice(66)}`)).toBe(false);
+    expect(isAcceptableEmail(`${at191.slice(0, 66)}z${at191.slice(66)}`)).toBe(
+      false,
+    );
     expect(isAcceptableEmail(`a@${domain(10)}`)).toBe(true);
     expect(isAcceptableEmail('')).toBe(false);
     expect(isAcceptableEmail('no-at.example.com')).toBe(false);
@@ -65,7 +69,10 @@ describe('토큰, 코드, 해시 (D-112)', () => {
 
   it('작은 값도 0 으로 채운다 (randomInt 경계)', async () => {
     vi.resetModules();
-    vi.doMock('node:crypto', async (importOriginal) => ({ ...(await importOriginal<typeof import('node:crypto')>()), randomInt: () => 42 }));
+    vi.doMock('node:crypto', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('node:crypto')>()),
+      randomInt: () => 42,
+    }));
     const mod = await import('./email-crypto.js');
     expect(mod.newCode()).toBe('000042');
     vi.doUnmock('node:crypto');
@@ -73,7 +80,9 @@ describe('토큰, 코드, 해시 (D-112)', () => {
   });
 
   it('sha256hex 는 64자 hex', () => {
-    expect(sha256hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(sha256hex('abc')).toBe(
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    );
   });
 
   it('HKDF 키는 비밀과 info 에 따라 결정적이고, 코드 키와 IP 키는 다르다', () => {
@@ -87,9 +96,13 @@ describe('토큰, 코드, 해시 (D-112)', () => {
   it('코드 해시 = HMAC(key, linkTokenHash:code). 같은 코드도 메일이 다르면 다른 해시', () => {
     const key = deriveKey('s', CODE_KEY_INFO);
     const h1 = sha256hex('token-1');
-    expect(hashCode(key, h1, '123456')).toBe(createHmac('sha256', key).update(`${h1}:123456`).digest('hex'));
+    expect(hashCode(key, h1, '123456')).toBe(
+      createHmac('sha256', key).update(`${h1}:123456`).digest('hex'),
+    );
     expect(hashCode(key, h1, '123456')).toBe(hashCode(key, h1, '123456'));
-    expect(hashCode(key, sha256hex('token-2'), '123456')).not.toBe(hashCode(key, h1, '123456'));
+    expect(hashCode(key, sha256hex('token-2'), '123456')).not.toBe(
+      hashCode(key, h1, '123456'),
+    );
     expect(hashCode(key, h1, '123457')).not.toBe(hashCode(key, h1, '123456'));
     expect(hmacHex(key, '1.2.3.4')).toMatch(/^[0-9a-f]{64}$/);
   });

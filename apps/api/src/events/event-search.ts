@@ -3,7 +3,14 @@
  */
 import { ApiException } from '../common/errors.js';
 import type { PlaceValue } from './place.js';
-import { DAY_MS, type ExceptionRule, expand, kstMidnight, type Occurrence, type SeriesRule } from './recurrence.js';
+import {
+  DAY_MS,
+  type ExceptionRule,
+  expand,
+  kstMidnight,
+  type Occurrence,
+  type SeriesRule,
+} from './recurrence.js';
 
 export const SEARCH_QUERY_MAX = 50;
 export const SEARCH_LIMIT_DEFAULT = 30;
@@ -26,35 +33,63 @@ function invalid(field: string, message: string): ApiException {
 }
 
 /** 쿼리 원문 검사. q 는 앞뒤 공백을 자르고 1~50자, groupId 는 양의 정수, limit 는 1~50 (기본 30) */
-export function parseSearchQuery(raw: { q?: unknown; groupId?: unknown; limit?: unknown }): SearchQuery {
+export function parseSearchQuery(raw: {
+  q?: unknown;
+  groupId?: unknown;
+  limit?: unknown;
+}): SearchQuery {
   const q = typeof raw.q === 'string' ? raw.q.trim() : '';
-  if (q.length === 0 || Array.from(q).length > SEARCH_QUERY_MAX) throw invalid('q', `검색어는 1~${SEARCH_QUERY_MAX}자여야 해요`);
+  if (q.length === 0 || Array.from(q).length > SEARCH_QUERY_MAX)
+    throw invalid('q', `검색어는 1~${SEARCH_QUERY_MAX}자여야 해요`);
   let groupId: number | null = null;
   if (raw.groupId !== undefined && raw.groupId !== '') {
-    const value = typeof raw.groupId === 'string' && /^\d{1,9}$/.test(raw.groupId) ? Number(raw.groupId) : NaN;
-    if (!Number.isInteger(value) || value < 1) throw invalid('groupId', 'groupId 는 양의 정수여야 해요');
+    const value =
+      typeof raw.groupId === 'string' && /^\d{1,9}$/.test(raw.groupId)
+        ? Number(raw.groupId)
+        : NaN;
+    if (!Number.isInteger(value) || value < 1)
+      throw invalid('groupId', 'groupId 는 양의 정수여야 해요');
     groupId = value;
   }
   let limit = SEARCH_LIMIT_DEFAULT;
   if (raw.limit !== undefined && raw.limit !== '') {
-    const value = typeof raw.limit === 'string' && /^\d{1,3}$/.test(raw.limit) ? Number(raw.limit) : NaN;
-    if (!(value >= 1 && value <= SEARCH_LIMIT_MAX)) throw invalid('limit', `limit 는 1~${SEARCH_LIMIT_MAX} 사이여야 해요`);
+    const value =
+      typeof raw.limit === 'string' && /^\d{1,3}$/.test(raw.limit)
+        ? Number(raw.limit)
+        : NaN;
+    if (!(value >= 1 && value <= SEARCH_LIMIT_MAX))
+      throw invalid('limit', `limit 는 1~${SEARCH_LIMIT_MAX} 사이여야 해요`);
     limit = value;
   }
   return { q, groupId, limit };
 }
 
 /** 대소문자 무시 포함 검사 (DB 콜레이션과 같은 결, 화면 강조와 일치 필드 계산용) */
-export function containsText(value: string | null | undefined, q: string): boolean {
-  return Boolean(value) && (value as string).toLocaleLowerCase('ko').includes(q.toLocaleLowerCase('ko'));
+export function containsText(
+  value: string | null | undefined,
+  q: string,
+): boolean {
+  return (
+    Boolean(value) &&
+    (value as string)
+      .toLocaleLowerCase('ko')
+      .includes(q.toLocaleLowerCase('ko'))
+  );
 }
 
 /** 회차 값에서 검색어가 들어 있는 필드. 장소는 사용자 글자(직접 적은 것, 고를 때 검색어)만 */
-export function matchedFields(values: { title: string; memo: string | null; place: PlaceValue | null }, q: string): MatchedField[] {
+export function matchedFields(
+  values: { title: string; memo: string | null; place: PlaceValue | null },
+  q: string,
+): MatchedField[] {
   const fields: MatchedField[] = [];
   if (containsText(values.title, q)) fields.push('title');
   if (containsText(values.memo, q)) fields.push('memo');
-  if (values.place && (containsText(values.place.text, q) || containsText(values.place.query, q))) fields.push('place');
+  if (
+    values.place &&
+    (containsText(values.place.text, q) || containsText(values.place.query, q))
+  )
+    fields.push('place');
   return fields;
 }
 
@@ -72,14 +107,32 @@ export function representativeOccurrence(
   const usable = (occurrence: Occurrence) => !skip.has(occurrence.occurrence);
   // 아직 시작 전인 반복(첫 회차가 400일 넘게 뒤)도 찾게 창은 지금과 첫 회차 중 늦은 쪽에서 연다
   const from = Math.max(now.getTime(), rule.startsAt.getTime());
-  const next = expand(rule, exceptions, new Date(from), new Date(from + window)).find(
-    (occurrence) => occurrence.endsAt.getTime() > now.getTime() && usable(occurrence),
+  const next = expand(
+    rule,
+    exceptions,
+    new Date(from),
+    new Date(from + window),
+  ).find(
+    (occurrence) =>
+      occurrence.endsAt.getTime() > now.getTime() && usable(occurrence),
   );
   if (next) return next;
   // 끝난 반복: 종료일 다음 날까지를 끝으로 거꾸로 창 하나
-  const until = rule.repeatUntil === null ? now.getTime() : Math.min(now.getTime(), kstMidnight(rule.repeatUntil).getTime() + 2 * DAY_MS);
-  const past = expand(rule, exceptions, new Date(until - window), new Date(until)).filter(
-    (occurrence) => occurrence.endsAt.getTime() <= now.getTime() && usable(occurrence),
+  const until =
+    rule.repeatUntil === null
+      ? now.getTime()
+      : Math.min(
+          now.getTime(),
+          kstMidnight(rule.repeatUntil).getTime() + 2 * DAY_MS,
+        );
+  const past = expand(
+    rule,
+    exceptions,
+    new Date(until - window),
+    new Date(until),
+  ).filter(
+    (occurrence) =>
+      occurrence.endsAt.getTime() <= now.getTime() && usable(occurrence),
   );
   return past.length > 0 ? past[past.length - 1] : null;
 }

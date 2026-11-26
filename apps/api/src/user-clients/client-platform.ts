@@ -31,7 +31,9 @@ export function parseClientUserAgent(ua: string): ClientInfo {
 
 type UaRequest = Pick<Request, 'headers'>;
 
-function headerValue(header: string | string[] | undefined): string | undefined {
+function headerValue(
+  header: string | string[] | undefined,
+): string | undefined {
   return Array.isArray(header) ? header[0] : header;
 }
 
@@ -40,9 +42,17 @@ function headerValue(header: string | string[] | undefined): string | undefined 
  * 키가 없거나 틀리면(직접 온 요청, 개발 환경의 키 미설정), UA 헤더가 없으면(웹 서버 자신의 호출) null = 기록하지 않음.
  * 요청 제한의 X-Client-IP 와 같은 판정 (rate-limit/client-ip.ts)
  */
-export function trustedClientOf(request: UaRequest, internalApiKey: string | undefined): ClientInfo | null {
+export function trustedClientOf(
+  request: UaRequest,
+  internalApiKey: string | undefined,
+): ClientInfo | null {
   const given = headerValue(request.headers[INTERNAL_KEY_HEADER]);
-  if (!internalApiKey || given === undefined || !safeEqualText(given, internalApiKey)) return null;
+  if (
+    !internalApiKey ||
+    given === undefined ||
+    !safeEqualText(given, internalApiKey)
+  )
+    return null;
   const ua = headerValue(request.headers[CLIENT_UA_HEADER])?.trim();
   if (!ua) return null;
   return parseClientUserAgent(ua);

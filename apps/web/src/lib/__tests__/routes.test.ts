@@ -130,12 +130,37 @@ describe("(#339) navTab: 메뉴를 누른 순간 칩을 옮긴다", () => {
 
 describe("(#552, D-295) isTabScreen: 위쪽 띠는 탭 화면에서만", () => {
   it("독 5칸의 첫 화면과 달력 위 일정 상세는 탭 화면", () => {
-    for (const p of ["/calendar", "/calendar?date=2026-11-12", "/free", "/todos", "/anniversaries", "/team?invite=1", "/events/evntcode", "/events/evntcode?occurrence=2026-11-12"]) {
+    for (const p of [
+      "/calendar",
+      "/calendar?date=2026-11-12",
+      "/free",
+      "/todos",
+      "/anniversaries",
+      "/team?invite=1",
+      "/events/evntcode",
+      "/events/evntcode?occurrence=2026-11-12",
+    ]) {
       expect(isTabScreen(p), p).toBe(true);
     }
   });
   it("‹ 제목 하위 화면, 입력 화면, 메뉴 밖 화면은 아니다", () => {
-    for (const p of ["/news", "/upcoming", "/search?q=a", "/me", "/me/notifications", "/me/accounts", "/me/device-calendar", "/todos/list2345", "/team/import", "/events/new", "/events/evntcode/edit", "/polls/poll2345", "/assistant", "/groups/new", "/"]) {
+    for (const p of [
+      "/news",
+      "/upcoming",
+      "/search?q=a",
+      "/me",
+      "/me/notifications",
+      "/me/accounts",
+      "/me/device-calendar",
+      "/todos/list2345",
+      "/team/import",
+      "/events/new",
+      "/events/evntcode/edit",
+      "/polls/poll2345",
+      "/assistant",
+      "/groups/new",
+      "/",
+    ]) {
       expect(isTabScreen(p), p).toBe(false);
     }
   });

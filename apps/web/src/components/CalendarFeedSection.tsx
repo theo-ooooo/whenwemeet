@@ -4,14 +4,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, Sheet, Skeleton, Toggle } from "@/components/ui";
-import {
-  messageOf,
-  useCalendarFeed,
-  useDeleteCalendarFeed,
-  useRotateCalendarFeed,
-  useSaveCalendarFeed,
-  type CalendarFeedSettings,
-} from "@/hooks";
+import { messageOf, useCalendarFeed, useDeleteCalendarFeed, useRotateCalendarFeed, useSaveCalendarFeed, type CalendarFeedSettings } from "@/hooks";
 import { FEED_COPY, feedOnNote, feedPlatform, feedSheetPoints, lastFetchedText, SERVER_PLATFORM, type FeedPlatform } from "@/lib/calendar-feed";
 
 const noopSubscribe = () => () => {};
@@ -25,8 +18,7 @@ function clientPlatform(): FeedPlatform {
 
 const textButton = "hit rounded-sm px-1 py-2 text-[12px] font-medium underline underline-offset-2";
 /** 링크를 보조 버튼(secondary, md)과 같은 모양으로 */
-const linkButton =
-  "flex h-11 w-full items-center justify-center rounded-md bg-hover px-4 text-[13.5px] font-bold text-ink hover:brightness-95";
+const linkButton = "flex h-11 w-full items-center justify-center rounded-md bg-hover px-4 text-[13.5px] font-bold text-ink hover:brightness-95";
 
 export function CalendarFeedSection({ groupId, personal, bare = false }: { groupId: number; personal: boolean; bare?: boolean }) {
   const toast = useToast();

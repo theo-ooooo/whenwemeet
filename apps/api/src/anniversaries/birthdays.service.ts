@@ -28,7 +28,12 @@ export class BirthdaysService {
     const rows = await this.birthdays.listShownByGroup(groupId);
     return rows.map((row) => {
       const { joinedAt: _joinedAt, ...member } = toMember(row);
-      return { member, date: row.birthday, calendar: row.birthdayCalendar, isLeapMonth: row.birthdayLeapMonth };
+      return {
+        member,
+        date: row.birthday,
+        calendar: row.birthdayCalendar,
+        isLeapMonth: row.birthdayLeapMonth,
+      };
     });
   }
 }

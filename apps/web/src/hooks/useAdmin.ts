@@ -128,7 +128,10 @@ type Target = "groups" | "events";
 
 /** (#515) 숨기기(사유 필수). target 은 groups 또는 events */
 export function useHideTarget<T>(target: Target, opts?: MutationOptions) {
-  const fn = useCallback(({ id, reason }: { id: number; reason: string }) => api<T>(`/admin/${target}/${id}/hide`, { method: "POST", body: { reason } }), [target]);
+  const fn = useCallback(
+    ({ id, reason }: { id: number; reason: string }) => api<T>(`/admin/${target}/${id}/hide`, { method: "POST", body: { reason } }),
+    [target],
+  );
   return useMutation<{ id: number; reason: string }, T>(fn, opts);
 }
 

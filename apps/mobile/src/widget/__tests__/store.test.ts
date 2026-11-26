@@ -83,8 +83,7 @@ describe("iOS 타임라인", () => {
     const { w, calls } = fake();
     publishTimeline(w, sample(), NOW);
     publishTimeline(w, null, NOW);
-    const hasNull = (v: unknown): boolean =>
-      v === null || (typeof v === "object" && v !== undefined && Object.values(v as object).some(hasNull));
+    const hasNull = (v: unknown): boolean => v === null || (typeof v === "object" && v !== undefined && Object.values(v as object).some(hasNull));
     for (const entries of calls) for (const e of entries) expect(hasNull(e.props)).toBe(false);
   });
 });

@@ -73,7 +73,23 @@ const HOUR_PX = { wide: 48, phone: 40 };
 const GUTTER = 44;
 
 export function WeekView(props: Props) {
-  const { days, today, wide, events, eventsError, onRetry, annByDay, showLunar = false, anchor, free, newHref, swipeRef, onOpenDay, onOpenEvent, onAdd } = props;
+  const {
+    days,
+    today,
+    wide,
+    events,
+    eventsError,
+    onRetry,
+    annByDay,
+    showLunar = false,
+    anchor,
+    free,
+    newHref,
+    swipeRef,
+    onOpenDay,
+    onOpenEvent,
+    onAdd,
+  } = props;
   const hourPx = wide ? HOUR_PX.wide : HOUR_PX.phone;
   const rowPx = wide ? ALL_DAY_ROW.wide : ALL_DAY_ROW.phone;
   const who = useWho();
@@ -95,7 +111,11 @@ export function WeekView(props: Props) {
     const rows = Math.max(1, ...fit.pieces.map((p) => p.lane + 1), ...fit.days.map((d) => (d.more > 0 ? ALL_DAY_CAPACITY : 0)));
     return { fit, rows };
   }, [days, list]);
-  const emptyWeek = events !== null && layouts.every((l) => l.placed.length === 0 && l.more.length === 0) && allDay.fit.pieces.length === 0 && allDay.fit.days.every((d) => d.more === 0);
+  const emptyWeek =
+    events !== null &&
+    layouts.every((l) => l.placed.length === 0 && l.more.length === 0) &&
+    allDay.fit.pieces.length === 0 &&
+    allDay.fit.days.every((d) => d.more === 0);
   const bands = useMemo(() => (free.on && free.slots ? days.map((d) => freeBands(free.slots ?? [], d)) : null), [free.on, free.slots, days]);
 
   // 처음 열 때, 주를 넘길 때 맨 위 시각: 이번 주면 지금 - 1시간, 아니면 그 주 7칸에서 가장 이른 일정 (일정을 받은 뒤 한 번)
@@ -179,7 +199,14 @@ export function WeekView(props: Props) {
 
       {/* 날짜 머리 */}
       {/* (#201) 날짜 머리 7칸은 Tab 정지점 하나(roving): ← → 하루, Home End 주 처음/끝. 주를 넘기는 것은 ‹ › 와 스와이프 */}
-      <div ref={headRow} role="group" aria-label="이 주 날짜" onKeyDown={onHeadKey} className="grid shrink-0 border-b border-line" style={{ gridTemplateColumns: cols }}>
+      <div
+        ref={headRow}
+        role="group"
+        aria-label="이 주 날짜"
+        onKeyDown={onHeadKey}
+        className="grid shrink-0 border-b border-line"
+        style={{ gridTemplateColumns: cols }}
+      >
         <span aria-hidden="true" />
         {days.map((d) => (
           <DayHead
@@ -266,15 +293,32 @@ export function WeekView(props: Props) {
                     aria-hidden="true"
                     data-free-band=""
                     className="pointer-events-none absolute inset-x-0 block"
-                    style={{ top: (b.start / 60) * hourPx, height: ((b.end - b.start) / 60) * hourPx, background: "color-mix(in srgb, var(--acc-ink) 10%, transparent)" }}
+                    style={{
+                      top: (b.start / 60) * hourPx,
+                      height: ((b.end - b.start) / 60) * hourPx,
+                      background: "color-mix(in srgb, var(--acc-ink) 10%, transparent)",
+                    }}
                   />
                 ))}
                 {events === null
                   ? [9, 14].map((h) => (
-                      <i key={h} aria-hidden="true" className="skeleton pointer-events-none absolute inset-x-1 block rounded-[5px]" style={{ top: h * hourPx, height: hourPx }} />
+                      <i
+                        key={h}
+                        aria-hidden="true"
+                        className="skeleton pointer-events-none absolute inset-x-1 block rounded-[5px]"
+                        style={{ top: h * hourPx, height: hourPx }}
+                      />
                     ))
                   : layouts[col].placed.map((s) => (
-                      <TimedBar key={s.key} seg={s} day={d} hourPx={hourPx} wide={wide} label={withWho(segmentLabel(s.event), s.event, who)} onOpen={() => onOpenEvent(d, s.event)} />
+                      <TimedBar
+                        key={s.key}
+                        seg={s}
+                        day={d}
+                        hourPx={hourPx}
+                        wide={wide}
+                        label={withWho(segmentLabel(s.event), s.event, who)}
+                        onOpen={() => onOpenEvent(d, s.event)}
+                      />
                     ))}
                 {events !== null &&
                   layouts[col].more.map((m) => (
@@ -290,7 +334,11 @@ export function WeekView(props: Props) {
                     </button>
                   ))}
                 {now?.col === col && (
-                  <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-[1] block h-px bg-pri" style={{ top: (now.minute / 60) * hourPx }}>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 z-[1] block h-px bg-pri"
+                    style={{ top: (now.minute / 60) * hourPx }}
+                  >
                     <i className="absolute -top-[3px] -left-[3px] block size-[7px] rounded-full bg-pri" />
                   </span>
                 )}
@@ -365,7 +413,10 @@ function DayHead({
           {lunar?.text}
         </span>
       )}
-      <span aria-hidden="true" className={`flex h-3.5 max-w-full min-w-0 items-center gap-0.5 text-[10px] leading-3.5 font-semibold ${annText ? "text-acc-ink" : "text-holiday"}`}>
+      <span
+        aria-hidden="true"
+        className={`flex h-3.5 max-w-full min-w-0 items-center gap-0.5 text-[10px] leading-3.5 font-semibold ${annText ? "text-acc-ink" : "text-holiday"}`}
+      >
         {annText && <IconHeart size={wide ? 10 : 8} className="shrink-0" />}
         <span className="truncate">{annText ?? holidayText ?? ""}</span>
       </span>
@@ -409,7 +460,21 @@ function AllDayBar({ piece, rowPx, wide, onOpen }: { piece: BarPiece<Event>; row
  * 시간 일정 막대. 옅은 색 면(일정 색, 자동이면 첫 참여자 색) + 왼쪽 3px 세로 막대(참여자 색을 위에서 아래로 나눔, D-141).
  * 넓은 화면: 제목 11/600 + 길이가 되면 시각 한 줄. 폰(축약, Q1): 1시간 이상이고 혼자 선 막대만 제목(10, 글자 단위 줄바꿈)
  */
-function TimedBar({ seg, day, hourPx, wide, label, onOpen }: { seg: PlacedSegment<Event>; day: DateKey; hourPx: number; wide: boolean; label: string; onOpen: () => void }) {
+function TimedBar({
+  seg,
+  day,
+  hourPx,
+  wide,
+  label,
+  onOpen,
+}: {
+  seg: PlacedSegment<Event>;
+  day: DateKey;
+  hourPx: number;
+  wide: boolean;
+  label: string;
+  onOpen: () => void;
+}) {
   const ev = seg.event;
   const top = (seg.start / 60) * hourPx;
   const height = Math.max(((visualEnd(seg) - seg.start) / 60) * hourPx - 2, 12);

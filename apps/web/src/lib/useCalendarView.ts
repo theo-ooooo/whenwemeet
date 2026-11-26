@@ -29,7 +29,11 @@ function subscribe(cb: () => void) {
 }
 
 export function useCalendarViewPref(): { pref: CalView | null; save: (v: CalView) => void } {
-  const pref = useSyncExternalStore<CalView | null>(subscribe, () => readCalView(storage()) ?? memory, () => null);
+  const pref = useSyncExternalStore<CalView | null>(
+    subscribe,
+    () => readCalView(storage()) ?? memory,
+    () => null,
+  );
   const save = useCallback((v: CalView) => {
     memory = v;
     writeCalView(storage(), v);

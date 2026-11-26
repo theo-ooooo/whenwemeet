@@ -4,7 +4,10 @@ import { PushModule } from '../push/push.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { NoticeReadsRepository } from './notice-reads.repository.js';
 import { NoticeReadsService } from './notice-reads.service.js';
-import { AdminNoticesController, NoticesController } from './notices.controller.js';
+import {
+  AdminNoticesController,
+  NoticesController,
+} from './notices.controller.js';
 import { NoticesRepository } from './notices.repository.js';
 import { NoticesService } from './notices.service.js';
 
@@ -12,7 +15,12 @@ import { NoticesService } from './notices.service.js';
 @Module({
   imports: [UsersModule, AdminModule, PushModule],
   controllers: [NoticesController, AdminNoticesController],
-  providers: [NoticesRepository, NoticesService, NoticeReadsRepository, NoticeReadsService],
+  providers: [
+    NoticesRepository,
+    NoticesService,
+    NoticeReadsRepository,
+    NoticeReadsService,
+  ],
   exports: [NoticesService],
 })
 export class NoticesModule {}

@@ -62,7 +62,9 @@ export class PollInputDto {
 /** 내 표 전체 교체. 빈 배열 = 다 해제 */
 export class PollVotesDto {
   @IsArray({ message: 'optionIds 는 후보 번호 배열이어야 해요' })
-  @ArrayMaxSize(MAX_POLL_OPTIONS, { message: 'optionIds 는 후보 번호 배열이어야 해요' })
+  @ArrayMaxSize(MAX_POLL_OPTIONS, {
+    message: 'optionIds 는 후보 번호 배열이어야 해요',
+  })
   @IsInt({ each: true, message: 'optionIds 는 후보 번호 배열이어야 해요' })
   @IsPositive({ each: true, message: 'optionIds 는 후보 번호 배열이어야 해요' })
   optionIds!: number[];
@@ -78,6 +80,6 @@ export class PollConfirmDto {
 /** 목록 쿼리 `status=open|closed` (기본 open) */
 export class PollListQueryDto {
   @IsOptional()
-  @IsIn(['open', 'closed'], { message: "status 는 open 또는 closed 여야 해요" })
+  @IsIn(['open', 'closed'], { message: 'status 는 open 또는 closed 여야 해요' })
   status?: 'open' | 'closed';
 }

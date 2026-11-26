@@ -5,7 +5,10 @@
  * (#562, D-297) 음력 생일은 'MM-DD' 가 음력 월일이고 calendar LUNAR, 윤달 여부. 해마다 양력은 기념일과 같은 함수(anniversary-items)
  */
 import type { CalendarKind } from '../common/lunar.js';
-import { anniversaryItemsOn, type AnniversaryLike } from '../push/anniversary-items.js';
+import {
+  anniversaryItemsOn,
+  type AnniversaryLike,
+} from '../push/anniversary-items.js';
 
 /** 'MM-DD' */
 export const BIRTHDAY_PATTERN = /^\d{2}-\d{2}$/;
@@ -26,7 +29,10 @@ export interface BirthdayValue {
 }
 
 /** 'MM-DD' 이고 실제로 있는 월일인가 (양력은 2월 29일 허용, 음력은 1~30일) */
-export function isBirthday(value: unknown, calendar: CalendarKind = 'SOLAR'): value is string {
+export function isBirthday(
+  value: unknown,
+  calendar: CalendarKind = 'SOLAR',
+): value is string {
   if (typeof value !== 'string' || !BIRTHDAY_PATTERN.test(value)) return false;
   const [m, d] = value.split('-').map(Number);
   const max = calendar === 'LUNAR' ? LUNAR_MONTH_MAX_DAY : MONTH_DAYS[m - 1];
@@ -35,7 +41,12 @@ export function isBirthday(value: unknown, calendar: CalendarKind = 'SOLAR'): va
 
 /** 기념일 계산에 넣는 모양: 기준 해의 그 날짜, 매년 반복 (음력이면 음력 2000년의 그 월일) */
 export function birthdayAnniversary(birthday: BirthdayValue): AnniversaryLike {
-  return { date: `${BIRTHDAY_ANCHOR_YEAR}-${birthday.date}`, kind: 'YEARLY', calendar: birthday.calendar, isLeapMonth: birthday.isLeapMonth };
+  return {
+    date: `${BIRTHDAY_ANCHOR_YEAR}-${birthday.date}`,
+    kind: 'YEARLY',
+    calendar: birthday.calendar,
+    isLeapMonth: birthday.isLeapMonth,
+  };
 }
 
 /** 날짜 `day` ('YYYY-MM-DD', KST) 가 그 사람 생일로 보이는 날인가 */
@@ -44,8 +55,18 @@ export function isBirthdayOn(birthday: BirthdayValue, day: string): boolean {
 }
 
 /** DB 칸 (birthday, birthdayCalendar, birthdayLeapMonth) → 생일 값. 생일이 없으면 null */
-export function birthdayOf(row: { birthday: string | null; birthdayCalendar: CalendarKind; birthdayLeapMonth: boolean }): BirthdayValue | null {
-  return row.birthday === null ? null : { date: row.birthday, calendar: row.birthdayCalendar, isLeapMonth: row.birthdayLeapMonth };
+export function birthdayOf(row: {
+  birthday: string | null;
+  birthdayCalendar: CalendarKind;
+  birthdayLeapMonth: boolean;
+}): BirthdayValue | null {
+  return row.birthday === null
+    ? null
+    : {
+        date: row.birthday,
+        calendar: row.birthdayCalendar,
+        isLeapMonth: row.birthdayLeapMonth,
+      };
 }
 
 /** 달력, 알림, 피드의 이름: "지민 생일" (팀 표시 이름 ?? 닉네임) */

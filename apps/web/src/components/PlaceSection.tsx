@@ -44,11 +44,7 @@ export function PlaceSection({ place }: { place: Place | null | undefined }) {
         <IconPin size={18} active={resolved !== null} className="mt-0.5 shrink-0 text-ink-2" />
         <div className="min-w-0 flex-1">
           <p className="break-words text-[15px] font-semibold leading-6 text-ink">{name}</p>
-          {resolving ? (
-            <Skeleton className="mt-1 h-3.5 w-40" />
-          ) : (
-            address && <p className="break-words text-[13px] leading-[18px] text-soft">{address}</p>
-          )}
+          {resolving ? <Skeleton className="mt-1 h-3.5 w-40" /> : address && <p className="break-words text-[13px] leading-[18px] text-soft">{address}</p>}
         </div>
       </div>
       {showMap && (
@@ -137,7 +133,14 @@ function MapSheet({ place, onClose }: { place: PlaceCandidate; onClose: () => vo
           </h2>
           <CloseButton onClick={onClose} className="shrink-0" />
         </div>
-        <PlaceMap lat={place.lat} lng={place.lng} interactive level={3} label={`${place.name} 위치 지도, 끌어서 옮기고 확대할 수 있어요`} className="min-h-0 flex-1" />
+        <PlaceMap
+          lat={place.lat}
+          lng={place.lng}
+          interactive
+          level={3}
+          label={`${place.name} 위치 지도, 끌어서 옮기고 확대할 수 있어요`}
+          className="min-h-0 flex-1"
+        />
         <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+var(--sab))] pt-3 fold:pb-4">
           {address && <p className="mb-2 break-words text-[13px] leading-[18px] text-soft">{address}</p>}
           <DirectionsLink place={{ text: null, query: null, kakaoPlaceId: place.kakaoPlaceId }} resolved={place} />

@@ -85,10 +85,17 @@ export type ActivityPayload =
   | Record<string, never>;
 
 /** (#189) POLL_CLOSED 기록들이 가리키는 EventLog id (새 소식에서 숨길 확정 일정 기록, D-236) */
-export function pollEventLogIds(rows: readonly { type: GroupActivityType; payload: unknown }[]): Set<number> {
+export function pollEventLogIds(
+  rows: readonly { type: GroupActivityType; payload: unknown }[],
+): Set<number> {
   const ids = new Set<number>();
   for (const row of rows) {
-    if (row.type !== 'POLL_CLOSED' || !row.payload || typeof row.payload !== 'object') continue;
+    if (
+      row.type !== 'POLL_CLOSED' ||
+      !row.payload ||
+      typeof row.payload !== 'object'
+    )
+      continue;
     const id = (row.payload as Partial<PollClosedPayload>).eventLogId;
     if (typeof id === 'number') ids.add(id);
   }
@@ -107,40 +114,78 @@ export const ANNIVERSARY_UNDO_WINDOW_MS = 60_000;
 const FIELDS: readonly AnniversaryField[] = ['name', 'date', 'kind'];
 
 /** 이름, 날짜, 종류 중 실제로 바뀐 것 (알림 시점은 기록하지 않는다). 같은 값이면 [] (#62 규칙) */
-export function anniversaryChanges(before: AnniversaryValues, after: AnniversaryValues): AnniversaryField[] {
-  return FIELDS.filter((field) => (field === 'date' ? dateKeyOf(before) !== dateKeyOf(after) : before[field] !== after[field]));
+export function anniversaryChanges(
+  before: AnniversaryValues,
+  after: AnniversaryValues,
+): AnniversaryField[] {
+  return FIELDS.filter((field) =>
+    field === 'date'
+      ? dateKeyOf(before) !== dateKeyOf(after)
+      : before[field] !== after[field],
+  );
 }
 
 /** (#562) 날짜 비교 열쇠: 양력, 음력을 바꾸거나 윤달을 바꿔도 날짜가 바뀐 것 */
-const dateKeyOf = (values: AnniversaryValues): string => `${values.calendar ?? 'SOLAR'}:${values.isLeapMonth ? 'L' : ''}:${values.date}`;
+const dateKeyOf = (values: AnniversaryValues): string =>
+  `${values.calendar ?? 'SOLAR'}:${values.isLeapMonth ? 'L' : ''}:${values.date}`;
 
 /** (#562) 음력 표시 키 (양력이면 빈 객체) */
-const lunarKeys = (values: AnniversaryValues): Pick<AnniversaryValues, 'calendar' | 'isLeapMonth'> => ({
+const lunarKeys = (
+  values: AnniversaryValues,
+): Pick<AnniversaryValues, 'calendar' | 'isLeapMonth'> => ({
   ...(values.calendar === 'LUNAR' ? { calendar: 'LUNAR' as const } : {}),
-  ...(values.calendar === 'LUNAR' && values.isLeapMonth ? { isLeapMonth: true as const } : {}),
+  ...(values.calendar === 'LUNAR' && values.isLeapMonth
+    ? { isLeapMonth: true as const }
+    : {}),
 });
 
 /** ANNIVERSARY_UPDATED payload. 바뀐 게 없으면 null (기록 안 함) */
-export function anniversaryUpdatedPayload(before: AnniversaryValues, after: AnniversaryValues): AnniversaryPayload | null {
+export function anniversaryUpdatedPayload(
+  before: AnniversaryValues,
+  after: AnniversaryValues,
+): AnniversaryPayload | null {
   const changed = anniversaryChanges(before, after);
   if (changed.length === 0) return null;
   const previous: Partial<AnniversaryValues> = {};
-  for (const field of changed) Object.assign(previous, { [field]: before[field] }, field === 'date' ? lunarKeys(before) : {});
+  for (const field of changed)
+    Object.assign(
+      previous,
+      { [field]: before[field] },
+      field === 'date' ? lunarKeys(before) : {},
+    );
   return { ...pickValues(after), changed, before: previous };
 }
 
 export function pickValues(values: AnniversaryValues): AnniversaryValues {
-  return { name: values.name, date: values.date, kind: values.kind, ...lunarKeys(values) };
+  return {
+    name: values.name,
+    date: values.date,
+    kind: values.kind,
+    ...lunarKeys(values),
+  };
 }
 
 /** 삭제 기록의 payload 가 다시 추가하는 값과 같은가 (되돌리기 토스트는 같은 값으로 다시 POST, D-26) */
-export function isSameAnniversary(payload: unknown, values: AnniversaryValues): boolean {
+export function isSameAnniversary(
+  payload: unknown,
+  values: AnniversaryValues,
+): boolean {
   if (!payload || typeof payload !== 'object') return false;
   const p = payload as Partial<AnniversaryValues>;
-  return p.name === values.name && p.kind === values.kind && typeof p.date === 'string' && dateKeyOf(p as AnniversaryValues) === dateKeyOf(values);
+  return (
+    p.name === values.name &&
+    p.kind === values.kind &&
+    typeof p.date === 'string' &&
+    dateKeyOf(p as AnniversaryValues) === dateKeyOf(values)
+  );
 }
 
 /** 표시 이름 스냅샷 (VarChar(50) 에 맞게 자른다) */
-export function snapshotName(displayName: string | null, nickname: string): string {
-  return Array.from(displayName ?? nickname).slice(0, 50).join('');
+export function snapshotName(
+  displayName: string | null,
+  nickname: string,
+): string {
+  return Array.from(displayName ?? nickname)
+    .slice(0, 50)
+    .join('');
 }

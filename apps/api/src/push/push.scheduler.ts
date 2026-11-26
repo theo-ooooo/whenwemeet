@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { DELETION_RETENTION_MS } from '../event-deletions/deletion-snapshot.js';
@@ -7,7 +12,12 @@ import { reportError } from '../monitoring/sentry.js';
 import { kstDate, KST_OFFSET_MS, DAY_MS } from '../events/recurrence.js';
 import { AnniversaryPlanner } from './anniversary-planner.js';
 import { PollPlanner } from './poll-planner.js';
-import { CATCH_UP_MS, type ExpandStats, PushDispatcher, type SendStats } from './push-dispatcher.js';
+import {
+  CATCH_UP_MS,
+  type ExpandStats,
+  PushDispatcher,
+  type SendStats,
+} from './push-dispatcher.js';
 import { PushLeaseRepository } from './push-lease.repository.js';
 import { PushNotificationsRepository } from './push-notifications.repository.js';
 import { ReminderPlanner } from './reminder-planner.js';
@@ -25,7 +35,10 @@ export const RETENTION_MS = 30 * DAY_MS;
 const DAILY_HOUR_KST = 4;
 
 /** 이번 틱의 창 (lo, hi]. 아래 끝은 cursor 와 now - 10분 중 늦은 쪽 (설계 5-1, D-88) */
-export function planningWindow(cursor: Date | null, now: Date): { lo: Date; hi: Date } {
+export function planningWindow(
+  cursor: Date | null,
+  now: Date,
+): { lo: Date; hi: Date } {
   const floor = now.getTime() - CATCH_UP_MS;
   return { lo: new Date(Math.max(cursor?.getTime() ?? floor, floor)), hi: now };
 }
@@ -33,7 +46,10 @@ export function planningWindow(cursor: Date | null, now: Date): { lo: Date; hi: 
 /** KST 04:00 이후이고 오늘 아직 안 했으면 청소할 날짜, 아니면 null */
 export function dailyDue(now: Date, doneOn: string | null): string | null {
   const today = kstDate(now);
-  const hourKst = Math.floor((((now.getTime() + KST_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS / (60 * 60 * 1000));
+  const hourKst = Math.floor(
+    ((((now.getTime() + KST_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS) /
+      (60 * 60 * 1000),
+  );
   return hourKst >= DAILY_HOUR_KST && doneOn !== today ? today : null;
 }
 
@@ -94,7 +110,11 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     // 진행 중 틱을 기다린다(최대 10초). 임대는 그대로 두고 만료되게
-    if (this.running) await Promise.race([this.running.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, SHUTDOWN_WAIT_MS).unref())]);
+    if (this.running)
+      await Promise.race([
+        this.running.catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, SHUTDOWN_WAIT_MS).unref()),
+      ]);
   }
 
   /** 합류처럼 바로 보내야 할 때 틱을 한 번 깨운다 (D-91). 꺼져 있으면 아무것도 하지 않는다 */
@@ -121,7 +141,11 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runTick(now: Date): Promise<TickResult> {
-    const lease = await this.leases.acquireLease(this.holder, now, new Date(now.getTime() + LEASE_MS));
+    const lease = await this.leases.acquireLease(
+      this.holder,
+      now,
+      new Date(now.getTime() + LEASE_MS),
+    );
     if (!lease) {
       this.logger.debug('push.tick 임대 없음');
       return { ran: false };
@@ -130,7 +154,10 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     const { lo, hi } = planningWindow(lease.cursor, now);
     let planned = 0;
     if (lo.getTime() < hi.getTime()) {
-      const rows = [...(await this.reminders.plan(lo, hi, now)), ...(await this.anniversaries.plan(lo, hi))];
+      const rows = [
+        ...(await this.reminders.plan(lo, hi, now)),
+        ...(await this.anniversaries.plan(lo, hi)),
+      ];
       planned = await this.notifications.createNotifications(rows);
       await this.leases.setCursor(this.holder, hi);
     }
@@ -147,14 +174,39 @@ export class PushScheduler implements OnModuleInit, OnModuleDestroy {
     let purgedDeletions: number | null = null;
     const day = dailyDue(now, lease.dailyDoneOn);
     if (day) {
-      cleaned = await this.notifications.deleteNotificationsCreatedBefore(new Date(now.getTime() - RETENTION_MS));
+      cleaned = await this.notifications.deleteNotificationsCreatedBefore(
+        new Date(now.getTime() - RETENTION_MS),
+      );
       // (#375) 되돌리기 보관 7일 (D-251)
-      purgedDeletions = await this.deletions.purgeCreatedBefore(new Date(now.getTime() - DELETION_RETENTION_MS));
+      purgedDeletions = await this.deletions.purgeCreatedBefore(
+        new Date(now.getTime() - DELETION_RETENTION_MS),
+      );
       await this.leases.setDailyDone(this.holder, day);
     }
 
-    const result: TickResult = { ran: true, planned, weekly, polls, expand, send, receipts, cleaned, purgedDeletions };
-    const busy = planned + weekly + polls + expand.dispatched + expand.cancelled + expand.skipped + send.sent + Object.keys(send.failed).length + send.requeued + receipts > 0;
+    const result: TickResult = {
+      ran: true,
+      planned,
+      weekly,
+      polls,
+      expand,
+      send,
+      receipts,
+      cleaned,
+      purgedDeletions,
+    };
+    const busy =
+      planned +
+        weekly +
+        polls +
+        expand.dispatched +
+        expand.cancelled +
+        expand.skipped +
+        send.sent +
+        Object.keys(send.failed).length +
+        send.requeued +
+        receipts >
+      0;
     const line = `push.tick ${JSON.stringify({ planned, weekly, polls, ...expand, sent: send.sent, failed: send.failed, requeued: send.requeued, receipts, cleaned, purgedDeletions })}`;
     if (busy) this.logger.log(line);
     else this.logger.debug(line);

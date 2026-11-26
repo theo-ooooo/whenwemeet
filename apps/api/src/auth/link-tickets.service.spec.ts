@@ -1,10 +1,18 @@
 import { JwtService } from '@nestjs/jwt';
 import { ApiException } from '../common/errors.js';
 import { verifySessionSub } from './jwt-auth.guard.js';
-import { assertFreshSession, LINK_TICKET_TTL_SECONDS, LinkTicketsService } from './link-tickets.service.js';
+import {
+  assertFreshSession,
+  LINK_TICKET_TTL_SECONDS,
+  LinkTicketsService,
+} from './link-tickets.service.js';
 import { sha256hex } from './pkce.js';
 
-const jwt = new JwtService({ secret: 'unit-secret-0123456789abcdef0123456789', signOptions: { algorithm: 'HS256', expiresIn: '30d' }, verifyOptions: { algorithms: ['HS256'] } });
+const jwt = new JwtService({
+  secret: 'unit-secret-0123456789abcdef0123456789',
+  signOptions: { algorithm: 'HS256', expiresIn: '30d' },
+  verifyOptions: { algorithms: ['HS256'] },
+});
 
 describe('assertFreshSession (#198, 10분)', () => {
   const now = 1_800_000_000_000;
@@ -13,13 +21,19 @@ describe('assertFreshSession (#198, 10분)', () => {
     expect(() => assertFreshSession(sec - 600, now)).not.toThrow();
     expect(() => assertFreshSession(sec + 60, now)).not.toThrow();
     for (const iat of [sec - 601, null, sec + 61]) {
-      expect(() => assertFreshSession(iat, now)).toThrow(expect.objectContaining({ code: 'REAUTH_REQUIRED' }));
+      expect(() => assertFreshSession(iat, now)).toThrow(
+        expect.objectContaining({ code: 'REAUTH_REQUIRED' }),
+      );
     }
   });
 });
 
 describe('LinkTicketsService (#198)', () => {
-  const repo = { create: vi.fn(), deleteExpiredBefore: vi.fn(), consume: vi.fn() };
+  const repo = {
+    create: vi.fn(),
+    deleteExpiredBefore: vi.fn(),
+    consume: vi.fn(),
+  };
   const service = new LinkTicketsService(jwt, repo as never);
 
   beforeEach(() => {
@@ -37,24 +51,41 @@ describe('LinkTicketsService (#198)', () => {
     expect(await service.verifyIntent(session, 'KAKAO')).toBeNull();
     expect(await service.verifyIntent(`${intent}x`, 'KAKAO')).toBeNull();
     expect(await service.verifyIntent(undefined, 'KAKAO')).toBeNull();
-    const other = new JwtService({ secret: 'another-secret-0123456789abcdef012345' });
-    expect(await service.verifyIntent(await other.signAsync({ typ: 'wwm-link-intent', uid: 7, prv: 'KAKAO' }), 'KAKAO')).toBeNull();
-    const expired = await jwt.signAsync({ typ: 'wwm-link-intent', uid: 7, prv: 'KAKAO' }, { expiresIn: -10 });
+    const other = new JwtService({
+      secret: 'another-secret-0123456789abcdef012345',
+    });
+    expect(
+      await service.verifyIntent(
+        await other.signAsync({ typ: 'wwm-link-intent', uid: 7, prv: 'KAKAO' }),
+        'KAKAO',
+      ),
+    ).toBeNull();
+    const expired = await jwt.signAsync(
+      { typ: 'wwm-link-intent', uid: 7, prv: 'KAKAO' },
+      { expiresIn: -10 },
+    );
     expect(await service.verifyIntent(expired, 'KAKAO')).toBeNull();
   });
 
   it('티켓 발급: 원문은 돌려주는 값에만, DB 에는 해시와 시작한 사용자, 5분. 청소를 겸한다', async () => {
     const now = new Date('2026-11-13T00:00:00Z');
-    const ticket = await service.issue(7, 'APPLE', {
-      providerUserId: 'sub',
-      nickname: 'x',
-      profileImageUrl: null,
-      email: null,
-      raw: { sub: 'sub' },
-      credentials: { providerClientId: 'svc', refreshToken: 'RT' },
-    }, now);
+    const ticket = await service.issue(
+      7,
+      'APPLE',
+      {
+        providerUserId: 'sub',
+        nickname: 'x',
+        profileImageUrl: null,
+        email: null,
+        raw: { sub: 'sub' },
+        credentials: { providerClientId: 'svc', refreshToken: 'RT' },
+      },
+      now,
+    );
     expect(ticket).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(repo.deleteExpiredBefore).toHaveBeenCalledWith(new Date(now.getTime() - 24 * 3600 * 1000));
+    expect(repo.deleteExpiredBefore).toHaveBeenCalledWith(
+      new Date(now.getTime() - 24 * 3600 * 1000),
+    );
     expect(repo.create).toHaveBeenCalledWith({
       userId: 7,
       tokenHash: sha256hex(ticket),
@@ -68,10 +99,23 @@ describe('LinkTicketsService (#198)', () => {
   });
 
   it('소비는 해시와 세션 사용자로. 못 쓰면 400 LINK_TICKET_INVALID', async () => {
-    repo.consume.mockResolvedValueOnce({ provider: 'KAKAO', providerUserId: '1', email: null, rawProfile: null });
-    await expect(service.consume(7, 'abc')).resolves.toMatchObject({ provider: 'KAKAO' });
-    expect(repo.consume).toHaveBeenCalledWith(sha256hex('abc'), 7, expect.any(Date));
+    repo.consume.mockResolvedValueOnce({
+      provider: 'KAKAO',
+      providerUserId: '1',
+      email: null,
+      rawProfile: null,
+    });
+    await expect(service.consume(7, 'abc')).resolves.toMatchObject({
+      provider: 'KAKAO',
+    });
+    expect(repo.consume).toHaveBeenCalledWith(
+      sha256hex('abc'),
+      7,
+      expect.any(Date),
+    );
     repo.consume.mockResolvedValueOnce(null);
-    await expect(service.consume(8, 'abc')).rejects.toBeInstanceOf(ApiException);
+    await expect(service.consume(8, 'abc')).rejects.toBeInstanceOf(
+      ApiException,
+    );
   });
 });

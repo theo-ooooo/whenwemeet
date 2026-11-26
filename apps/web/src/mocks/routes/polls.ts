@@ -88,11 +88,21 @@ function pollRoutes(
     const mine = polls.filter((p) => p.groupId === groupId);
     if (status === "closed") {
       const since = Date.now() - 30 * DAY_MS;
-      return ok(mine.filter((p) => p.status === "CLOSED" && Date.parse(p.closedAt ?? "") >= since).sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")).map((p) => pollSummaryOut(s, p, userId)));
+      return ok(
+        mine
+          .filter((p) => p.status === "CLOSED" && Date.parse(p.closedAt ?? "") >= since)
+          .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""))
+          .map((p) => pollSummaryOut(s, p, userId)),
+      );
     }
     const due = (p: PollRow) => (p.deadline ? Date.parse(p.deadline) : Number.POSITIVE_INFINITY);
     const items = mine.filter((p) => p.status === "OPEN").map((p) => pollSummaryOut(s, p, userId));
-    items.sort((a, b) => Number(a.allPast) - Number(b.allPast) || due(polls.find((p) => p.id === a.id)!) - due(polls.find((p) => p.id === b.id)!) || b.createdAt.localeCompare(a.createdAt));
+    items.sort(
+      (a, b) =>
+        Number(a.allPast) - Number(b.allPast) ||
+        due(polls.find((p) => p.id === a.id)!) - due(polls.find((p) => p.id === b.id)!) ||
+        b.createdAt.localeCompare(a.createdAt),
+    );
     return ok(items);
   }
   if (rest.length === 1 && method === "POST") {
@@ -132,11 +142,26 @@ function pollRoutes(
       createdAt: nowIso(),
       closedAt: null,
       options: raw
-        .map((o) => ({ id: nextId(), startsAt: new Date(String(o.startsAt)).toISOString(), endsAt: new Date(String(o.endsAt)).toISOString(), allDay: Boolean(o.allDay), voterIds: [] as number[] }))
+        .map((o) => ({
+          id: nextId(),
+          startsAt: new Date(String(o.startsAt)).toISOString(),
+          endsAt: new Date(String(o.endsAt)).toISOString(),
+          allDay: Boolean(o.allDay),
+          voterIds: [] as number[],
+        }))
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
     };
     polls.push(row);
-    (s.activities ??= []).push({ id: nextId(), groupId, type: "POLL_CREATED", actorId: userId, actorName, anniversaryId: null, payload: { pollId: row.id, code: mockPollCode(row.id), title }, createdAt: nowIso() });
+    (s.activities ??= []).push({
+      id: nextId(),
+      groupId,
+      type: "POLL_CREATED",
+      actorId: userId,
+      actorName,
+      anniversaryId: null,
+      payload: { pollId: row.id, code: mockPollCode(row.id), title },
+      createdAt: nowIso(),
+    });
     return ok(pollOut(s, row, userId), 201);
   }
   const pollId = parseId(rest[1]);
@@ -170,7 +195,15 @@ function pollRoutes(
     // 빈 시간과 같은 규칙(종일 일정 제외)으로 지금도 비는지 본다. 목은 이 팀 일정만 본다
     const busy =
       !o.allDay &&
-      s.events.some((e) => !e.repeat && !e.allDay && e.groupId === groupId && isBusyForAny(e, targets) && Date.parse(e.startsAt) < Date.parse(o.endsAt) && Date.parse(e.endsAt) > Date.parse(o.startsAt));
+      s.events.some(
+        (e) =>
+          !e.repeat &&
+          !e.allDay &&
+          e.groupId === groupId &&
+          isBusyForAny(e, targets) &&
+          Date.parse(e.startsAt) < Date.parse(o.endsAt) &&
+          Date.parse(e.endsAt) > Date.parse(o.startsAt),
+      );
     const event: EventRow = {
       id: nextId(),
       groupId,
@@ -202,7 +235,17 @@ function pollRoutes(
       actorId: userId,
       actorName,
       anniversaryId: null,
-      payload: { pollId: p.id, code: mockPollCode(p.id), title: p.title, eventId: event.id, eventCode: mockEventCode(event.id), eventLogId: logId, startsAt: o.startsAt, endsAt: o.endsAt, allDay: o.allDay },
+      payload: {
+        pollId: p.id,
+        code: mockPollCode(p.id),
+        title: p.title,
+        eventId: event.id,
+        eventCode: mockEventCode(event.id),
+        eventLogId: logId,
+        startsAt: o.startsAt,
+        endsAt: o.endsAt,
+        allDay: o.allDay,
+      },
       createdAt: nowIso(),
     });
     return ok({ poll: pollOut(s, p, userId), event: eventOut(s, event), warning: busy ? "BUSY_NOW" : null }, 201);
@@ -233,7 +276,21 @@ export function groupPollRoutes(req: GroupReq): MockResult | null {
   if (rest[0] === "polls") {
     const pollLog = (e: EventRow) => {
       const id = nextId();
-      s.logs.push({ id, groupId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, actorId: userId, createdAt: nowIso(), action: "CREATED", eventId: e.id, repeat: null, scope: null, occurrence: null });
+      s.logs.push({
+        id,
+        groupId,
+        title: e.title,
+        startsAt: e.startsAt,
+        endsAt: e.endsAt,
+        allDay: e.allDay,
+        actorId: userId,
+        createdAt: nowIso(),
+        action: "CREATED",
+        eventId: e.id,
+        repeat: null,
+        scope: null,
+        occurrence: null,
+      });
       return id;
     };
     const r = pollRoutes(s, groupId, userId, rest, method, query, body, pollLog);

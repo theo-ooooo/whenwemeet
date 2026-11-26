@@ -153,11 +153,7 @@ export function DayView({
         {date === today && <em className="shrink-0 text-[12px] font-semibold not-italic text-today-ink">오늘</em>}
         {holiday && <span className="min-w-0 truncate text-[12px] font-medium text-holiday">{holiday}</span>}
         <span className="flex-1" />
-        <button
-          type="button"
-          onClick={onMonth}
-          className="hit flex h-8 shrink-0 items-center gap-1 rounded-full bg-paper px-3 text-[13px] font-bold"
-        >
+        <button type="button" onClick={onMonth} className="hit flex h-8 shrink-0 items-center gap-1 rounded-full bg-paper px-3 text-[13px] font-bold">
           <IconCalendar size={16} />
           {backLabel}
         </button>
@@ -167,62 +163,53 @@ export function DayView({
 
       {/* 주간 줄 7칸 (높이 70, 모서리 14). 누르면 그날로, 옆으로 넘기면 지난주/다음 주 같은 요일로 */}
       {/* (#201) 격자 한 줄: role=grid > row(display:contents) > gridcell aria-selected > 버튼 (월 달력, DatePicker 와 같은 짜임) */}
-      <div
-        ref={stripRef}
-        role="grid"
-        aria-label="이번 주"
-        onKeyDown={onStripKey}
-        className="mt-2 grid touch-pan-y grid-cols-7 gap-1.5"
-      >
+      <div ref={stripRef} role="grid" aria-label="이번 주" onKeyDown={onStripKey} className="mt-2 grid touch-pan-y grid-cols-7 gap-1.5">
         <div role="row" className="contents">
-        {week.map((k) => {
-          const sel = k === date;
-          const p = parseKey(k);
-          const dow = dowOf(k);
-          const red = dow === 0 || dow === 6 || Boolean(holidayOf(k));
-          const dayEvents = byDay?.get(k) ?? [];
-          const density = cellDensity(dayEvents);
-          const tone = sel ? "text-on-strip-sel" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
-          return (
-            <div key={k} role="gridcell" aria-selected={sel}>
-              <button
-                type="button"
-                data-strip={k}
-                onClick={() => onPickDay(k)}
-                onFocus={() => setStripFocus(k)}
-                tabIndex={k === stripKey ? 0 : -1}
-                aria-current={k === today ? "date" : undefined}
-                aria-label={`${formatDateKo(k)}${dayEvents.length ? `, 일정 ${dayEvents.length}개` : ""}`}
-                className={`anim-pick flex h-[70px] w-full flex-col items-center justify-center gap-1 rounded-[14px] ${sel ? "bg-strip-sel" : "bg-paper hover:bg-hover"}`}
-              >
-                <span aria-hidden="true" className={`text-[11px] font-medium leading-4 ${sel ? "text-on-strip-sel" : red ? "text-holiday" : "text-ink-2"}`}>
-                  {WEEKDAYS[dow]}
-                </span>
-                <span aria-hidden="true" className={`text-[16px] font-bold leading-5 ${tone}`}>
-                  {p.d}
-                </span>
-                <span aria-hidden="true" className="flex h-[5px] items-center gap-[3px]">
-                  {density.dots.map((c, i) => (
-                    <i key={i} className="block size-[6px] rounded-full" style={{ background: c }} />
-                  ))}
-                  {/* 달력 칸과 같은 규칙: +N = 점을 못 그린 일정 수, + = 참여자 점만 잘림 (#248 D-140) */}
-                  {(density.more > 0 || density.cut) && (
-                    <b className={`text-[9px] font-bold leading-[5px] ${sel ? "text-on-strip-sel" : "text-ink-2"}`}>+{density.more || ""}</b>
-                  )}
-                </span>
-              </button>
-            </div>
-          );
-        })}
+          {week.map((k) => {
+            const sel = k === date;
+            const p = parseKey(k);
+            const dow = dowOf(k);
+            const red = dow === 0 || dow === 6 || Boolean(holidayOf(k));
+            const dayEvents = byDay?.get(k) ?? [];
+            const density = cellDensity(dayEvents);
+            const tone = sel ? "text-on-strip-sel" : k === today ? "text-today-ink" : red ? "text-holiday" : "";
+            return (
+              <div key={k} role="gridcell" aria-selected={sel}>
+                <button
+                  type="button"
+                  data-strip={k}
+                  onClick={() => onPickDay(k)}
+                  onFocus={() => setStripFocus(k)}
+                  tabIndex={k === stripKey ? 0 : -1}
+                  aria-current={k === today ? "date" : undefined}
+                  aria-label={`${formatDateKo(k)}${dayEvents.length ? `, 일정 ${dayEvents.length}개` : ""}`}
+                  className={`anim-pick flex h-[70px] w-full flex-col items-center justify-center gap-1 rounded-[14px] ${sel ? "bg-strip-sel" : "bg-paper hover:bg-hover"}`}
+                >
+                  <span aria-hidden="true" className={`text-[11px] font-medium leading-4 ${sel ? "text-on-strip-sel" : red ? "text-holiday" : "text-ink-2"}`}>
+                    {WEEKDAYS[dow]}
+                  </span>
+                  <span aria-hidden="true" className={`text-[16px] font-bold leading-5 ${tone}`}>
+                    {p.d}
+                  </span>
+                  <span aria-hidden="true" className="flex h-[5px] items-center gap-[3px]">
+                    {density.dots.map((c, i) => (
+                      <i key={i} className="block size-[6px] rounded-full" style={{ background: c }} />
+                    ))}
+                    {/* 달력 칸과 같은 규칙: +N = 점을 못 그린 일정 수, + = 참여자 점만 잘림 (#248 D-140) */}
+                    {(density.more > 0 || density.cut) && (
+                      <b className={`text-[9px] font-bold leading-[5px] ${sel ? "text-on-strip-sel" : "text-ink-2"}`}>+{density.more || ""}</b>
+                    )}
+                  </span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* (#378 B) 기념일 한 줄: 기념일이 있는 날만. 하트 + "처음 만난 날 100일" (+ 외 N개) + D-n. 누르면 기념일 화면 */}
       {ann && (
-        <Link
-          href={ANNIVERSARIES_PATH}
-          className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-paper px-3.5 text-[14px] hover:bg-hover"
-        >
+        <Link href={ANNIVERSARIES_PATH} className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-paper px-3.5 text-[14px] hover:bg-hover">
           <IconHeart size={18} className="shrink-0 text-acc-ink" />
           <span className="min-w-0 flex-1 truncate font-semibold">
             {occurrenceTitle(ann)}
@@ -255,7 +242,8 @@ export function DayView({
           </h2>
           <span className="flex-1" />
           <button type="button" onClick={onAdd} className="hit flex h-8 items-center gap-0.5 text-[13px] font-bold text-btn">
-            <IconPlus size={14} strokeWidth={2.2} />이날 추가
+            <IconPlus size={14} strokeWidth={2.2} />
+            이날 추가
           </button>
         </div>
         <div className="mt-2">

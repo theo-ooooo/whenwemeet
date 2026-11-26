@@ -9,15 +9,7 @@ import type { Member } from "@/lib/types";
  * - color 가 없으면(팀 밖 내 정보) 중립 원 (--faint 바탕, --ink 글자)
  * - 새 사진을 받는 동안에는 이전 사진(없으면 이니셜)을 그대로 둔다 (#174 L6)
  */
-export function Avatar({
-  member,
-  size = 28,
-  color,
-}: {
-  member: Pick<Member, "displayName" | "profileImageUrl">;
-  size?: number;
-  color?: string | null;
-}) {
+export function Avatar({ member, size = 28, color }: { member: Pick<Member, "displayName" | "profileImageUrl">; size?: number; color?: string | null }) {
   const initial = member.displayName.trim().slice(0, 1) || "?";
   const src = member.profileImageUrl;
   // 마지막으로 다 받은 사진 주소. 새 주소를 받는 동안 이전 사진을 밑에 깔아 둔다

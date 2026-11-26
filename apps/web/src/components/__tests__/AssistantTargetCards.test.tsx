@@ -63,7 +63,16 @@ const target: EventTarget = {
   place: null,
   members,
 };
-const weekly: EventTarget = { ...target, id: 8, publicCode: "wk1234", title: "주간 회의", occurrence: "2030-12-02", repeat: true, startsAt: kst("2030-12-02T10:00"), endsAt: kst("2030-12-02T11:00") };
+const weekly: EventTarget = {
+  ...target,
+  id: 8,
+  publicCode: "wk1234",
+  title: "주간 회의",
+  occurrence: "2030-12-02",
+  repeat: true,
+  startsAt: kst("2030-12-02T10:00"),
+  endsAt: kst("2030-12-02T11:00"),
+};
 const after = { title: "회식", startsAt: kst("2030-11-29T19:30"), endsAt: kst("2030-11-29T21:30"), allDay: false, place: { text: "강남" } };
 const reply = (text: string, cards: AssistantReply["cards"]): Outcome => ok({ reply: text, cards, historyText: "[기록]", usage: { used: 1, limit: 30 } });
 
@@ -125,7 +134,9 @@ describe("볼까 고치기 카드 (#511)", () => {
     renderChat();
     await type("다음 주 월요일 주간 회의 11시로");
     expect(screen.getByText("일정 고치기 (이 일정만)")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "주간 회의 수정 화면에서 고치기" }).getAttribute("href")).toBe("/events/wk1234/edit?occurrence=2030-12-02&scope=this");
+    expect(screen.getByRole("link", { name: "주간 회의 수정 화면에서 고치기" }).getAttribute("href")).toBe(
+      "/events/wk1234/edit?occurrence=2030-12-02&scope=this",
+    );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "주간 회의 수정" }));
     });
@@ -164,7 +175,12 @@ describe("볼까 지우기 카드 (#511)", () => {
   });
 
   it("반복 회차는 이 회차만 지운다, [취소] 는 요청 없이 '지우지 않았어요.'", async () => {
-    send.mockResolvedValue(reply("이 일정을 지울까요?", [{ type: "eventDeleteDraft", target: weekly }, { type: "eventDeleteDraft", target }]));
+    send.mockResolvedValue(
+      reply("이 일정을 지울까요?", [
+        { type: "eventDeleteDraft", target: weekly },
+        { type: "eventDeleteDraft", target },
+      ]),
+    );
     deleteEvent.mockResolvedValue(ok({ ok: true, deletionId: 56 }));
     renderChat();
     await type("주간 회의 지워");
@@ -213,7 +229,19 @@ describe("볼까 고르기 카드 (#511)", () => {
   });
 
   it("고치기 후보는 고친 뒤 값과 함께 고치기 카드가 된다", async () => {
-    send.mockResolvedValue(reply("일정이 2개 있어요. 어느 일정을 고칠까요?", [{ type: "eventChoice", action: "edit", options: [{ target, after }, { target: weekly, after: { ...after, title: "주간 회의" } }], more: 0 }]));
+    send.mockResolvedValue(
+      reply("일정이 2개 있어요. 어느 일정을 고칠까요?", [
+        {
+          type: "eventChoice",
+          action: "edit",
+          options: [
+            { target, after },
+            { target: weekly, after: { ...after, title: "주간 회의" } },
+          ],
+          more: 0,
+        },
+      ]),
+    );
     renderChat();
     await type("7시 반으로");
     expect(screen.getByText("고칠 일정을 골라 주세요")).toBeTruthy();

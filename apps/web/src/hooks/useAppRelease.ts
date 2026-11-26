@@ -20,9 +20,6 @@ export function useAdminAppReleases(opts?: QueryOptions<AppRelease[]>) {
 export type AppReleaseInput = { platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string | null };
 
 export function useUpdateAppRelease(opts?: MutationOptions) {
-  const fn = useCallback(
-    ({ platform, ...body }: AppReleaseInput) => api<AppRelease>(`/admin/app-releases/${platform}`, { method: "PUT", body }),
-    [],
-  );
+  const fn = useCallback(({ platform, ...body }: AppReleaseInput) => api<AppRelease>(`/admin/app-releases/${platform}`, { method: "PUT", body }), []);
   return useMutation<AppReleaseInput, AppRelease>(fn, opts);
 }

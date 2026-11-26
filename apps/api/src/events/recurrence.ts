@@ -3,12 +3,23 @@
  * 회차는 저장하지 않고 조회 기간만 계산한다. 일정 목록, 단건, 빈 시간 찾기가 같이 쓰는 순수 함수.
  * 날짜는 KST 달력 기준 (고정 +09:00, 한국은 서머타임이 없다). KST 날짜는 'YYYY-MM-DD' 문자열로 다룬다
  */
-import { LUNAR_MAX_YEAR, lunarOccurrence, solarToLunar } from '../common/lunar.js';
+import {
+  LUNAR_MAX_YEAR,
+  lunarOccurrence,
+  solarToLunar,
+} from '../common/lunar.js';
 import type { PlaceValue } from './place.js';
 
-export type Repeat = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY' | 'YEARLY_LUNAR';
+export type Repeat =
+  'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY' | 'YEARLY_LUNAR';
 
-export const REPEATS: readonly Repeat[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY', 'YEARLY_LUNAR'];
+export const REPEATS: readonly Repeat[] = [
+  'WEEKLY',
+  'BIWEEKLY',
+  'MONTHLY',
+  'YEARLY',
+  'YEARLY_LUNAR',
+];
 
 export const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,7 +31,13 @@ export const EXCEPTION_SHIFT_DAYS = 30;
 
 /** 주기별 일정 길이 상한 (이 값 이상이면 거부, 기획 3-1, 설계 4-1) */
 /** (#562) 매년(음력) 은 윤달 기준이 다음 해 평달로 가면 회차 간격이 300일 남짓까지 줄어 300 (일정 길이 상한 30일이라 실제로 막히지 않는다) */
-export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 28, YEARLY: 365, YEARLY_LUNAR: 300 };
+export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = {
+  WEEKLY: 7,
+  BIWEEKLY: 14,
+  MONTHLY: 28,
+  YEARLY: 365,
+  YEARLY_LUNAR: 300,
+};
 
 /** 원본 일정의 반복 규칙 */
 export interface SeriesRule {
@@ -54,7 +71,14 @@ export interface ExceptionRule {
 }
 
 /** (#188) 일정 알림 값 (push/remind-at.ts 의 EventReminder 와 같은 집합) */
-export type EventReminderValue = 'NONE' | 'AT_START' | 'MIN_10' | 'HOUR_1' | 'DAY_1' | 'DAY_OF_0900' | 'DAY_BEFORE_0900';
+export type EventReminderValue =
+  | 'NONE'
+  | 'AT_START'
+  | 'MIN_10'
+  | 'HOUR_1'
+  | 'DAY_1'
+  | 'DAY_OF_0900'
+  | 'DAY_BEFORE_0900';
 
 export interface Occurrence {
   /** 원래 회차 날짜 (KST). 예외로 옮겨도 그대로 */
@@ -107,7 +131,11 @@ export function addDays(date: string, days: number): string {
 
 function ymd(day: number): { y: number; m: number; d: number } {
   const date = new Date(day * DAY_MS);
-  return { y: date.getUTCFullYear(), m: date.getUTCMonth(), d: date.getUTCDate() };
+  return {
+    y: date.getUTCFullYear(),
+    m: date.getUTCMonth(),
+    d: date.getUTCDate(),
+  };
 }
 
 function daysInMonth(y: number, m: number): number {
@@ -120,8 +148,12 @@ function clampedDay(y: number, m: number, day: number): number {
 }
 
 /** 규칙의 기준 날짜 번호. repeatAnchor 가 없으면 첫 회차 날짜 (D-71) */
-function anchorDay(series: Pick<SeriesRule, 'startsAt' | 'repeatAnchor'>): number {
-  return series.repeatAnchor ? dateToDay(series.repeatAnchor) : kstDayNumber(series.startsAt);
+function anchorDay(
+  series: Pick<SeriesRule, 'startsAt' | 'repeatAnchor'>,
+): number {
+  return series.repeatAnchor
+    ? dateToDay(series.repeatAnchor)
+    : kstDayNumber(series.startsAt);
 }
 
 /**
@@ -142,7 +174,12 @@ function lunarNthDay(d0: number, k: number, anchor: number): number | null {
  * 매월/매년은 d0 의 연월(연)에서 k 만큼 간 달(해)의 기준 날짜 일(월일), 없으면 말일 (D-64, D-71).
  * (#562) 매년(음력)은 음력 해로 센다. 변환 범위 밖이면 null (그 회차 없음)
  */
-function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number = d0): number | null {
+function nthOccurrenceDay(
+  repeat: Repeat,
+  d0: number,
+  k: number,
+  anchor: number = d0,
+): number | null {
   switch (repeat) {
     case 'WEEKLY':
       return d0 + 7 * k;
@@ -166,8 +203,13 @@ function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number 
  * 기준 날짜가 시작 날짜와 맞는지 (D-71). 매월은 시작 달의 기준 일(말일 보정), 매년은 시작 해의 기준 월일(2/29 → 평년 2/28) 이
  * 시작 날짜와 같아야 한다. (#562) 매년(음력)은 시작 음력 해의 기준 음력 월일. 주간이나 기준 날짜가 없으면 항상 true
  */
-export function anchorMatchesStart(repeat: Repeat, startsAt: Date, repeatAnchor: string | null): boolean {
-  if (repeatAnchor === null || repeat === 'WEEKLY' || repeat === 'BIWEEKLY') return true;
+export function anchorMatchesStart(
+  repeat: Repeat,
+  startsAt: Date,
+  repeatAnchor: string | null,
+): boolean {
+  if (repeatAnchor === null || repeat === 'WEEKLY' || repeat === 'BIWEEKLY')
+    return true;
   const d0 = kstDayNumber(startsAt);
   return nthOccurrenceDay(repeat, d0, 0, dateToDay(repeatAnchor)) === d0;
 }
@@ -177,10 +219,18 @@ export function anchorMatchesStart(repeat: Repeat, startsAt: Date, repeatAnchor:
  * MONTHLY/YEARLY 는 말일 보정 때문에 경계 달/해가 범위 밖일 수 있어 호출자가 날짜로 한 번 더 거른다.
  * (#562) YEARLY_LUNAR 는 음력 해 차이 (음력 해 L 의 회차는 언제나 음력 해 L 안의 날짜다)
  */
-function kRange(repeat: Repeat, d0: number, lo: number, hi: number): [number, number] {
+function kRange(
+  repeat: Repeat,
+  d0: number,
+  lo: number,
+  hi: number,
+): [number, number] {
   if (repeat === 'WEEKLY' || repeat === 'BIWEEKLY') {
     const step = repeat === 'WEEKLY' ? 7 : 14;
-    return [Math.max(0, Math.ceil((lo - d0) / step)), Math.floor((hi - d0) / step)];
+    return [
+      Math.max(0, Math.ceil((lo - d0) / step)),
+      Math.floor((hi - d0) / step),
+    ];
   }
   if (repeat === 'YEARLY_LUNAR') {
     const first = solarToLunar(dayToDate(d0));
@@ -206,7 +256,8 @@ export function isOccurrenceDate(series: SeriesRule, date: string): boolean {
   const anchor = anchorDay(series);
   const day = dateToDay(date);
   if (day < d0) return false;
-  if (series.repeatUntil !== null && day > dateToDay(series.repeatUntil)) return false;
+  if (series.repeatUntil !== null && day > dateToDay(series.repeatUntil))
+    return false;
   const [kMin, kMax] = kRange(series.repeat, d0, day, day);
   for (let k = kMin; k <= kMax; k += 1) {
     if (nthOccurrenceDay(series.repeat, d0, k, anchor) === day) return true;
@@ -215,15 +266,30 @@ export function isOccurrenceDate(series: SeriesRule, date: string): boolean {
 }
 
 /** 원래 회차 날짜의 시각 (예외 적용 전). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이 */
-export function originalOccurrence(series: SeriesRule, date: string): Occurrence {
-  const offset = series.startsAt.getTime() - kstMidnight(kstDate(series.startsAt)).getTime();
+export function originalOccurrence(
+  series: SeriesRule,
+  date: string,
+): Occurrence {
+  const offset =
+    series.startsAt.getTime() - kstMidnight(kstDate(series.startsAt)).getTime();
   const startsAt = new Date(kstMidnight(date).getTime() + offset);
-  const endsAt = new Date(startsAt.getTime() + (series.endsAt.getTime() - series.startsAt.getTime()));
-  return { occurrence: date, startsAt, endsAt, allDay: series.allDay, exception: false };
+  const endsAt = new Date(
+    startsAt.getTime() + (series.endsAt.getTime() - series.startsAt.getTime()),
+  );
+  return {
+    occurrence: date,
+    startsAt,
+    endsAt,
+    allDay: series.allDay,
+    exception: false,
+  };
 }
 
 /** 예외를 덮은 회차. cancelled 면 null */
-export function applyException(original: Occurrence, exception: ExceptionRule | undefined): Occurrence | null {
+export function applyException(
+  original: Occurrence,
+  exception: ExceptionRule | undefined,
+): Occurrence | null {
   if (!exception) return original;
   if (exception.cancelled) return null;
   const result: Occurrence = {
@@ -243,16 +309,25 @@ export function applyException(original: Occurrence, exception: ExceptionRule | 
 /** 펼치기에 쓰는 원래 날짜 창 [from - 31일, to + 31일) 을 날짜 번호(양끝 포함)로 */
 function expansionDays(from: Date, to: Date): [number, number] {
   const margin = EXPANSION_MARGIN_DAYS * DAY_MS;
-  return [kstDayNumber(new Date(from.getTime() - margin)), kstDayNumber(new Date(to.getTime() + margin - 1))];
+  return [
+    kstDayNumber(new Date(from.getTime() - margin)),
+    kstDayNumber(new Date(to.getTime() + margin - 1)),
+  ];
 }
 
 /**
  * 조회 기간 후보 원본을 고르는 DB 조건 (설계 4-2). 첫 회차 시작 < to + 31일,
  * repeatUntil 이 없거나 from - 31일 의 KST 날짜 이후
  */
-export function seriesCandidateWindow(from: Date, to: Date): { startsBefore: Date; untilOnOrAfter: string } {
+export function seriesCandidateWindow(
+  from: Date,
+  to: Date,
+): { startsBefore: Date; untilOnOrAfter: string } {
   const [lo] = expansionDays(from, to);
-  return { startsBefore: new Date(to.getTime() + EXPANSION_MARGIN_DAYS * DAY_MS), untilOnOrAfter: dayToDate(lo) };
+  return {
+    startsBefore: new Date(to.getTime() + EXPANSION_MARGIN_DAYS * DAY_MS),
+    untilOnOrAfter: dayToDate(lo),
+  };
 }
 
 /**
@@ -263,15 +338,25 @@ export function seriesCandidateWindow(from: Date, to: Date): { startsBefore: Dat
  * 4. 예외 적용 (cancelled 는 빼고 나머지는 덮는다)
  * 5. 최종 시각이 [from, to) 와 겹치는 것만, startsAt 오름차순
  */
-export function expand(series: SeriesRule, exceptions: readonly ExceptionRule[], from: Date, to: Date): Occurrence[] {
+export function expand(
+  series: SeriesRule,
+  exceptions: readonly ExceptionRule[],
+  from: Date,
+  to: Date,
+): Occurrence[] {
   const d0 = kstDayNumber(series.startsAt);
   const anchor = anchorDay(series);
   const [windowLo, windowHi] = expansionDays(from, to);
   const lo = Math.max(windowLo, d0);
-  const hi = series.repeatUntil === null ? windowHi : Math.min(windowHi, dateToDay(series.repeatUntil));
+  const hi =
+    series.repeatUntil === null
+      ? windowHi
+      : Math.min(windowHi, dateToDay(series.repeatUntil));
   if (lo > hi) return [];
 
-  const byDate = new Map(exceptions.map((exception) => [exception.occurrence, exception]));
+  const byDate = new Map(
+    exceptions.map((exception) => [exception.occurrence, exception]),
+  );
   const fromMs = from.getTime();
   const toMs = to.getTime();
   const result: Occurrence[] = [];
@@ -280,20 +365,41 @@ export function expand(series: SeriesRule, exceptions: readonly ExceptionRule[],
     const day = nthOccurrenceDay(series.repeat, d0, k, anchor);
     if (day === null || day < lo || day > hi) continue;
     const date = dayToDate(day);
-    const occurrence = applyException(originalOccurrence(series, date), byDate.get(date));
-    if (occurrence && occurrence.startsAt.getTime() < toMs && occurrence.endsAt.getTime() > fromMs) result.push(occurrence);
+    const occurrence = applyException(
+      originalOccurrence(series, date),
+      byDate.get(date),
+    );
+    if (
+      occurrence &&
+      occurrence.startsAt.getTime() < toMs &&
+      occurrence.endsAt.getTime() > fromMs
+    )
+      result.push(occurrence);
   }
   return result.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 }
 
 /** 일정 길이가 주기보다 짧은지 (기획 3-1) */
-export function fitsInPeriod(repeat: Repeat, startsAt: Date, endsAt: Date): boolean {
-  return endsAt.getTime() - startsAt.getTime() < REPEAT_PERIOD_DAYS[repeat] * DAY_MS;
+export function fitsInPeriod(
+  repeat: Repeat,
+  startsAt: Date,
+  endsAt: Date,
+): boolean {
+  return (
+    endsAt.getTime() - startsAt.getTime() < REPEAT_PERIOD_DAYS[repeat] * DAY_MS
+  );
 }
 
 /** 예외 시각이 원래 회차 날짜 앞뒤 30일 안인지 (설계 4-1). 시작 >= 그날 00:00 - 30일, 끝 <= 다음 날 00:00 + 30일 */
-export function withinShiftLimit(occurrence: string, startsAt: Date, endsAt: Date): boolean {
+export function withinShiftLimit(
+  occurrence: string,
+  startsAt: Date,
+  endsAt: Date,
+): boolean {
   const limit = EXCEPTION_SHIFT_DAYS * DAY_MS;
   const dayStart = kstMidnight(occurrence).getTime();
-  return startsAt.getTime() >= dayStart - limit && endsAt.getTime() <= dayStart + DAY_MS + limit;
+  return (
+    startsAt.getTime() >= dayStart - limit &&
+    endsAt.getTime() <= dayStart + DAY_MS + limit
+  );
 }

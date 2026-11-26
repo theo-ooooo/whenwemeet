@@ -4,7 +4,13 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const show = vi.fn();
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/ScreenHeader", () => ({ ScreenHeader: ({ title }: { title: string }) => <h1>{title}</h1> }));
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show }) }));
 vi.mock("@/hooks", () => ({
@@ -36,7 +42,9 @@ function installShell(ua: string) {
       if (m.type === "calendarSyncDisable") shellState = { ...shellState, enabled: false, count: 0, lastSyncedAt: null };
       if (m.type === "openSettings") return;
       queueMicrotask(() =>
-        window.dispatchEvent(new CustomEvent("wwm:app", { detail: { v: 1, type: "calendarStatus", id: m.id, canAskAgain: true, failed: false, ...shellState } })),
+        window.dispatchEvent(
+          new CustomEvent("wwm:app", { detail: { v: 1, type: "calendarStatus", id: m.id, canAskAgain: true, failed: false, ...shellState } }),
+        ),
       );
     },
   };

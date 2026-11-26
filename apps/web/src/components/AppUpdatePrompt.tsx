@@ -17,7 +17,11 @@ const noSubscribe = () => () => {};
 /** 지금 앱 버전과 안내 상태. 앱이 아니면 status null */
 export function useAppUpdate(): { status: AppUpdateStatus; release: AppRelease | null; version: string | null } {
   // UA 는 바뀌지 않으므로 구독 없이 브라우저 값만 읽는다 (서버 렌더는 앱 아님)
-  const ua = useSyncExternalStore(noSubscribe, () => navigator.userAgent, () => "");
+  const ua = useSyncExternalStore(
+    noSubscribe,
+    () => navigator.userAgent,
+    () => "",
+  );
   const app = parseAppUserAgent(ua);
   const release = useAppRelease(app?.os ?? null).data;
   const status = app && release ? appUpdateStatus(app.version, release) : null;
@@ -85,7 +89,8 @@ export function AppUpdateRequired({ release, version }: { release: AppRelease; v
           업데이트가 필요해요
         </h2>
         <p className="mt-1.5 break-keep text-[15px] leading-6 text-soft">
-          {version ? `지금 쓰는 버전(${version})은` : "지금 쓰는 버전은"} 더 이상 지원하지 않아요. {storeName(release.platform)}에서 새 버전으로 업데이트해 주세요.
+          {version ? `지금 쓰는 버전(${version})은` : "지금 쓰는 버전은"} 더 이상 지원하지 않아요. {storeName(release.platform)}에서 새 버전으로 업데이트해
+          주세요.
         </p>
         <a
           href={release.storeUrl}

@@ -57,15 +57,7 @@ export type AssistantDay = { name: string; date: DateKey; kind: "ANNIVERSARY" | 
 /** change: (#511) 고칠 일정은 찾았는데 바꿀 값을 말하지 않음 */
 export type ClarifyField = "date" | "time" | "title" | "period" | "which" | "participant" | "change";
 /** (#511) 고치기, 지우기는 확인 카드라 여기 없다 (D-283) */
-export type UnsupportedAction =
-  | "repeat"
-  | "reminder"
-  | "anniversary_create"
-  | "todo"
-  | "team"
-  | "other_team"
-  | "team_only"
-  | "other";
+export type UnsupportedAction = "repeat" | "reminder" | "anniversary_create" | "todo" | "team" | "other_team" | "team_only" | "other";
 
 /** (#511) 고치기, 지우기 대상 일정. 반복이면 그 회차(occurrence)이고 이 회차만(scope this) 고치고 지운다 */
 export type EventTarget = {
@@ -241,7 +233,10 @@ export function canPollFrom(slots: readonly unknown[], o: { personal: boolean; m
 }
 
 /** 빈 시간 카드 → 웹이 만드는 투표 초안 카드 (서버 요청 없음, D-273). 제목 = pollTitle ?? "약속", 후보 = 앞 5개를 최소 길이로 */
-export function pollDraftFromSlots(card: Extract<AssistantCard, { type: "freeSlots" }>, members: readonly Member[]): Extract<AssistantCard, { type: "pollDraft" }> {
+export function pollDraftFromSlots(
+  card: Extract<AssistantCard, { type: "freeSlots" }>,
+  members: readonly Member[],
+): Extract<AssistantCard, { type: "pollDraft" }> {
   const options = card.slots.slice(0, POLL_MAX).map((s) => {
     const end = Math.min(Date.parse(s.startsAt) + card.query.minMinutes * 60_000, Date.parse(s.endsAt));
     return { startsAt: s.startsAt, endsAt: new Date(end).toISOString(), allDay: false };
@@ -285,7 +280,14 @@ export function editSource(
 /** `participants=3,5` → [3, 5]. 숫자가 아닌 조각은 버리고, 남는 게 없으면 null(폼 기본 [나]) */
 export function participantsParam(raw: string | null | undefined): number[] | null {
   if (!raw) return null;
-  const ids = [...new Set(raw.split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0))];
+  const ids = [
+    ...new Set(
+      raw
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0),
+    ),
+  ];
   return ids.length ? ids : null;
 }
 

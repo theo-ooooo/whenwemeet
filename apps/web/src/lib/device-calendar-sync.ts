@@ -1,7 +1,15 @@
 // (#549) 휴대폰 캘린더 맞추기 시점 (docs/설계/앱.md 4.9). React 를 import 하지 않는다 (단위 테스트 대상, useDeviceCalendarSync 가 잇는다).
 // 보내는 때: 첫 화면, 일정/팀 변경 성공 뒤, 앱이 다시 앞으로 올 때(마지막 뒤 10분, 날이 바뀌면 바로), 설정을 바꿀 때.
 // 여러 번 와도 3초 모아 한 번. 만든 스냅샷이 지난번 보낸 것과 같고 그때 실패하지 않았으면 보내지 않는다.
-import { buildCalendarSnapshot, fitCalendarSnapshot, snapshotKey, type CalendarSettings, type CalendarSnapshot, type CalendarSource, type CalendarStatus } from "./device-calendar";
+import {
+  buildCalendarSnapshot,
+  fitCalendarSnapshot,
+  snapshotKey,
+  type CalendarSettings,
+  type CalendarSnapshot,
+  type CalendarSource,
+  type CalendarStatus,
+} from "./device-calendar";
 import { dateKeyOf } from "./date";
 
 /** 연속 변경을 모으는 시간 */

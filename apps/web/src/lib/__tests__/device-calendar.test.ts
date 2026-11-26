@@ -56,7 +56,16 @@ function ev(id: number, startsAt: string, endsAt: string, extra: Partial<Event> 
 }
 
 function group(id: number, name: string, extra: Partial<GroupSummary> = {}): GroupSummary {
-  return { id, type: "TEAM", name, publicCode: `team${id}`.padEnd(8, "x"), memberCount: 2, me: { color: "#5B6CF4", displayName: "나" }, unreadNewsCount: 0, ...extra } as GroupSummary;
+  return {
+    id,
+    type: "TEAM",
+    name,
+    publicCode: `team${id}`.padEnd(8, "x"),
+    memberCount: 2,
+    me: { color: "#5B6CF4", displayName: "나" },
+    unreadNewsCount: 0,
+    ...extra,
+  } as GroupSummary;
 }
 
 const src = (groups: GroupSummary[], events: Record<number, Event[]>): CalendarSource => ({
@@ -112,7 +121,10 @@ describe("(#549) buildCalendarSnapshot", () => {
     const s = buildCalendarSnapshot(
       src([g], {
         1: [
-          ev(1, at("2026-11-27", "19:00"), at("2026-11-27", "21:00"), { title: "저녁", place: { text: "성수 카페", query: null, kakaoPlaceId: null, url: null } }),
+          ev(1, at("2026-11-27", "19:00"), at("2026-11-27", "21:00"), {
+            title: "저녁",
+            place: { text: "성수 카페", query: null, kakaoPlaceId: null, url: null },
+          }),
           ev(2, at("2026-11-28"), at("2026-11-29"), { allDay: true, title: "여행", participants: { all: true, members: [minji, jihun] } }),
         ],
       }),
@@ -131,7 +143,15 @@ describe("(#549) buildCalendarSnapshot", () => {
         notes: "참여: 민지, 지훈",
         url: "https://whenwemeet.day/events/code1?team=team1xxx",
       },
-      { uid: "e2@whenwemeet.day", title: "여행", allDay: true, start: "2026-11-28", end: "2026-11-29", notes: "참여: 모두", url: "https://whenwemeet.day/events/code2?team=team1xxx" },
+      {
+        uid: "e2@whenwemeet.day",
+        title: "여행",
+        allDay: true,
+        start: "2026-11-28",
+        end: "2026-11-29",
+        notes: "참여: 모두",
+        url: "https://whenwemeet.day/events/code2?team=team1xxx",
+      },
     ]);
     expect(JSON.stringify(s)).not.toContain("비밀 메모");
   });
@@ -159,7 +179,13 @@ describe("(#549) buildCalendarSnapshot", () => {
     const cross = ev(9, at("2026-12-27", "22:00"), at("2026-12-28", "02:00"));
     const s = buildCalendarSnapshot(
       src([g], {
-        1: [cross, cross, ev(10, at("2026-10-01"), at("2026-10-01", "01:00")), ev(11, at("2027-06-30"), at("2027-06-30", "01:00")), ev(12, at("2026-10-26", "23:00"), at("2026-10-27", "01:00"))],
+        1: [
+          cross,
+          cross,
+          ev(10, at("2026-10-01"), at("2026-10-01", "01:00")),
+          ev(11, at("2027-06-30"), at("2027-06-30", "01:00")),
+          ev(12, at("2026-10-26", "23:00"), at("2026-10-27", "01:00")),
+        ],
       }),
       NOW,
       ORIGIN,
@@ -184,18 +210,28 @@ describe("(#549) buildCalendarSnapshot", () => {
   });
 
   it("옛 API(participants 없음)는 등록자 한 명", () => {
-    const s = buildCalendarSnapshot(src([group(1, "a")], { 1: [ev(1, at("2026-11-27", "09:00"), at("2026-11-27", "10:00"), { participants: undefined })] }), NOW, ORIGIN);
+    const s = buildCalendarSnapshot(
+      src([group(1, "a")], { 1: [ev(1, at("2026-11-27", "09:00"), at("2026-11-27", "10:00"), { participants: undefined })] }),
+      NOW,
+      ORIGIN,
+    );
     expect(s.events[0].notes).toBe("참여: 민지");
   });
 
   it("제목은 제어문자를 띄어쓰기로, 200자에서 자른다", () => {
-    const s = buildCalendarSnapshot(src([group(1, "a")], { 1: [ev(1, at("2026-11-27", "09:00"), at("2026-11-27", "10:00"), { title: `줄\n바꿈${"가".repeat(300)}` })] }), NOW, ORIGIN);
+    const s = buildCalendarSnapshot(
+      src([group(1, "a")], { 1: [ev(1, at("2026-11-27", "09:00"), at("2026-11-27", "10:00"), { title: `줄\n바꿈${"가".repeat(300)}` })] }),
+      NOW,
+      ORIGIN,
+    );
     expect(s.events[0].title.startsWith("줄 바꿈")).toBe(true);
     expect(s.events[0].title.length).toBeLessThanOrEqual(200);
   });
 
   it("시작 순 정렬, 3000개를 넘으면 먼 미래부터 뺀다", () => {
-    const many = Array.from({ length: CALENDAR_MAX_EVENTS + 5 }, (_, i) => ev(i + 1, new Date(NOW + (CALENDAR_MAX_EVENTS + 5 - i) * 60_000).toISOString(), new Date(NOW + (CALENDAR_MAX_EVENTS + 6 - i) * 60_000).toISOString()));
+    const many = Array.from({ length: CALENDAR_MAX_EVENTS + 5 }, (_, i) =>
+      ev(i + 1, new Date(NOW + (CALENDAR_MAX_EVENTS + 5 - i) * 60_000).toISOString(), new Date(NOW + (CALENDAR_MAX_EVENTS + 6 - i) * 60_000).toISOString()),
+    );
     const s = buildCalendarSnapshot(src([group(1, "a")], { 1: many }), NOW, ORIGIN);
     expect(s.events).toHaveLength(CALENDAR_MAX_EVENTS);
     expect(s.events[0].uid).toBe(`e${CALENDAR_MAX_EVENTS + 5}@whenwemeet.day`);
@@ -205,7 +241,14 @@ describe("(#549) buildCalendarSnapshot", () => {
 
 describe("(#549) 크기와 비교 키", () => {
   it("1.5MB 를 넘으면 뒤(먼 미래)부터 뺀다", () => {
-    const events = Array.from({ length: 3000 }, (_, i) => ({ uid: `e${i}@whenwemeet.day`, title: "가".repeat(200), allDay: false as const, start: "2026-11-27T00:00:00.000Z", end: "2026-11-27T01:00:00.000Z", notes: "n".repeat(400) }));
+    const events = Array.from({ length: 3000 }, (_, i) => ({
+      uid: `e${i}@whenwemeet.day`,
+      title: "가".repeat(200),
+      allDay: false as const,
+      start: "2026-11-27T00:00:00.000Z",
+      end: "2026-11-27T01:00:00.000Z",
+      notes: "n".repeat(400),
+    }));
     const big = { generatedAt: new Date(NOW).toISOString(), events };
     expect(calendarMessageLength(big)).toBeGreaterThan(CALENDAR_MESSAGE_MAX);
     const fit = fitCalendarSnapshot(big);
@@ -263,9 +306,27 @@ describe("(#549) 설정 저장", () => {
 });
 
 describe("(#549) 셸 응답", () => {
-  const ok = { v: 1, type: "calendarStatus", id: "c1", permission: "granted", canAskAgain: true, enabled: true, lastSyncedAt: "2026-11-26T03:00:00.000Z", count: 3, failed: false };
+  const ok = {
+    v: 1,
+    type: "calendarStatus",
+    id: "c1",
+    permission: "granted",
+    canAskAgain: true,
+    enabled: true,
+    lastSyncedAt: "2026-11-26T03:00:00.000Z",
+    count: 3,
+    failed: false,
+  };
   it("모양이 맞을 때만", () => {
-    expect(decodeCalendarStatus(ok)).toEqual({ id: "c1", permission: "granted", canAskAgain: true, enabled: true, lastSyncedAt: "2026-11-26T03:00:00.000Z", count: 3, failed: false });
+    expect(decodeCalendarStatus(ok)).toEqual({
+      id: "c1",
+      permission: "granted",
+      canAskAgain: true,
+      enabled: true,
+      lastSyncedAt: "2026-11-26T03:00:00.000Z",
+      count: 3,
+      failed: false,
+    });
     expect(decodeCalendarStatus({ ...ok, type: "pushStatus" })).toBeNull();
     expect(decodeCalendarStatus({ ...ok, permission: "maybe" })).toBeNull();
     expect(decodeCalendarStatus({ ...ok, enabled: "yes" })).toBeNull();

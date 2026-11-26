@@ -61,7 +61,8 @@ export function mockAssistantMessage(s: Store, groupId: number, userId: number, 
   if (!text) return err(400, "VALIDATION_FAILED", "보낼 글을 적어 주세요", "text");
   if ([...text].length > TEXT_MAX) return err(400, "VALIDATION_FAILED", "300자까지 보낼 수 있어요", "text");
   const history = body?.history;
-  if (history !== undefined && (!Array.isArray(history) || history.length > 10)) return err(400, "VALIDATION_FAILED", "대화 기록 형식이 맞지 않아요", "history");
+  if (history !== undefined && (!Array.isArray(history) || history.length > 10))
+    return err(400, "VALIDATION_FAILED", "대화 기록 형식이 맞지 않아요", "history");
   const st = state(s);
   if (!st.consent[userId]) return err(409, "ASSISTANT_CONSENT_REQUIRED", "먼저 안내를 확인해 주세요");
 
@@ -139,7 +140,8 @@ function spokenStart(text: string): string | null {
   return `${String(hour % 24).padStart(2, "0")}:${m[2] ? "30" : "00"}`;
 }
 
-const whenLine = (t: { startsAt: string; endsAt: string; allDay: boolean }) => `${dateKeyOf(t.startsAt)} ${t.allDay ? "하루 종일" : `${hm(t.startsAt)}~${hm(t.endsAt)}`}`;
+const whenLine = (t: { startsAt: string; endsAt: string; allDay: boolean }) =>
+  `${dateKeyOf(t.startsAt)} ${t.allDay ? "하루 종일" : `${hm(t.startsAt)}~${hm(t.endsAt)}`}`;
 
 /** (#511) 고치기, 지우기 (서버 문구 틀과 같은 문구, D-283) */
 function targetReply(action: "edit" | "delete", text: string, today: DateKey, groupId: number, call: MockCall, reply: Reply): Result {
@@ -173,14 +175,25 @@ function targetReply(action: "edit" | "delete", text: string, today: DateKey, gr
     const verb = action === "edit" ? "고칠" : "지울";
     return reply(
       `일정이 ${targets.length}개 있어요. 어느 일정을 ${verb}까요?`,
-      [{ type: "eventChoice", action, options: shown.map((t) => ({ target: t, after: action === "edit" ? afterOf(t) : null })), more: targets.length - shown.length }],
+      [
+        {
+          type: "eventChoice",
+          action,
+          options: shown.map((t) => ({ target: t, after: action === "edit" ? afterOf(t) : null })),
+          more: targets.length - shown.length,
+        },
+      ],
       `[일정 고르기] ${verb} 일정 후보 ${shown.map((t) => `${md(dateKeyOf(t.startsAt))} ${t.allDay ? "하루 종일" : hm(t.startsAt)} ${t.title}`).join("; ")}`,
     );
   }
   const t = targets[0];
   if (action === "delete") return reply("이 일정을 지울까요?", [{ type: "eventDeleteDraft", target: t }], `[일정 삭제 초안] ${t.title}, ${whenLine(t)}`);
   const after = afterOf(t) as EventAfter;
-  return reply("이렇게 고칠까요?", [{ type: "eventEditDraft", draft: { target: t, after } }], `[일정 수정 초안] ${t.title}, ${whenLine(t)} → ${whenLine(after)}`);
+  return reply(
+    "이렇게 고칠까요?",
+    [{ type: "eventEditDraft", draft: { target: t, after } }],
+    `[일정 수정 초안] ${t.title}, ${whenLine(t)} → ${whenLine(after)}`,
+  );
 }
 
 function multiDraftReply(today: DateKey, userId: number, members: Member[], reply: Reply): Result {
@@ -197,7 +210,11 @@ function multiDraftReply(today: DateKey, userId: number, members: Member[], repl
     return { type: "eventDraft", draft: { title, startsAt, endsAt, allDay: false, place: null, participants: ids, members: me } };
   });
   const lines = cards.flatMap((c) =>
-    c.type === "eventDraft" ? [`[일정 초안] ${c.draft.title}, ${dateKeyOf(c.draft.startsAt)} ${hm(c.draft.startsAt)}~${hm(c.draft.endsAt)}, 참여자 ${me.map((m) => m.displayName).join(", ")}`] : [],
+    c.type === "eventDraft"
+      ? [
+          `[일정 초안] ${c.draft.title}, ${dateKeyOf(c.draft.startsAt)} ${hm(c.draft.startsAt)}~${hm(c.draft.endsAt)}, 참여자 ${me.map((m) => m.displayName).join(", ")}`,
+        ]
+      : [],
   );
   return reply(`일정 ${cards.length}개를 이렇게 넣을까요?`, cards, lines.join(" / "));
 }

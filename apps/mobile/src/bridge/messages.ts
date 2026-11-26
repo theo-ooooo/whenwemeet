@@ -221,10 +221,7 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
 }
 
 /** 공유 시트 인자. Android 는 url 필드를 무시하므로 본문에 붙인다 */
-export function shareContent(
-  msg: { url: string; text?: string; title?: string },
-  os: "ios" | "android",
-): { message: string; url?: string; title?: string } {
+export function shareContent(msg: { url: string; text?: string; title?: string }, os: "ios" | "android"): { message: string; url?: string; title?: string } {
   if (os === "ios") {
     return { message: msg.text ?? "", url: msg.url, ...(msg.title ? { title: msg.title } : {}) };
   }

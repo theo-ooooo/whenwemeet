@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { AdminStatsRepository, type PlatformCounts, type StatsTotals } from './admin-stats.repository.js';
+import {
+  AdminStatsRepository,
+  type PlatformCounts,
+  type StatsTotals,
+} from './admin-stats.repository.js';
 
 /** (#537) 대시보드 기간 (일) */
 export const STATS_RANGES = [7, 30] as const;
@@ -30,7 +34,10 @@ export interface AdminStats {
   to: string;
   generatedAt: Date;
   days: StatsDay[];
-  totals: StatsTotals & { signupsInRange: number; assistantMessagesInRange: number };
+  totals: StatsTotals & {
+    signupsInRange: number;
+    assistantMessagesInRange: number;
+  };
   platforms: PlatformCounts;
 }
 
@@ -40,9 +47,14 @@ export function kstDayOf(ms: number): string {
 }
 
 /** 오늘(KST)까지 range 일의 날짜 목록과 첫날 KST 자정의 UTC 시각 */
-export function statsWindow(range: StatsRange, now: number): { days: string[]; fromAt: Date } {
+export function statsWindow(
+  range: StatsRange,
+  now: number,
+): { days: string[]; fromAt: Date } {
   const today = Date.parse(`${kstDayOf(now)}T00:00:00.000Z`);
-  const days = Array.from({ length: range }, (_, i) => new Date(today - (range - 1 - i) * DAY_MS).toISOString().slice(0, 10));
+  const days = Array.from({ length: range }, (_, i) =>
+    new Date(today - (range - 1 - i) * DAY_MS).toISOString().slice(0, 10),
+  );
   return { days, fromAt: new Date(Date.parse(`${days[0]}T00:00:00+09:00`)) };
 }
 
@@ -60,7 +72,10 @@ export class AdminStatsClock {
  */
 @Injectable()
 export class AdminStatsService {
-  private readonly cache = new Map<StatsRange, { at: number; value: Promise<AdminStats> }>();
+  private readonly cache = new Map<
+    StatsRange,
+    { at: number; value: Promise<AdminStats> }
+  >();
 
   constructor(
     private readonly repo: AdminStatsRepository,
@@ -89,27 +104,31 @@ export class AdminStatsService {
       this.repo.totals(fromAt),
       this.repo.platforms(),
     ]);
-    const countOf = (rows: { day: string; count: number }[]) => new Map(rows.map((r) => [r.day, r.count]));
+    const countOf = (rows: { day: string; count: number }[]) =>
+      new Map(rows.map((r) => [r.day, r.count]));
     const signupOf = countOf(signups);
     const activeOf = countOf(active);
     const assistantOf = new Map(assistant.map((r) => [r.day, r]));
-    const rows = days.map(
-      (day): StatsDay => ({
-        day,
-        signups: signupOf.get(day) ?? 0,
-        activeUsers: activeOf.get(day) ?? 0,
-        assistantMessages: assistantOf.get(day)?.messages ?? 0,
-        assistantUsers: assistantOf.get(day)?.users ?? 0,
-      }),
-    );
-    const sum = (pick: (d: StatsDay) => number) => rows.reduce((n, d) => n + pick(d), 0);
+    const rows = days.map((day): StatsDay => ({
+      day,
+      signups: signupOf.get(day) ?? 0,
+      activeUsers: activeOf.get(day) ?? 0,
+      assistantMessages: assistantOf.get(day)?.messages ?? 0,
+      assistantUsers: assistantOf.get(day)?.users ?? 0,
+    }));
+    const sum = (pick: (d: StatsDay) => number) =>
+      rows.reduce((n, d) => n + pick(d), 0);
     return {
       range,
       from: days[0],
       to: days[days.length - 1],
       generatedAt: new Date(now),
       days: rows,
-      totals: { ...totals, signupsInRange: sum((d) => d.signups), assistantMessagesInRange: sum((d) => d.assistantMessages) },
+      totals: {
+        ...totals,
+        signupsInRange: sum((d) => d.signups),
+        assistantMessagesInRange: sum((d) => d.assistantMessages),
+      },
       platforms,
     };
   }

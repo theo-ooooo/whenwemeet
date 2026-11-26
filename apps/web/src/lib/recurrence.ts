@@ -22,13 +22,7 @@ export const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: "매주", BIWEEKLY:
  * 반복 규칙 클라이언트 검증 (설계 4-1 앞 두 줄). 문제 없으면 null.
  * startDate 는 첫 회차 KST 날짜(폼의 시작 날짜), until 은 'YYYY-MM-DD' 또는 null(계속)
  */
-export function repeatRuleError(
-  repeat: Repeat | null,
-  startsAtMs: number,
-  endsAtMs: number,
-  startDate: string,
-  until: string | null,
-): string | null {
+export function repeatRuleError(repeat: Repeat | null, startsAtMs: number, endsAtMs: number, startDate: string, until: string | null): string | null {
   if (!repeat) return null;
   if (endsAtMs - startsAtMs >= REPEAT_PERIOD_DAYS[repeat] * DAY_MS) return "반복 간격보다 긴 일정은 반복할 수 없어요";
   if (until !== null && until < startDate) return "종료 날짜는 시작 날짜 뒤여야 해요";

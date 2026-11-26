@@ -13,16 +13,7 @@ import { IconPlus } from "@/components/icons";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useToast } from "@/components/Toast";
 import { Button, ConfirmDialog, ErrorState, InlineError, RowGroup, rowClass, Sheet, Skeleton, inputClass } from "@/components/ui";
-import {
-  messageOf,
-  useAuthAccounts,
-  useCheckAppLink,
-  useLinkAppAccount,
-  useLinkEmail,
-  useRequestLinkEmail,
-  useUnlinkAccount,
-  type ApiFailure,
-} from "@/hooks";
+import { messageOf, useAuthAccounts, useCheckAppLink, useLinkAppAccount, useLinkEmail, useRequestLinkEmail, useUnlinkAccount, type ApiFailure } from "@/hooks";
 import {
   ACCOUNTS_PATH,
   appLinkFailureMessage,

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { EventRepeat, GroupType } from '../generated/prisma/enums.js';
-import { FILE_LOCATION_SELECT, type FileLocation, FileUrlBuilder } from '../files/file-url.builder.js';
+import {
+  FILE_LOCATION_SELECT,
+  type FileLocation,
+  FileUrlBuilder,
+} from '../files/file-url.builder.js';
 import { START_CALENDAR_RESET } from '../memberships/memberships.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -45,16 +49,34 @@ export interface AdminGroupRow {
 }
 
 export interface AdminGroupDetail extends AdminGroupRow {
-  members: { userId: number; nickname: string; displayName: string | null; joinedAt: Date }[];
+  members: {
+    userId: number;
+    nickname: string;
+    displayName: string | null;
+    joinedAt: Date;
+  }[];
   /** 시작 시각 내림차순 최근 20개 (숨긴 것 포함) */
-  recentEvents: { id: number; title: string; startsAt: Date; allDay: boolean; repeat: EventRepeat | null; hidden: boolean }[];
+  recentEvents: {
+    id: number;
+    title: string;
+    startsAt: Date;
+    allDay: boolean;
+    repeat: EventRepeat | null;
+    hidden: boolean;
+  }[];
 }
 
 export interface AdminEventRow {
   id: number;
   title: string;
   /** (#528) type 과 개인 달력 주인(팀이면 null) */
-  group: { id: number; name: string; hidden: boolean; type: GroupType; owner: AdminPerson | null };
+  group: {
+    id: number;
+    name: string;
+    hidden: boolean;
+    type: GroupType;
+    owner: AdminPerson | null;
+  };
   startsAt: Date;
   endsAt: Date;
   allDay: boolean;
@@ -76,16 +98,40 @@ export interface HideInput {
   hiddenById: number;
 }
 
-const HIDDEN_SELECT = { hiddenAt: true, hiddenReason: true, hiddenBy: { select: { id: true, nickname: true } } } as const;
+const HIDDEN_SELECT = {
+  hiddenAt: true,
+  hiddenReason: true,
+  hiddenBy: { select: { id: true, nickname: true } },
+} as const;
 
-function toHidden(row: { hiddenAt: Date | null; hiddenReason: string | null; hiddenBy: { id: number; nickname: string } | null }): HiddenState | null {
-  return row.hiddenAt ? { reason: row.hiddenReason ?? '', hiddenAt: row.hiddenAt, hiddenBy: row.hiddenBy } : null;
+function toHidden(row: {
+  hiddenAt: Date | null;
+  hiddenReason: string | null;
+  hiddenBy: { id: number; nickname: string } | null;
+}): HiddenState | null {
+  return row.hiddenAt
+    ? {
+        reason: row.hiddenReason ?? '',
+        hiddenAt: row.hiddenAt,
+        hiddenBy: row.hiddenBy,
+      }
+    : null;
 }
 
 /** (#528) 미리 보기 멤버 수 */
 export const MEMBER_PREVIEW = 3;
-const PERSON_SELECT = { user: { select: { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } } as const;
-type PersonRecord = { user: { id: number; nickname: string; avatar: FileLocation | null } };
+const PERSON_SELECT = {
+  user: {
+    select: {
+      id: true,
+      nickname: true,
+      avatar: { select: FILE_LOCATION_SELECT },
+    },
+  },
+} as const;
+type PersonRecord = {
+  user: { id: number; nickname: string; avatar: FileLocation | null };
+};
 
 const GROUP_SELECT = {
   id: true,
@@ -95,7 +141,11 @@ const GROUP_SELECT = {
   ...HIDDEN_SELECT,
   _count: { select: { memberships: true, events: true } },
   // (#528) 개인 달력 주인과 팀 아바타 묶음. 팀마다 3행까지라 목록 한 페이지에 쿼리 하나가 더 붙을 뿐이다
-  memberships: { orderBy: { joinedAt: 'asc' }, take: MEMBER_PREVIEW, select: PERSON_SELECT },
+  memberships: {
+    orderBy: { joinedAt: 'asc' },
+    take: MEMBER_PREVIEW,
+    select: PERSON_SELECT,
+  },
 } as const;
 
 type GroupRecord = {
@@ -120,12 +170,21 @@ const EVENT_GROUP_SELECT = {
 } as const;
 
 function toPerson(record: PersonRecord, urls: FileUrlBuilder): AdminPerson {
-  return { id: record.user.id, nickname: record.user.nickname, profileImageUrl: urls.publicUrlOrNull(record.user.avatar) };
+  return {
+    id: record.user.id,
+    nickname: record.user.nickname,
+    profileImageUrl: urls.publicUrlOrNull(record.user.avatar),
+  };
 }
 
 /** 개인 달력의 주인(하나뿐인 멤버). 팀이거나 멤버가 없으면 null */
-function ownerOf(group: { type: GroupType; memberships: PersonRecord[] }, urls: FileUrlBuilder): AdminPerson | null {
-  return group.type === 'PERSONAL' && group.memberships[0] ? toPerson(group.memberships[0], urls) : null;
+function ownerOf(
+  group: { type: GroupType; memberships: PersonRecord[] },
+  urls: FileUrlBuilder,
+): AdminPerson | null {
+  return group.type === 'PERSONAL' && group.memberships[0]
+    ? toPerson(group.memberships[0], urls)
+    : null;
 }
 
 function toGroupRow(row: GroupRecord, urls: FileUrlBuilder): AdminGroupRow {
@@ -166,7 +225,13 @@ type EventRecord = {
   hiddenAt: Date | null;
   hiddenReason: string | null;
   hiddenBy: { id: number; nickname: string } | null;
-  group: { id: number; name: string; type: GroupType; hiddenAt: Date | null; memberships: PersonRecord[] };
+  group: {
+    id: number;
+    name: string;
+    type: GroupType;
+    hiddenAt: Date | null;
+    memberships: PersonRecord[];
+  };
   creator: { id: number; nickname: string } | null;
 };
 function toEventRow(row: EventRecord, urls: FileUrlBuilder): AdminEventRow {
@@ -174,7 +239,13 @@ function toEventRow(row: EventRecord, urls: FileUrlBuilder): AdminEventRow {
   return {
     id: row.id,
     title: row.title,
-    group: { id: group.id, name: group.name, hidden: group.hiddenAt !== null, type: group.type, owner: ownerOf(group, urls) },
+    group: {
+      id: group.id,
+      name: group.name,
+      hidden: group.hiddenAt !== null,
+      type: group.type,
+      owner: ownerOf(group, urls),
+    },
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     allDay: row.allDay,
@@ -185,9 +256,15 @@ function toEventRow(row: EventRecord, urls: FileUrlBuilder): AdminEventRow {
   };
 }
 
-function pageOf<T extends { id: number }>(rows: T[], limit: number): { items: T[]; nextCursor: number | null } {
+function pageOf<T extends { id: number }>(
+  rows: T[],
+  limit: number,
+): { items: T[]; nextCursor: number | null } {
   const items = rows.slice(0, limit);
-  return { items, nextCursor: rows.length > limit ? items[items.length - 1].id : null };
+  return {
+    items,
+    nextCursor: rows.length > limit ? items[items.length - 1].id : null,
+  };
 }
 
 @Injectable()
@@ -203,10 +280,27 @@ export class AdminModerationRepository {
    * q 는 팀 이름 부분 일치, (#528) 개인 달력은 주인 닉네임도 (모든 개인 달력 이름이 "내 달력" 이라 이름으로는 찾을 수 없다).
    * type 을 주면 그 종류만 (null = 전체)
    */
-  async listGroups(query: { q: string | null; type: GroupType | null; limit: number; cursor: number | null }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
+  async listGroups(query: {
+    q: string | null;
+    type: GroupType | null;
+    limit: number;
+    cursor: number | null;
+  }): Promise<{ items: AdminGroupRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.group.findMany({
       where: {
-        ...(query.q ? { OR: [{ name: { contains: query.q } }, { type: 'PERSONAL', memberships: { some: { user: { nickname: { contains: query.q } } } } }] } : {}),
+        ...(query.q
+          ? {
+              OR: [
+                { name: { contains: query.q } },
+                {
+                  type: 'PERSONAL',
+                  memberships: {
+                    some: { user: { nickname: { contains: query.q } } },
+                  },
+                },
+              ],
+            }
+          : {}),
         ...(query.type !== null ? { type: query.type } : {}),
         ...(query.cursor !== null ? { id: { lt: query.cursor } } : {}),
       },
@@ -214,7 +308,10 @@ export class AdminModerationRepository {
       take: query.limit + 1,
       select: GROUP_SELECT,
     });
-    return pageOf(rows.map((row) => toGroupRow(row, this.urls)), query.limit);
+    return pageOf(
+      rows.map((row) => toGroupRow(row, this.urls)),
+      query.limit,
+    );
   }
 
   async findGroup(id: number): Promise<AdminGroupDetail | null> {
@@ -224,24 +321,61 @@ export class AdminModerationRepository {
         ...GROUP_SELECT,
         memberships: {
           orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
-          select: { userId: true, displayName: true, joinedAt: true, user: { select: { id: true, nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } },
+          select: {
+            userId: true,
+            displayName: true,
+            joinedAt: true,
+            user: {
+              select: {
+                id: true,
+                nickname: true,
+                avatar: { select: FILE_LOCATION_SELECT },
+              },
+            },
+          },
         },
-        events: { orderBy: { startsAt: 'desc' }, take: 20, select: { id: true, title: true, startsAt: true, allDay: true, repeat: true, hiddenAt: true } },
+        events: {
+          orderBy: { startsAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            title: true,
+            startsAt: true,
+            allDay: true,
+            repeat: true,
+            hiddenAt: true,
+          },
+        },
       },
     });
     if (!row) return null;
     const { memberships, events, ...group } = row;
     return {
       // 상세는 멤버 전부를 읽으니 미리 보기는 그 앞 3명
-      ...toGroupRow({ ...group, memberships: memberships.slice(0, MEMBER_PREVIEW) }, this.urls),
-      members: memberships.map((m) => ({ userId: m.userId, nickname: m.user.nickname, displayName: m.displayName, joinedAt: m.joinedAt })),
-      recentEvents: events.map(({ hiddenAt, ...e }) => ({ ...e, hidden: hiddenAt !== null })),
+      ...toGroupRow(
+        { ...group, memberships: memberships.slice(0, MEMBER_PREVIEW) },
+        this.urls,
+      ),
+      members: memberships.map((m) => ({
+        userId: m.userId,
+        nickname: m.user.nickname,
+        displayName: m.displayName,
+        joinedAt: m.joinedAt,
+      })),
+      recentEvents: events.map(({ hiddenAt, ...e }) => ({
+        ...e,
+        hidden: hiddenAt !== null,
+      })),
     };
   }
 
   /** 사용자가 속한 팀 (관리자 사용자 상세), 가입순 */
   async listGroupsOfUser(userId: number): Promise<AdminGroupRow[]> {
-    const rows = await this.prisma.membership.findMany({ where: { userId }, orderBy: { joinedAt: 'asc' }, select: { group: { select: GROUP_SELECT } } });
+    const rows = await this.prisma.membership.findMany({
+      where: { userId },
+      orderBy: { joinedAt: 'asc' },
+      select: { group: { select: GROUP_SELECT } },
+    });
     return rows.map((row) => toGroupRow(row.group, this.urls));
   }
 
@@ -250,7 +384,12 @@ export class AdminModerationRepository {
     return this.prisma.pushDevice.findMany({
       where: { userId },
       orderBy: [{ lastSeenAt: 'desc' }, { id: 'desc' }],
-      select: { platform: true, appVersion: true, createdAt: true, lastSeenAt: true },
+      select: {
+        platform: true,
+        appVersion: true,
+        createdAt: true,
+        lastSeenAt: true,
+      },
     });
   }
 
@@ -258,7 +397,13 @@ export class AdminModerationRepository {
   async setGroupHidden(id: number, input: HideInput | null): Promise<boolean> {
     const { count } = await this.prisma.group.updateMany({
       where: { id },
-      data: input ? { hiddenAt: input.hiddenAt, hiddenReason: input.reason, hiddenById: input.hiddenById } : { hiddenAt: null, hiddenReason: null, hiddenById: null },
+      data: input
+        ? {
+            hiddenAt: input.hiddenAt,
+            hiddenReason: input.reason,
+            hiddenById: input.hiddenById,
+          }
+        : { hiddenAt: null, hiddenReason: null, hiddenById: null },
     });
     return count > 0;
   }
@@ -269,9 +414,15 @@ export class AdminModerationRepository {
    */
   async deleteGroupTx(id: number): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      const found = await tx.group.findUnique({ where: { id }, select: { id: true } });
+      const found = await tx.group.findUnique({
+        where: { id },
+        select: { id: true },
+      });
       if (!found) return false;
-      await tx.user.updateMany({ where: { startGroupId: id }, data: START_CALENDAR_RESET });
+      await tx.user.updateMany({
+        where: { startGroupId: id },
+        data: START_CALENDAR_RESET,
+      });
       await tx.group.delete({ where: { id } });
       return true;
     });
@@ -280,7 +431,12 @@ export class AdminModerationRepository {
   // ---------- 일정 ----------
 
   /** q 는 제목 부분 일치, groupId 는 그 팀만 */
-  async listEvents(query: { q: string | null; groupId: number | null; limit: number; cursor: number | null }): Promise<{ items: AdminEventRow[]; nextCursor: number | null }> {
+  async listEvents(query: {
+    q: string | null;
+    groupId: number | null;
+    limit: number;
+    cursor: number | null;
+  }): Promise<{ items: AdminEventRow[]; nextCursor: number | null }> {
     const rows = await this.prisma.event.findMany({
       where: {
         ...(query.q ? { title: { contains: query.q } } : {}),
@@ -291,20 +447,41 @@ export class AdminModerationRepository {
       take: query.limit + 1,
       select: EVENT_SELECT,
     });
-    return pageOf(rows.map((row) => toEventRow(row, this.urls)), query.limit);
+    return pageOf(
+      rows.map((row) => toEventRow(row, this.urls)),
+      query.limit,
+    );
   }
 
   async findEvent(id: number): Promise<AdminEventDetail | null> {
-    const row = await this.prisma.event.findUnique({ where: { id }, select: { ...EVENT_SELECT, memo: true, placeText: true, placeQuery: true } });
+    const row = await this.prisma.event.findUnique({
+      where: { id },
+      select: {
+        ...EVENT_SELECT,
+        memo: true,
+        placeText: true,
+        placeQuery: true,
+      },
+    });
     if (!row) return null;
     const { memo, placeText, placeQuery, ...rest } = row;
-    return { ...toEventRow(rest, this.urls), memo, place: placeText ?? placeQuery };
+    return {
+      ...toEventRow(rest, this.urls),
+      memo,
+      place: placeText ?? placeQuery,
+    };
   }
 
   async setEventHidden(id: number, input: HideInput | null): Promise<boolean> {
     const { count } = await this.prisma.event.updateMany({
       where: { id },
-      data: input ? { hiddenAt: input.hiddenAt, hiddenReason: input.reason, hiddenById: input.hiddenById } : { hiddenAt: null, hiddenReason: null, hiddenById: null },
+      data: input
+        ? {
+            hiddenAt: input.hiddenAt,
+            hiddenReason: input.reason,
+            hiddenById: input.hiddenById,
+          }
+        : { hiddenAt: null, hiddenReason: null, hiddenById: null },
     });
     return count > 0;
   }

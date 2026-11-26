@@ -136,14 +136,8 @@ export function DaySheet({ titleId, onClose, paused = false, footer, children }:
             <span aria-hidden="true" className="block h-[5px] w-10 rounded-full bg-[var(--grab)]" />
           </button>
         </div>
-        <div
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-3" : "pb-[calc(20px+var(--sab))]"}`}
-        >
-          {children}
-        </div>
-        {footer && (
-          <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+var(--sab))] pt-3">{footer}</div>
-        )}
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-3" : "pb-[calc(20px+var(--sab))]"}`}>{children}</div>
+        {footer && <div className="shrink-0 border-t border-line px-4 pb-[calc(12px+var(--sab))] pt-3">{footer}</div>}
       </div>
     </div>
   );

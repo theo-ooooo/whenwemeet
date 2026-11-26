@@ -223,7 +223,15 @@ export function TodoListScreen({ code, initial }: { code: string; initial?: Todo
                 {showDone && (
                   <ul className="rounded-xl bg-paper px-1.5 py-1" aria-label="완료한 할 일">
                     {split.done.map((item, i) => (
-                      <TodoRow key={item.id} item={item} listName={list.name} first={i === 0} editor={editor} onRemove={removeItem} onFail={(r, f) => report(r, f)} />
+                      <TodoRow
+                        key={item.id}
+                        item={item}
+                        listName={list.name}
+                        first={i === 0}
+                        editor={editor}
+                        onRemove={removeItem}
+                        onFail={(r, f) => report(r, f)}
+                      />
                     ))}
                   </ul>
                 )}

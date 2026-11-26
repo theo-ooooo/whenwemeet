@@ -8,7 +8,13 @@ let stats: NoticeStats | null = null;
 const readersCalls: { q: string; via: string | null; unread: boolean }[] = [];
 let readers: NoticeReader[] = [];
 
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/hooks", () => ({
   messageOf: (e: { message?: string } | null, fallback: string) => e?.message || fallback,
   useAdminNoticeStats: () => ({ data: stats, error: null, isLoading: false, refetch: vi.fn() }),

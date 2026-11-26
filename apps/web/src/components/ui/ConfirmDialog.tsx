@@ -42,12 +42,7 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
       <button type="button" aria-label="닫기" onClick={onCancel} className="anim-fade absolute inset-0 bg-[var(--scrim)]" tabIndex={-1} />
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="anim-sheet relative w-full max-w-[320px] rounded-lg bg-paper p-5"
-      >
+      <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} className="anim-sheet relative w-full max-w-[320px] rounded-lg bg-paper p-5">
         <h2 id={titleId} className="text-[18px] font-bold leading-6 tracking-[-0.02em]">
           {title}
         </h2>

@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put, Res, UseFilters } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+  Res,
+  UseFilters,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -20,8 +32,15 @@ export class CalendarFeedSettingsController {
   }
 
   @Put()
-  upsert(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: UpsertCalendarFeedDto) {
-    return this.feeds.upsert(user.id, groupId, { includeMemo: dto.includeMemo, includeAnniversaries: dto.includeAnniversaries });
+  upsert(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Body() dto: UpsertCalendarFeedDto,
+  ) {
+    return this.feeds.upsert(user.id, groupId, {
+      includeMemo: dto.includeMemo,
+      includeAnniversaries: dto.includeAnniversaries,
+    });
   }
 
   @Post('rotate')
@@ -48,7 +67,11 @@ export class CalendarFeedPublicController {
   @Public()
   @Get(':token.ics')
   @RateLimit('icsFeed')
-  async feed(@Param('token') token: string, @Headers('if-none-match') ifNoneMatch: string | undefined, @Res() res: Response): Promise<void> {
+  async feed(
+    @Param('token') token: string,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
     const result = await this.feeds.feed(token, ifNoneMatch);
     res.setHeader('ETag', result.etag);
     res.setHeader('Cache-Control', 'private, max-age=900');

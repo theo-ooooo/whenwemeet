@@ -5,13 +5,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { kstToIso } from "@/lib/date";
 import type { Event } from "@/lib/types";
 
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ group: { type: "TEAM", me: { userId: 1 } } }) }));
 
 const { WeekView } = await import("../WeekView");
 const { ViewToggle } = await import("../ViewToggle");
 
-const member = (userId: number, name: string, color: string) => ({ userId, displayName: name, color, profileImageUrl: null, joinedAt: "2026-11-01T00:00:00.000Z" });
+const member = (userId: number, name: string, color: string) => ({
+  userId,
+  displayName: name,
+  color,
+  profileImageUrl: null,
+  joinedAt: "2026-11-01T00:00:00.000Z",
+});
 let seq = 0;
 const ev = (title: string, day: string, start: string, endDay: string, end: string, over: Partial<Event> = {}): Event =>
   ({
@@ -79,7 +91,7 @@ describe("WeekView", () => {
     expect(bars.map((b) => b.textContent)).toEqual(["심야23:00~01:30", "심야23:00~01:30"]);
   });
 
-  it("4개 겹치면 2개 막대 + \"+2\" 가 그날 상세를 연다", () => {
+  it('4개 겹치면 2개 막대 + "+2" 가 그날 상세를 연다', () => {
     const list = [0, 1, 2, 3].map((i) => ev(`겹침${i}`, "2026-11-10", "10:00", "2026-11-10", `1${1 + i}:00`));
     const p = view({ events: list });
     expect(screen.getAllByRole("button", { name: /^겹침/ })).toHaveLength(2);
@@ -145,7 +157,15 @@ describe("WeekView", () => {
 
   it("빈 시간 토글은 aria-pressed, 켜면 그 주 빈 구간을 칠한다", () => {
     const onToggle = vi.fn();
-    view({ free: { on: true, onToggle, label: "둘 다 비는 시간", slots: [{ startsAt: kstToIso("2026-11-10", "13:00"), endsAt: kstToIso("2026-11-10", "15:00") }], error: false } });
+    view({
+      free: {
+        on: true,
+        onToggle,
+        label: "둘 다 비는 시간",
+        slots: [{ startsAt: kstToIso("2026-11-10", "13:00"), endsAt: kstToIso("2026-11-10", "15:00") }],
+        error: false,
+      },
+    });
     const btn = screen.getByRole("button", { name: "둘 다 비는 시간" });
     expect(btn.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(btn);

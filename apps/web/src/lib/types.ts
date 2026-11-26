@@ -54,7 +54,16 @@ export type EventReminder = "NONE" | "AT_START" | "MIN_10" | "HOUR_1" | "DAY_1" 
 /** (#188) 내 정보 > 알림 의 종류 토글 4개 (7-1). 계정 단위 */
 /** (#277) weekly 주간 요약(기본 켬), weeklyNudge 다 같이 비는 시간(조용한 팀 깨우기, 기본 끔 D-204) */
 /** (#189) poll 약속 투표(열림, 마감, 정함). 기본 켬 */
-export type NotificationSettings = { reminder: boolean; change: boolean; anniversary: boolean; join: boolean; weekly: boolean; weeklyNudge: boolean; poll: boolean; notice: boolean };
+export type NotificationSettings = {
+  reminder: boolean;
+  change: boolean;
+  anniversary: boolean;
+  join: boolean;
+  weekly: boolean;
+  weeklyNudge: boolean;
+  poll: boolean;
+  notice: boolean;
+};
 
 /** 반복 일정 수정/삭제 범위 (쿼리 값). 이 일정만 / 이후 모두 */
 export type EventScope = "this" | "following";
@@ -103,7 +112,14 @@ export type PlaceProvider = "kakao" | "naver";
  * (#199) 받는 장소. 이름, 주소, 좌표는 보일 때 GET /places/resolve 로 다시 찾는다. provider 는 고른 장소의 출처(직접 적은 장소는 null).
  * url 은 카카오면 카카오맵 장소 상세, 네이버면 검색어로 네이버 지도 검색. 옛 API 응답에는 naverKey, provider 가 없을 수 있다
  */
-export type Place = { text: string | null; query: string | null; kakaoPlaceId: string | null; naverKey?: string | null; provider?: PlaceProvider | null; url: string | null };
+export type Place = {
+  text: string | null;
+  query: string | null;
+  kakaoPlaceId: string | null;
+  naverKey?: string | null;
+  provider?: PlaceProvider | null;
+  url: string | null;
+};
 
 /** (#199) GET /places/search 후보 하나. provider 가 kakao 면 kakaoPlaceId, naver 면 naverKey */
 export type PlaceCandidate = {
@@ -546,9 +562,7 @@ export type AdminReport = {
 
 /** (#536) 대상 미리 보기. 팀, 일정은 관리자 상세와 같은 모양, 사용자는 그 사람의 팀 */
 export type AdminReportTargetDetail =
-  | { type: "group"; group: AdminGroupDetail }
-  | { type: "event"; event: AdminEventDetail }
-  | { type: "user"; user: AdminUser; teams: AdminGroup[] };
+  { type: "group"; group: AdminGroupDetail } | { type: "event"; event: AdminEventDetail } | { type: "user"; user: AdminUser; teams: AdminGroup[] };
 
 export type AdminReportTarget = {
   targetType: ReportTargetType;
@@ -626,16 +640,7 @@ export type EventSharePreview = {
 export type EventShareJoin = { group: GroupDetail; eventId: number; eventCode: string; occurrence: string | null; date: string };
 
 // api.md 2.2 멤버 색, 일정 색 팔레트 (자동 배정, 설정 화면, 일정 폼). 화면 이름은 lib/colors COLOR_NAMES (8번째 = 핑크, D-215)
-export const MEMBER_COLORS = [
-  "#F26D6D",
-  "#F2994A",
-  "#F2C94C",
-  "#6FCF97",
-  "#56CCF2",
-  "#5B6CF4",
-  "#A66CF4",
-  "#F279B5",
-] as const;
+export const MEMBER_COLORS = ["#F26D6D", "#F2994A", "#F2C94C", "#6FCF97", "#56CCF2", "#5B6CF4", "#A66CF4", "#F279B5"] as const;
 
 // ── (#279) ICS 파일 가져오기 (api.md 2.9) ──
 

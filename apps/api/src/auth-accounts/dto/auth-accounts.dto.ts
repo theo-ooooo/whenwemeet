@@ -1,4 +1,11 @@
-import { IsIn, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  ValidateIf,
+} from 'class-validator';
 import { EmailAddress } from '../../email-login/dto/email-login.dto.js';
 import { CODE_PATTERN } from '../../email-login/email-crypto.js';
 import { HANDOFF_LENGTH } from '../../auth/pkce.js';
@@ -17,11 +24,15 @@ export const WEB_LINK_PROVIDERS = ['KAKAO', 'APPLE'] as const;
 export class LinkAuthAccountDto {
   @IsOptional()
   @IsString({ message: 'ticket 은 문자열이어야 해요' })
-  @Matches(new RegExp(`^[A-Za-z0-9_-]{${HANDOFF_LENGTH}}$`), { message: 'ticket 형식이 올바르지 않아요' })
+  @Matches(new RegExp(`^[A-Za-z0-9_-]{${HANDOFF_LENGTH}}$`), {
+    message: 'ticket 형식이 올바르지 않아요',
+  })
   ticket?: string;
 
   @IsOptional()
-  @IsIn(LINKABLE_PROVIDERS, { message: 'provider 는 KAKAO, APPLE, EMAIL 중 하나여야 해요' })
+  @IsIn(LINKABLE_PROVIDERS, {
+    message: 'provider 는 KAKAO, APPLE, EMAIL 중 하나여야 해요',
+  })
   provider?: LinkableProvider;
 
   @ValidateIf((dto: LinkAuthAccountDto) => dto.provider === 'KAKAO')
@@ -56,6 +67,8 @@ export class LinkAuthAccountDto {
 
 /** POST /me/auth-accounts/link-start (#198). 웹 OAuth 연결 시작 표식 */
 export class LinkStartDto {
-  @IsIn(WEB_LINK_PROVIDERS, { message: 'provider 는 KAKAO 또는 APPLE 이어야 해요' })
+  @IsIn(WEB_LINK_PROVIDERS, {
+    message: 'provider 는 KAKAO 또는 APPLE 이어야 해요',
+  })
   provider!: (typeof WEB_LINK_PROVIDERS)[number];
 }

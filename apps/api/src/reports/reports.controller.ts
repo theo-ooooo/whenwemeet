@@ -14,7 +14,11 @@ export class ReportsController {
   /** 새 신고는 201, 접수 중인 내 신고가 이미 있으면 새로 만들지 않고 그것을 200 으로 */
   @Post()
   @RateLimit('report')
-  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateReportDto, @Res({ passthrough: true }) res: Response): Promise<ReportResult> {
+  async create(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateReportDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ReportResult> {
     const result = await this.reports.create(user.id, dto);
     if (result.duplicate) res.status(200);
     return result;

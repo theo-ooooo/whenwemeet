@@ -1,6 +1,6 @@
 import { ok, type GroupReq, type MockResult } from "./shared";
 
-  // (#279) 일정 가져오기. 목은 파일을 읽지 않고 고정된 미리보기와 결과만 준다 (화면 확인용)
+// (#279) 일정 가져오기. 목은 파일을 읽지 않고 고정된 미리보기와 결과만 준다 (화면 확인용)
 export function importsRoute(req: GroupReq): MockResult | null {
   const { method, rest } = req;
   if (rest[0] === "imports" && method === "POST") {

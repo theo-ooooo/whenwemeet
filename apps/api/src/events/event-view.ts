@@ -8,7 +8,11 @@ import {
   occurrenceKey,
 } from '../event-responses/responses.js';
 import type { EventRow } from './event-rows.js';
-import { type ParticipantSet, type ParticipantsView, toParticipantsView } from './participants.js';
+import {
+  type ParticipantSet,
+  type ParticipantsView,
+  toParticipantsView,
+} from './participants.js';
 import type { MatchedField } from './event-search.js';
 import { type PlaceView, toPlaceView } from './place.js';
 import { kstDate, type Occurrence, type Repeat } from './recurrence.js';
@@ -75,12 +79,15 @@ export interface ResponseTarget {
 }
 
 /** (#190) 응답이 붙는 회차 날짜. 한 번짜리는 시작 KST 날짜 (D-224) */
-export function responseOccurrence(view: Pick<EventView, 'occurrence' | 'startsAt'>): string {
+export function responseOccurrence(
+  view: Pick<EventView, 'occurrence' | 'startsAt'>,
+): string {
   return view.occurrence ?? kstDate(view.startsAt);
 }
 
 /** (#190) 사람 목록의 userId (탈퇴자 null 은 빼고) */
-export const idsOf = (members: readonly Member[]): number[] => members.flatMap((member) => (member.userId === null ? [] : [member.userId]));
+export const idsOf = (members: readonly Member[]): number[] =>
+  members.flatMap((member) => (member.userId === null ? [] : [member.userId]));
 
 /** (#199) 검색 결과 한 줄 (api.md 2.3 일정 검색) */
 export interface SearchItem {
@@ -98,7 +105,10 @@ export interface SearchResult {
 }
 
 /** 한 번짜리 일정, 또는 반복 원본의 첫 회차(예외 없음)로 본 응답 */
-export function toEventView(row: EventRow, resolver: MemberResolver): EventView {
+export function toEventView(
+  row: EventRow,
+  resolver: MemberResolver,
+): EventView {
   return {
     id: row.id,
     groupId: row.groupId,
@@ -125,12 +135,21 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
 }
 
 /** (#248) 저장된 참여자 */
-export function participantsOf(row: Pick<EventRow, 'allMembers' | 'participantIds'>): ParticipantSet {
-  return { allMembers: row.allMembers, ids: row.allMembers ? [] : row.participantIds };
+export function participantsOf(
+  row: Pick<EventRow, 'allMembers' | 'participantIds'>,
+): ParticipantSet {
+  return {
+    allMembers: row.allMembers,
+    ids: row.allMembers ? [] : row.participantIds,
+  };
 }
 
 /** 반복 원본의 회차 하나로 본 응답. 예외로 바꾼 제목/메모가 있으면 그 값 */
-export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver: MemberResolver): EventView {
+export function toOccurrenceView(
+  row: EventRow,
+  occurrence: Occurrence,
+  resolver: MemberResolver,
+): EventView {
   return {
     ...toEventView(row, resolver),
     title: occurrence.title ?? row.title,
@@ -147,12 +166,17 @@ export function toOccurrenceView(row: EventRow, occurrence: Occurrence, resolver
 /** startsAt 오름차순, 같으면 id, 그다음 회차 날짜 */
 export function sortViews(views: EventView[]): EventView[] {
   return views.sort(
-    (a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.id - b.id || (a.occurrence ?? '').localeCompare(b.occurrence ?? ''),
+    (a, b) =>
+      a.startsAt.getTime() - b.startsAt.getTime() ||
+      a.id - b.id ||
+      (a.occurrence ?? '').localeCompare(b.occurrence ?? ''),
   );
 }
 
 /** (#190) 목록 집계용: (eventId, 회차) 키로 묶는다 */
-export function groupBy<T extends { eventId: number; occurrence: string }>(rows: readonly T[]): Map<string, T[]> {
+export function groupBy<T extends { eventId: number; occurrence: string }>(
+  rows: readonly T[],
+): Map<string, T[]> {
   const map = new Map<string, T[]>();
   for (const row of rows) {
     const key = occurrenceKey(row.eventId, row.occurrence);

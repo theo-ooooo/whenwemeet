@@ -2,15 +2,7 @@
 // 날짜는 실행 시점의 KST 이번 달 기준으로 만든다.
 import { sameDayInYear } from "@/lib/anniversary";
 import { lunarOccurrence, solarToLunar, type CalendarKind } from "@/lib/lunar";
-import {
-  addDays,
-  dateKeyOf,
-  keyOf,
-  kstToIso,
-  parseKey,
-  todayKey,
-  toKst,
-} from "@/lib/date";
+import { addDays, dateKeyOf, keyOf, kstToIso, parseKey, todayKey, toKst } from "@/lib/date";
 import type {
   ActivityNewsItem,
   ActivityType,
@@ -75,12 +67,33 @@ export type NoticeRow = {
 /** (#544) 목 공지 읽음 (사용자 + 공지당 처음 한 번, D-293) */
 export type NoticeReadRow = { userId: number; noticeId: number; firstReadAt: string; via: "list" | "detail" | "push" | "popup" | "banner" };
 /** (#544) 목 공지 푸시의 기기별 발송 (PushDelivery 의 필요한 부분). receipt 'ok' = 전달 성공, 그 밖 문자열 = 영수증 오류, null = 아직 */
-export type NoticeDeliveryRow = { noticeId: number; userId: number; platform: "IOS" | "ANDROID"; status: "QUEUED" | "SENDING" | "SENT" | "FAILED"; receipt: string | null };
+export type NoticeDeliveryRow = {
+  noticeId: number;
+  userId: number;
+  platform: "IOS" | "ANDROID";
+  status: "QUEUED" | "SENDING" | "SENT" | "FAILED";
+  receipt: string | null;
+};
 
 /** (#515) 목 관리자 조치 기록 */
-export type AdminLogRow = { id: number; adminId: number; action: string; targetType: "notice" | "user" | "group" | "event" | "app_release"; targetId: number; reason: string | null; createdAt: string };
+export type AdminLogRow = {
+  id: number;
+  adminId: number;
+  action: string;
+  targetType: "notice" | "user" | "group" | "event" | "app_release";
+  targetId: number;
+  reason: string | null;
+  createdAt: string;
+};
 /** (#539) 목 기종별 앱 최신, 최소 버전 (D-292) */
-export type AppReleaseRow = { id: number; platform: "ios" | "android"; latestVersion: string | null; minVersion: string | null; storeUrl: string | null; updatedAt: string };
+export type AppReleaseRow = {
+  id: number;
+  platform: "ios" | "android";
+  latestVersion: string | null;
+  minVersion: string | null;
+  storeUrl: string | null;
+  updatedAt: string;
+};
 /** (#536) 목 신고 한 건 (D-289) */
 export type ReportRow = {
   id: number;
@@ -143,7 +156,7 @@ export type EventRow = {
   /** (#248) true(또는 없음) = "모두". 기존 시드는 DB 기본값처럼 모두 (설계 2-1) */
   allMembers?: boolean;
   /** (#248) allMembers 가 false 일 때 참여자 userId. 비면 "참여자 없음" */
-  participantIds?: number[];  /** (#343) 일정 색 (MEMBER_COLORS 키). 없거나 null 이면 자동 (D-215) */
+  participantIds?: number[]; /** (#343) 일정 색 (MEMBER_COLORS 키). 없거나 null 이면 자동 (D-215) */
   color?: string | null;
   /** (#566) 음력으로 넣은 일정 (D-298). 생략 = false */
   lunarInput?: boolean;
@@ -153,7 +166,14 @@ export type EventRow = {
 /** (#188) 푸시 기기 (푸시-알림.md 3장 PushDevice) */
 /** (#532) 접속 기종 기록 (UserClient). appVersion 은 앱만 */
 export type UserClientRow = { userId: number; platform: "ios" | "android" | "web"; appVersion: string | null; firstSeenAt: string; lastSeenAt: string };
-export type PushDeviceRow = { token: string; userId: number; platform: "IOS" | "ANDROID"; appVersion: string; lastSeenAt: string; /** (#528) 등록 시각. 없으면 lastSeenAt */ createdAt?: string };
+export type PushDeviceRow = {
+  token: string;
+  userId: number;
+  platform: "IOS" | "ANDROID";
+  appVersion: string;
+  lastSeenAt: string;
+  /** (#528) 등록 시각. 없으면 lastSeenAt */ createdAt?: string;
+};
 export type AnniversaryRow = {
   id: number;
   groupId: number;
@@ -185,7 +205,15 @@ export type EventLogRow = {
 };
 
 /** (#276) 할 일 목록, 항목 (설계 할일-목록.md 1장) */
-export type TodoListRow = { id: number; groupId: number; name: string; creatorId: number | null; editorId: number | null; createdAt: string; updatedAt: string };
+export type TodoListRow = {
+  id: number;
+  groupId: number;
+  name: string;
+  creatorId: number | null;
+  editorId: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
 export type TodoItemRow = {
   id: number;
   listId: number;
@@ -367,7 +395,14 @@ export function buildStore(): Store {
     // (#305) 하늘은 9일 뒤가 생일 (기념일 화면, 달력에 "하늘 생일")
     { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38), birthday: addDays(today, 9).slice(5) },
     // (#562) 엄마는 음력 생일 (우리 가족 달력, 기념일 화면 "음력" 표시)
-    { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30), birthday: lunarAgo(addDays(today, 15), 0)[1], birthdayCalendar: "LUNAR" },
+    {
+      id: MOM_ID,
+      nickname: "엄마",
+      profileImageUrl: null,
+      createdAt: hoursAgo(24 * 30),
+      birthday: lunarAgo(addDays(today, 15), 0)[1],
+      birthdayCalendar: "LUNAR",
+    },
     { id: DAD_ID, nickname: "아빠", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
   ];
 
@@ -426,7 +461,10 @@ export function buildStore(): Store {
       place: { text: null, query: "카페", kakaoPlaceId: "27531028" },
     },
     ev(2, TEAM_ID, "치과", d(7), "10:30", d(7), "11:30", ME_ID),
-    { ...ev(3, TEAM_ID, "영화", today, "19:30", today, "22:00", ME_ID, false, "아이맥스. 7시에 4번 출구에서 보자, 팝콘은 내가 살게."), place: { text: "CGV 용산아이파크몰", query: null, kakaoPlaceId: null } },
+    {
+      ...ev(3, TEAM_ID, "영화", today, "19:30", today, "22:00", ME_ID, false, "아이맥스. 7시에 4번 출구에서 보자, 팝콘은 내가 살게."),
+      place: { text: "CGV 용산아이파크몰", query: null, kakaoPlaceId: null },
+    },
     ev(7, TEAM_ID, "원고 마감", today, "00:00", addDays(today, 1), "00:00", OTHER_ID, true),
     ev(4, TEAM_ID, "부모님 댁", addDays(today, 1), "00:00", addDays(today, 2), "00:00", ME_ID, true),
     ev(5, TEAM_ID, "요가", addDays(today, 3), "07:00", addDays(today, 3), "08:00", OTHER_ID),
@@ -458,7 +496,12 @@ export function buildStore(): Store {
       ...ev(10, TEAM_ID, "같이 요리하기", weeklyStart, "19:30", weeklyStart, "21:00", OTHER_ID, false, "장보기는 번갈아"),
       repeat: "WEEKLY",
       exceptions: [
-        { occurrence: addDays(weeklyStart, 21), cancelled: false, startsAt: kstToIso(addDays(weeklyStart, 21), "20:00"), endsAt: kstToIso(addDays(weeklyStart, 21), "21:30") },
+        {
+          occurrence: addDays(weeklyStart, 21),
+          cancelled: false,
+          startsAt: kstToIso(addDays(weeklyStart, 21), "20:00"),
+          endsAt: kstToIso(addDays(weeklyStart, 21), "21:30"),
+        },
       ],
     },
     // 매월 반복, 올해 12월 31일까지
@@ -472,10 +515,22 @@ export function buildStore(): Store {
     { ...ev(23, FAMILY_ID, "장보기", addDays(today, 1), "11:00", addDays(today, 1), "12:00", OTHER_ID), allMembers: false, participantIds: [] },
     { ...ev(24, FAMILY_ID, "피아노 학원", addDays(today, 1), "16:00", addDays(today, 1), "17:00", DAD_ID), allMembers: false, participantIds: [OTHER_ID] },
     { ...ev(25, FAMILY_ID, "헬스", addDays(today, 1), "07:00", addDays(today, 1), "08:00", DAD_ID), allMembers: false, participantIds: [DAD_ID] },
-    { ...ev(26, FAMILY_ID, "이사 준비", addDays(today, 2), "00:00", addDays(today, 4), "00:00", ME_ID, true), allMembers: false, participantIds: [ME_ID, OTHER_ID] },
-    { ...ev(27, FAMILY_ID, "할머니 댁", addDays(today, 4), "13:00", addDays(today, 4), "18:00", MOM_ID), allMembers: false, participantIds: [MOM_ID, DAD_ID, OTHER_ID] },
+    {
+      ...ev(26, FAMILY_ID, "이사 준비", addDays(today, 2), "00:00", addDays(today, 4), "00:00", ME_ID, true),
+      allMembers: false,
+      participantIds: [ME_ID, OTHER_ID],
+    },
+    {
+      ...ev(27, FAMILY_ID, "할머니 댁", addDays(today, 4), "13:00", addDays(today, 4), "18:00", MOM_ID),
+      allMembers: false,
+      participantIds: [MOM_ID, DAD_ID, OTHER_ID],
+    },
     ev(28, FAMILY_ID, "주말 캠핑", addDays(today, 5), "00:00", addDays(today, 8), "00:00", DAD_ID, true, "텐트는 아빠가"),
-    { ...ev(29, FAMILY_ID, "엄마 아빠 여행", addDays(today, 9), "00:00", addDays(today, 11), "00:00", DAD_ID, true), allMembers: false, participantIds: [MOM_ID, DAD_ID] },
+    {
+      ...ev(29, FAMILY_ID, "엄마 아빠 여행", addDays(today, 9), "00:00", addDays(today, 11), "00:00", DAD_ID, true),
+      allMembers: false,
+      participantIds: [MOM_ID, DAD_ID],
+    },
   ];
 
   // 기념일 (#107 자동 표시 확인용). n 년 전 같은 월일
@@ -761,7 +816,7 @@ export function buildStore(): Store {
     {
       id: 1,
       title: "볼까가 일정을 고치고 지울 수 있어요",
-      body: "이제 볼까에게 \"금요일 회식 7시 반으로 바꿔줘\" 처럼 말하면 바꿀 일정을 찾아 확인 카드로 보여 드려요.\n지우기도 같은 방법으로 할 수 있어요.\n\n자세한 사용법은 https://whenwemeet.day/support 에 정리해 두었어요.",
+      body: '이제 볼까에게 "금요일 회식 7시 반으로 바꿔줘" 처럼 말하면 바꿀 일정을 찾아 확인 카드로 보여 드려요.\n지우기도 같은 방법으로 할 수 있어요.\n\n자세한 사용법은 https://whenwemeet.day/support 에 정리해 두었어요.',
       kind: "update",
       pinned: true,
       publishedAt: hoursAgo(24 * 3),
@@ -828,7 +883,14 @@ export function buildStore(): Store {
   // (#528) 관리자 사용자 상세의 기기: 민지는 아이폰과 안드로이드 태블릿, 수경은 아이폰 하나. 토큰은 목 안에서만 쓴다
   const pushDevices: PushDeviceRow[] = [
     { token: "ExponentPushToken[mock-minji-ios]", userId: 11, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 10), lastSeenAt: hoursAgo(3) },
-    { token: "ExponentPushToken[mock-minji-android]", userId: 11, platform: "ANDROID", appVersion: "1.2.1", createdAt: hoursAgo(24 * 9), lastSeenAt: hoursAgo(24 * 4) },
+    {
+      token: "ExponentPushToken[mock-minji-android]",
+      userId: 11,
+      platform: "ANDROID",
+      appVersion: "1.2.1",
+      createdAt: hoursAgo(24 * 9),
+      lastSeenAt: hoursAgo(24 * 4),
+    },
     { token: "ExponentPushToken[mock-sugyeong-ios]", userId: 12, platform: "IOS", appVersion: "1.3.0", createdAt: hoursAgo(24 * 5), lastSeenAt: hoursAgo(26) },
   ];
 
@@ -850,9 +912,17 @@ export function buildStore(): Store {
     { id: 2, platform: "android", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: null, updatedAt: hoursAgo(24) },
   ];
 
-
   // (#536) 신고: 카페 작업(하늘의 일정)을 내가 신고, 우리 가족 팀을 엄마와 아빠가 신고(묶음 2건), 하늘을 내가 신고했다가 처리 완료, 아빠를 엄마가 신고했다가 기각
-  const report = (id: number, reporterId: number, targetType: ReportRow["targetType"], targetId: number, reason: ReportRow["reason"], detail: string | null, h: number, closed?: Pick<ReportRow, "status" | "resolution">): ReportRow => ({
+  const report = (
+    id: number,
+    reporterId: number,
+    targetType: ReportRow["targetType"],
+    targetId: number,
+    reason: ReportRow["reason"],
+    detail: string | null,
+    h: number,
+    closed?: Pick<ReportRow, "status" | "resolution">,
+  ): ReportRow => ({
     id,
     reporterId,
     targetType,
@@ -873,8 +943,29 @@ export function buildStore(): Store {
     report(5, ME_ID, "event", 30, "spam", "메모에 모르는 링크가 있어요", 3),
   ];
 
-
-  return { users, groups, memberships, events, anniversaries, logs, activities, todoLists, todoItems, rsvps, reactions, polls, notices, noticeReads, noticeDeliveries, pushDevices, userClients, appReleases, adminLogs: [], reports, seq: 100 };
+  return {
+    users,
+    groups,
+    memberships,
+    events,
+    anniversaries,
+    logs,
+    activities,
+    todoLists,
+    todoItems,
+    rsvps,
+    reactions,
+    polls,
+    notices,
+    noticeReads,
+    noticeDeliveries,
+    pushDevices,
+    userClients,
+    appReleases,
+    adminLogs: [],
+    reports,
+    seq: 100,
+  };
 }
 
 /** 응답용 member 객체 (api.md 공통 표시 이름 규칙) */

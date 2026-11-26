@@ -64,10 +64,7 @@ export function useCalendarData({
   // 기념일은 못 받아도 빈 목록으로 본다 (D-day 줄만 안내로 바뀜)
   const anniversariesQ = useAnniversaryItems(groupId);
   const { data: anniversaryData, error: anniversaryError } = anniversariesQ;
-  const anniversaries = useMemo(
-    () => anniversaryData ?? (anniversaryError ? [] : null),
-    [anniversaryData, anniversaryError],
-  );
+  const anniversaries = useMemo(() => anniversaryData ?? (anniversaryError ? [] : null), [anniversaryData, anniversaryError]);
 
   const memberCount = group?.members.length ?? 0;
   const members = useMemo(() => group?.members ?? [], [group]);
@@ -151,7 +148,14 @@ export function useCalendarData({
   const annByDay = useMemo(() => occurrencesByDay(anniversaries, gridFrom, gridTo), [anniversaries, gridFrom, gridTo]);
   // (#355) 폰 칸 이름 칩: 주마다 칸당 4줄. 기념일, 공휴일 글자가 있는 칸은 0번 줄을 그 글자가 쓴다
   const phoneWeeks = useMemo(
-    () => weeks.map((w) => phoneWeek(w.packed, PHONE_LANES, w.packed.days.map((d) => (annByDay.get(d)?.length ?? 0) > 0 || Boolean(holidayOf(d))))),
+    () =>
+      weeks.map((w) =>
+        phoneWeek(
+          w.packed,
+          PHONE_LANES,
+          w.packed.days.map((d) => (annByDay.get(d)?.length ?? 0) > 0 || Boolean(holidayOf(d))),
+        ),
+      ),
     [weeks, annByDay],
   );
   // phone "기념일" 구역 카드: 기념일마다 다음 항목 하나 (#212)

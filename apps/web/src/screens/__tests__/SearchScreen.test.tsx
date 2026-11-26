@@ -10,7 +10,13 @@ let groups = [{ id: 10 }, { id: 11 }];
 const searched = vi.fn();
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => params, useRouter: () => ({ back: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ groupId: 10, groups }) }));
 vi.mock("@/components/Participants", () => ({ useWho: () => ({ personal: false, meId: 1 }) }));
 vi.mock("@/hooks", () => ({
@@ -27,7 +33,13 @@ vi.mock("@/hooks", () => ({
 const { SearchScreen } = await import("../SearchScreen");
 
 const M = { userId: 1, displayName: "지우", color: "#F26D6D", profileImageUrl: null };
-const item = (id: number, title: string, upcoming: boolean, o: Partial<EventSearchItem["event"]> = {}, group = { id: 10, name: "우리 집", publicCode: "grp00010" }): EventSearchItem =>
+const item = (
+  id: number,
+  title: string,
+  upcoming: boolean,
+  o: Partial<EventSearchItem["event"]> = {},
+  group = { id: 10, name: "우리 집", publicCode: "grp00010" },
+): EventSearchItem =>
   ({
     event: {
       id,

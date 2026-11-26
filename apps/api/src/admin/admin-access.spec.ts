@@ -23,9 +23,13 @@ describe('AdminAccess, AdminGuard (#515)', () => {
 
   it('user 거나 사용자가 없으면 403 FORBIDDEN', async () => {
     users.findRole.mockResolvedValueOnce('user');
-    await expect(guard.canActivate(contextOf({ id: 3 }))).rejects.toMatchObject({ code: 'FORBIDDEN', message: '관리자만 할 수 있어요' });
+    await expect(guard.canActivate(contextOf({ id: 3 }))).rejects.toMatchObject(
+      { code: 'FORBIDDEN', message: '관리자만 할 수 있어요' },
+    );
     users.findRole.mockResolvedValueOnce(null);
-    await expect(guard.canActivate(contextOf({ id: 4 }))).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(guard.canActivate(contextOf({ id: 4 }))).rejects.toMatchObject(
+      { code: 'FORBIDDEN' },
+    );
   });
 
   it('isAdmin: 익명(null)은 조회 없이 false', async () => {

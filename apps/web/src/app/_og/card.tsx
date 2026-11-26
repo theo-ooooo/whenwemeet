@@ -67,7 +67,11 @@ function chipsOf(day: number, free: number): { label: string; c: { bg: string; i
   const label = (k: number) => LABELS[(day + k) % LABELS.length];
   if (seed < 3) return [{ label: label(0), c: CHIP.soft }];
   if (seed === 3) return [{ label: label(0), c: CHIP.purple }];
-  if (seed === 4) return [{ label: label(0), c: CHIP.soft }, { label: label(3), c: CHIP.soft }];
+  if (seed === 4)
+    return [
+      { label: label(0), c: CHIP.soft },
+      { label: label(3), c: CHIP.soft },
+    ];
   if (seed === 5) return [{ label: label(1), c: CHIP.pink }];
   return [];
 }
@@ -87,7 +91,19 @@ function CalendarScreen({ now, team }: { now: Date; team: string }) {
     <div style={{ display: "flex", flexDirection: "column", padding: "0 12px" }}>
       <div style={{ display: "flex", alignItems: "center", height: 44 }}>
         <BrandSymbol size={28} />
-        <span style={{ marginLeft: 8, fontSize: 19, fontWeight: 700, color: C.ink, letterSpacing: "-0.03em", maxWidth: 170, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+        <span
+          style={{
+            marginLeft: 8,
+            fontSize: 19,
+            fontWeight: 700,
+            color: C.ink,
+            letterSpacing: "-0.03em",
+            maxWidth: 170,
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            textOverflow: "ellipsis",
+          }}
+        >
           {team}
         </span>
         <div style={{ display: "flex", marginLeft: "auto" }}>
@@ -106,7 +122,10 @@ function CalendarScreen({ now, team }: { now: Date; team: string }) {
       <div style={{ display: "flex", flexDirection: "column", width: COL * 7 + 4, padding: "4px 2px 0", borderRadius: 16, background: C.tile }}>
         <div style={{ display: "flex", height: 26, alignItems: "center", borderBottom: `1px solid ${C.line}` }}>
           {WEEKDAYS.map((w, i) => (
-            <span key={w} style={{ width: COL, display: "flex", justifyContent: "center", fontSize: 11, fontWeight: 500, color: i === 0 || i === 6 ? C.holiday : C.mute }}>
+            <span
+              key={w}
+              style={{ width: COL, display: "flex", justifyContent: "center", fontSize: 11, fontWeight: 500, color: i === 0 || i === 6 ? C.holiday : C.mute }}
+            >
               {w}
             </span>
           ))}
@@ -302,19 +321,7 @@ export type OgLine = { text: string; size?: number; gap?: number; clamp?: number
 
 /** 글 칸 아래쪽 묶음: 위에 작은 말, 큰 제목(줄마다 크기 지정), 아래 말, 버튼 모양 칩.
  *  satori 는 Fragment 자식의 세로 배치를 어겨서 줄마다 div 로 그린다 */
-export function OgCopy({
-  kicker,
-  lines,
-  titleSize,
-  lead,
-  chip,
-}: {
-  kicker?: string;
-  lines: OgLine[];
-  titleSize: number;
-  lead: string;
-  chip: string;
-}) {
+export function OgCopy({ kicker, lines, titleSize, lead, chip }: { kicker?: string; lines: OgLine[]; titleSize: number; lead: string; chip: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", marginTop: "auto" }}>
       {kicker ? (
@@ -354,9 +361,7 @@ export function OgCopy({
           {l.text}
         </div>
       ))}
-      <div style={{ display: "flex", marginTop: 22, fontSize: 28, fontWeight: 500, lineHeight: 1.4, color: C.mute, letterSpacing: "-0.02em" }}>
-        {lead}
-      </div>
+      <div style={{ display: "flex", marginTop: 22, fontSize: 28, fontWeight: 500, lineHeight: 1.4, color: C.mute, letterSpacing: "-0.02em" }}>{lead}</div>
       <div style={{ display: "flex", alignItems: "center", gap: 22, marginTop: 36 }}>
         <div
           style={{

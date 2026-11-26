@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser, OptionalUser } from '../auth/current-user.decorator.js';
@@ -33,7 +43,12 @@ export class EventShareLinksController {
     @Body() dto: CreateEventShareDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { link, created } = await this.shares.createLink(user.id, groupId, eventId, dto.occurrence);
+    const { link, created } = await this.shares.createLink(
+      user.id,
+      groupId,
+      eventId,
+      dto.occurrence,
+    );
     res.status(created ? 201 : 200);
     return link;
   }
@@ -57,7 +72,10 @@ export class EventSharesController {
   @OptionalAuth()
   @Get(':token')
   @RateLimit('eventSharePreview')
-  preview(@Param('token') token: string, @OptionalUser() user: AuthUser | null) {
+  preview(
+    @Param('token') token: string,
+    @OptionalUser() user: AuthUser | null,
+  ) {
     return this.shares.preview(token, user?.id ?? null);
   }
 

@@ -6,10 +6,19 @@ export interface TodoOrderable {
   createdAt: Date;
 }
 
-export function sortTodoItems<T extends TodoOrderable>(items: readonly T[]): T[] {
-  const open = items.filter((i) => !i.done).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id);
+export function sortTodoItems<T extends TodoOrderable>(
+  items: readonly T[],
+): T[] {
+  const open = items
+    .filter((i) => !i.done)
+    .sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id,
+    );
   const done = items
     .filter((i) => i.done)
-    .sort((a, b) => (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0) || b.id - a.id);
+    .sort(
+      (a, b) =>
+        (b.doneAt?.getTime() ?? 0) - (a.doneAt?.getTime() ?? 0) || b.id - a.id,
+    );
   return [...open, ...done];
 }

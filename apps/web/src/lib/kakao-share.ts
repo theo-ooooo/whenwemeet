@@ -45,7 +45,12 @@ const BUTTON_MAX = 14;
 
 function cut(s: string, max: number): string {
   const chars = Array.from(s.trim().replace(/\s+/g, " "));
-  return chars.length <= max ? chars.join("") : `${chars.slice(0, max - 1).join("").trimEnd()}…`;
+  return chars.length <= max
+    ? chars.join("")
+    : `${chars
+        .slice(0, max - 1)
+        .join("")
+        .trimEnd()}…`;
 }
 
 export function kakaoFeedTemplate(input: KakaoFeedInput): KakaoFeedTemplate {

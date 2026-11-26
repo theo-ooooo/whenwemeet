@@ -18,10 +18,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
       <head>
         <title>점검 중 | 언제볼까</title>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
       </head>
       <body className="min-h-dvh">
         <MaintenanceScreen />

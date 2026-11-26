@@ -19,16 +19,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
 
   if (!invite) {
     return new ImageResponse(
-      (
-        <OgFrame now={now}>
-          <OgCopy
-            lines={[{ text: "같은 달력에" }, { text: "초대받았어요", gap: 6 }]}
-            titleSize={80}
-            lead="합류하면 모두 비는 시간을 바로 찾아요"
-            chip="초대 수락하기"
-          />
-        </OgFrame>
-      ),
+      <OgFrame now={now}>
+        <OgCopy
+          lines={[{ text: "같은 달력에" }, { text: "초대받았어요", gap: 6 }]}
+          titleSize={80}
+          lead="합류하면 모두 비는 시간을 바로 찾아요"
+          chip="초대 수락하기"
+        />
+      </OgFrame>,
       { ...OG_SIZE, fonts, headers },
     );
   }
@@ -36,17 +34,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   const name = clampTeamName(invite.groupName);
   const nameSize = teamNameFontSize(name);
   return new ImageResponse(
-    (
-      <OgFrame now={now} team={clampTeamName(invite.groupName, 10)}>
-        <OgCopy
-          kicker={invite.inviter ? `${clampTeamName(invite.inviter.nickname, INVITER_NAME_MAX)}님이 초대했어요` : `멤버 ${invite.memberCount}명`}
-          lines={[{ text: name, clamp: 2, wordBreak: teamNameWordBreak(name, nameSize) }, { text: "팀에 초대받았어요", size: 48, gap: 14 }]}
-          titleSize={nameSize}
-          lead="합류하면 같은 달력을 함께 봐요"
-          chip="초대 수락하기"
-        />
-      </OgFrame>
-    ),
+    <OgFrame now={now} team={clampTeamName(invite.groupName, 10)}>
+      <OgCopy
+        kicker={invite.inviter ? `${clampTeamName(invite.inviter.nickname, INVITER_NAME_MAX)}님이 초대했어요` : `멤버 ${invite.memberCount}명`}
+        lines={[
+          { text: name, clamp: 2, wordBreak: teamNameWordBreak(name, nameSize) },
+          { text: "팀에 초대받았어요", size: 48, gap: 14 },
+        ]}
+        titleSize={nameSize}
+        lead="합류하면 같은 달력을 함께 봐요"
+        chip="초대 수락하기"
+      />
+    </OgFrame>,
     { ...OG_SIZE, fonts, headers },
   );
 }

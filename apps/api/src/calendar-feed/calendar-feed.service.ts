@@ -7,10 +7,28 @@ import { ApiException } from '../common/errors.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { EventsService } from '../events/events.service.js';
 import { MembershipService } from '../groups/membership.service.js';
-import { type CalendarFeedRow, CalendarFeedsRepository, type CalendarFeedSettings } from './calendar-feeds.repository.js';
-import { anniversaryEvents, birthdayEvents, eventToIcs, feedWindow, placeKey, type ResolvedPlace } from './feed-items.js';
+import {
+  type CalendarFeedRow,
+  CalendarFeedsRepository,
+  type CalendarFeedSettings,
+} from './calendar-feeds.repository.js';
+import {
+  anniversaryEvents,
+  birthdayEvents,
+  eventToIcs,
+  feedWindow,
+  placeKey,
+  type ResolvedPlace,
+} from './feed-items.js';
 import { PlacesService } from '../places/places.service.js';
-import { FEED_TOKEN_KEY_INFO, feedToken, feedTokenHash, lookupHash, newFeedSalt, tokenMatches } from './feed-token.js';
+import {
+  FEED_TOKEN_KEY_INFO,
+  feedToken,
+  feedTokenHash,
+  lookupHash,
+  newFeedSalt,
+  tokenMatches,
+} from './feed-token.js';
 import { buildIcs, type IcsEvent } from './ics.js';
 
 /** (#199) 피드 하나에서 다시 찾는 장소 수 상한 */
@@ -29,7 +47,9 @@ export interface CalendarFeedView {
 }
 
 /** 공개 피드 결과. notModified 면 body 없이 304 */
-export type FeedResult = { notModified: true; etag: string } | { notModified: false; etag: string; body: string };
+export type FeedResult =
+  | { notModified: true; etag: string }
+  | { notModified: false; etag: string; body: string };
 
 export const FEED_TIMEZONE = 'Asia/Seoul';
 export const FEED_REFRESH = 'PT1H';
@@ -81,16 +101,29 @@ export class CalendarFeedService {
     return row && this.view(row);
   }
 
-  async upsert(userId: number, groupId: number, settings: CalendarFeedSettings): Promise<CalendarFeedView> {
+  async upsert(
+    userId: number,
+    groupId: number,
+    settings: CalendarFeedSettings,
+  ): Promise<CalendarFeedView> {
     await this.memberships.assertMember(userId, groupId);
-    const row = await this.feeds.upsert(userId, groupId, settings, this.newToken(userId, groupId));
+    const row = await this.feeds.upsert(
+      userId,
+      groupId,
+      settings,
+      this.newToken(userId, groupId),
+    );
     return this.view(row);
   }
 
   /** 새 토큰. 이전 주소는 바로 404. 주소가 없으면 404 NOT_FOUND */
   async rotate(userId: number, groupId: number): Promise<CalendarFeedView> {
     await this.memberships.assertMember(userId, groupId);
-    const row = await this.feeds.replaceToken(userId, groupId, this.newToken(userId, groupId));
+    const row = await this.feeds.replaceToken(
+      userId,
+      groupId,
+      this.newToken(userId, groupId),
+    );
     if (!row) throw new ApiException('NOT_FOUND', '연결 주소가 없어요');
     return this.view(row);
   }
@@ -108,40 +141,73 @@ export class CalendarFeedService {
    * 네이버로 고른 장소는 네이버에서 다시 찾는다 (D-259)
    */
   private async resolvePlaces(
-    views: { place: { kakaoPlaceId: string | null; naverKey: string | null; query: string | null } | null }[],
+    views: {
+      place: {
+        kakaoPlaceId: string | null;
+        naverKey: string | null;
+        query: string | null;
+      } | null;
+    }[],
   ): Promise<Map<string, ResolvedPlace | null>> {
-    const keys = new Map<string, { source: 'kakao' | 'naver'; id: string; q: string }>();
+    const keys = new Map<
+      string,
+      { source: 'kakao' | 'naver'; id: string; q: string }
+    >();
     for (const view of views) {
       const p = view.place;
       const id = p?.kakaoPlaceId ?? p?.naverKey;
-      if (p && id && p.query && !keys.has(placeKey(p)) && keys.size < FEED_PLACE_RESOLVE_MAX)
-        keys.set(placeKey(p), { source: p.kakaoPlaceId ? 'kakao' : 'naver', id, q: p.query });
+      if (
+        p &&
+        id &&
+        p.query &&
+        !keys.has(placeKey(p)) &&
+        keys.size < FEED_PLACE_RESOLVE_MAX
+      )
+        keys.set(placeKey(p), {
+          source: p.kakaoPlaceId ? 'kakao' : 'naver',
+          id,
+          q: p.query,
+        });
     }
     const entries = await Promise.all(
-      [...keys].map(async ([key, { source, id, q }]) => [key, await this.places.resolveQuietly(source, id, q)] as const),
+      [...keys].map(
+        async ([key, { source, id, q }]) =>
+          [key, await this.places.resolveQuietly(source, id, q)] as const,
+      ),
     );
     return new Map(entries);
   }
 
   /** 공개 피드. 형식이 틀리거나, 없거나, 다시 만든 토큰과 다르거나, 그 팀 멤버가 아니면 모두 같은 404 */
-  async feed(token: string, ifNoneMatch: string | undefined, now: Date = new Date()): Promise<FeedResult> {
+  async feed(
+    token: string,
+    ifNoneMatch: string | undefined,
+    now: Date = new Date(),
+  ): Promise<FeedResult> {
     const hash = lookupHash(token);
     if (!hash) throw feedNotFound();
     const row = await this.feeds.findByHash(hash);
     if (!row || !tokenMatches(this.key(), row, token)) throw feedNotFound();
     // (#515) 숨긴 팀(GROUP_HIDDEN)도 같은 404. 피드는 사유를 알릴 곳이 없다
-    const member = await this.memberships.isMember(row.userId, row.groupId).catch((error: unknown) => {
-      if (error instanceof ApiException && error.code === 'GROUP_HIDDEN') return false;
-      throw error;
-    });
+    const member = await this.memberships
+      .isMember(row.userId, row.groupId)
+      .catch((error: unknown) => {
+        if (error instanceof ApiException && error.code === 'GROUP_HIDDEN')
+          return false;
+        throw error;
+      });
     if (!member) throw feedNotFound();
 
     const window = feedWindow(now);
     // (#305) 멤버 생일은 "기념일 포함" 을 따른다 (D-233)
     const [views, anniversaries, birthdays] = await Promise.all([
       this.events.listForFeed(row.groupId, window.from, window.to),
-      row.includeAnniversaries ? this.anniversaries.listForFeed(row.groupId) : Promise.resolve([]),
-      row.includeAnniversaries ? this.birthdays.listForFeed(row.groupId) : Promise.resolve([]),
+      row.includeAnniversaries
+        ? this.anniversaries.listForFeed(row.groupId)
+        : Promise.resolve([]),
+      row.includeAnniversaries
+        ? this.birthdays.listForFeed(row.groupId)
+        : Promise.resolve([]),
     ]);
     const options = {
       includeMemo: row.includeMemo,
@@ -151,21 +217,40 @@ export class CalendarFeedService {
     };
     const resolved = await this.resolvePlaces(views);
     const items: IcsEvent[] = [
-      ...views.map((view) => eventToIcs(view, options, view.place?.kakaoPlaceId || view.place?.naverKey ? (resolved.get(placeKey(view.place)) ?? null) : null)),
+      ...views.map((view) =>
+        eventToIcs(
+          view,
+          options,
+          view.place?.kakaoPlaceId || view.place?.naverKey
+            ? (resolved.get(placeKey(view.place)) ?? null)
+            : null,
+        ),
+      ),
       ...anniversaries.flatMap((a) => anniversaryEvents(a, window)),
       ...birthdays.flatMap((b) => birthdayEvents(b, window)),
     ];
-    const body = buildIcs({ name: `${FEED_NAME_PREFIX}${row.group.name}`, timezone: FEED_TIMEZONE, refreshInterval: FEED_REFRESH, events: items });
+    const body = buildIcs({
+      name: `${FEED_NAME_PREFIX}${row.group.name}`,
+      timezone: FEED_TIMEZONE,
+      refreshInterval: FEED_REFRESH,
+      events: items,
+    });
     const etag = bodyEtag(body);
     await this.feeds.touchFetched(row.id, now);
-    return etagMatches(ifNoneMatch, etag) ? { notModified: true, etag } : { notModified: false, etag, body };
+    return etagMatches(ifNoneMatch, etag)
+      ? { notModified: true, etag }
+      : { notModified: false, etag, body };
   }
 
   /** 주소는 저장하지 않고 소금으로 다시 만든다. 서버 비밀이 바뀌어 해시가 안 맞으면 지금 비밀로 해시를 다시 맞춘다 (옛 주소는 이미 404) */
   private async view(row: CalendarFeedRow): Promise<CalendarFeedView> {
     const token = feedToken(this.key(), row.userId, row.groupId, row.tokenSalt);
     const tokenHash = feedTokenHash(token);
-    if (tokenHash !== row.tokenHash) await this.feeds.replaceToken(row.userId, row.groupId, { tokenSalt: row.tokenSalt, tokenHash });
+    if (tokenHash !== row.tokenHash)
+      await this.feeds.replaceToken(row.userId, row.groupId, {
+        tokenSalt: row.tokenSalt,
+        tokenHash,
+      });
     const httpsUrl = `${this.apiOrigin()}/v1/ics/${token}.ics`;
     const webcalUrl = httpsUrl.replace(/^https?:/, 'webcal:');
     return {
@@ -179,13 +264,24 @@ export class CalendarFeedService {
     };
   }
 
-  private newToken(userId: number, groupId: number): { tokenSalt: string; tokenHash: string } {
+  private newToken(
+    userId: number,
+    groupId: number,
+  ): { tokenSalt: string; tokenHash: string } {
     const tokenSalt = newFeedSalt();
-    return { tokenSalt, tokenHash: feedTokenHash(feedToken(this.key(), userId, groupId, tokenSalt)) };
+    return {
+      tokenSalt,
+      tokenHash: feedTokenHash(
+        feedToken(this.key(), userId, groupId, tokenSalt),
+      ),
+    };
   }
 
   private key(): Buffer {
-    this.tokenKey ??= deriveKey(this.config.getOrThrow<string>('JWT_SECRET'), FEED_TOKEN_KEY_INFO);
+    this.tokenKey ??= deriveKey(
+      this.config.getOrThrow<string>('JWT_SECRET'),
+      FEED_TOKEN_KEY_INFO,
+    );
     return this.tokenKey;
   }
 
@@ -195,9 +291,13 @@ export class CalendarFeedService {
 
   /** `API_PUBLIC_ORIGIN`, 없으면 운영은 api.whenwemeet.day, 개발은 localhost:PORT */
   private apiOrigin(): string {
-    const configured = this.config.get<string>('API_PUBLIC_ORIGIN')?.trim().replace(/\/+$/, '');
+    const configured = this.config
+      .get<string>('API_PUBLIC_ORIGIN')
+      ?.trim()
+      .replace(/\/+$/, '');
     if (configured) return configured;
-    if (this.config.get<string>('NODE_ENV') === 'production') return DEFAULT_API_PUBLIC_ORIGIN;
+    if (this.config.get<string>('NODE_ENV') === 'production')
+      return DEFAULT_API_PUBLIC_ORIGIN;
     return `http://localhost:${this.config.get<string>('PORT') ?? 4000}`;
   }
 }

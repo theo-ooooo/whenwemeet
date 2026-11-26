@@ -1,8 +1,25 @@
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsOptional, IsString, Length, Matches, Validate, ValidateIf, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  Validate,
+  ValidateIf,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+} from 'class-validator';
 import { CALENDAR_KINDS, type CalendarKind } from '../../common/lunar.js';
 import { isCalendarDate, Trim } from '../../common/validation.js';
 import { AnniversaryKind } from '../../generated/prisma/enums.js';
-import { ANNIVERSARY_REMINDERS, type AnniversaryReminder } from '../anniversary-reminders.js';
+import {
+  ANNIVERSARY_REMINDERS,
+  type AnniversaryReminder,
+} from '../anniversary-reminders.js';
 
 /** 기념일 종류 (#105, D-62). 계산은 클라이언트, 서버는 저장만 */
 export const ANNIVERSARY_KINDS = Object.values(AnniversaryKind);
@@ -15,11 +32,20 @@ const REMINDERS_MESSAGE = `알림은 ${ANNIVERSARY_REMINDERS.join(', ')} 중에�
  */
 export function Reminders(): PropertyDecorator {
   return (target, key) => {
-    ValidateIf((_: unknown, value: unknown) => value !== undefined)(target, key);
+    ValidateIf((_: unknown, value: unknown) => value !== undefined)(
+      target,
+      key,
+    );
     IsArray({ message: '알림은 배열이어야 해요' })(target, key);
-    ArrayMaxSize(ANNIVERSARY_REMINDERS.length, { message: REMINDERS_MESSAGE })(target, key);
+    ArrayMaxSize(ANNIVERSARY_REMINDERS.length, { message: REMINDERS_MESSAGE })(
+      target,
+      key,
+    );
     ArrayUnique({ message: '알림에 같은 값이 두 번 있어요' })(target, key);
-    IsIn(ANNIVERSARY_REMINDERS, { each: true, message: REMINDERS_MESSAGE })(target, key);
+    IsIn(ANNIVERSARY_REMINDERS, { each: true, message: REMINDERS_MESSAGE })(
+      target,
+      key,
+    );
   };
 }
 
@@ -37,15 +63,23 @@ export class CalendarDateConstraint implements ValidatorConstraintInterface {
 /** (#562) 달력 종류 (생략하면 생성은 SOLAR, 수정은 그대로). null 은 거부 */
 export function CalendarKindField(): PropertyDecorator {
   return (target, key) => {
-    ValidateIf((_: unknown, value: unknown) => value !== undefined)(target, key);
-    IsIn(CALENDAR_KINDS, { message: `달력은 ${CALENDAR_KINDS.join(', ')} 중 하나여야 해요` })(target, key);
+    ValidateIf((_: unknown, value: unknown) => value !== undefined)(
+      target,
+      key,
+    );
+    IsIn(CALENDAR_KINDS, {
+      message: `달력은 ${CALENDAR_KINDS.join(', ')} 중 하나여야 해요`,
+    })(target, key);
   };
 }
 
 /** (#562) 윤달 여부 (음력일 때만 true 가능, 검사는 서비스) */
 export function LeapMonthField(): PropertyDecorator {
   return (target, key) => {
-    ValidateIf((_: unknown, value: unknown) => value !== undefined)(target, key);
+    ValidateIf((_: unknown, value: unknown) => value !== undefined)(
+      target,
+      key,
+    );
     IsBoolean({ message: '윤달은 true 나 false 여야 해요' })(target, key);
   };
 }
@@ -56,10 +90,17 @@ export function LeapMonthField(): PropertyDecorator {
  */
 @ValidatorConstraint({ name: 'anniversaryDate', async: false })
 export class AnniversaryDateConstraint implements ValidatorConstraintInterface {
-  validate(value: unknown, args?: { object: object; constraints?: unknown[] }): boolean {
+  validate(
+    value: unknown,
+    args?: { object: object; constraints?: unknown[] },
+  ): boolean {
     if (typeof value !== 'string') return false;
-    const given = (args?.object as { calendar?: CalendarKind } | undefined)?.calendar;
-    const calendar = given ?? (args?.constraints?.[0] as CalendarKind | 'ANY' | undefined) ?? 'SOLAR';
+    const given = (args?.object as { calendar?: CalendarKind } | undefined)
+      ?.calendar;
+    const calendar =
+      given ??
+      (args?.constraints?.[0] as CalendarKind | 'ANY' | undefined) ??
+      'SOLAR';
     if (calendar === 'SOLAR') return isCalendarDate(value);
     const [, m, d] = value.split('-').map(Number);
     return m >= 1 && m <= 12 && d >= 1 && d <= (calendar === 'LUNAR' ? 30 : 31);
@@ -76,7 +117,9 @@ export class CreateAnniversaryDto {
   @Length(1, 30, { message: '기념일 이름은 1~30자여야 해요' })
   name!: string;
 
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 해요' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: '날짜는 YYYY-MM-DD 형식이어야 해요',
+  })
   @Validate(AnniversaryDateConstraint, ['SOLAR'])
   date!: string;
 
@@ -105,7 +148,9 @@ export class UpdateAnniversaryDto {
   name?: string;
 
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: '날짜는 YYYY-MM-DD 형식이어야 해요' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: '날짜는 YYYY-MM-DD 형식이어야 해요',
+  })
   @Validate(AnniversaryDateConstraint, ['ANY'])
   date?: string;
 

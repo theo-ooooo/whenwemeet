@@ -8,7 +8,12 @@ import { useEscape } from "./useEscape";
 /** 시트, 패널 머리 오른쪽 닫기 ✕ (32 칸, 누르는 영역 44 는 hit) */
 export function CloseButton({ onClick, className = "" }: { onClick: () => void; className?: string }) {
   return (
-    <button type="button" onClick={onClick} aria-label="닫기" className={`hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink ${className}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="닫기"
+      className={`hit grid size-8 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink ${className}`}
+    >
       <IconClose size={18} />
     </button>
   );
@@ -49,13 +54,7 @@ export function Sheet({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center lg:items-center">
-      <button
-        type="button"
-        aria-label="닫기"
-        onClick={onClose}
-        className="anim-fade absolute inset-0 bg-[var(--scrim)]"
-        tabIndex={-1}
-      />
+      <button type="button" aria-label="닫기" onClick={onClose} className="anim-fade absolute inset-0 bg-[var(--scrim)]" tabIndex={-1} />
       <div
         ref={panel}
         role="dialog"

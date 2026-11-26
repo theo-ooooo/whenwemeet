@@ -34,7 +34,10 @@ export class AppAuthService {
    * POST /auth/kakao/native (앱.md 3.1).
    * access_token_info 로 우리 앱의 토큰인지 확인 → 웹 콜백과 같은 프로필 조회와 로그인(upsert, 신규면 사진 복사) → handoff
    */
-  async loginWithKakao(accessToken: string, codeChallenge: string): Promise<HandoffIssued> {
+  async loginWithKakao(
+    accessToken: string,
+    codeChallenge: string,
+  ): Promise<HandoffIssued> {
     await this.kakao.verifyAppToken(accessToken);
     const profile = await this.kakao.fetchProfile(accessToken);
     const user = await this.auth.login(this.kakao.provider, profile);
@@ -42,9 +45,14 @@ export class AppAuthService {
   }
 
   /** handoff 발급. 토큰은 응답에만 있고 DB 에는 해시만 남는다. 오래된 행 청소를 겸한다 (앱.md 2.1) */
-  async issueHandoff(userId: number, codeChallenge: string): Promise<HandoffIssued> {
+  async issueHandoff(
+    userId: number,
+    codeChallenge: string,
+  ): Promise<HandoffIssued> {
     const now = Date.now();
-    await this.handoffs.deleteExpiredBefore(new Date(now - HANDOFF_RETENTION_MS));
+    await this.handoffs.deleteExpiredBefore(
+      new Date(now - HANDOFF_RETENTION_MS),
+    );
     const handoff = randomToken();
     await this.handoffs.create({
       userId,
@@ -60,9 +68,16 @@ export class AppAuthService {
    * 없음, 만료, 사용됨, verifier 불일치는 모두 401 HANDOFF_INVALID (어느 것인지 알려주지 않는다).
    * 성공이면 User.lastAppLoginAt = now (#188)
    */
-  async exchangeHandoff(handoff: string, verifier: string): Promise<{ token: string }> {
+  async exchangeHandoff(
+    handoff: string,
+    verifier: string,
+  ): Promise<{ token: string }> {
     const now = new Date();
-    const userId = await this.handoffs.consume(sha256hex(handoff), s256Challenge(verifier), now);
+    const userId = await this.handoffs.consume(
+      sha256hex(handoff),
+      s256Challenge(verifier),
+      now,
+    );
     if (userId === null) throw new ApiException('HANDOFF_INVALID');
     // (#188) 마지막 앱 로그인. 응답은 그대로 (D-97)
     await this.users.markAppLogin(userId, now);

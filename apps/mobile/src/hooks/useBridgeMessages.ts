@@ -11,13 +11,7 @@ import { readPushStatus, requestPush } from "../push/notifications";
 import { clearNativeSessions, nativeLinkCredentials } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
 import { clearWidget, publishWidgetSnapshot } from "../widget/native";
-import {
-  calendarStatus,
-  clearDeviceCalendar,
-  disableDeviceCalendar,
-  enableDeviceCalendar,
-  syncDeviceCalendar,
-} from "../device-calendar/native";
+import { calendarStatus, clearDeviceCalendar, disableDeviceCalendar, enableDeviceCalendar, syncDeviceCalendar } from "../device-calendar/native";
 
 type Options = {
   ref: RefObject<WebView<object> | null>;
@@ -63,9 +57,7 @@ export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRef
           onLoginRequested("/");
           return;
         case "share":
-          Share.share(shareContent(msg, Platform.OS === "ios" ? "ios" : "android")).catch((e: unknown) =>
-            console.warn("[share]", e),
-          );
+          Share.share(shareContent(msg, Platform.OS === "ios" ? "ios" : "android")).catch((e: unknown) => console.warn("[share]", e));
           return;
         case "kakaoShare": {
           // 카카오톡(없으면 SDK 의 웹 공유 창) → 실패하면 OS 공유 시트 (D-169)
@@ -79,17 +71,12 @@ export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRef
         }
         case "haptic":
           if (msg.kind === "light") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          else
-            void Haptics.notificationAsync(
-              msg.kind === "success" ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
-            );
+          else void Haptics.notificationAsync(msg.kind === "success" ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
           return;
         case "pushStatus":
         case "pushRequest":
           // 실패해도 답하지 않는다. 웹은 시간 초과(5초, 권한 창 60초)로 null 처리 (2-2)
-          (msg.type === "pushStatus" ? readPushStatus(msg.id) : requestPush(msg.id))
-            .then(sendToWeb)
-            .catch((e: unknown) => console.warn("[push]", msg.type, e));
+          (msg.type === "pushStatus" ? readPushStatus(msg.id) : requestPush(msg.id)).then(sendToWeb).catch((e: unknown) => console.warn("[push]", msg.type, e));
           return;
         case "openSettings":
           Linking.openSettings().catch((e: unknown) => console.warn("[push] 설정 열기 실패", e));

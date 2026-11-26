@@ -44,7 +44,7 @@ export function useTodoListEditor(groupId: number, code: string, me: Member | nu
 
   /** 다른 멤버가 먼저 지웠으면(404) 낙관적 반영을 되돌리지 않고 서버 상태로 다시 맞춘다 */
   const settleGone = useCallback(
-    <T,>(r: MutationOutcome<T>): MutationOutcome<T> => {
+    <T>(r: MutationOutcome<T>): MutationOutcome<T> => {
       if (!r.ok && r.error.status === 404) void refetch();
       return r;
     },
@@ -56,7 +56,7 @@ export function useTodoListEditor(groupId: number, code: string, me: Member | nu
     async (text: string): Promise<MutationOutcome<TodoItem>> => {
       if (!list) throw new Error("목록을 받기 전에는 추가할 수 없어요");
       const now = new Date().toISOString();
-      const id = -(++tempId.current);
+      const id = -++tempId.current;
       const creator = me ?? { userId: null, displayName: "", color: "#9CA3AF", profileImageUrl: null };
       patchItems((xs) => [...xs, { id, listId: list.id, text, done: false, doneAt: null, doneBy: null, creator, createdAt: now, updatedAt: now }]);
       const r = await createItem.mutate({ listId: list.id, text });

@@ -1,13 +1,39 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { isBirthdayOn } from '../anniversaries/birthdays.js';
 import { birthdayTargetOf } from './anniversary-planner.js';
-import { EXPO_RECEIPT_CHUNK, EXPO_SEND_CHUNK, ExpoPushClient } from './expo-push.client.js';
-import { changePayload, DELETED_MEMBER_NAME, joinPayload, noticePayload, type PushKindName, toExpoMessage, type PushPayload } from './push-copy.js';
-import { type ClaimedDelivery, type DueNotification, PushDeliveryRepository } from './push-delivery.repository.js';
+import {
+  EXPO_RECEIPT_CHUNK,
+  EXPO_SEND_CHUNK,
+  ExpoPushClient,
+} from './expo-push.client.js';
+import {
+  changePayload,
+  DELETED_MEMBER_NAME,
+  joinPayload,
+  noticePayload,
+  type PushKindName,
+  toExpoMessage,
+  type PushPayload,
+} from './push-copy.js';
+import {
+  type ClaimedDelivery,
+  type DueNotification,
+  PushDeliveryRepository,
+} from './push-delivery.repository.js';
 import { PushDevicesRepository } from './push-devices.repository.js';
-import { parseNoticeDedupeKey, parsePollDedupeKey } from './push-notifications.repository.js';
-import { PushRecipientsRepository, type Recipient } from './push-recipients.repository.js';
-import { mondayOfKey, WEEKLY_CATCH_UP_MS, WeeklyPlanner } from './weekly-planner.js';
+import {
+  parseNoticeDedupeKey,
+  parsePollDedupeKey,
+} from './push-notifications.repository.js';
+import {
+  PushRecipientsRepository,
+  type Recipient,
+} from './push-recipients.repository.js';
+import {
+  mondayOfKey,
+  WEEKLY_CATCH_UP_MS,
+  WeeklyPlanner,
+} from './weekly-planner.js';
 
 /** 예약 시각이 이만큼 넘게 지난 알림은 보내지 않는다 (D-88) */
 export const CATCH_UP_MS = 10 * 60 * 1000;
@@ -16,8 +42,10 @@ export const CATCH_UP_MS = 10 * 60 * 1000;
  * 종류별 늦음 허용. (#277) WEEKLY 3시간 (D-203). (#528) NOTICE 도 3시간: 시각을 다투는 알림이 아니고, 전체 대상이라
  * 기기가 많으면 틱당 발송 상한(SEND_LIMIT)으로 나눠 보내는 동안 다시 보내기(MessageRateExceeded)가 EXPIRED 되지 않게 (D-287)
  */
-export const catchUpFor = (kind: PushKindName): number => (kind === 'WEEKLY' || kind === 'NOTICE' ? WEEKLY_CATCH_UP_MS : CATCH_UP_MS);
-const isLate = (row: { kind: PushKindName; scheduledAt: Date }, now: Date) => row.scheduledAt.getTime() < now.getTime() - catchUpFor(row.kind);
+export const catchUpFor = (kind: PushKindName): number =>
+  kind === 'WEEKLY' || kind === 'NOTICE' ? WEEKLY_CATCH_UP_MS : CATCH_UP_MS;
+const isLate = (row: { kind: PushKindName; scheduledAt: Date }, now: Date) =>
+  row.scheduledAt.getTime() < now.getTime() - catchUpFor(row.kind);
 /** 한 틱에 펼치는 예약 수 */
 export const EXPAND_LIMIT = 500;
 /** 한 틱에 보내는 기기별 발송 수 */
@@ -67,7 +95,12 @@ export class PushDispatcher {
 
   /** A. 예약 시각이 된 PENDING 을 받을 기기로 펼친다. 10분(WEEKLY 3시간) 넘게 늦은 것은 SKIPPED */
   async expandDue(now: Date): Promise<ExpandStats> {
-    const stats: ExpandStats = { dispatched: 0, skipped: 0, deliveries: 0, cancelled: 0 };
+    const stats: ExpandStats = {
+      dispatched: 0,
+      skipped: 0,
+      deliveries: 0,
+      cancelled: 0,
+    };
     const due = await this.delivery.listDuePending(now, EXPAND_LIMIT);
     const late = due.filter((row) => isLate(row, now));
     stats.skipped += await this.delivery.markSkipped(late.map((row) => row.id));
@@ -110,8 +143,20 @@ export class PushDispatcher {
         reportsPast ? row.createdAt : null,
       );
       // (#190) 그 회차에 불참으로 답한 사람에게는 일정 알림을 보내지 않는다 (Q3, D-228)
-      if (row.kind === 'REMINDER' && row.eventId !== null) recipients = await this.recipients.withoutNotGoing(recipients, row.eventId, row.occurrence);
-      if (await this.delivery.dispatchTx(row.id, now, row.payload ? null : payload, recipients)) {
+      if (row.kind === 'REMINDER' && row.eventId !== null)
+        recipients = await this.recipients.withoutNotGoing(
+          recipients,
+          row.eventId,
+          row.occurrence,
+        );
+      if (
+        await this.delivery.dispatchTx(
+          row.id,
+          now,
+          row.payload ? null : payload,
+          recipients,
+        )
+      ) {
         stats.dispatched += 1;
         stats.deliveries += recipients.length;
       }
@@ -123,15 +168,29 @@ export class PushDispatcher {
    * (#528) 공지: 펼치는 순간의 공지로 문구를 만들고(그 사이 고친 제목, 본문), 기기가 있고 공지 알림을 켠 모든 사용자에게 (D-287).
    * 공지가 지워졌거나 게시 취소됐으면 SKIPPED. 기기별 발송은 dispatchTx 가 나눠 넣고, 보내기는 틱마다 SEND_LIMIT 씩 100개 묶음으로
    */
-  private async expandNotice(row: DueNotification, now: Date, stats: ExpandStats): Promise<void> {
+  private async expandNotice(
+    row: DueNotification,
+    now: Date,
+    stats: ExpandStats,
+  ): Promise<void> {
     const noticeId = parseNoticeDedupeKey(row.dedupeKey);
-    const notice = noticeId === null ? null : await this.recipients.findPublishedNotice(noticeId);
+    const notice =
+      noticeId === null
+        ? null
+        : await this.recipients.findPublishedNotice(noticeId);
     if (!notice) {
       stats.skipped += await this.delivery.markSkipped([row.id]);
       return;
     }
     const recipients = await this.recipients.listNoticeRecipients();
-    if (await this.delivery.dispatchTx(row.id, now, noticePayload(notice, now), recipients)) {
+    if (
+      await this.delivery.dispatchTx(
+        row.id,
+        now,
+        noticePayload(notice, now),
+        recipients,
+      )
+    ) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }
@@ -141,17 +200,32 @@ export class PushDispatcher {
    * (#277) 주간 알림: 펼치는 순간 변형(SUMMARY, NUDGE)과 문구를 정하고 변형의 토글로 받는 사람을 고른다 (D-204).
    * 보낼 것이 없거나 받는 사람이 0명이면 CANCELLED (깨우기 4주 간격을 쓰지 않는다). 앞날 알림이라 joinedAt 조건 없음 (D-180)
    */
-  private async expandWeekly(row: TeamDue, now: Date, stats: ExpandStats): Promise<void> {
+  private async expandWeekly(
+    row: TeamDue,
+    now: Date,
+    stats: ExpandStats,
+  ): Promise<void> {
     const monday = mondayOfKey(row.dedupeKey);
-    const built = monday ? await this.weekly.build(row.groupId, monday, now) : null;
+    const built = monday
+      ? await this.weekly.build(row.groupId, monday, now)
+      : null;
     const recipients = built
-      ? await this.recipients.listRecipients(row.groupId, 'WEEKLY', null, null, null, built.variant === 'NUDGE' ? 'WEEKLY_NUDGE' : 'WEEKLY')
+      ? await this.recipients.listRecipients(
+          row.groupId,
+          'WEEKLY',
+          null,
+          null,
+          null,
+          built.variant === 'NUDGE' ? 'WEEKLY_NUDGE' : 'WEEKLY',
+        )
       : [];
     if (!built || recipients.length === 0) {
       stats.cancelled += await this.delivery.markCancelled([row.id]);
       return;
     }
-    if (await this.delivery.dispatchTx(row.id, now, built.payload, recipients)) {
+    if (
+      await this.delivery.dispatchTx(row.id, now, built.payload, recipients)
+    ) {
       stats.dispatched += 1;
       stats.deliveries += recipients.length;
     }
@@ -162,16 +236,41 @@ export class PushDispatcher {
    * 열림: 대상 중 연 사람 제외, 투표가 아직 진행 중일 때만. 정함: 대상 중 정한 사람 제외, 정한 시각까지 들어와 있던 사람.
    * 마감: 연 사람 한 명, 아직 진행 중일 때만. 투표가 지워졌거나 조건이 안 맞으면 SKIPPED
    */
-  private async expandPoll(row: TeamDue, now: Date, stats: ExpandStats): Promise<void> {
+  private async expandPoll(
+    row: TeamDue,
+    now: Date,
+    stats: ExpandStats,
+  ): Promise<void> {
     const key = parsePollDedupeKey(row.dedupeKey);
     const poll = key ? await this.recipients.findPollTargets(key.pollId) : null;
     let recipients: Recipient[] | null = null;
     if (key && poll && row.payload) {
       const targets = poll.allMembers ? null : poll.participantIds;
-      if (key.stage === 'OPEN' && poll.status === 'OPEN') recipients = await this.recipients.listPollRecipients(row.groupId, targets, row.actorId, null);
-      if (key.stage === 'CLOSED') recipients = await this.recipients.listPollRecipients(row.groupId, targets, row.actorId, row.createdAt);
-      if (key.stage === 'DEADLINE' && poll.status === 'OPEN' && poll.creatorId !== null) {
-        recipients = await this.recipients.listPollRecipients(row.groupId, [poll.creatorId], null, null);
+      if (key.stage === 'OPEN' && poll.status === 'OPEN')
+        recipients = await this.recipients.listPollRecipients(
+          row.groupId,
+          targets,
+          row.actorId,
+          null,
+        );
+      if (key.stage === 'CLOSED')
+        recipients = await this.recipients.listPollRecipients(
+          row.groupId,
+          targets,
+          row.actorId,
+          row.createdAt,
+        );
+      if (
+        key.stage === 'DEADLINE' &&
+        poll.status === 'OPEN' &&
+        poll.creatorId !== null
+      ) {
+        recipients = await this.recipients.listPollRecipients(
+          row.groupId,
+          [poll.creatorId],
+          null,
+          null,
+        );
       }
     }
     if (recipients === null) {
@@ -196,9 +295,14 @@ export class PushDispatcher {
 
   /** 보낸 지 15분 지난 티켓의 영수증 (설계 5-7). 확인한 수 */
   async checkReceipts(now: Date): Promise<number> {
-    const candidates = await this.delivery.listReceiptCandidates(now, EXPO_RECEIPT_CHUNK);
+    const candidates = await this.delivery.listReceiptCandidates(
+      now,
+      EXPO_RECEIPT_CHUNK,
+    );
     if (candidates.length === 0) return 0;
-    const receipts = await this.expo.getReceipts(candidates.map((row) => row.ticketId));
+    const receipts = await this.expo.getReceipts(
+      candidates.map((row) => row.ticketId),
+    );
     if (!receipts) return 0;
     const byReceipt = new Map<string, number[]>();
     const goneTokens: string[] = [];
@@ -207,52 +311,93 @@ export class PushDispatcher {
       byReceipt.set(receipt, [...(byReceipt.get(receipt) ?? []), row.id]);
       if (receipt === DEVICE_GONE) goneTokens.push(row.token);
     }
-    for (const [receipt, ids] of byReceipt) await this.delivery.saveReceipts(ids, receipt, now);
+    for (const [receipt, ids] of byReceipt)
+      await this.delivery.saveReceipts(ids, receipt, now);
     await this.devices.deleteDevicesByTokens(goneTokens);
     return candidates.length;
   }
 
   /** 펼칠 때의 문구. REMINDER, ANNIVERSARY 는 예약 때 만든 값. 대상이 사라졌으면 null (SKIPPED) */
-  private async payloadFor(row: TeamDue, now: Date): Promise<PushPayload | null> {
+  private async payloadFor(
+    row: TeamDue,
+    now: Date,
+  ): Promise<PushPayload | null> {
     // (#515) 팀이 지워졌거나 운영 숨김이면 어떤 종류도 보내지 않는다 (D-286)
     const group = await this.recipients.findGroupRef(row.groupId);
     if (group === null) return null;
     if (row.kind === 'REMINDER') {
       // 원본이 사라졌으면 보내지 않는다 (예약과 펼치기가 같은 틱이라 드묾)
-      if (row.eventId === null || !(await this.recipients.eventExists(row.eventId))) return null;
+      if (
+        row.eventId === null ||
+        !(await this.recipients.eventExists(row.eventId))
+      )
+        return null;
       return row.payload;
     }
     if (row.kind === 'ANNIVERSARY') {
       // (#305) 생일: 그 사이 팀을 나갔거나, 이 팀에 안 보이게 했거나, 생일을 지우거나 바꿨으면 보내지 않는다
       const target = birthdayTargetOf(row.dedupeKey);
       if (target !== null && row.actorId !== null) {
-        const birthday = await this.recipients.findShownBirthday(row.groupId, row.actorId);
+        const birthday = await this.recipients.findShownBirthday(
+          row.groupId,
+          row.actorId,
+        );
         if (birthday === null || !isBirthdayOn(birthday, target)) return null;
       }
       return row.payload;
     }
     // (#279) 가져오기 알림은 예약할 때 문구를 만든다 (가리키는 로그가 없다, D-166)
-    if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload) return row.payload;
+    if (row.kind === 'CHANGE' && row.eventLogId === null && row.payload)
+      return row.payload;
 
     const groupName = group.name;
-    const actorName = row.actorId === null ? DELETED_MEMBER_NAME : ((await this.recipients.findPersonName(row.groupId, row.actorId)) ?? DELETED_MEMBER_NAME);
-    if (row.kind === 'JOIN') return joinPayload(group.publicCode, groupName, actorName, now);
+    const actorName =
+      row.actorId === null
+        ? DELETED_MEMBER_NAME
+        : ((await this.recipients.findPersonName(row.groupId, row.actorId)) ??
+          DELETED_MEMBER_NAME);
+    if (row.kind === 'JOIN')
+      return joinPayload(group.publicCode, groupName, actorName, now);
 
     // CHANGE: 묶음이 가리키는 로그 스냅샷 (원본이 지워졌어도 로그는 남는다)
     if (row.eventLogId === null || row.changeAction === null) return null;
     const log = await this.recipients.findChangeLog(row.eventLogId);
     if (!log) return null;
-    return changePayload({ groupId: row.groupId, groupName, groupCode: group.publicCode, actorName, action: row.changeAction, log }, now);
+    return changePayload(
+      {
+        groupId: row.groupId,
+        groupName,
+        groupCode: group.publicCode,
+        actorName,
+        action: row.changeAction,
+        log,
+      },
+      now,
+    );
   }
 
-  private async sendChunk(chunk: ClaimedDelivery[], now: Date, stats: SendStats): Promise<void> {
+  private async sendChunk(
+    chunk: ClaimedDelivery[],
+    now: Date,
+    stats: SendStats,
+  ): Promise<void> {
     const sendable = chunk.filter((row) => row.notification.payload !== null);
     const broken = chunk.filter((row) => row.notification.payload === null);
-    await this.fail(broken.map((row) => row.id), 'NO_PAYLOAD', stats);
+    await this.fail(
+      broken.map((row) => row.id),
+      'NO_PAYLOAD',
+      stats,
+    );
     if (sendable.length === 0) return;
 
     const messages = sendable.map((row) =>
-      toExpoMessage(row.notification.kind, row.notification.id, row.notification.payload as PushPayload, row, now),
+      toExpoMessage(
+        row.notification.kind,
+        row.notification.id,
+        row.notification.payload as PushPayload,
+        row,
+        now,
+      ),
     );
     const result = await this.expo.send(messages);
     if (result.type === 'retry') {
@@ -262,12 +407,20 @@ export class PushDispatcher {
     if (result.type === 'unknown') {
       // 접수됐을 수 있어 다시 보내지 않는다 (D-89)
       this.logger.warn(`push.send ${result.reason} (${sendable.length}건)`);
-      await this.fail(sendable.map((row) => row.id), 'TIMEOUT', stats);
+      await this.fail(
+        sendable.map((row) => row.id),
+        'TIMEOUT',
+        stats,
+      );
       return;
     }
     if (result.type === 'rejected') {
       this.logger.error(`push.send 거절 ${result.code} (${sendable.length}건)`);
-      await this.fail(sendable.map((row) => row.id), result.code, stats);
+      await this.fail(
+        sendable.map((row) => row.id),
+        result.code,
+        stats,
+      );
       return;
     }
 
@@ -286,7 +439,10 @@ export class PushDispatcher {
         return;
       }
       if (ticket.code === DEVICE_GONE) goneTokens.push(row.token);
-      if (CREDENTIAL_ERRORS.has(ticket.code)) this.logger.error(`push.credentials ${ticket.code} ${row.platform} ${tokenPrefix(row.token)}`);
+      if (CREDENTIAL_ERRORS.has(ticket.code))
+        this.logger.error(
+          `push.credentials ${ticket.code} ${row.platform} ${tokenPrefix(row.token)}`,
+        );
       failed.set(ticket.code, [...(failed.get(ticket.code) ?? []), row.id]);
     });
     await this.delivery.markSent(sent, now);
@@ -297,15 +453,29 @@ export class PushDispatcher {
   }
 
   /** 다시 보낼 것: 시도 3번째이거나 예약 시각이 10분(WEEKLY 3시간) 넘게 지났으면 FAILED EXPIRED, 아니면 QUEUED (다음 틱) */
-  private async requeueOrExpire(rows: ClaimedDelivery[], now: Date, stats: SendStats): Promise<void> {
-    const expired = rows.filter((row) => row.attempts >= MAX_ATTEMPTS || isLate(row.notification, now));
+  private async requeueOrExpire(
+    rows: ClaimedDelivery[],
+    now: Date,
+    stats: SendStats,
+  ): Promise<void> {
+    const expired = rows.filter(
+      (row) => row.attempts >= MAX_ATTEMPTS || isLate(row.notification, now),
+    );
     const again = rows.filter((row) => !expired.includes(row));
-    await this.fail(expired.map((row) => row.id), 'EXPIRED', stats);
+    await this.fail(
+      expired.map((row) => row.id),
+      'EXPIRED',
+      stats,
+    );
     await this.delivery.requeue(again.map((row) => row.id));
     stats.requeued += again.length;
   }
 
-  private async fail(ids: number[], code: string, stats: SendStats): Promise<void> {
+  private async fail(
+    ids: number[],
+    code: string,
+    stats: SendStats,
+  ): Promise<void> {
     if (ids.length === 0) return;
     await this.delivery.markFailed(ids, code);
     stats.failed[code] = (stats.failed[code] ?? 0) + ids.length;

@@ -1,13 +1,27 @@
 import { Injectable } from '@nestjs/common';
-import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat } from '../events/recurrence.js';
+import {
+  type ExceptionRule,
+  type SeriesRule,
+  seriesCandidateWindow,
+  type Repeat,
+} from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VISIBLE_EVENT_WHERE } from '../events/visible-event.js';
 import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
 import type { CalendarType } from '../generated/prisma/enums.js';
 import type { EventReminder } from './remind-at.js';
-import { type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT } from '../anniversaries/anniversary-reminders.js';
+import {
+  type AnniversaryReminderFlags,
+  flagsFromRows,
+  REMINDER_ROWS_SELECT,
+} from '../anniversaries/anniversary-reminders.js';
 import { preferenceOn } from '../notification-preferences/notification-preferences.js';
-import { birthdayAnniversary, birthdayOf, birthdayTitle, type BirthdayValue } from '../anniversaries/birthdays.js';
+import {
+  birthdayAnniversary,
+  birthdayOf,
+  birthdayTitle,
+  type BirthdayValue,
+} from '../anniversaries/birthdays.js';
 import { dateToDb, dbToDate, idsOf } from './push-db.js';
 
 export interface OnceReminderRow {
@@ -133,9 +147,19 @@ export interface DuePollDeadline {
   creatorId: number | null;
 }
 
-const BUSY_SELECT = { allMembers: true, participants: { select: { userId: true } } } as const;
+const BUSY_SELECT = {
+  allMembers: true,
+  participants: { select: { userId: true } },
+} as const;
 
-const ACTIVE_REMINDERS: EventReminder[] = ['AT_START', 'MIN_10', 'HOUR_1', 'DAY_1', 'DAY_OF_0900', 'DAY_BEFORE_0900'];
+const ACTIVE_REMINDERS: EventReminder[] = [
+  'AT_START',
+  'MIN_10',
+  'HOUR_1',
+  'DAY_1',
+  'DAY_OF_0900',
+  'DAY_BEFORE_0900',
+];
 
 /** 예약 계산 재료를 읽는 저장소 (#188, #485). 일정 알림, 기념일과 생일, 투표 마감, (#277) 주간 요약과 깨우기 */
 @Injectable()
@@ -147,7 +171,11 @@ export class PushPlanningRepository {
   /** 한 번짜리 일정 중 알림 시각이 (lo, hi] 인 것 (인덱스 remindAt) */
   async listOnceReminders(lo: Date, hi: Date): Promise<OnceReminderRow[]> {
     const rows = await this.prisma.event.findMany({
-      where: { repeat: null, remindAt: { gt: lo, lte: hi }, ...VISIBLE_EVENT_WHERE },
+      where: {
+        repeat: null,
+        remindAt: { gt: lo, lte: hi },
+        ...VISIBLE_EVENT_WHERE,
+      },
       select: {
         id: true,
         publicCode: true,
@@ -162,19 +190,32 @@ export class PushPlanningRepository {
         group: { select: { name: true, publicCode: true } },
       },
     });
-    return rows.map(({ group, remindAt, ...row }) => ({ ...row, groupName: group.name, groupCode: group.publicCode, remindAt: remindAt as Date }));
+    return rows.map(({ group, remindAt, ...row }) => ({
+      ...row,
+      groupName: group.name,
+      groupCode: group.publicCode,
+      remindAt: remindAt as Date,
+    }));
   }
 
   /**
    * 회차 시작이 [from, to) 에 들 수 있는 반복 원본 중 알림이 있는 것 + 예외.
    * 원본이 알림을 고른 것과, 원본은 NONE 이지만 회차 예외만 알림을 고른 것(회차 날짜 ±32일) 둘 다
    */
-  async listReminderSeries(from: Date, to: Date, occurrenceFrom: string, occurrenceTo: string): Promise<ReminderSeriesRow[]> {
+  async listReminderSeries(
+    from: Date,
+    to: Date,
+    occurrenceFrom: string,
+    occurrenceTo: string,
+  ): Promise<ReminderSeriesRow[]> {
     const window = seriesCandidateWindow(from, to);
     const exceptionOwners = await this.prisma.eventException.findMany({
       where: {
         reminder: { in: ACTIVE_REMINDERS },
-        occurrence: { gte: dateToDb(occurrenceFrom), lte: dateToDb(occurrenceTo) },
+        occurrence: {
+          gte: dateToDb(occurrenceFrom),
+          lte: dateToDb(occurrenceTo),
+        },
       },
       select: { eventId: true },
       distinct: ['eventId'],
@@ -184,8 +225,18 @@ export class PushPlanningRepository {
         repeat: { not: null },
         startsAt: { lt: window.startsBefore },
         AND: [
-          { OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }] },
-          { OR: [{ reminder: { not: 'NONE' } }, { id: { in: exceptionOwners.map((row) => row.eventId) } }] },
+          {
+            OR: [
+              { repeatUntil: null },
+              { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } },
+            ],
+          },
+          {
+            OR: [
+              { reminder: { not: 'NONE' } },
+              { id: { in: exceptionOwners.map((row) => row.eventId) } },
+            ],
+          },
         ],
         ...VISIBLE_EVENT_WHERE,
       },
@@ -223,8 +274,12 @@ export class PushPlanningRepository {
       groupCode: group.publicCode,
       repeat: row.repeat as Repeat,
       repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
-      repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
-      exceptions: exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
+      repeatAnchor:
+        row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
+      exceptions: exceptions.map((exception) => ({
+        ...exception,
+        occurrence: dbToDate(exception.occurrence),
+      })),
     }));
   }
 
@@ -272,7 +327,15 @@ export class PushPlanningRepository {
         groupId: true,
         displayName: true,
         group: { select: { name: true, publicCode: true } },
-        user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true, birthdayReminders: REMINDER_ROWS_SELECT } },
+        user: {
+          select: {
+            nickname: true,
+            birthday: true,
+            birthdayCalendar: true,
+            birthdayLeapMonth: true,
+            birthdayReminders: REMINDER_ROWS_SELECT,
+          },
+        },
       },
       orderBy: { id: 'asc' },
     });
@@ -290,12 +353,27 @@ export class PushPlanningRepository {
   // ---------- (#189) 약속 투표 (설계 약속-투표.md 6장, D-241) ----------
 
   /** 마감이 지났는데 아직 마감 알림을 예약하지 않은 진행 중 투표, 마감 순 */
-  async listDuePollDeadlines(now: Date, limit: number): Promise<DuePollDeadline[]> {
+  async listDuePollDeadlines(
+    now: Date,
+    limit: number,
+  ): Promise<DuePollDeadline[]> {
     const rows = await this.prisma.poll.findMany({
-      where: { status: 'OPEN', deadline: { lte: now }, deadlineNotifiedAt: null },
+      where: {
+        status: 'OPEN',
+        deadline: { lte: now },
+        deadlineNotifiedAt: null,
+      },
       orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
       take: limit,
-      select: { id: true, groupId: true, publicCode: true, title: true, deadline: true, creatorId: true, group: { select: { name: true, publicCode: true } } },
+      select: {
+        id: true,
+        groupId: true,
+        publicCode: true,
+        title: true,
+        deadline: true,
+        creatorId: true,
+        group: { select: { name: true, publicCode: true } },
+      },
     });
     return rows.map((row) => ({
       id: row.id,
@@ -316,7 +394,13 @@ export class PushPlanningRepository {
     const rows = await this.prisma.group.findMany({
       where: {
         memberships: {
-          some: { notify: true, user: { OR: [preferenceOn('WEEKLY'), preferenceOn('WEEKLY_NUDGE')], pushDevices: { some: {} } } },
+          some: {
+            notify: true,
+            user: {
+              OR: [preferenceOn('WEEKLY'), preferenceOn('WEEKLY_NUDGE')],
+              pushDevices: { some: {} },
+            },
+          },
         },
       },
       select: { id: true },
@@ -329,7 +413,13 @@ export class PushPlanningRepository {
   async findWeeklyGroup(groupId: number): Promise<WeeklyGroup | null> {
     const row = await this.prisma.group.findUnique({
       where: { id: groupId },
-      select: { name: true, publicCode: true, type: true, createdAt: true, memberships: { select: { userId: true } } },
+      select: {
+        name: true,
+        publicCode: true,
+        type: true,
+        createdAt: true,
+        memberships: { select: { userId: true } },
+      },
     });
     if (!row) return null;
     const { memberships, ...group } = row;
@@ -337,17 +427,39 @@ export class PushPlanningRepository {
   }
 
   /** 팀 일정 중 [from, to) 에 회차가 있을 수 있는 것. 한 번짜리는 겹치는 것만, 반복은 원본 + 예외 (펼치기는 호출자) */
-  async listWeeklyEvents(groupId: number, from: Date, to: Date): Promise<{ once: WeeklyEventRow[]; series: WeeklySeriesRow[] }> {
+  async listWeeklyEvents(
+    groupId: number,
+    from: Date,
+    to: Date,
+  ): Promise<{ once: WeeklyEventRow[]; series: WeeklySeriesRow[] }> {
     const window = seriesCandidateWindow(from, to);
-    const select = { title: true, startsAt: true, endsAt: true, allDay: true } as const;
+    const select = {
+      title: true,
+      startsAt: true,
+      endsAt: true,
+      allDay: true,
+    } as const;
     const [once, series] = await Promise.all([
-      this.prisma.event.findMany({ where: { groupId, repeat: null, startsAt: { lt: to }, endsAt: { gt: from }, ...VISIBLE_EVENT_WHERE }, select, orderBy: { startsAt: 'asc' } }),
+      this.prisma.event.findMany({
+        where: {
+          groupId,
+          repeat: null,
+          startsAt: { lt: to },
+          endsAt: { gt: from },
+          ...VISIBLE_EVENT_WHERE,
+        },
+        select,
+        orderBy: { startsAt: 'asc' },
+      }),
       this.prisma.event.findMany({
         where: {
           groupId,
           repeat: { not: null },
           startsAt: { lt: window.startsBefore },
-          OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+          OR: [
+            { repeatUntil: null },
+            { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } },
+          ],
           ...VISIBLE_EVENT_WHERE,
         },
         select: {
@@ -355,7 +467,16 @@ export class PushPlanningRepository {
           repeat: true,
           repeatUntil: true,
           repeatAnchor: true,
-          exceptions: { select: { occurrence: true, cancelled: true, title: true, startsAt: true, endsAt: true, allDay: true } },
+          exceptions: {
+            select: {
+              occurrence: true,
+              cancelled: true,
+              title: true,
+              startsAt: true,
+              endsAt: true,
+              allDay: true,
+            },
+          },
         },
         orderBy: { id: 'asc' },
       }),
@@ -365,46 +486,91 @@ export class PushPlanningRepository {
       series: series.map((row) => ({
         ...row,
         repeat: row.repeat as Repeat,
-        repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
-        repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
-        exceptions: row.exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
+        repeatUntil:
+          row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
+        repeatAnchor:
+          row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
+        exceptions: row.exceptions.map((exception) => ({
+          ...exception,
+          occurrence: dbToDate(exception.occurrence),
+        })),
       })),
     };
   }
 
   /** since 뒤 팀의 일정 추가 기록(EventLog CREATED) 수 */
   async countCreatedLogsSince(groupId: number, since: Date): Promise<number> {
-    return this.prisma.eventLog.count({ where: { groupId, action: 'CREATED', createdAt: { gt: since } } });
+    return this.prisma.eventLog.count({
+      where: { groupId, action: 'CREATED', createdAt: { gt: since } },
+    });
   }
 
   /** 팀의 마지막 일정 생성 시각. 일정이 없으면 null */
   async lastEventCreatedAt(groupId: number): Promise<Date | null> {
-    const row = await this.prisma.event.aggregate({ where: { groupId }, _max: { createdAt: true } });
+    const row = await this.prisma.event.aggregate({
+      where: { groupId },
+      _max: { createdAt: true },
+    });
     return row._max.createdAt;
   }
 
   /** since 이후 예약으로 실제로 펼친 깨우기(DISPATCHED, variant NUDGE)가 있는지 (D-205) */
   async hasNudgeSince(groupId: number, since: Date): Promise<boolean> {
     const row = await this.prisma.pushNotification.findFirst({
-      where: { groupId, kind: 'WEEKLY', status: 'DISPATCHED', scheduledAt: { gte: since }, payload: { path: '$.variant', equals: 'NUDGE' } },
+      where: {
+        groupId,
+        kind: 'WEEKLY',
+        status: 'DISPATCHED',
+        scheduledAt: { gte: since },
+        payload: { path: '$.variant', equals: 'NUDGE' },
+      },
       select: { id: true },
     });
     return row !== null;
   }
 
   /** 팀의 기념일 (알림 시점 설정과 무관, #277). (#305) 이 팀에 보이는 멤버 생일을 "지민 생일" 매년 기념일로 뒤에 붙인다 */
-  async listGroupAnniversaries(groupId: number): Promise<(AnniversaryLike & { name: string })[]> {
+  async listGroupAnniversaries(
+    groupId: number,
+  ): Promise<(AnniversaryLike & { name: string })[]> {
     const [rows, birthdays] = await Promise.all([
-      this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true, calendar: true, isLeapMonth: true }, orderBy: { id: 'asc' } }),
+      this.prisma.anniversary.findMany({
+        where: { groupId },
+        select: {
+          name: true,
+          date: true,
+          kind: true,
+          calendar: true,
+          isLeapMonth: true,
+        },
+        orderBy: { id: 'asc' },
+      }),
       this.prisma.membership.findMany({
-        where: { groupId, showBirthday: true, user: { birthday: { not: null } } },
-        select: { displayName: true, user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true } } },
+        where: {
+          groupId,
+          showBirthday: true,
+          user: { birthday: { not: null } },
+        },
+        select: {
+          displayName: true,
+          user: {
+            select: {
+              nickname: true,
+              birthday: true,
+              birthdayCalendar: true,
+              birthdayLeapMonth: true,
+            },
+          },
+        },
         orderBy: { joinedAt: 'asc' },
       }),
     ]);
     return [
       ...rows.map((row) => ({ ...row, date: dbToDate(row.date) })),
-      ...birthdays.map((row) => ({ ...birthdayAnniversary(birthdayOf(row.user)!), name: birthdayTitle(row.displayName ?? row.user.nickname) })),
+      ...birthdays.map((row) => ({
+        ...birthdayAnniversary(birthdayOf(row.user)!),
+        name: birthdayTitle(row.displayName ?? row.user.nickname),
+      })),
     ];
   }
 
@@ -412,14 +578,29 @@ export class PushPlanningRepository {
    * 멤버들이 속한 모든 팀(개인 팀 포함, D-14)의 종일이 아닌 바쁜 구간 (빈 시간 찾기와 같은 범위).
    * 반복은 원본 + 예외 (예외가 종일로 바꿀 수 있어 종일 제외는 펼친 뒤 호출자가)
    */
-  async listWeeklyBusy(memberIds: number[], from: Date, to: Date): Promise<{ once: WeeklyBusyRow[]; series: WeeklyBusySeries[] }> {
+  async listWeeklyBusy(
+    memberIds: number[],
+    from: Date,
+    to: Date,
+  ): Promise<{ once: WeeklyBusyRow[]; series: WeeklyBusySeries[] }> {
     if (memberIds.length === 0) return { once: [], series: [] };
-    const groups = await this.prisma.membership.findMany({ where: { userId: { in: memberIds } }, select: { groupId: true }, distinct: ['groupId'] });
+    const groups = await this.prisma.membership.findMany({
+      where: { userId: { in: memberIds } },
+      select: { groupId: true },
+      distinct: ['groupId'],
+    });
     const groupIds = groups.map((row) => row.groupId);
     const window = seriesCandidateWindow(from, to);
     const [once, series] = await Promise.all([
       this.prisma.event.findMany({
-        where: { groupId: { in: groupIds }, repeat: null, allDay: false, startsAt: { lt: to }, endsAt: { gt: from }, ...VISIBLE_EVENT_WHERE },
+        where: {
+          groupId: { in: groupIds },
+          repeat: null,
+          allDay: false,
+          startsAt: { lt: to },
+          endsAt: { gt: from },
+          ...VISIBLE_EVENT_WHERE,
+        },
         select: { startsAt: true, endsAt: true, ...BUSY_SELECT },
         orderBy: { startsAt: 'asc' },
       }),
@@ -428,7 +609,10 @@ export class PushPlanningRepository {
           groupId: { in: groupIds },
           repeat: { not: null },
           startsAt: { lt: window.startsBefore },
-          OR: [{ repeatUntil: null }, { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } }],
+          OR: [
+            { repeatUntil: null },
+            { repeatUntil: { gte: dateToDb(window.untilOnOrAfter) } },
+          ],
           ...VISIBLE_EVENT_WHERE,
         },
         select: {
@@ -438,20 +622,36 @@ export class PushPlanningRepository {
           repeat: true,
           repeatUntil: true,
           repeatAnchor: true,
-          exceptions: { select: { occurrence: true, cancelled: true, startsAt: true, endsAt: true, allDay: true } },
+          exceptions: {
+            select: {
+              occurrence: true,
+              cancelled: true,
+              startsAt: true,
+              endsAt: true,
+              allDay: true,
+            },
+          },
           ...BUSY_SELECT,
         },
       }),
     ]);
     return {
-      once: once.map(({ participants, ...row }) => ({ ...row, participantIds: idsOf(participants) })),
+      once: once.map(({ participants, ...row }) => ({
+        ...row,
+        participantIds: idsOf(participants),
+      })),
       series: series.map(({ participants, ...row }) => ({
         ...row,
         participantIds: idsOf(participants),
         repeat: row.repeat as Repeat,
-        repeatUntil: row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
-        repeatAnchor: row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
-        exceptions: row.exceptions.map((exception) => ({ ...exception, occurrence: dbToDate(exception.occurrence) })),
+        repeatUntil:
+          row.repeatUntil === null ? null : dbToDate(row.repeatUntil),
+        repeatAnchor:
+          row.repeatAnchor === null ? null : dbToDate(row.repeatAnchor),
+        exceptions: row.exceptions.map((exception) => ({
+          ...exception,
+          occurrence: dbToDate(exception.occurrence),
+        })),
       })),
     };
   }

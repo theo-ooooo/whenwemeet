@@ -195,7 +195,14 @@ export function CalendarScreen({ initialEvent = null }: Props) {
 
   const { tabKey, gridRef, onGridKey, setFocusKey } = useGridKeyboard({ y, m, selected, today, setMonth });
 
-  const { close, forward, back, dayView, changeDay, stripRef, showInPanel, openDay } = useStepNavigation({ steps, calendarSearch, today, pick, wide, eventMissing });
+  const { close, forward, back, dayView, changeDay, stripRef, showInPanel, openDay } = useStepNavigation({
+    steps,
+    calendarSearch,
+    today,
+    pick,
+    wide,
+    eventMissing,
+  });
 
   // (#192) 빠른 추가의 처음 시작 시각. 주 보기 빈 칸에서 열면 그 시각, "이 날 일정 추가" 는 기본(10:00)
   const [addStart, setAddStart] = useState<string | null>(null);
@@ -287,10 +294,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   ) : null;
   // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다.
   // (#378 B) 예전 비는 시간 줄은 패널 위 하루 막대가 대신한다
-  const dayFooter =
-    surfaceDate && (!urlStep.open || urlStep.step === "day") ? (
-      <DayAddButton onAdd={() => addPlain(surfaceDate)} />
-    ) : null;
+  const dayFooter = surfaceDate && (!urlStep.open || urlStep.step === "day") ? <DayAddButton onAdd={() => addPlain(surfaceDate)} /> : null;
 
   const titleBar = { week, days, y, m, thisYear, view, onChangeView: changeView, onToday: goToday, onGo: go };
 

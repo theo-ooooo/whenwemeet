@@ -11,7 +11,8 @@ export const ICS_LINE_OCTETS = 75;
 const CRLF = '\r\n';
 
 /** 시각 하나. 종일은 KST 날짜 'YYYY-MM-DD', 시간 일정은 UTC 순간 */
-export type IcsTime = { allDay: true; date: string } | { allDay: false; at: Date };
+export type IcsTime =
+  { allDay: true; date: string } | { allDay: false; at: Date };
 
 export interface IcsEvent {
   uid: string;
@@ -45,14 +46,16 @@ export interface IcsCalendar {
 
 /** TEXT 값 이스케이프. 제어 문자(탭 제외)는 TEXT 에 쓸 수 없어 지운다 */
 export function escapeText(value: string): string {
-  return value
-    .replace(/\r\n?/g, '\n')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
+  return (
+    value
+      .replace(/\r\n?/g, '\n')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\n/g, '\\n')
+  );
 }
 
 /**
@@ -96,7 +99,9 @@ export function formatDate(date: string): string {
 }
 
 function timeLine(name: 'DTSTART' | 'DTEND', time: IcsTime): string {
-  return time.allDay ? `${name};VALUE=DATE:${formatDate(time.date)}` : `${name}:${formatUtc(time.at)}`;
+  return time.allDay
+    ? `${name};VALUE=DATE:${formatDate(time.date)}`
+    : `${name}:${formatUtc(time.at)}`;
 }
 
 function eventLines(event: IcsEvent): string[] {
@@ -108,11 +113,16 @@ function eventLines(event: IcsEvent): string[] {
     timeLine('DTEND', event.end),
     `SUMMARY:${escapeText(event.summary)}`,
   ];
-  if (event.description) lines.push(`DESCRIPTION:${escapeText(event.description)}`);
+  if (event.description)
+    lines.push(`DESCRIPTION:${escapeText(event.description)}`);
   if (event.url) lines.push(`URL:${event.url}`);
   if (event.location) lines.push(`LOCATION:${escapeText(event.location)}`);
-  if (event.geo) lines.push(`GEO:${event.geo.lat.toFixed(6)};${event.geo.lng.toFixed(6)}`);
-  lines.push(`LAST-MODIFIED:${formatUtc(event.lastModified)}`, `SEQUENCE:${event.sequence}`);
+  if (event.geo)
+    lines.push(`GEO:${event.geo.lat.toFixed(6)};${event.geo.lng.toFixed(6)}`);
+  lines.push(
+    `LAST-MODIFIED:${formatUtc(event.lastModified)}`,
+    `SEQUENCE:${event.sequence}`,
+  );
   if (event.transparent) lines.push('TRANSP:TRANSPARENT');
   lines.push('END:VEVENT');
   return lines;

@@ -3,9 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { ApiException } from '../common/errors.js';
 import { deriveKey } from '../email-login/email-crypto.js';
 import { MemberResolver, MemberWithJoin, toMember } from '../common/member.js';
-import { type MembershipAccess, MembershipsRepository, type MembershipWithUser } from '../memberships/memberships.repository.js';
+import {
+  type MembershipAccess,
+  MembershipsRepository,
+  type MembershipWithUser,
+} from '../memberships/memberships.repository.js';
 import { GroupsRepository } from './groups.repository.js';
-import { INVITE_MARKER_KEY_INFO, inviteMarker, matchInviteMarker } from './invite-marker.js';
+import {
+  INVITE_MARKER_KEY_INFO,
+  inviteMarker,
+  matchInviteMarker,
+} from './invite-marker.js';
 
 export interface GroupDetail {
   id: number;
@@ -42,25 +50,49 @@ export class MembershipService {
    * 멤버가 아니면 403 FORBIDDEN. 팀이 없어도 멤버십이 없으므로 같은 403.
    * (#515) 관리자가 숨긴 팀이면 403 GROUP_HIDDEN, details { reason } (D-286). 팀 나가기만 allowHidden 으로 통과시킨다
    */
-  async assertMember(userId: number, groupId: number, opts: { allowHidden?: boolean } = {}): Promise<MembershipAccess> {
-    const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
+  async assertMember(
+    userId: number,
+    groupId: number,
+    opts: { allowHidden?: boolean } = {},
+  ): Promise<MembershipAccess> {
+    const membership = await this.membershipsRepo.findByUserAndGroup(
+      userId,
+      groupId,
+    );
     if (!membership) throw new ApiException('FORBIDDEN');
-    if (membership.groupHidden && !opts.allowHidden) throw new ApiException('GROUP_HIDDEN', undefined, { reason: membership.groupHidden.reason });
+    if (membership.groupHidden && !opts.allowHidden)
+      throw new ApiException('GROUP_HIDDEN', undefined, {
+        reason: membership.groupHidden.reason,
+      });
     return membership;
   }
 
   /** (#311) 멤버인지만. 공개 코드 조회처럼 403 대신 404 로 답해야 할 때. (#515) 숨긴 팀이면 403 GROUP_HIDDEN */
   async isMember(userId: number, groupId: number): Promise<boolean> {
-    const membership = await this.membershipsRepo.findByUserAndGroup(userId, groupId);
-    if (membership?.groupHidden) throw new ApiException('GROUP_HIDDEN', undefined, { reason: membership.groupHidden.reason });
+    const membership = await this.membershipsRepo.findByUserAndGroup(
+      userId,
+      groupId,
+    );
+    if (membership?.groupHidden)
+      throw new ApiException('GROUP_HIDDEN', undefined, {
+        reason: membership.groupHidden.reason,
+      });
     return membership !== null;
   }
 
   /** (#199) 내가 속한 팀 (번호, 이름, 공개 코드), 가입순. 일정 검색의 팀 범위 */
-  async listGroupsOf(userId: number): Promise<{ id: number; name: string; publicCode: string }[]> {
+  async listGroupsOf(
+    userId: number,
+  ): Promise<{ id: number; name: string; publicCode: string }[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
     // (#515) 숨긴 팀은 검색 범위에서 뺀다
-    return rows.filter(({ group }) => group.hiddenAt === null).map(({ group }) => ({ id: group.id, name: group.name, publicCode: group.publicCode }));
+    return rows
+      .filter(({ group }) => group.hiddenAt === null)
+      .map(({ group }) => ({
+        id: group.id,
+        name: group.name,
+        publicCode: group.publicCode,
+      }));
   }
 
   async listMembers(groupId: number): Promise<MembershipWithUser[]> {
@@ -77,18 +109,29 @@ export class MembershipService {
   }
 
   /** (#196) 이 사용자가 보내는 초대 주소. 코드가 없으면 null */
-  inviteShareUrl(inviteCode: string | null, groupId: number, userId: number): string | null {
+  inviteShareUrl(
+    inviteCode: string | null,
+    groupId: number,
+    userId: number,
+  ): string | null {
     const url = this.inviteUrl(inviteCode);
     return url && `${url}?by=${inviteMarker(this.key(), groupId, userId)}`;
   }
 
   /** (#196) by 와 맞는 멤버의 userId. 틀리면 null */
-  matchInviter(groupId: number, memberUserIds: readonly number[], by: unknown): number | null {
+  matchInviter(
+    groupId: number,
+    memberUserIds: readonly number[],
+    by: unknown,
+  ): number | null {
     return matchInviteMarker(this.key(), groupId, memberUserIds, by);
   }
 
   private key(): Buffer {
-    this.markerKey ??= deriveKey(this.config.getOrThrow<string>('JWT_SECRET'), INVITE_MARKER_KEY_INFO);
+    this.markerKey ??= deriveKey(
+      this.config.getOrThrow<string>('JWT_SECRET'),
+      INVITE_MARKER_KEY_INFO,
+    );
     return this.markerKey;
   }
 

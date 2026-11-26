@@ -7,7 +7,11 @@ import { AdminStatsService, type StatsRange } from './admin-stats.service.js';
 function parseRange(raw: unknown): StatsRange {
   if (raw === undefined || raw === '' || raw === '7') return 7;
   if (raw === '30') return 30;
-  throw new ApiException('VALIDATION_FAILED', 'range 는 7 또는 30 이어야 해요', [{ field: 'range', message: 'range 는 7 또는 30 이어야 해요' }]);
+  throw new ApiException(
+    'VALIDATION_FAILED',
+    'range 는 7 또는 30 이어야 해요',
+    [{ field: 'range', message: 'range 는 7 또는 30 이어야 해요' }],
+  );
 }
 
 /** (#537) 관리자 대시보드 지표 (api.md 2.19, D-290). 관리자만 */

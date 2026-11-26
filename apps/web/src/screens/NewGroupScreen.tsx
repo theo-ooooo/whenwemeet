@@ -106,11 +106,20 @@ function PresetChips({ value, onChange }: { value: PresetKey | null; onChange: (
 
   function onKey(e: React.KeyboardEvent, i: number) {
     const last = PRESET_CHIPS.length - 1;
-    const to = e.key === "ArrowRight" || e.key === "ArrowDown" ? (i === last ? 0 : i + 1)
-      : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (i === 0 ? last : i - 1)
-      : e.key === "Home" ? 0
-      : e.key === "End" ? last
-      : null;
+    const to =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? i === last
+          ? 0
+          : i + 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? i === 0
+            ? last
+            : i - 1
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? last
+              : null;
     if (to === null) return;
     e.preventDefault();
     onChange(PRESET_CHIPS[to].key);

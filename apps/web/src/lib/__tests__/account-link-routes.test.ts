@@ -41,7 +41,9 @@ describe("(#198) /me/link 착지", () => {
   it("세션으로 티켓을 소비하고 결과를 next 에 싣는다. 주소가 남지 않게 no-referrer", async () => {
     upstream.mockResolvedValue(ok({ account: { provider: "KAKAO" }, absorbed: true }));
     const res = await landing(get("ticket=abc_DEF-1&next=%2Fme%2Faccounts%3Fprovider%3DKAKAO"));
-    expect(upstream).toHaveBeenCalledWith(expect.objectContaining({ method: "POST", path: "/me/auth-accounts", body: JSON.stringify({ ticket: "abc_DEF-1" }), token: "jwt.a.b" }));
+    expect(upstream).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "POST", path: "/me/auth-accounts", body: JSON.stringify({ ticket: "abc_DEF-1" }), token: "jwt.a.b" }),
+    );
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe(`${ORIGIN}/me/accounts?provider=KAKAO&linked=KAKAO&absorbed=1`);
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
@@ -72,7 +74,9 @@ describe("(#198) /me/link/start", () => {
   it("같은 출처 form POST 만. 표식을 받아 API /v1/auth/<제공자>?mode=link 로", async () => {
     upstream.mockResolvedValue(ok({ intent: "INTENT.jwt.x", expiresIn: 600 }));
     const res = await start(post({ provider: "KAKAO", next: "/me/accounts" }));
-    expect(upstream).toHaveBeenCalledWith(expect.objectContaining({ method: "POST", path: "/me/auth-accounts/link-start", body: JSON.stringify({ provider: "KAKAO" }), token: "jwt.a.b" }));
+    expect(upstream).toHaveBeenCalledWith(
+      expect.objectContaining({ method: "POST", path: "/me/auth-accounts/link-start", body: JSON.stringify({ provider: "KAKAO" }), token: "jwt.a.b" }),
+    );
     expect(res.status).toBe(303);
     const location = new URL(res.headers.get("location")!);
     expect(location.origin + location.pathname).toBe("https://api.whenwemeet.day/v1/auth/kakao");

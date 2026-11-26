@@ -12,24 +12,21 @@ import { qs } from "./_error";
  * 꺼져 있으면 일정은 부르지 않고 settings 만. 하나라도 실패하면 throw (부분 데이터로 기기 일정을 지우지 않는다)
  */
 export function useDeviceCalendarSource() {
-  return useCallback(
-    async (now: number, signal?: AbortSignal): Promise<{ settings: CalendarSettings; source: CalendarSource | null }> => {
-      const [me, groups] = await Promise.all([api<Me>("/me", { signal }), api<GroupSummary[]>("/groups", { signal })]);
-      const settings = readCalendarSettings(me.id);
-      if (!settings.enabled) return { settings, source: null };
-      const picked = pickTeams(groups, settings.teams);
-      const { from, to } = calendarWindow(now);
-      const chunks = rangeChunks(from, to);
-      const rows = await Promise.all(
-        picked.map(async (g) => {
-          const parts = await Promise.all(
-            chunks.map((c) => api<Event[]>(`/groups/${g.id}/events${qs({ from: kstToIso(c.from), to: kstToIso(c.to) })}`, { signal })),
-          );
-          return [g.id, parts.flat()] as const;
-        }),
-      );
-      return { settings, source: { groups: picked, events: new Map(rows) } };
-    },
-    [],
-  );
+  return useCallback(async (now: number, signal?: AbortSignal): Promise<{ settings: CalendarSettings; source: CalendarSource | null }> => {
+    const [me, groups] = await Promise.all([api<Me>("/me", { signal }), api<GroupSummary[]>("/groups", { signal })]);
+    const settings = readCalendarSettings(me.id);
+    if (!settings.enabled) return { settings, source: null };
+    const picked = pickTeams(groups, settings.teams);
+    const { from, to } = calendarWindow(now);
+    const chunks = rangeChunks(from, to);
+    const rows = await Promise.all(
+      picked.map(async (g) => {
+        const parts = await Promise.all(
+          chunks.map((c) => api<Event[]>(`/groups/${g.id}/events${qs({ from: kstToIso(c.from), to: kstToIso(c.to) })}`, { signal })),
+        );
+        return [g.id, parts.flat()] as const;
+      }),
+    );
+    return { settings, source: { groups: picked, events: new Map(rows) } };
+  }, []);
 }

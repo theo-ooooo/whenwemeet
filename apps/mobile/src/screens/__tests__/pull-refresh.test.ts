@@ -20,7 +20,10 @@ describe("당겨서 새로고침 판정 (#415)", () => {
   });
 
   it("관성으로 맨 위에 닿은 뒤에도 다음 손짓 전까지는 꺼져 있다", () => {
-    const s = run([["scroll", 1200], ["scroll", 0]]);
+    const s = run([
+      ["scroll", 1200],
+      ["scroll", 0],
+    ]);
     expect(s.armed).toBe(false);
     expect(pullOnTouchStart(s).armed).toBe(true);
   });

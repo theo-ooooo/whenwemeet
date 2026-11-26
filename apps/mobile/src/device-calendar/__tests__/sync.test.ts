@@ -75,7 +75,11 @@ function memFile(): StateFile & { text: string | null } {
 
 const NOW = Date.parse(GENERATED);
 const snap = (...events: ReturnType<typeof timed>[]): CalendarSnapshot => ({ generatedAt: GENERATED, events });
-const ours = (d: ReturnType<typeof fakeDevice>) => [...d.events.values()].filter((e) => e.calendarId !== "user").map((e) => e.details.title).sort();
+const ours = (d: ReturnType<typeof fakeDevice>) =>
+  [...d.events.values()]
+    .filter((e) => e.calendarId !== "user")
+    .map((e) => e.details.title)
+    .sort();
 
 describe("(#549) DeviceCalendarSync", () => {
   it("켜기 전에는 스냅샷을 무시한다", async () => {

@@ -23,7 +23,11 @@ function subscribe(cb: () => void) {
 
 /** 닫은 안내인지. 서버 렌더와 첫 하이드레이션에서는 닫힘으로 보고 안 그린다 (깜빡임 대신 늦게 나타남) */
 export function useHintDismissed(key: string): boolean {
-  return useSyncExternalStore(subscribe, () => read(key), () => true);
+  return useSyncExternalStore(
+    subscribe,
+    () => read(key),
+    () => true,
+  );
 }
 
 export function dismissHint(key: string) {

@@ -53,7 +53,15 @@ const draftReply: AssistantReply = {
   cards: [
     {
       type: "eventDraft",
-      draft: { title: "강남 회식", startsAt: kst("2030-11-29T19:00"), endsAt: kst("2030-11-29T20:00"), allDay: false, place: { text: "강남" }, participants: [1, 2], members },
+      draft: {
+        title: "강남 회식",
+        startsAt: kst("2030-11-29T19:00"),
+        endsAt: kst("2030-11-29T20:00"),
+        allDay: false,
+        place: { text: "강남" },
+        participants: [1, 2],
+        members,
+      },
     },
   ],
   historyText: "[일정 초안] 강남 회식",
@@ -151,7 +159,18 @@ describe("AssistantChat (#450)", () => {
   });
 
   it("(#474) 한 답에 일정 초안 카드 2장, [추가] 는 카드마다 따로 (하나 넣어도 다른 카드는 그대로)", async () => {
-    const movie = { ...draftReply.cards[0], draft: { ...(draftReply.cards[0] as { draft: object }).draft, title: "영화", startsAt: kst("2030-11-30T14:00"), endsAt: kst("2030-11-30T15:00"), place: null, participants: [1], members: [members[0]] } };
+    const movie = {
+      ...draftReply.cards[0],
+      draft: {
+        ...(draftReply.cards[0] as { draft: object }).draft,
+        title: "영화",
+        startsAt: kst("2030-11-30T14:00"),
+        endsAt: kst("2030-11-30T15:00"),
+        place: null,
+        participants: [1],
+        members: [members[0]],
+      },
+    };
     send.mockResolvedValue(ok({ ...draftReply, reply: "일정 2개를 이렇게 넣을까요?", cards: [draftReply.cards[0], movie] } as AssistantReply));
     createEvent.mockResolvedValueOnce(ok({ id: 10, title: "영화", startsAt: kst("2030-11-30T14:00") }));
     renderChat();
@@ -164,7 +183,13 @@ describe("AssistantChat (#450)", () => {
       fireEvent.click(screen.getByRole("button", { name: "영화 추가" }));
     });
     expect(createEvent).toHaveBeenCalledTimes(1);
-    expect(createEvent).toHaveBeenLastCalledWith({ title: "영화", startsAt: kst("2030-11-30T14:00"), endsAt: kst("2030-11-30T15:00"), allDay: false, participants: [1] });
+    expect(createEvent).toHaveBeenLastCalledWith({
+      title: "영화",
+      startsAt: kst("2030-11-30T14:00"),
+      endsAt: kst("2030-11-30T15:00"),
+      allDay: false,
+      participants: [1],
+    });
     // (#486) 받침 없는 제목은 '를'
     expect(screen.getByText("'영화'를 넣었어요.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "영화 추가" })).toBeNull();
@@ -321,11 +346,23 @@ describe("AssistantChat (#450)", () => {
   });
 
   it("되묻기 이름 알약은 그 이름을 보낸다, 못 하는 일은 링크 알약", async () => {
-    send.mockResolvedValueOnce(ok({ reply: "'민'님이 누구인가요?", cards: [{ type: "clarify", field: "participant", choices: [members[1]] }], historyText: "[되물음]", usage: { used: 1, limit: 30 } }));
+    send.mockResolvedValueOnce(
+      ok({
+        reply: "'민'님이 누구인가요?",
+        cards: [{ type: "clarify", field: "participant", choices: [members[1]] }],
+        historyText: "[되물음]",
+        usage: { used: 1, limit: 30 },
+      }),
+    );
     renderChat();
     await type("민이랑 저녁");
     send.mockResolvedValueOnce(
-      ok({ reply: "기념일은 기념일 화면에서 넣을 수 있어요", cards: [{ type: "unsupported", action: "anniversary_create", link: { label: "기념일 열기", href: "/anniversaries" } }], historyText: "[안내]", usage: { used: 2, limit: 30 } }),
+      ok({
+        reply: "기념일은 기념일 화면에서 넣을 수 있어요",
+        cards: [{ type: "unsupported", action: "anniversary_create", link: { label: "기념일 열기", href: "/anniversaries" } }],
+        historyText: "[안내]",
+        usage: { used: 2, limit: 30 },
+      }),
     );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "하늘" }));

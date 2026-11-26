@@ -49,8 +49,6 @@ describe("rsvp (#190)", () => {
     expect(rsvpSummaryText(SUM)).toBe("아직 아무도 답하지 않았어요");
   });
 
-
-
   it("applyMyRsvp: 이전 값에서 빼고 새 값에 더한다. null 은 응답 전으로", () => {
     const a = applyMyRsvp(SUM, "GOING");
     expect(a).toEqual({ going: 1, notGoing: 0, maybe: 0, pending: 1, mine: "GOING" });

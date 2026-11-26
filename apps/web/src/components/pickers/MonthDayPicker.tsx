@@ -40,7 +40,19 @@ type Props = {
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-export function MonthDayPicker({ value, onChange, label, icon, id, disabled = false, lunar = false, leap = false, withYear = false, defaultYear, look = "row" }: Props) {
+export function MonthDayPicker({
+  value,
+  onChange,
+  label,
+  icon,
+  id,
+  disabled = false,
+  lunar = false,
+  leap = false,
+  withYear = false,
+  defaultYear,
+  look = "row",
+}: Props) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const shown = value

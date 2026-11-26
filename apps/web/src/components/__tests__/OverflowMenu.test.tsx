@@ -18,7 +18,12 @@ const setup = (over: Partial<Record<"share" | "copy" | "del", () => void | Promi
           { label: "공유", onSelect: share },
           { label: "복제", onSelect: copy },
           ...extra,
-          { label: "삭제", destructive: true, onSelect: del, confirm: { title: "이 일정을 지울까요?", body: "지운 뒤 되돌릴 수 있어요", confirmLabel: "삭제" } },
+          {
+            label: "삭제",
+            destructive: true,
+            onSelect: del,
+            confirm: { title: "이 일정을 지울까요?", body: "지운 뒤 되돌릴 수 있어요", confirmLabel: "삭제" },
+          },
         ]}
       />
       <button type="button">바깥</button>

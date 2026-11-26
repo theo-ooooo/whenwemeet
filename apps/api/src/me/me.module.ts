@@ -9,7 +9,14 @@ import { MeController } from './me.controller.js';
 import { MeService } from './me.service.js';
 
 @Module({
-  imports: [AuthModule, AvatarsModule, UsersModule, MembershipsModule, AssistantModule, NoticesModule],
+  imports: [
+    AuthModule,
+    AvatarsModule,
+    UsersModule,
+    MembershipsModule,
+    AssistantModule,
+    NoticesModule,
+  ],
   controllers: [MeController],
   providers: [MeService],
 })

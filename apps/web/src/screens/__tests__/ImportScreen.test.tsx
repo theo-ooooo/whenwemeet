@@ -9,7 +9,13 @@ const preview = vi.fn<(input: ImportInput) => Promise<unknown>>();
 const importEvents = vi.fn<(input: ImportInput) => Promise<unknown>>();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/lib/useInApp", () => ({ useInApp: () => false }));
 vi.mock("@/components/AppShell", () => ({
   useGroupContext: () => ({
@@ -99,12 +105,20 @@ describe("ImportScreen 달력에서 골라서 넣기 (#314)", () => {
     const sheet = screen.getByRole("dialog");
     fireEvent.click(within(sheet).getByRole("checkbox", { name: /회의/ }));
     expect(screen.getByText("6개 중 5개 선택")).toBeTruthy();
-    expect(within(sheet).getByRole("checkbox", { name: /이날 일부만 넣기/ }).getAttribute("aria-checked")).toBe("mixed");
+    expect(
+      within(sheet)
+        .getByRole("checkbox", { name: /이날 일부만 넣기/ })
+        .getAttribute("aria-checked"),
+    ).toBe("mixed");
     fireEvent.click(within(sheet).getByRole("checkbox", { name: /이날 일부만 넣기/ }));
     expect(screen.getByText("6개 중 6개 선택")).toBeTruthy();
     fireEvent.click(within(sheet).getByRole("checkbox", { name: /이날 전체 넣기/ }));
     expect(screen.getByText("6개 중 4개 선택")).toBeTruthy();
-    expect(within(sheet).getByRole("checkbox", { name: /이날 전체 빼기/ }).getAttribute("aria-checked")).toBe("false");
+    expect(
+      within(sheet)
+        .getByRole("checkbox", { name: /이날 전체 빼기/ })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     // 칸은 뺀 상태를 알린다

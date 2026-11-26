@@ -6,7 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const push = vi.fn();
 const mutate = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => new URLSearchParams() }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ groupId: 2, setFabAction: vi.fn() }) }));
 vi.mock("@/hooks", () => ({
   messageOf: (_e: unknown, f: string) => f,

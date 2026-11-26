@@ -24,7 +24,10 @@ export type KakaoMapInstance = {
 export type KakaoMaps = {
   load: (cb: () => void) => void;
   LatLng: new (lat: number, lng: number) => KakaoLatLng;
-  Map: new (el: HTMLElement, opts: { center: KakaoLatLng; level: number; draggable?: boolean; scrollwheel?: boolean; disableDoubleClickZoom?: boolean }) => KakaoMapInstance;
+  Map: new (
+    el: HTMLElement,
+    opts: { center: KakaoLatLng; level: number; draggable?: boolean; scrollwheel?: boolean; disableDoubleClickZoom?: boolean },
+  ) => KakaoMapInstance;
   Marker: new (opts: { position: KakaoLatLng; map: KakaoMapInstance }) => object;
   ZoomControl: new () => object;
   ControlPosition: { RIGHT: unknown };

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { adminActionLabel, adminDateTime, adminEventTime, adminGroupFilterOf, adminGroupName, adminGroupTypeParam, adminPlatformFilterOf, adminPlatformLabels, adminPlatformSeenText, adminTabOf, adminTargetLabel, providerText } from "../admin";
+import {
+  adminActionLabel,
+  adminDateTime,
+  adminEventTime,
+  adminGroupFilterOf,
+  adminGroupName,
+  adminGroupTypeParam,
+  adminPlatformFilterOf,
+  adminPlatformLabels,
+  adminPlatformSeenText,
+  adminTabOf,
+  adminTargetLabel,
+  providerText,
+} from "../admin";
 
 describe("관리자 표기 (#515)", () => {
   it("탭: 하위 주소도 같은 탭", () => {

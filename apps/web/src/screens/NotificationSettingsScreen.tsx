@@ -18,7 +18,6 @@ import { usePushRegistrar, usePushSync } from "@/lib/usePushSync";
 import { NOTIFICATION_KINDS as KINDS } from "@/lib/notification-kinds";
 import type { NotificationSettings } from "@/lib/types";
 
-
 const noop = () => () => {};
 
 /** 이 기기 줄 (푸시 지원 앱에서만) */
@@ -142,13 +141,7 @@ export function NotificationSettingsScreen() {
       <ScreenHeader title="알림" fallbackHref="/me" backLabel="내 정보로" />
 
       <div className="mt-3 space-y-5 main-lg:grid main-lg:grid-cols-2 main-lg:items-start main-lg:gap-3 main-lg:space-y-0">
-        <div>
-          {supported ? (
-            <DeviceRow />
-          ) : (
-            note && <p className="rounded-xl bg-paper px-3.5 py-3 text-[14px] leading-5 text-soft">{note}</p>
-          )}
-        </div>
+        <div>{supported ? <DeviceRow /> : note && <p className="rounded-xl bg-paper px-3.5 py-3 text-[14px] leading-5 text-soft">{note}</p>}</div>
         {settingsQ.error && !settings ? (
           <ErrorState message={messageOf(settingsQ.error, "알림 설정을 불러오지 못했어요")} onRetry={settingsQ.refetch} />
         ) : (

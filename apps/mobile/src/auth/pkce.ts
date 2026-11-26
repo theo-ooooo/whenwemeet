@@ -43,10 +43,7 @@ export async function codeChallenge(verifier: string, sha256: Sha256): Promise<s
 }
 
 /** 애플 nonce: 원문(API 로)과 sha256 hex(Apple 요청으로) */
-export async function createAppleNonce(
-  randomBytes: RandomBytes,
-  sha256: Sha256,
-): Promise<{ raw: string; hashed: string }> {
+export async function createAppleNonce(randomBytes: RandomBytes, sha256: Sha256): Promise<{ raw: string; hashed: string }> {
   const raw = hex(randomBytes(32));
   const hashed = hex(await sha256(new TextEncoder().encode(raw)));
   return { raw, hashed };

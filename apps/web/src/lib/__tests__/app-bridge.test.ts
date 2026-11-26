@@ -13,8 +13,7 @@ import {
   uaSupportsPush,
 } from "../app-bridge";
 
-const IOS_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WhenwemeetApp/1.0.0 (ios)";
+const IOS_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 WhenwemeetApp/1.0.0 (ios)";
 const ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 15; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36 WhenwemeetApp/1.2.3 (android)";
 
@@ -131,10 +130,26 @@ describe("푸시 메시지 인코딩 (웹 → 셸)", () => {
 });
 
 describe("decodePushStatus (셸 → 웹 wwm:app detail)", () => {
-  const base = { v: 1, type: "pushStatus", id: "p1", permission: "granted", canAskAgain: true, token: "ExponentPushToken[xYz_-1]", platform: "IOS", appVersion: "1.1.0" };
+  const base = {
+    v: 1,
+    type: "pushStatus",
+    id: "p1",
+    permission: "granted",
+    canAskAgain: true,
+    token: "ExponentPushToken[xYz_-1]",
+    platform: "IOS",
+    appVersion: "1.1.0",
+  };
 
   it("맞는 응답을 읽는다", () => {
-    expect(decodePushStatus(base)).toEqual({ id: "p1", permission: "granted", canAskAgain: true, token: "ExponentPushToken[xYz_-1]", platform: "IOS", appVersion: "1.1.0" });
+    expect(decodePushStatus(base)).toEqual({
+      id: "p1",
+      permission: "granted",
+      canAskAgain: true,
+      token: "ExponentPushToken[xYz_-1]",
+      platform: "IOS",
+      appVersion: "1.1.0",
+    });
     expect(decodePushStatus({ ...base, token: "ExpoPushToken[abc]" })?.token).toBe("ExpoPushToken[abc]");
   });
 
@@ -184,7 +199,16 @@ describe("requestPushStatus, appSupportsPush", () => {
     });
     return { postMessage, listeners };
   }
-  const granted = (id: string) => ({ v: 1, type: "pushStatus", id, permission: "granted", canAskAgain: false, token: "ExponentPushToken[t]", platform: "ANDROID", appVersion: "1.1.0" });
+  const granted = (id: string) => ({
+    v: 1,
+    type: "pushStatus",
+    id,
+    permission: "granted",
+    canAskAgain: false,
+    token: "ExponentPushToken[t]",
+    platform: "ANDROID",
+    appVersion: "1.1.0",
+  });
 
   it("웹, 1.0.x 앱은 보내지 않고 null", async () => {
     expect(appSupportsPush()).toBe(false);

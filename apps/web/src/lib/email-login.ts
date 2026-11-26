@@ -159,9 +159,7 @@ export function requestErrorMessage(code: string, info: EmailErrorInfo): string 
 export function codeErrorMessage(code: string, info: EmailErrorInfo): string {
   switch (code) {
     case "EMAIL_CODE_INVALID":
-      return info.attemptsLeft !== undefined
-        ? `코드가 맞지 않아요. ${info.attemptsLeft}번 더 입력할 수 있어요`
-        : "코드가 맞지 않아요";
+      return info.attemptsLeft !== undefined ? `코드가 맞지 않아요. ${info.attemptsLeft}번 더 입력할 수 있어요` : "코드가 맞지 않아요";
     case "EMAIL_CODE_LOCKED":
       return "코드를 5번 틀렸어요. [다시 보내기]로 새 메일을 받아 주세요";
     case "EMAIL_CODE_EXPIRED":
@@ -196,9 +194,7 @@ export function linkViewOf(state: string | null | undefined): LinkView {
 
 /* ---------- route handler 결과 (6-1) ---------- */
 
-export type AuthResult =
-  | { kind: "SESSION"; token: string; next: string }
-  | { kind: "SIGNUP"; signupToken: string; next: string };
+export type AuthResult = { kind: "SESSION"; token: string; next: string } | { kind: "SIGNUP"; signupToken: string; next: string };
 
 /** API AuthResult 모양 확인 */
 export function readAuthResult(data: unknown): AuthResult | null {

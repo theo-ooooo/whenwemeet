@@ -32,8 +32,7 @@ export type LinkFailureReason = "cancelled" | "unavailable" | "error";
 
 /** (#198) linkAccount 응답 detail. 웹 lib/account-link.ts decodeLinkAccountReply 와 같은 모양 */
 export type LinkAccountReply =
-  | ({ v: 1; type: "linkAccount"; id: string; ok: true } & LinkCredentials)
-  | { v: 1; type: "linkAccount"; id: string; ok: false; reason: LinkFailureReason };
+  ({ v: 1; type: "linkAccount"; id: string; ok: true } & LinkCredentials) | { v: 1; type: "linkAccount"; id: string; ok: false; reason: LinkFailureReason };
 
 /** (#549) 휴대폰 캘린더 권한. 묻지 않았거나 다시 물을 수 있으면 undetermined */
 export type CalendarPermission = "granted" | "denied" | "undetermined";
@@ -66,12 +65,7 @@ export type AppEventDetail = PushStatusReply | LinkAccountReply | CalendarStatus
  * OS 창을 다시 띄울 수 있으면 undetermined 로 보낸다. 웹 lib/push.ts canAskPermission 과 같은 규칙이라
  * 웹은 어느 셸 버전이든 같은 화면을 그린다. denied 는 다시 물을 수 없을 때만 (iOS 거부, Android 두 번 거부)
  */
-export function toPushPermission(p: {
-  status: string;
-  granted?: boolean;
-  canAskAgain?: boolean;
-  ios?: { status?: number } | null;
-}): PushPermission {
+export function toPushPermission(p: { status: string; granted?: boolean; canAskAgain?: boolean; ios?: { status?: number } | null }): PushPermission {
   // IosAuthorizationStatus: 2 AUTHORIZED, 3 PROVISIONAL, 4 EPHEMERAL
   if (p.granted || p.status === "granted") return "granted";
   if (p.ios?.status === 3 || p.ios?.status === 4) return "granted";

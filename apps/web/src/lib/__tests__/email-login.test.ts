@@ -111,9 +111,7 @@ describe("오류 details 읽기 (객체, 배열 둘 다)", () => {
 
 describe("오류 문구 (6-6)", () => {
   it("요청", () => {
-    expect(requestErrorMessage("EMAIL_RATE_LIMITED", { reason: "COOLDOWN", retryAfterSec: 42 })).toBe(
-      "방금 메일을 보냈어요. 42초 뒤에 다시 보낼 수 있어요",
-    );
+    expect(requestErrorMessage("EMAIL_RATE_LIMITED", { reason: "COOLDOWN", retryAfterSec: 42 })).toBe("방금 메일을 보냈어요. 42초 뒤에 다시 보낼 수 있어요");
     expect(requestErrorMessage("EMAIL_RATE_LIMITED", { reason: "HOURLY", retryAfterSec: 61 })).toBe(
       "메일은 1시간에 5번까지 보낼 수 있어요. 2분 뒤에 다시 시도해 주세요",
     );

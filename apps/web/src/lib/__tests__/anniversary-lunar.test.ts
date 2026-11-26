@@ -59,8 +59,12 @@ describe("음력 기념일 항목", () => {
     expect(lunarYearHint({ date: "2000-03-15", calendar: "LUNAR", kind: "YEARLY" }, "2026-11-26")).toBe("올해는 5월 1일");
     expect(lunarYearHint({ date: "2000-12-15", calendar: "LUNAR", kind: "YEARLY" }, "2026-11-26")).toBe("올해는 2027년 1월 22일");
     expect(lunarYearHint({ date: "2026-10-06", calendar: "LUNAR", kind: "ONCE" }, "2026-11-26")).toBe("양력 2026년 11월 14일");
-    expect(lunarYearHint({ date: "2025-06-15", calendar: "LUNAR", isLeapMonth: true, kind: "YEARLY" }, "2026-11-26")).toBe("올해는 7월 28일. 윤달이 없는 해에는 평달에 보여요");
-    expect(lunarYearHint({ date: "2026-01-30", calendar: "LUNAR", kind: "YEARLY" }, "2027-01-01")).toBe("올해는 3월 7일. 30일이 없는 해에는 그 달 마지막 날에 보여요");
+    expect(lunarYearHint({ date: "2025-06-15", calendar: "LUNAR", isLeapMonth: true, kind: "YEARLY" }, "2026-11-26")).toBe(
+      "올해는 7월 28일. 윤달이 없는 해에는 평달에 보여요",
+    );
+    expect(lunarYearHint({ date: "2026-01-30", calendar: "LUNAR", kind: "YEARLY" }, "2027-01-01")).toBe(
+      "올해는 3월 7일. 30일이 없는 해에는 그 달 마지막 날에 보여요",
+    );
     expect(lunarYearHint({ date: "2000-03-15", kind: "YEARLY" }, "2026-11-26")).toBeNull();
   });
 });

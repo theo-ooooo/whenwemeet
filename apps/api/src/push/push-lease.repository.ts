@@ -23,32 +23,63 @@ export class PushLeaseRepository {
 
   /** 임대 행이 없으면 만든다 (마이그레이션이 넣지만 테스트 DB 정리 등에 대비) */
   async ensureLease(name = PUSH_LEASE): Promise<void> {
-    await this.prisma.schedulerLease.createMany({ data: [{ name, leaseUntil: new Date(0) }], skipDuplicates: true });
+    await this.prisma.schedulerLease.createMany({
+      data: [{ name, leaseUntil: new Date(0) }],
+      skipDuplicates: true,
+    });
   }
 
   /** 만료됐거나 내 것인 임대만 가져온다. 다른 프로세스가 가졌으면 null */
-  async acquireLease(holder: string, now: Date, until: Date, name = PUSH_LEASE): Promise<LeaseState | null> {
+  async acquireLease(
+    holder: string,
+    now: Date,
+    until: Date,
+    name = PUSH_LEASE,
+  ): Promise<LeaseState | null> {
     const { count } = await this.prisma.schedulerLease.updateMany({
       where: { name, OR: [{ leaseUntil: { lt: now } }, { holder }] },
       data: { holder, leaseUntil: until },
     });
     if (count !== 1) return null;
-    const row = await this.prisma.schedulerLease.findUnique({ where: { name }, select: { cursor: true, dailyDoneOn: true } });
+    const row = await this.prisma.schedulerLease.findUnique({
+      where: { name },
+      select: { cursor: true, dailyDoneOn: true },
+    });
     if (!row) return null;
-    return { cursor: row.cursor, dailyDoneOn: row.dailyDoneOn === null ? null : dbToDate(row.dailyDoneOn) };
+    return {
+      cursor: row.cursor,
+      dailyDoneOn: row.dailyDoneOn === null ? null : dbToDate(row.dailyDoneOn),
+    };
   }
 
-  async setCursor(holder: string, cursor: Date, name = PUSH_LEASE): Promise<void> {
-    await this.prisma.schedulerLease.updateMany({ where: { name, holder }, data: { cursor } });
+  async setCursor(
+    holder: string,
+    cursor: Date,
+    name = PUSH_LEASE,
+  ): Promise<void> {
+    await this.prisma.schedulerLease.updateMany({
+      where: { name, holder },
+      data: { cursor },
+    });
   }
 
-  async setDailyDone(holder: string, date: string, name = PUSH_LEASE): Promise<void> {
-    await this.prisma.schedulerLease.updateMany({ where: { name, holder }, data: { dailyDoneOn: dateToDb(date) } });
+  async setDailyDone(
+    holder: string,
+    date: string,
+    name = PUSH_LEASE,
+  ): Promise<void> {
+    await this.prisma.schedulerLease.updateMany({
+      where: { name, holder },
+      data: { dailyDoneOn: dateToDb(date) },
+    });
   }
 
   /** (#277) 주간 알림을 예약한 월요일 'YYYY-MM-DD'. 행이 없으면 null (D-203) */
   async getWeeklyDoneOn(): Promise<string | null> {
-    const row = await this.prisma.schedulerLease.findUnique({ where: { name: WEEKLY_MARKER }, select: { dailyDoneOn: true } });
+    const row = await this.prisma.schedulerLease.findUnique({
+      where: { name: WEEKLY_MARKER },
+      select: { dailyDoneOn: true },
+    });
     return row?.dailyDoneOn ? dbToDate(row.dailyDoneOn) : null;
   }
 
@@ -56,7 +87,11 @@ export class PushLeaseRepository {
   async setWeeklyDoneOn(date: string): Promise<void> {
     await this.prisma.schedulerLease.upsert({
       where: { name: WEEKLY_MARKER },
-      create: { name: WEEKLY_MARKER, leaseUntil: new Date(0), dailyDoneOn: dateToDb(date) },
+      create: {
+        name: WEEKLY_MARKER,
+        leaseUntil: new Date(0),
+        dailyDoneOn: dateToDb(date),
+      },
       update: { dailyDoneOn: dateToDb(date) },
       select: { name: true },
     });

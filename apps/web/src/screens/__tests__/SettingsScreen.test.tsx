@@ -17,7 +17,13 @@ const setGroup = vi.fn((g: GroupDetail) => {
 });
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show }) }));
 vi.mock("@/components/CalendarFeedSection", () => ({ CalendarFeedSection: ({ bare }: { bare?: boolean }) => <p>연결 주소 칸{bare ? " (시트)" : ""}</p> }));
 vi.mock("@/lib/kakao-share", () => ({ preloadKakaoSdk: () => undefined, inviteKakaoFeed: () => null, shareKakaoFeed: vi.fn() }));
@@ -67,11 +73,19 @@ describe("SettingsScreen (#378)", () => {
     expect(within(team).getByText("하늘")).toBeTruthy();
     const me = screen.getByRole("region", { name: "나" });
     expect(within(me).getByRole("button", { name: /내 색/ }).textContent).toContain("블루");
-    expect(within(me).getByRole("switch", { name: /이 팀 알림 받기/ }).getAttribute("aria-checked")).toBe("true");
+    expect(
+      within(me)
+        .getByRole("switch", { name: /이 팀 알림 받기/ })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
     expect(within(me).getByRole("switch", { name: /이 팀 달력에 내 생일 보이기/ })).toBeTruthy();
     const link = screen.getByRole("region", { name: "연결" });
     expect(within(link).getByRole("button", { name: /다른 캘린더 앱에서 보기/ })).toBeTruthy();
-    expect(within(link).getByRole("link", { name: /일정 가져오기/ }).getAttribute("href")).toBe("/team/import");
+    expect(
+      within(link)
+        .getByRole("link", { name: /일정 가져오기/ })
+        .getAttribute("href"),
+    ).toBe("/team/import");
     expect(screen.queryByRole("button", { name: /바꾸기$/ })).toBeNull();
     expect(screen.getByRole("button", { name: "팀 나가기" })).toBeTruthy();
     expect(document.body.textContent).not.toContain("구독");

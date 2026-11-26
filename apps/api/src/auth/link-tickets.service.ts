@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { AuthLinkTicketsRepository, type LinkCandidate } from '../auth-link-tickets/auth-link-tickets.repository.js';
+import {
+  AuthLinkTicketsRepository,
+  type LinkCandidate,
+} from '../auth-link-tickets/auth-link-tickets.repository.js';
 import { ApiException } from '../common/errors.js';
 import { randomToken, sha256hex } from './pkce.js';
 import type { ProviderProfile } from './providers/auth-provider.js';
@@ -23,9 +26,17 @@ export type WebLinkProvider = 'KAKAO' | 'APPLE';
  * 최근 로그인 검사 (D-257). iat 가 없거나 10분이 지났으면 409 REAUTH_REQUIRED.
  * 서버 간 시계 차이로 미래 쪽은 1분까지 허용 (웹 isFreshSession 과 같은 기준)
  */
-export function assertFreshSession(iat: number | null, nowMs = Date.now()): void {
+export function assertFreshSession(
+  iat: number | null,
+  nowMs = Date.now(),
+): void {
   const nowSec = nowMs / 1000;
-  if (iat === null || iat > nowSec + 60 || nowSec - iat > LINK_FRESH_SESSION_SECONDS) throw new ApiException('REAUTH_REQUIRED');
+  if (
+    iat === null ||
+    iat > nowSec + 60 ||
+    nowSec - iat > LINK_FRESH_SESSION_SECONDS
+  )
+    throw new ApiException('REAUTH_REQUIRED');
 }
 
 /**
@@ -42,24 +53,52 @@ export class LinkTicketsService {
   ) {}
 
   createIntent(userId: number, provider: WebLinkProvider): Promise<string> {
-    return this.jwt.signAsync({ typ: INTENT_TYPE, uid: userId, prv: provider }, { expiresIn: LINK_INTENT_TTL_SECONDS });
+    return this.jwt.signAsync(
+      { typ: INTENT_TYPE, uid: userId, prv: provider },
+      { expiresIn: LINK_INTENT_TTL_SECONDS },
+    );
   }
 
   /** 시작 표식 → 시작한 사용자 id. 서명, 만료, 종류, 제공자가 하나라도 틀리면 null */
-  async verifyIntent(intent: unknown, provider: WebLinkProvider): Promise<number | null> {
-    if (typeof intent !== 'string' || !intent || intent.length > 1024) return null;
+  async verifyIntent(
+    intent: unknown,
+    provider: WebLinkProvider,
+  ): Promise<number | null> {
+    if (typeof intent !== 'string' || !intent || intent.length > 1024)
+      return null;
     try {
-      const payload = await this.jwt.verifyAsync<{ typ?: unknown; uid?: unknown; prv?: unknown; sub?: unknown }>(intent);
-      if (payload.typ !== INTENT_TYPE || payload.prv !== provider || payload.sub !== undefined) return null;
-      return typeof payload.uid === 'number' && Number.isInteger(payload.uid) && payload.uid > 0 ? payload.uid : null;
+      const payload = await this.jwt.verifyAsync<{
+        typ?: unknown;
+        uid?: unknown;
+        prv?: unknown;
+        sub?: unknown;
+      }>(intent);
+      if (
+        payload.typ !== INTENT_TYPE ||
+        payload.prv !== provider ||
+        payload.sub !== undefined
+      )
+        return null;
+      return typeof payload.uid === 'number' &&
+        Number.isInteger(payload.uid) &&
+        payload.uid > 0
+        ? payload.uid
+        : null;
     } catch {
       return null;
     }
   }
 
   /** 티켓 발급. 원문은 돌려주는 값에만 있고 DB 에는 해시만. 오래된 행 청소를 겸한다 */
-  async issue(userId: number, provider: WebLinkProvider, profile: ProviderProfile, now = new Date()): Promise<string> {
-    await this.tickets.deleteExpiredBefore(new Date(now.getTime() - TICKET_RETENTION_MS));
+  async issue(
+    userId: number,
+    provider: WebLinkProvider,
+    profile: ProviderProfile,
+    now = new Date(),
+  ): Promise<string> {
+    await this.tickets.deleteExpiredBefore(
+      new Date(now.getTime() - TICKET_RETENTION_MS),
+    );
     const ticket = randomToken();
     await this.tickets.create({
       userId,
@@ -75,8 +114,16 @@ export class LinkTicketsService {
   }
 
   /** 티켓 소비. 없음, 만료, 사용됨, 다른 사용자가 시작한 티켓은 모두 400 LINK_TICKET_INVALID */
-  async consume(userId: number, ticket: string, now = new Date()): Promise<LinkCandidate> {
-    const candidate = await this.tickets.consume(sha256hex(ticket), userId, now);
+  async consume(
+    userId: number,
+    ticket: string,
+    now = new Date(),
+  ): Promise<LinkCandidate> {
+    const candidate = await this.tickets.consume(
+      sha256hex(ticket),
+      userId,
+      now,
+    );
     if (!candidate) throw new ApiException('LINK_TICKET_INVALID');
     return candidate;
   }

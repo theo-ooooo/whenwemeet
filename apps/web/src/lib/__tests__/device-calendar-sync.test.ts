@@ -14,7 +14,15 @@ import {
 import type { Event, GroupSummary } from "../types";
 
 const NOW = Date.parse(kstToIso("2026-11-26", "12:00"));
-const g = { id: 1, type: "TEAM", name: "우리", publicCode: "team1xxx", memberCount: 2, me: { color: "#5B6CF4", displayName: "나" }, unreadNewsCount: 0 } as GroupSummary;
+const g = {
+  id: 1,
+  type: "TEAM",
+  name: "우리",
+  publicCode: "team1xxx",
+  memberCount: 2,
+  me: { color: "#5B6CF4", displayName: "나" },
+  unreadNewsCount: 0,
+} as GroupSummary;
 const member = { userId: 1, displayName: "민지", color: "#5B6CF4", profileImageUrl: null };
 const event = (id: number, title = `일정${id}`) =>
   ({

@@ -7,7 +7,15 @@ import { AdminTitle } from "@/components/admin/AdminShell";
 import { IconBell } from "@/components/icons";
 import { EmptyState, ErrorState, Segmented, SkeletonList } from "@/components/ui";
 import { messageOf, useAdminReports } from "@/hooks";
-import { ADMIN_REPORT_FILTERS, adminDateTime, adminReportFilterOf, adminReportHref, reportStatusLabel, reportTargetTypeLabel, type AdminReportFilter } from "@/lib/admin";
+import {
+  ADMIN_REPORT_FILTERS,
+  adminDateTime,
+  adminReportFilterOf,
+  adminReportHref,
+  reportStatusLabel,
+  reportTargetTypeLabel,
+  type AdminReportFilter,
+} from "@/lib/admin";
 import { reportReasonLabel } from "@/lib/report";
 import type { AdminReportGroup, ReportTargetType } from "@/lib/types";
 import { AdminMore, StatusBadge } from "./AdminMore";
@@ -54,7 +62,12 @@ export function AdminReportsScreen() {
           <span id="admin-report-status" className="mb-1 block px-1 text-[12px] font-semibold text-ink-2">
             상태
           </span>
-          <Segmented labelledBy="admin-report-status" value={status} options={ADMIN_REPORT_FILTERS} onChange={(v: AdminReportFilter) => setParam("status", v, "open")} />
+          <Segmented
+            labelledBy="admin-report-status"
+            value={status}
+            options={ADMIN_REPORT_FILTERS}
+            onChange={(v: AdminReportFilter) => setParam("status", v, "open")}
+          />
         </div>
         <div className="fold:w-[340px] fold:shrink-0">
           <span id="admin-report-type" className="mb-1 block px-1 text-[12px] font-semibold text-ink-2">

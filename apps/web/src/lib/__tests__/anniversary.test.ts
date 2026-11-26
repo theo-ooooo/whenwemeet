@@ -78,20 +78,12 @@ describe("기획 3-5 예시", () => {
 
   it("1996-02-29 생일 (YEARLY)", () => {
     const a = ann(5, "1996-02-29", "YEARLY", "생일");
-    expect(brief(occurrencesInRange(a, "2026-01-01", "2028-12-31"))).toEqual([
-      "2026-02-28 YEARLY",
-      "2027-02-28 YEARLY",
-      "2028-02-29 YEARLY",
-    ]);
+    expect(brief(occurrencesInRange(a, "2026-01-01", "2028-12-31"))).toEqual(["2026-02-28 YEARLY", "2027-02-28 YEARLY", "2028-02-29 YEARLY"]);
   });
 
   it("2000-05-05 생일 (YEARLY): 매년, 100일 단위 없음", () => {
     const a = ann(6, "2000-05-05", "YEARLY", "생일");
-    expect(brief(occurrencesInRange(a, "2000-01-01", "2002-12-31"))).toEqual([
-      "2000-05-05 ORIGINAL",
-      "2001-05-05 YEARLY",
-      "2002-05-05 YEARLY",
-    ]);
+    expect(brief(occurrencesInRange(a, "2000-01-01", "2002-12-31"))).toEqual(["2000-05-05 ORIGINAL", "2001-05-05 YEARLY", "2002-05-05 YEARLY"]);
     // 100일(2000-08-12) 에는 아무것도 없다
     expect(on(a, "2000-08-12")).toEqual([]);
     expect(mainLabel(a, TODAY)).toBe("D-176");
@@ -129,7 +121,9 @@ describe("날짜 세기", () => {
 
   it("1000일 이후는 1000 간격 (1100일은 없다)", () => {
     const a = ann(1, "2020-01-01", "COUNT_UP");
-    const days = occurrencesInRange(a, "2020-01-01", "2026-12-31").filter((o) => o.type === "DAYS").map((o) => o.n);
+    const days = occurrencesInRange(a, "2020-01-01", "2026-12-31")
+      .filter((o) => o.type === "DAYS")
+      .map((o) => o.n);
     expect(days).toEqual([100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000]);
   });
 

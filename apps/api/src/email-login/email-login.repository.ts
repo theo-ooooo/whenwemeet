@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { EmailLoginPurpose, EmailLoginVia, EmailSendStatus } from '../generated/prisma/enums.js';
+import type {
+  EmailLoginPurpose,
+  EmailLoginVia,
+  EmailSendStatus,
+} from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** 메일 1통 = 1행 (이메일-로그인.md 2장, D-111). 토큰과 코드 원문은 받지 않는다 */
@@ -94,36 +98,61 @@ export class EmailLoginChallengesRepository {
     return this.prisma.$transaction(async (tx) => {
       // (#198) 같은 쓰임(LOGIN, LINK)끼리만. 남이 연결을 요청해도 그 이메일 주인의 로그인 메일은 살아 있다
       await tx.emailLoginChallenge.updateMany({
-        where: { email: input.email, purpose: input.purpose ?? 'LOGIN', ...live(input.createdAt) },
+        where: {
+          email: input.email,
+          purpose: input.purpose ?? 'LOGIN',
+          ...live(input.createdAt),
+        },
         data: { invalidatedAt: input.createdAt },
       });
-      const row = await tx.emailLoginChallenge.create({ data: input, select: { id: true } });
+      const row = await tx.emailLoginChallenge.create({
+        data: input,
+        select: { id: true },
+      });
       return row.id;
     });
   }
 
   /** 발송 결과 기록. 행을 넣을 때는 FAILED 로 두고 접수되면 SENT 로 바꾼다 (4-2 request 6단계) */
-  async markSendResult(id: number, sendStatus: EmailSendStatus, providerMessageId: string | null): Promise<void> {
-    await this.prisma.emailLoginChallenge.updateMany({ where: { id }, data: { sendStatus, providerMessageId } });
+  async markSendResult(
+    id: number,
+    sendStatus: EmailSendStatus,
+    providerMessageId: string | null,
+  ): Promise<void> {
+    await this.prisma.emailLoginChallenge.updateMany({
+      where: { id },
+      data: { sendStatus, providerMessageId },
+    });
   }
 
   /** before 보다 먼저 만든 행 삭제 (30일 보관, 요청마다 청소). 지운 수 */
   async deleteCreatedBefore(before: Date): Promise<number> {
-    const { count } = await this.prisma.emailLoginChallenge.deleteMany({ where: { createdAt: { lt: before } } });
+    const { count } = await this.prisma.emailLoginChallenge.deleteMany({
+      where: { createdAt: { lt: before } },
+    });
     return count;
   }
 
   findById(id: number): Promise<ChallengeRow | null> {
-    return this.prisma.emailLoginChallenge.findUnique({ where: { id }, select: CHALLENGE_SELECT });
+    return this.prisma.emailLoginChallenge.findUnique({
+      where: { id },
+      select: CHALLENGE_SELECT,
+    });
   }
 
   /** 로그인 링크. (#198) 연결(LINK) 메일의 토큰으로는 찾지 않는다 */
   findByLinkTokenHash(linkTokenHash: string): Promise<ChallengeRow | null> {
-    return this.prisma.emailLoginChallenge.findFirst({ where: { linkTokenHash, purpose: 'LOGIN' }, select: CHALLENGE_SELECT });
+    return this.prisma.emailLoginChallenge.findFirst({
+      where: { linkTokenHash, purpose: 'LOGIN' },
+      select: CHALLENGE_SELECT,
+    });
   }
 
   /** 같은 이메일의 살아 있는 최신 로그인 행. 새 요청이 이전 것을 무효로 하므로 보통 최대 1개. (#198) LINK 행은 빼고 */
-  findLatestLiveByEmail(email: string, now: Date): Promise<ChallengeRow | null> {
+  findLatestLiveByEmail(
+    email: string,
+    now: Date,
+  ): Promise<ChallengeRow | null> {
     return this.prisma.emailLoginChallenge.findFirst({
       where: { email, purpose: 'LOGIN', ...live(now) },
       orderBy: { id: 'desc' },
@@ -132,7 +161,11 @@ export class EmailLoginChallengesRepository {
   }
 
   /** (#198) userId 가 요청한 같은 이메일의 살아 있는 최신 연결(LINK) 행 */
-  findLatestLiveLink(email: string, userId: number, now: Date): Promise<ChallengeRow | null> {
+  findLatestLiveLink(
+    email: string,
+    userId: number,
+    now: Date,
+  ): Promise<ChallengeRow | null> {
     return this.prisma.emailLoginChallenge.findFirst({
       where: { email, purpose: 'LINK', userId, ...live(now) },
       orderBy: { id: 'desc' },
@@ -156,28 +189,49 @@ export class EmailLoginChallengesRepository {
    * 틀린 코드 1회. 살아 있고 attempts < max 인 행만 +1 하고, max 에 닿으면 같은 트랜잭션에서 invalidatedAt 을 채운다 (3장).
    * 첫 updateMany 가 행 잠금을 잡아 동시에 틀려도 횟수가 새지 않는다
    */
-  registerWrongCodeTx(id: number, now: Date, maxAttempts: number): Promise<WrongCodeResult> {
+  registerWrongCodeTx(
+    id: number,
+    now: Date,
+    maxAttempts: number,
+  ): Promise<WrongCodeResult> {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.emailLoginChallenge.updateMany({
         where: { id, attempts: { lt: maxAttempts }, ...live(now) },
         data: { attempts: { increment: 1 } },
       });
-      const row = await tx.emailLoginChallenge.findUnique({ where: { id }, select: { attempts: true } });
+      const row = await tx.emailLoginChallenge.findUnique({
+        where: { id },
+        select: { attempts: true },
+      });
       const attempts = row?.attempts ?? maxAttempts;
       if (count !== 1) return { counted: false, attempts, locked: false };
-      if (attempts < maxAttempts) return { counted: true, attempts, locked: false };
-      await tx.emailLoginChallenge.updateMany({ where: { id, invalidatedAt: null }, data: { invalidatedAt: now } });
+      if (attempts < maxAttempts)
+        return { counted: true, attempts, locked: false };
+      await tx.emailLoginChallenge.updateMany({
+        where: { id, invalidatedAt: null },
+        data: { invalidatedAt: now },
+      });
       return { counted: true, attempts, locked: true };
     });
   }
 
   /** 처음 이메일이면 소비한 행에 가입 티켓 해시와 만료를 붙인다 (D-114) */
-  async setSignupTicket(id: number, signupTokenHash: string, signupExpiresAt: Date): Promise<void> {
-    await this.prisma.emailLoginChallenge.updateMany({ where: { id }, data: { signupTokenHash, signupExpiresAt } });
+  async setSignupTicket(
+    id: number,
+    signupTokenHash: string,
+    signupExpiresAt: Date,
+  ): Promise<void> {
+    await this.prisma.emailLoginChallenge.updateMany({
+      where: { id },
+      data: { signupTokenHash, signupExpiresAt },
+    });
   }
 
   /** 만료 전 가입 티켓의 이메일과 next */
-  findSignupTicket(signupTokenHash: string, now: Date): Promise<{ id: number; email: string; next: string } | null> {
+  findSignupTicket(
+    signupTokenHash: string,
+    now: Date,
+  ): Promise<{ id: number; email: string; next: string } | null> {
     return this.prisma.emailLoginChallenge.findFirst({
       where: { signupTokenHash, signupExpiresAt: { gt: now } },
       select: { id: true, email: true, next: true },
@@ -185,7 +239,10 @@ export class EmailLoginChallengesRepository {
   }
 
   /** 가입 티켓 1회 소비. 조건부 updateMany 로 해시를 비운다. count 1 인 요청만 이긴다 */
-  async consumeSignupTicket(signupTokenHash: string, now: Date): Promise<boolean> {
+  async consumeSignupTicket(
+    signupTokenHash: string,
+    now: Date,
+  ): Promise<boolean> {
     const { count } = await this.prisma.emailLoginChallenge.updateMany({
       where: { signupTokenHash, signupExpiresAt: { gt: now } },
       data: { signupTokenHash: null },
@@ -193,8 +250,16 @@ export class EmailLoginChallengesRepository {
     return count === 1;
   }
 
-  private async countRecent(where: { email?: string; ipHash?: string; createdAt: { gt: Date } }): Promise<RecentCount> {
-    const result = await this.prisma.emailLoginChallenge.aggregate({ where, _count: { _all: true }, _min: { createdAt: true } });
+  private async countRecent(where: {
+    email?: string;
+    ipHash?: string;
+    createdAt: { gt: Date };
+  }): Promise<RecentCount> {
+    const result = await this.prisma.emailLoginChallenge.aggregate({
+      where,
+      _count: { _all: true },
+      _min: { createdAt: true },
+    });
     return { count: result._count._all, oldest: result._min.createdAt ?? null };
   }
 }

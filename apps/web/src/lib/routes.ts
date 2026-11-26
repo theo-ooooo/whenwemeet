@@ -43,7 +43,8 @@ export const SEARCH_PATH = "/search";
 export const ASSISTANT_PATH = "/assistant";
 
 const qs = (q: URLSearchParams | Record<string, string | null | undefined>): string => {
-  const params = q instanceof URLSearchParams ? q : new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
+  const params =
+    q instanceof URLSearchParams ? q : new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
   const s = params.toString();
   return s ? `?${s}` : "";
 };

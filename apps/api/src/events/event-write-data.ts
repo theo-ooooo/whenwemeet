@@ -2,10 +2,20 @@ import { Prisma } from '../generated/prisma/client.js';
 import { generatePublicCode } from '../common/public-code.js';
 import type { Db } from '../prisma/prisma.service.js';
 import type { CreatedLog } from '../push/push-notifications.repository.js';
-import { type ParticipantSet, participantsFailed, PARTICIPANTS_NOT_MEMBER_MESSAGE, participantsSnapshot } from './participants.js';
+import {
+  type ParticipantSet,
+  participantsFailed,
+  PARTICIPANTS_NOT_MEMBER_MESSAGE,
+  participantsSnapshot,
+} from './participants.js';
 import { placeColumns, type PlaceValue } from './place.js';
 import { type EventReminderValue, kstDate, type Repeat } from './recurrence.js';
-import { dateToDb, dbToDate, type EventRow, participantSetOf } from './event-rows.js';
+import {
+  dateToDb,
+  dbToDate,
+  type EventRow,
+  participantSetOf,
+} from './event-rows.js';
 
 /** 일정 쓰기 입력, 저장 데이터 만들기, 참여자 검사, 로그 스냅샷. 일정 쓰기 저장소들이 같이 쓴다. events.repository 에서 옮김 (#504) */
 
@@ -97,16 +107,28 @@ export interface LogSnapshot {
   participants?: ParticipantSet;
 }
 
-export type EventSnapshot = Pick<EventRow, 'id' | 'groupId' | 'title' | 'startsAt' | 'endsAt' | 'allDay'> & { repeat?: Repeat | null };
-type SavedEvent = EventSnapshot & { allMembers: boolean; participants: { userId: number }[] };
+export type EventSnapshot = Pick<
+  EventRow,
+  'id' | 'groupId' | 'title' | 'startsAt' | 'endsAt' | 'allDay'
+> & { repeat?: Repeat | null };
+type SavedEvent = EventSnapshot & {
+  allMembers: boolean;
+  participants: { userId: number }[];
+};
 export type SeriesRef = Pick<EventRow, 'id' | 'groupId'>;
 
 /** KST 날짜 필드(repeatUntil, repeatAnchor) 를 @db.Date 값으로. 생략한 필드는 그대로 생략 */
-function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: string | null }>(
+function toEventData<
+  T extends { repeatUntil?: string | null; repeatAnchor?: string | null },
+>(
   data: T,
-): Omit<T, 'repeatUntil' | 'repeatAnchor'> & { repeatUntil?: Date | null; repeatAnchor?: Date | null } {
+): Omit<T, 'repeatUntil' | 'repeatAnchor'> & {
+  repeatUntil?: Date | null;
+  repeatAnchor?: Date | null;
+} {
   const { repeatUntil, repeatAnchor, ...rest } = data;
-  const toDb = (value: string | null) => (value === null ? null : dateToDb(value));
+  const toDb = (value: string | null) =>
+    value === null ? null : dateToDb(value);
   return {
     ...rest,
     ...(repeatUntil === undefined ? {} : { repeatUntil: toDb(repeatUntil) }),
@@ -115,24 +137,42 @@ function toEventData<T extends { repeatUntil?: string | null; repeatAnchor?: str
 }
 
 /** (#248) 새 일정의 allMembers + 참여자 행. (#311) 공개 코드가 없으면 여기서 만든다 (새 원본, 가져오기 포함 모든 생성 경로) */
-export function toCreateData({ participants, publicCode, place, ...data }: EventCreateInput) {
+export function toCreateData({
+  participants,
+  publicCode,
+  place,
+  ...data
+}: EventCreateInput) {
   return {
     ...toEventData(data),
     ...placeColumns(place ?? null),
     publicCode: publicCode ?? generatePublicCode(),
     allMembers: participants.allMembers,
-    participants: { create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
+    participants: {
+      create: participants.allMembers
+        ? []
+        : participants.ids.map((userId) => ({ userId })),
+    },
   };
 }
 
 /** (#248) 수정. 참여자를 주면 행을 지우고 다시 만든다 (설계 3-5) */
-export function toUpdateData({ participants, place, ...data }: EventUpdateInput) {
+export function toUpdateData({
+  participants,
+  place,
+  ...data
+}: EventUpdateInput) {
   if (!participants) return { ...toEventData(data), ...placeColumns(place) };
   return {
     ...toEventData(data),
     ...placeColumns(place),
     allMembers: participants.allMembers,
-    participants: { deleteMany: {}, create: participants.allMembers ? [] : participants.ids.map((userId) => ({ userId })) },
+    participants: {
+      deleteMany: {},
+      create: participants.allMembers
+        ? []
+        : participants.ids.map((userId) => ({ userId })),
+    },
   };
 }
 
@@ -141,38 +181,70 @@ export function toUpdateData({ participants, place, ...data }: EventUpdateInput)
  * 멤버십 행을 공유 잠금으로 읽어(FOR SHARE) 확인과 저장 사이에 그 사람이 나가 고아 행이 생기지 않게 한다.
  * 나가기는 멤버십을 먼저 지우고 참여자 행을 지우므로(removeWithGroupPrune), 나가기가 먼저면 여기서 걸리고 이쪽이 먼저면 나가기가 행을 지운다
  */
-export async function assertParticipantsTx(tx: Db, groupId: number, participants: ParticipantSet | undefined): Promise<void> {
-  if (!participants || participants.allMembers || participants.ids.length === 0) return;
+export async function assertParticipantsTx(
+  tx: Db,
+  groupId: number,
+  participants: ParticipantSet | undefined,
+): Promise<void> {
+  if (!participants || participants.allMembers || participants.ids.length === 0)
+    return;
   const rows = await tx.$queryRaw<{ userId: number }[]>`
     SELECT userId FROM Membership WHERE groupId = ${groupId} AND userId IN (${Prisma.join(participants.ids)}) FOR SHARE`;
-  if (rows.length !== new Set(participants.ids).size) throw participantsFailed(PARTICIPANTS_NOT_MEMBER_MESSAGE);
+  if (rows.length !== new Set(participants.ids).size)
+    throw participantsFailed(PARTICIPANTS_NOT_MEMBER_MESSAGE);
 }
 
 /** (#190) 회차 날짜를 정하는 원본 값 */
-export const RULE_SELECT = { startsAt: true, repeat: true, repeatAnchor: true } as const;
+export const RULE_SELECT = {
+  startsAt: true,
+  repeat: true,
+  repeatAnchor: true,
+} as const;
 
 /** (#190) 두 원본 값이 같은 회차 날짜를 만드는지 (시작 KST 날짜, 주기, 기준 날짜) */
 export function sameOccurrenceDates(
   a: { startsAt: Date; repeat: Repeat | null; repeatAnchor: Date | null },
   b: { startsAt: Date; repeat: Repeat | null; repeatAnchor: Date | null },
 ): boolean {
-  const anchor = (value: Date | null) => (value === null ? null : dbToDate(value));
-  return kstDate(a.startsAt) === kstDate(b.startsAt) && a.repeat === b.repeat && anchor(a.repeatAnchor) === anchor(b.repeatAnchor);
+  const anchor = (value: Date | null) =>
+    value === null ? null : dbToDate(value);
+  return (
+    kstDate(a.startsAt) === kstDate(b.startsAt) &&
+    a.repeat === b.repeat &&
+    anchor(a.repeatAnchor) === anchor(b.repeatAnchor)
+  );
 }
 
 /** (#188) 팀원 변경 묶기에 넘기는 로그 필드 */
-export const LOG_REF_SELECT = { id: true, groupId: true, eventId: true, actorId: true, action: true } as const satisfies Record<keyof CreatedLog, true>;
+export const LOG_REF_SELECT = {
+  id: true,
+  groupId: true,
+  eventId: true,
+  actorId: true,
+  action: true,
+} as const satisfies Record<keyof CreatedLog, true>;
 
 /** (#248) 로그의 참여자 스냅샷 컬럼 (D-136). "모두" 면 participantIds 는 넣지 않는다(DB null) */
-function logParticipants(set: ParticipantSet): { participantsAll: boolean; participantIds?: number[] } {
+function logParticipants(set: ParticipantSet): {
+  participantsAll: boolean;
+  participantIds?: number[];
+} {
   const { participantsAll, participantIds } = participantsSnapshot(set);
-  return participantIds === null ? { participantsAll } : { participantsAll, participantIds };
+  return participantIds === null
+    ? { participantsAll }
+    : { participantsAll, participantIds };
 }
 
 /** 로그 스냅샷. CREATED, UPDATED 는 저장 후 참여자를 함께 (D-136), DELETED 는 참여자 null */
-export function snapshotLog(event: EventSnapshot | SavedEvent, actorId: number, action: 'CREATED' | 'UPDATED' | 'DELETED') {
+export function snapshotLog(
+  event: EventSnapshot | SavedEvent,
+  actorId: number,
+  action: 'CREATED' | 'UPDATED' | 'DELETED',
+) {
   return {
-    ...(action !== 'DELETED' && 'participants' in event ? logParticipants(participantSetOf(event)) : {}),
+    ...(action !== 'DELETED' && 'participants' in event
+      ? logParticipants(participantSetOf(event))
+      : {}),
     groupId: event.groupId,
     eventId: event.id,
     actorId,
@@ -185,7 +257,13 @@ export function snapshotLog(event: EventSnapshot | SavedEvent, actorId: number, 
   };
 }
 
-export function scopeLog(groupId: number, eventId: number, action: 'UPDATED' | 'DELETED', log: ScopeLog, snapshot: LogSnapshot) {
+export function scopeLog(
+  groupId: number,
+  eventId: number,
+  action: 'UPDATED' | 'DELETED',
+  log: ScopeLog,
+  snapshot: LogSnapshot,
+) {
   return {
     groupId,
     eventId,
@@ -198,6 +276,8 @@ export function scopeLog(groupId: number, eventId: number, action: 'UPDATED' | '
     repeat: snapshot.repeat,
     scope: log.scope,
     occurrence: dateToDb(log.occurrence),
-    ...(action === 'UPDATED' && snapshot.participants ? logParticipants(snapshot.participants) : {}),
+    ...(action === 'UPDATED' && snapshot.participants
+      ? logParticipants(snapshot.participants)
+      : {}),
   };
 }

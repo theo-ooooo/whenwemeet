@@ -284,7 +284,8 @@ describe('기간', () => {
 });
 
 describe('(#562) 음력 월일 lunarMonthDay', () => {
-  const lunar = (month: number | null, day: number | null) => w({ kind: 'lunarMonthDay', month, day });
+  const lunar = (month: number | null, day: number | null) =>
+    w({ kind: 'lunarMonthDay', month, day });
 
   it('"음력 10월 15일" (오늘 음력 10월 8일) = 올해 음력 → 2026-11-23', () => {
     expect(at(lunar(10, 15), MON)).toBe('2026-11-23');
@@ -295,7 +296,9 @@ describe('(#562) 음력 월일 lunarMonthDay', () => {
   });
 
   it('기간 끝(notBefore) 이후로', () => {
-    expect(at(lunar(10, 15), MON, { notBefore: '2026-12-01' })).toBe('2027-11-12');
+    expect(at(lunar(10, 15), MON, { notBefore: '2026-12-01' })).toBe(
+      '2027-11-12',
+    );
   });
 
   it('월이나 일이 없거나 범위 밖이면 null', () => {

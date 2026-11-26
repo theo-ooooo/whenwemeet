@@ -235,7 +235,13 @@ function Body({
             </div>
             {!manual.allDay && (
               <div className="flex items-center gap-1.5">
-                <TimePicker look="chip" label="후보 시작 시각" value={manual.start} to={23 * 60 + 30} onChange={(start) => setManual((m) => ({ ...m, start }))} />
+                <TimePicker
+                  look="chip"
+                  label="후보 시작 시각"
+                  value={manual.start}
+                  to={23 * 60 + 30}
+                  onChange={(start) => setManual((m) => ({ ...m, start }))}
+                />
                 <span aria-hidden="true" className="text-ink-2">
                   ~
                 </span>

@@ -1,5 +1,13 @@
 import { PrismaService } from '../src/prisma/prisma.service.js';
-import { api, auth, createTestApp, devLogin, resetDb, Session, TestApp } from './helpers.js';
+import {
+  api,
+  auth,
+  createTestApp,
+  devLogin,
+  resetDb,
+  Session,
+  TestApp,
+} from './helpers.js';
 
 /**
  * 일정 단건 접근 범위 (#17, api.md 2.3):
@@ -23,19 +31,37 @@ describe('일정 단건 접근 범위 (e2e)', () => {
     bob = await devLogin(app, '밥');
     carol = await devLogin(app, '캐롤');
 
-    const team = await api(app).post('/v1/groups').set(auth(alice)).send({ name: '팀 A' }).expect(201);
+    const team = await api(app)
+      .post('/v1/groups')
+      .set(auth(alice))
+      .send({ name: '팀 A' })
+      .expect(201);
     teamId = team.body.data.id;
-    await api(app).post('/v1/groups/join').set(auth(bob)).send({ code: team.body.data.inviteCode }).expect(200);
+    await api(app)
+      .post('/v1/groups/join')
+      .set(auth(bob))
+      .send({ code: team.body.data.inviteCode })
+      .expect(200);
 
     const created = await api(app)
       .post(`/v1/groups/${teamId}/events`)
       .set(auth(alice))
-      .send({ title: '팀 A 일정', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false })
+      .send({
+        title: '팀 A 일정',
+        startsAt: '2026-12-01T10:00:00.000Z',
+        endsAt: '2026-12-01T12:00:00.000Z',
+        allDay: false,
+      })
       .expect(201);
     eventId = created.body.data.id;
 
     const prisma = app.get(PrismaService);
-    const personal = await prisma.group.findFirstOrThrow({ where: { type: 'PERSONAL', memberships: { some: { userId: bob.userId } } } });
+    const personal = await prisma.group.findFirstOrThrow({
+      where: {
+        type: 'PERSONAL',
+        memberships: { some: { userId: bob.userId } },
+      },
+    });
     bobPersonalId = personal.id;
   });
 
@@ -45,32 +71,66 @@ describe('일정 단건 접근 범위 (e2e)', () => {
   });
 
   it('멤버가 아니면 GET/PATCH/DELETE 모두 403 FORBIDDEN', async () => {
-    const get = await api(app).get(`/v1/groups/${teamId}/events/${eventId}`).set(auth(carol)).expect(403);
+    const get = await api(app)
+      .get(`/v1/groups/${teamId}/events/${eventId}`)
+      .set(auth(carol))
+      .expect(403);
     expect(get.body.error.code).toBe('FORBIDDEN');
-    const upd = await api(app).patch(`/v1/groups/${teamId}/events/${eventId}`).set(auth(carol)).send(patch).expect(403);
+    const upd = await api(app)
+      .patch(`/v1/groups/${teamId}/events/${eventId}`)
+      .set(auth(carol))
+      .send(patch)
+      .expect(403);
     expect(upd.body.error.code).toBe('FORBIDDEN');
-    const del = await api(app).delete(`/v1/groups/${teamId}/events/${eventId}`).set(auth(carol)).expect(403);
+    const del = await api(app)
+      .delete(`/v1/groups/${teamId}/events/${eventId}`)
+      .set(auth(carol))
+      .expect(403);
     expect(del.body.error.code).toBe('FORBIDDEN');
   });
 
   it('멤버이지만 eventId 가 다른 팀 소속이면 GET/PATCH/DELETE 모두 404 NOT_FOUND', async () => {
     // 밥은 팀 A 멤버이자 자기 개인 팀 멤버. 개인 팀 경로로 팀 A 의 일정 ID 를 가리킨다
-    const get = await api(app).get(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);
-    expect(get.body).toEqual({ status: 404, data: null, message: '일정을 찾을 수 없어요', error: { code: 'NOT_FOUND' } });
-    const upd = await api(app).patch(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).send(patch).expect(404);
+    const get = await api(app)
+      .get(`/v1/groups/${bobPersonalId}/events/${eventId}`)
+      .set(auth(bob))
+      .expect(404);
+    expect(get.body).toEqual({
+      status: 404,
+      data: null,
+      message: '일정을 찾을 수 없어요',
+      error: { code: 'NOT_FOUND' },
+    });
+    const upd = await api(app)
+      .patch(`/v1/groups/${bobPersonalId}/events/${eventId}`)
+      .set(auth(bob))
+      .send(patch)
+      .expect(404);
     expect(upd.body.error.code).toBe('NOT_FOUND');
-    const del = await api(app).delete(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);
+    const del = await api(app)
+      .delete(`/v1/groups/${bobPersonalId}/events/${eventId}`)
+      .set(auth(bob))
+      .expect(404);
     expect(del.body.error.code).toBe('NOT_FOUND');
   });
 
   it('없는 eventId 와 같은 응답이라 존재 여부를 구분할 수 없다', async () => {
-    const cross = await api(app).get(`/v1/groups/${bobPersonalId}/events/${eventId}`).set(auth(bob)).expect(404);
-    const missing = await api(app).get(`/v1/groups/${bobPersonalId}/events/2147483647`).set(auth(bob)).expect(404);
+    const cross = await api(app)
+      .get(`/v1/groups/${bobPersonalId}/events/${eventId}`)
+      .set(auth(bob))
+      .expect(404);
+    const missing = await api(app)
+      .get(`/v1/groups/${bobPersonalId}/events/2147483647`)
+      .set(auth(bob))
+      .expect(404);
     expect(cross.body).toEqual(missing.body);
   });
 
   it('위 요청들로 일정이 바뀌거나 지워지지 않았고 로그도 남지 않는다', async () => {
-    const one = await api(app).get(`/v1/groups/${teamId}/events/${eventId}`).set(auth(bob)).expect(200);
+    const one = await api(app)
+      .get(`/v1/groups/${teamId}/events/${eventId}`)
+      .set(auth(bob))
+      .expect(200);
     expect(one.body.data.title).toBe('팀 A 일정');
 
     const prisma = app.get(PrismaService);

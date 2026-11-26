@@ -8,8 +8,15 @@ import {
 } from '../src/push/anniversary-planner.js';
 import { PushDevicesService } from '../src/push/push-devices.service.js';
 import type { NotificationSettings } from '../src/push/push-devices.repository.js';
-import { type AnniversaryPlanRow, type BirthdayPlanRow, PushPlanningRepository } from '../src/push/push-planning.repository.js';
-import { PushRecipientsRepository, type SettingKind } from '../src/push/push-recipients.repository.js';
+import {
+  type AnniversaryPlanRow,
+  type BirthdayPlanRow,
+  PushPlanningRepository,
+} from '../src/push/push-planning.repository.js';
+import {
+  PushRecipientsRepository,
+  type SettingKind,
+} from '../src/push/push-recipients.repository.js';
 import { createTestApp, devLogin, resetDb, type TestApp } from './helpers.js';
 
 /**
@@ -83,7 +90,12 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   const expectedSettings = new Map<number, NotificationSettings>();
   const expectedBirthday = new Map<
     number,
-    { date: string | null; calendar: 'SOLAR' | 'LUNAR'; isLeapMonth: boolean; reminders: OffsetName[] }
+    {
+      date: string | null;
+      calendar: 'SOLAR' | 'LUNAR';
+      isLeapMonth: boolean;
+      reminders: OffsetName[];
+    }
   >();
 
   const sql = <T>(query: string) => prisma.$queryRawUnsafe<T[]>(query);
@@ -138,7 +150,11 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
       groupName: String(row.groupName),
       groupCode: String(row.groupCode),
       name: String(row.name),
-      birthday: { date: String(row.birthday), calendar: row.birthdayCalendar as 'SOLAR' | 'LUNAR', isLeapMonth: b(row.birthdayLeapMonth) },
+      birthday: {
+        date: String(row.birthday),
+        calendar: row.birthdayCalendar as 'SOLAR' | 'LUNAR',
+        isLeapMonth: b(row.birthdayLeapMonth),
+      },
       ...flags(OFFSET_NAMES.filter((o) => b(row[o]))),
     }));
 
@@ -193,7 +209,9 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
         });
       }
     }
-    expect(await planning.listWeeklyGroupIds()).toEqual(await sqlWeeklyGroupIds());
+    expect(await planning.listWeeklyGroupIds()).toEqual(
+      await sqlWeeklyGroupIds(),
+    );
 
     const settings = app.get(PushDevicesService);
     const me = app.get(MeService);
@@ -286,7 +304,12 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
           SETTINGS.map((s, k) => [s.key, values[k]]),
         ) as unknown as NotificationSettings,
       );
-      expectedBirthday.set(user.id, { date: birthday, calendar: 'SOLAR', isLeapMonth: false, reminders: offsets });
+      expectedBirthday.set(user.id, {
+        date: birthday,
+        calendar: 'SOLAR',
+        isLeapMonth: false,
+        reminders: offsets,
+      });
 
       const mine = new Set([groupIds[i % 4]]);
       if (i % 2 === 0) mine.add(groupIds[(i * 3) % 4]);
@@ -451,8 +474,18 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
         date: '05-05',
         reminders: [...reminders].reverse(),
       });
-      expect(saved).toEqual({ date: '05-05', calendar: 'SOLAR', isLeapMonth: false, reminders });
-      expectedBirthday.set(id, { date: '05-05', calendar: 'SOLAR', isLeapMonth: false, reminders });
+      expect(saved).toEqual({
+        date: '05-05',
+        calendar: 'SOLAR',
+        isLeapMonth: false,
+        reminders,
+      });
+      expectedBirthday.set(id, {
+        date: '05-05',
+        calendar: 'SOLAR',
+        isLeapMonth: false,
+        reminders,
+      });
     }
     // 시점 생략은 그대로, 생일을 지워도 시점은 남는다 (#305 그대로)
     const id = userIds[3];
@@ -460,7 +493,12 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
     expect((await me.updateBirthday(id, { date: null })).reminders).toEqual(
       kept,
     );
-    expectedBirthday.set(id, { date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: kept });
+    expectedBirthday.set(id, {
+      date: null,
+      calendar: 'SOLAR',
+      isLeapMonth: false,
+      reminders: kept,
+    });
 
     await expectSameAsRows();
     expect(await planning.listBirthdays()).toEqual(await sqlBirthdays());
