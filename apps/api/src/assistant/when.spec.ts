@@ -1,5 +1,6 @@
 import {
   isPastThisWeekday,
+  missingLunarLeap,
   monthRange,
   NO_WHEN,
   resolvePeriod,
@@ -301,10 +302,71 @@ describe('(#562) 음력 월일 lunarMonthDay', () => {
     );
   });
 
-  it('월이나 일이 없거나 범위 밖이면 null', () => {
-    expect(at(lunar(null, 15), MON)).toBeNull();
+  it('일이 없거나 범위 밖이면 null', () => {
     expect(at(lunar(3, null), MON)).toBeNull();
     expect(at(lunar(13, 1), MON)).toBeNull();
     expect(at(lunar(3, 31), MON)).toBeNull();
+  });
+});
+
+describe('(#584) 음력 윤달, 해, 월 없는 날 (오늘 음력 2026년 10월 8일)', () => {
+  const lunar = (fields: Partial<WhenArg>) =>
+    w({ kind: 'lunarMonthDay', ...fields });
+
+  it('월 없는 날: 이번 음력 달에서 아직 안 왔으면 이번 달, 지났으면 다음 달', () => {
+    expect(at(lunar({ day: 15 }), MON)).toBe('2026-11-23'); // 보름 = 음력 10월 15일
+    expect(at(lunar({ day: 30 }), MON)).toBe('2026-12-08'); // 그믐 = 음력 10월 30일
+    expect(at(lunar({ day: 1 }), MON)).toBe('2026-12-09'); // 초하루: 10월 1일(11-09)은 지나 11월 1일
+  });
+
+  it('"다음 달 음력 보름" = 음력 11월 15일, "다다음 달 초하루" = 음력 12월 1일', () => {
+    expect(at(lunar({ day: 15, which: 'next' }), MON)).toBe('2026-12-23');
+    expect(at(lunar({ day: 1, which: 'after_next' }), MON)).toBe('2027-01-08');
+  });
+
+  it('다음 음력 달은 윤달을 거친다 (음력 2025년 6월 10일 → 다음 달 = 윤6월)', () => {
+    expect(at(lunar({ day: 1, which: 'next' }), '2025-07-04')).toBe(
+      '2025-07-25',
+    );
+    expect(at(lunar({ day: 1, which: 'after_next' }), '2025-07-04')).toBe(
+      '2025-08-23',
+    );
+  });
+
+  it('해 없는 윤달은 그 해에 없으면 평달 (해마다 규칙 D-297): "윤4월 10일" = 음력 2027년 4월 10일', () => {
+    expect(at(lunar({ month: 4, day: 10, leap: true }), MON)).toBe(
+      '2027-05-15',
+    );
+  });
+
+  it('해를 말하면 그 해 그대로, 없는 윤달은 null 이고 까닭이 남는다', () => {
+    expect(at(lunar({ year: 2028, month: 5, day: 5, leap: true }), MON)).toBe(
+      '2028-06-27',
+    );
+    expect(at(lunar({ year: 2028, month: 5, day: 5 }), MON)).toBe('2028-05-28');
+    expect(at(lunar({ year: 2026, month: 10, day: 30 }), MON)).toBe(
+      '2026-12-08',
+    );
+    expect(
+      at(lunar({ year: 2026, month: 10, day: 5, leap: true }), MON),
+    ).toBeNull();
+    expect(
+      missingLunarLeap(lunar({ year: 2026, month: 10, day: 5, leap: true })),
+    ).toBe('음력 2026년에는 윤10월이 없어요');
+    expect(
+      missingLunarLeap(lunar({ year: 2028, month: 5, day: 5, leap: true })),
+    ).toBeNull();
+    expect(at(lunar({ year: 2026, day: 5 }), MON)).toBeNull();
+    expect(at(lunar({ year: 2051, month: 1, day: 1 }), MON)).toBeNull();
+  });
+});
+
+describe('(#584) "다음 달" 에 이번 달 숫자가 같이 와도 다음 달', () => {
+  it('which next 면 month 를 보지 않는다', () => {
+    expect(monthRange(MON, 'next', 11)).toEqual(['2026-12-01', '2026-12-31']);
+    expect(monthRange(MON, 'nearest', 12)).toEqual([
+      '2026-12-01',
+      '2026-12-31',
+    ]);
   });
 });

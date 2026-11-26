@@ -64,6 +64,8 @@ interface Case {
   text: string;
   /** 기대 결과를 한 줄 글자로 (아래 summarize 와 같은 모양) */
   expected: string;
+  /** 같이 맞다고 보는 결과 (시각을 말하지 않은 하루 행사처럼 종일과 되묻기가 둘 다 맞는 것) */
+  accept?: string[];
 }
 
 const CASES: Case[] = [
@@ -153,6 +155,24 @@ const CASES: Case[] = [
     expected: 'delete 주간 회의@2026-11-23 회차',
   },
   { text: '점심 약속 지워줘', expected: 'choice delete 2' },
+  // (#584) 음력, 윤달. 기준 날 음력 2026-10-08. 기대 양력은 src/common/lunar.ts 로 셈한 값이고, 음력으로 넣은 일정은 끝에 " 음력"
+  { text: '음력 3월 15일 할머니 생신', expected: 'event 2027-04-21 종일 [경] 음력', accept: ['clarify time'] },
+  // 윤4월은 음력 2025~2028 에 없어 해마다 규칙(D-297)처럼 평달 4월 10일
+  { text: '음력 윤4월 10일 저녁 8시 할아버지 제사', expected: 'event 2027-05-15 20:00 [경] 음력' },
+  { text: '윤달 4월 10일 제사', expected: 'event 2027-05-15 종일 [경] 음력', accept: ['clarify time'] },
+  // 해를 말한 윤달은 그 해 그 윤달 그대로 (음력 2028년 윤5월 5일 = 양력 2028-06-27)
+  { text: '음력 2028년 윤5월 5일 저녁 7시 가족 모임', expected: 'event 2028-06-27 19:00 [경] 음력' },
+  { text: '매년 음력 8월 15일 성묘', expected: 'unsupported repeat' },
+  // 음력 10월 1일 = 2026-11-09. 월일 표현처럼 31일 전까지는 올해로 본다
+  { text: '음력으로 10월 초하루 오전 10시 고사', expected: 'event 2026-11-09 10:00 [경] 음력' },
+  // 그믐 = 그 달 마지막 날. 이번 음력 달(10월, 30일까지) 그믐 = 2026-12-08
+  { text: '음력 그믐 저녁 7시 가족 식사', expected: 'event 2026-12-08 19:00 [경] 음력' },
+  // 다음 음력 달(11월) 보름 = 2026-12-23
+  { text: '다음 달 음력 보름 저녁 8시 달맞이', expected: 'event 2026-12-23 20:00 [경] 음력' },
+  { text: '음력 12월 3일 저녁 7시 가족 모임', expected: 'event 2027-01-10 19:00 [경] 음력' },
+  { text: '엄마 생신 음력 2월 3일 매년', expected: 'unsupported anniversary_create', accept: ['unsupported repeat'] },
+  // 음력 2026년에는 윤10월이 없다 (윤달은 2025년 6월, 2028년 5월)
+  { text: '음력 2026년 윤10월 5일 저녁 7시 모임', expected: 'clarify date' },
 ];
 
 const nameOf = (ids: readonly number[]): string =>
@@ -204,7 +224,7 @@ function summarize(
         return cards
           .map((card) => {
             const start = kst(card.startsAt);
-            return `event ${start.date} ${card.allDay ? '종일' : start.time} ${nameOf(card.participants)}`;
+            return `event ${start.date} ${card.allDay ? '종일' : start.time} ${nameOf(card.participants)}${card.lunarInput ? ' 음력' : ''}`;
           })
           .join(' | ');
       }
@@ -250,6 +270,8 @@ function summarize(
         if (targets.length > 1) return `choice delete ${targets.length}`;
         return `delete ${targets[0].title}@${kst(targets[0].startsAt).date}${targets[0].occurrence ? ' 회차' : ''}`;
       }
+      case 'report_unsupported':
+        return `unsupported ${(outcome.args as { action: string }).action}`;
       case 'ask_clarification':
         return `clarify ${(outcome.args as { field: string }).field}`;
       default:
@@ -276,8 +298,14 @@ async function main(): Promise<void> {
     `모델 ${modelName}, 기준 2026-11-16 (월) 14:05 KST, 팀 경(나), 김수경\n`,
   );
 
+  // EVAL_ONLY=3,5 처럼 1부터 센 번호만 다시 돌릴 수 있다 (실모델 호출을 아끼려고)
+  const only = (process.env.EVAL_ONLY ?? '')
+    .split(',')
+    .map((n) => Number(n.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  const cases = only.length > 0 ? CASES.filter((_, i) => only.includes(i + 1)) : CASES;
   let failed = 0;
-  for (const { text, expected } of CASES) {
+  for (const { text, expected, accept = [] } of cases) {
     const context = contextFor(text);
     const messages = buildMessages(
       {
@@ -298,13 +326,13 @@ async function main(): Promise<void> {
     } catch (error) {
       got = `오류 ${error instanceof Error ? error.name : 'unknown'}`;
     }
-    const ok = got === expected;
+    const ok = got === expected || accept.includes(got);
     if (!ok) failed += 1;
     console.log(
       `${ok ? 'PASS' : 'FAIL'}  ${text}\n      기대 ${expected}\n      결과 ${got}${ok ? '' : `\n      인자 ${args}`}`,
     );
   }
-  console.log(`\n${CASES.length - failed}/${CASES.length} 통과`);
+  console.log(`\n${cases.length - failed}/${cases.length} 통과`);
   process.exit(failed === 0 ? 0 : 1);
 }
 

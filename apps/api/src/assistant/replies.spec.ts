@@ -131,6 +131,18 @@ describe('문구 틀 (설계 4-3, 4-4)', () => {
     expect(clarifyReply('date', { subject: '' }).reply).toBe('언제로 할까요?');
   });
 
+  it('(#584) 되묻는 까닭이 있으면 맨 앞에 한 문장', () => {
+    expect(
+      clarifyReply('date', { note: '음력 2026년에는 윤10월이 없어요' }).reply,
+    ).toBe('음력 2026년에는 윤10월이 없어요. 언제로 할까요?');
+    expect(
+      clarifyReply('date', {
+        note: '음력 2026년에는 윤10월이 없어요',
+        subject: '모임',
+      }).reply,
+    ).toBe("음력 2026년에는 윤10월이 없어요. '모임'은 언제로 할까요?");
+  });
+
   it('못 하는 일 링크', () => {
     expect(unsupportedLink('repeat')).toEqual({
       label: '일정 추가',

@@ -278,6 +278,32 @@ describe('draft_event', () => {
     expect(normalizeDraftEvent(event(), ctx)).not.toHaveProperty('lunarInput');
   });
 
+  it('(#584) 해를 말한 윤달이 그 해에 없으면 지어내지 않고 까닭과 함께 되묻는다', () => {
+    const leapIn = (year: number, month: number) =>
+      event({
+        date: {
+          ...NO_WHEN,
+          kind: 'lunarMonthDay',
+          year,
+          month,
+          day: 5,
+          leap: true,
+        },
+      });
+    expect(problemOf(() => normalizeDraftEvent(leapIn(2026, 10), ctx))).toEqual(
+      {
+        kind: 'clarify',
+        field: 'date',
+        note: '음력 2026년에는 윤10월이 없어요',
+      },
+    );
+    // 음력 2028년 윤5월 5일 = 2028-06-27
+    expect(normalizeDraftEvent(leapIn(2028, 5), ctx)).toMatchObject({
+      startsAt: '2028-06-27T10:00:00.000Z',
+      lunarInput: true,
+    });
+  });
+
   it('종일: 시각 무시, KST 자정 경계, 여러 날', () => {
     expect(
       normalizeDraftEvent(event({ allDay: true, startTime: '10:00' }), ctx),
