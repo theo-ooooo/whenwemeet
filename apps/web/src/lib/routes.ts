@@ -160,6 +160,16 @@ export function activeTab(pathname: string): "calendar" | "upcoming" | "free" | 
   return screen;
 }
 
+/** (#552, D-295) 위쪽 띠(앱 업데이트 안내, 새 공지)를 그리는 탭 화면: 독 5칸의 첫 화면과 달력 위 일정 상세. ‹ 제목 하위 화면은 아니다 */
+const TAB_SCREENS: readonly Screen[] = ["calendar", "free", "todos", "anniversaries", "team"];
+
+export function isTabScreen(pathname: string): boolean {
+  const info = routeInfo(pathname);
+  if (info.eventDetail) return true;
+  const depth = pathname.split(/[?#]/, 1)[0].split("/").filter(Boolean).length;
+  return info.screen !== null && depth === 1 && TAB_SCREENS.includes(info.screen);
+}
+
 /**
  * 팀을 바꾼 뒤 머물 곳. 화면은 그대로, 다른 팀의 일정을 가리키는 주소(`/events/<코드>`...)와 가져오기 완료 화면만 달력으로.
  * (#276) 다른 팀의 할 일 목록 상세(`/todos/<코드>`)는 목록 화면으로.
