@@ -88,7 +88,7 @@ export default async function EventSharePage({
     const landing = eventShareLandingHref(data.viewer);
     if (!appOpen.show || sp[NO_APP_PARAM] === NO_APP_VALUE) redirect(landing);
     return (
-      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
         <Symbol size={32} />
         <h1 className="mt-auto break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]">이미 함께하는 팀이에요</h1>
         <p className="mt-2 text-[15px] leading-[22px] text-soft">일정이 열린 달력으로 이동해요</p>
@@ -112,7 +112,7 @@ export default async function EventSharePage({
   const repeat = data ? eventShareRepeatLabel(data.event.repeat) : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
       {/* 초대 화면과 같은 짜임: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24 */}
       <Symbol size={32} />
 

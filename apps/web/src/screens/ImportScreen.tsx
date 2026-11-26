@@ -224,7 +224,7 @@ export function ImportScreen() {
           )}
 
           {/* 폰은 독을 숨긴 자리에 넣기 줄을 바닥에 붙인다 (일정 작성과 같다). 본문이 좁으면 달력 아래 바닥에, main-lg 는 왼쪽 조건 아래에서 위에 붙어 따라온다 */}
-          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:mx-0 fold:px-0 main-lg:top-7 main-lg:bottom-auto main-lg:col-start-1 main-lg:row-start-2 main-lg:bg-transparent main-lg:p-0">
+          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+var(--sab))] pt-2 fold:mx-0 fold:px-0 main-lg:top-7 main-lg:bottom-auto main-lg:col-start-1 main-lg:row-start-2 main-lg:bg-transparent main-lg:p-0">
             {error && (
               <p role="alert" className="mb-2 text-[13px] leading-5 text-danger">
                 {error}

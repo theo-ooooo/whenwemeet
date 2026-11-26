@@ -275,7 +275,7 @@ export function FreeScreen() {
 
         {/* (#189) 아래 고정 줄. 폰은 독 위(토스트와 같은 높이 규칙), 넓은 화면은 결과 아래에 붙는다 */}
         {pollMode && (
-          <div className="fixed inset-x-4 bottom-[calc(168px+env(safe-area-inset-bottom))] z-30 dock:bottom-[calc(92px+env(safe-area-inset-bottom))] fold:sticky fold:inset-x-auto fold:bottom-4 fold:mt-3 fold:max-w-[480px]">
+          <div className="fixed inset-x-4 bottom-[calc(168px+var(--sab))] z-30 dock:bottom-[calc(92px+var(--sab))] fold:sticky fold:inset-x-auto fold:bottom-4 fold:mt-3 fold:max-w-[480px]">
             <Button size="xl" full disabled={picked.length < MIN_POLL_OPTIONS} onClick={() => setSheet(true)} className="shadow-[var(--dock-shadow)]">
               {picked.length < MIN_POLL_OPTIONS ? `후보를 ${MIN_POLL_OPTIONS - picked.length}개 더 골라 주세요` : `후보 ${picked.length}개로 투표 만들기`}
             </Button>

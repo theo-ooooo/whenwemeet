@@ -80,7 +80,7 @@ describe("(#552) ScreenHeader 가 폰에서 맨 위 줄을 맡는다", () => {
     const root = container.firstElementChild as HTMLElement;
     expect(root.hasAttribute("data-screen-header")).toBe(true);
     const cls = root.className.split(/\s+/);
-    for (const c of ["sticky", "top-0", "bg-surface", "-mx-5", "px-5", "pt-[calc(4px+env(safe-area-inset-top))]"]) expect(cls).toContain(c);
+    for (const c of ["sticky", "top-0", "bg-surface", "-mx-5", "px-5", "pt-[calc(4px+var(--sat))]"]) expect(cls).toContain(c);
     for (const c of ["fold:static", "fold:mx-0", "fold:px-0", "fold:bg-transparent", "fold:pt-1"]) expect(cls).toContain(c);
   });
 

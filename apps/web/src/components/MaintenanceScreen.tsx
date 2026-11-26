@@ -25,7 +25,7 @@ export function MaintenanceScreen({ from }: { from?: string }) {
 
   return (
     <div className="min-h-dvh bg-[var(--login-bg)]">
-      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]">
+      <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]">
         <Symbol size={40} />
         <div role="alert" className="mt-auto pt-16">
           <span className="inline-flex text-[13px] font-bold text-acc-ink">

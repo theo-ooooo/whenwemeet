@@ -95,7 +95,7 @@ function BottomSheet({ onClose, trigger, title, children }: InnerProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         onKeyDown={onKeyDown}
-        className="anim-sheet relative max-h-[86dvh] w-full fold:max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2"
+        className="anim-sheet relative max-h-[86dvh] w-full fold:max-w-[480px] overflow-y-auto rounded-t-2xl bg-paper px-4 pb-[calc(20px+var(--sab))] pt-2"
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)]" />
         {/* 시트 머리 왼쪽 끝 16 (다른 시트와 같게, #174 L9) */}

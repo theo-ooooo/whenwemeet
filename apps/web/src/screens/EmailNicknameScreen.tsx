@@ -35,7 +35,7 @@ export function EmailNicknameScreen() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+var(--sab))] pt-[max(12px,var(--sat))] lg:pt-6">
       <div className="flex h-8 items-center">
         <Symbol size={32} />
       </div>

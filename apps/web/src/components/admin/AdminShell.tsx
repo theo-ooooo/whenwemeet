@@ -29,7 +29,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const badge = adminBadgeText(open.data?.openTargets);
   return (
     <div className="min-h-dvh bg-surface fold:grid fold:grid-cols-[200px_minmax(0,1fr)]">
-      <header className="pt-[env(safe-area-inset-top)] fold:sticky fold:top-0 fold:h-dvh fold:border-r fold:border-line fold:bg-paper fold:px-3 fold:py-5">
+      <header className="pt-[var(--sat)] fold:sticky fold:top-0 fold:h-dvh fold:border-r fold:border-line fold:bg-paper fold:px-3 fold:py-5">
         <div className="flex h-[52px] items-center gap-2 px-4 fold:h-auto fold:px-2">
           <Link href="/" aria-label="언제볼까 홈" className="hit grid size-[30px] place-items-center rounded-sm">
             <Symbol size={30} />

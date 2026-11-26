@@ -19,7 +19,7 @@ export function LegalPage({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[640px] px-4 pb-16 pt-[max(20px,env(safe-area-inset-top))]">
+    <main className="mx-auto min-h-dvh w-full max-w-[640px] px-4 pb-16 pt-[max(20px,var(--sat))]">
       <Link href="/" className="inline-flex items-center gap-2 rounded-sm px-1.5" aria-label="언제볼까 홈">
         <Symbol size={32} />
       </Link>

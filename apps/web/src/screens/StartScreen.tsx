@@ -40,7 +40,7 @@ export function StartScreen({ groupId, preset, fromCalendar }: Props) {
   if (error && (error.status === 403 || error.status === 404)) return <GroupGone />;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+var(--sab))] pt-[max(12px,var(--sat))] lg:pt-6">
       <div className="flex items-center justify-between">
         <Symbol size={32} />
         {/* 첫 단계는 늘 건너뛸 수 있다. 건너뛰면 달력 위 시작 안내로 한 번 더 */}
