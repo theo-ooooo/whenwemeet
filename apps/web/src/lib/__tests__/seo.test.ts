@@ -30,6 +30,7 @@ describe("sitemap (#413)", () => {
       "https://whenwemeet.day/support",
       "https://whenwemeet.day/terms",
       "https://whenwemeet.day/privacy",
+      "https://whenwemeet.day/policy",
     ]);
   });
 

@@ -246,6 +246,9 @@ export default function WelcomePage() {
               <Link href="/privacy" className="font-bold text-ink no-underline">
                 개인정보처리방침
               </Link>
+              <Link href="/policy" className="no-underline hover:text-ink">
+                운영정책
+              </Link>
             </nav>
           </div>
           <div className="mt-7 flex flex-wrap justify-between gap-2.5 border-t border-line pt-5 text-[13px] text-ink-2">

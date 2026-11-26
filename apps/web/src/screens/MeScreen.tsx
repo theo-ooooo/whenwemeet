@@ -442,6 +442,12 @@ export function MeScreen() {
               <span aria-hidden="true" className="mx-2">
                 |
               </span>
+              <Link href="/policy" className="hit inline-block underline underline-offset-2">
+                운영정책
+              </Link>
+              <span aria-hidden="true" className="mx-2">
+                |
+              </span>
               <Link href="/support" className="hit inline-block underline underline-offset-2">
                 고객 지원
               </Link>

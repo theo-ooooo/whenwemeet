@@ -39,6 +39,12 @@ export function LegalPage({
         <span aria-hidden="true" className="mx-2">
           |
         </span>
+        <Link href="/policy" className="underline underline-offset-2">
+          운영정책
+        </Link>
+        <span aria-hidden="true" className="mx-2">
+          |
+        </span>
         <Link href="/support" className="underline underline-offset-2">
           고객 지원
         </Link>
