@@ -18,6 +18,7 @@ export { useNews } from "./useNews";
 export { useHealth, type Health } from "./useHealth";
 export { useNotificationSettings, useUpdateNotificationSettings } from "./useNotificationSettings";
 export { useWidgetAgenda } from "./useWidgetAgenda";
+export { useDeviceCalendarSource } from "./useDeviceCalendarSource";
 export { useTodoLists, useTodoList, useRefetchOnVisible } from "./useTodos";
 export { useTodoListEditor, isPendingItem } from "./useTodoListEditor";
 export { useEventDraft } from "./useEventDraft";

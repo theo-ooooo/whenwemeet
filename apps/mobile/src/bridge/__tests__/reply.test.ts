@@ -165,3 +165,22 @@ describe("(#198) linkAccount 응답 (앱.md 4.8)", () => {
     expect(script).not.toContain("</script>");
   });
 });
+
+describe("(#549) calendarStatus 응답 스크립트", () => {
+  it("wwm:app 이벤트로 싣는다", () => {
+    const js = buildAppEventScript({
+      v: 1,
+      type: "calendarStatus",
+      id: "c1",
+      permission: "granted",
+      canAskAgain: true,
+      enabled: true,
+      lastSyncedAt: "2026-11-26T03:00:00.000Z",
+      count: 12,
+      failed: false,
+    });
+    expect(js).toContain("wwm:app");
+    expect(js).toContain('"type":"calendarStatus"');
+    expect(js).toContain('"count":12');
+  });
+});

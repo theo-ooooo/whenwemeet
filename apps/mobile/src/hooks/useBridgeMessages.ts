@@ -1,4 +1,4 @@
-// (#478) 웹 → 셸 브리지 메시지 처리 (docs/설계/앱.md 4장, 푸시-알림.md 2-2, #195 카카오톡 공유, #197 위젯, #198 로그인 방법 연결). WebScreen 에서 분리
+// (#478) 웹 → 셸 브리지 메시지 처리 (docs/설계/앱.md 4장, 푸시-알림.md 2-2, #195 카카오톡 공유, #197 위젯, #198 로그인 방법 연결, #549 휴대폰 캘린더). WebScreen 에서 분리
 import { type RefObject, useCallback } from "react";
 import { Linking, Platform, Share } from "react-native";
 import type { WebView, WebViewMessageEvent } from "react-native-webview";
@@ -11,6 +11,13 @@ import { readPushStatus, requestPush } from "../push/notifications";
 import { clearNativeSessions, nativeLinkCredentials } from "../auth/login";
 import { shareKakaoFeed } from "../share/kakao";
 import { clearWidget, publishWidgetSnapshot } from "../widget/native";
+import {
+  calendarStatus,
+  clearDeviceCalendar,
+  disableDeviceCalendar,
+  enableDeviceCalendar,
+  syncDeviceCalendar,
+} from "../device-calendar/native";
 
 type Options = {
   ref: RefObject<WebView<object> | null>;
@@ -46,10 +53,13 @@ export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRef
           void clearNativeSessions();
           // (#197) 이전 사용자 일정이 홈 화면에 남지 않게 위젯을 로그인 안내로
           clearWidget();
+          // (#549) 휴대폰 캘린더의 언제볼까 캘린더도 지운다 (켠 적이 있을 때만)
+          clearDeviceCalendar();
           return;
         case "accountDeleted":
           void clearNativeSessions();
           clearWidget();
+          clearDeviceCalendar();
           onLoginRequested("/");
           return;
         case "share":
@@ -93,6 +103,28 @@ export function useBridgeMessages({ ref, currentUrl, onLoginRequested, onPullRef
           return;
         case "pullRefresh":
           onPullRefreshAllow(msg.allow);
+          return;
+        // (#549) 휴대폰 캘린더 (앱.md 4.9). 기기 캘린더에만 쓰고 서버로 보내지 않는다. 실패하면 답하지 않는다 (웹은 시간 초과로 null)
+        case "calendarSync":
+          syncDeviceCalendar(msg.snapshot, msg.id)
+            .then((r) => {
+              if (r) sendToWeb(r);
+            })
+            .catch((e: unknown) => console.warn("[calendar] 맞추기 실패", e));
+          return;
+        case "calendarSyncEnable":
+        case "calendarSyncDisable":
+        case "calendarSyncStatus":
+          (msg.type === "calendarSyncEnable"
+            ? enableDeviceCalendar(msg.id)
+            : msg.type === "calendarSyncDisable"
+              ? disableDeviceCalendar(msg.id)
+              : calendarStatus(msg.id)
+          )
+            .then((r) => {
+              if (r) sendToWeb(r);
+            })
+            .catch((e: unknown) => console.warn("[calendar]", msg.type, e));
           return;
         // (#198) 로그인 방법 연결 (앱.md 4.8, D-282). 네이티브 로그인 결과만 웹으로. 토큰은 로그에 남기지 않는다
         case "linkAccount": {

@@ -5,11 +5,12 @@
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMegaphone, IconMoon, IconPlus, IconShield, IconSun } from "@/components/icons";
+import { IconBell, IconCalendar, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMegaphone, IconMoon, IconPlus, IconShield, IconSun } from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameForm } from "@/components/NameSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { StartCalendarRow } from "@/components/StartCalendarRow";
+import { useDeviceCalendarSupported } from "@/screens/DeviceCalendarScreen";
 import { useToast } from "@/components/Toast";
 import { Avatar, Button, ErrorState, InlineError, RowGroup, RowLink, Segmented, Sheet, Skeleton, Spinner, inputClass } from "@/components/ui";
 import { useGroupContext } from "@/components/AppShell";
@@ -241,6 +242,7 @@ export function MeScreen() {
   const myColor = group && group.id === groupId ? group.me.color : null;
   const meQ = useMe();
   const groupsQ = useGroups();
+  const deviceCalendar = useDeviceCalendarSupported();
   const me = meQ.data;
   const setMe = meQ.setData;
   const groups = groupsQ.data;
@@ -347,6 +349,8 @@ export function MeScreen() {
               <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
               <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
+              {/* (#549) 휴대폰 캘린더에 일정 쓰기. 휴대폰 캘린더를 아는 앱 셸(1.3.0~)에서만 */}
+              {deviceCalendar && <RowLink href="/me/device-calendar" label="휴대폰 캘린더" icon={<IconCalendar size={18} />} value="" />}
               {/* (#198) 카카오, Apple, 이메일 연결과 해제 (D-257) */}
               <RowLink href="/me/accounts" label="로그인 방법" icon={<IconKey size={18} />} value="" />
             </RowGroup>
