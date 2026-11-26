@@ -51,6 +51,12 @@ describe("PhoneWeekChips (#355)", () => {
     expect(chip.className).toContain("rounded-r-[4px]");
   });
 
+  it("(#566) 음력 표시를 켜면 숫자 아래 음력 한 줄(12px)만큼 칩이 내려간다: 첫 줄 41, 둘째 줄 58", () => {
+    const chips = chipsOf(week("2026-11-08"), [ev("치과", "2026-11-10", "2026-11-10"), ev("헬스", "2026-11-10", "2026-11-10")]);
+    const { container } = render(<PhoneWeekChips chips={chips} lunarRow />);
+    expect([...container.querySelectorAll<HTMLElement>("[data-chip=day]")].map((c) => c.style.top)).toEqual(["41px", "58px"]);
+  });
+
   it("일정 색을 고르면 그 색", () => {
     const { container } = render(<PhoneWeekChips chips={chipsOf(week("2026-11-08"), [ev("헬스", "2026-11-10", "2026-11-10", { color: MEMBER_COLORS[4] })])} />);
     expect(container.querySelector<HTMLElement>("[data-chip=day]")!.style.getPropertyValue("--chip-c")).toBe("var(--m5)");

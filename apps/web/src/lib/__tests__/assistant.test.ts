@@ -11,6 +11,7 @@ import {
   clientSourceOf,
   dailyLimited,
   ddayText,
+  draftLunarText,
   draftWhenText,
   editSource,
   eventEditHref,
@@ -75,6 +76,17 @@ describe("카드 → 저장 본문", () => {
   it("일정 [추가]: 제목, 시각, 참여자, 직접 적은 장소. 알림은 싣지 않는다", () => {
     expect(eventInputOf(draft)).toEqual({ title: "강남 회식", startsAt: draft.startsAt, endsAt: draft.endsAt, allDay: false, participants: [1, 2], place: { text: "강남" } });
     expect(eventInputOf({ ...draft, place: null })).not.toHaveProperty("place");
+  });
+
+  it("(#566) 음력으로 말한 초안: 본문 lunarInput, 카드 둘째 줄 음력, [고치기] 는 lunar=1", () => {
+    // 2026-11-24 = 음력 10월 16일
+    const lunar = { ...draft, startsAt: kst("2026-11-24T19:00"), endsAt: kst("2026-11-24T20:00"), lunarInput: true };
+    expect(eventInputOf(lunar)).toMatchObject({ lunarInput: true });
+    expect(eventInputOf(draft)).not.toHaveProperty("lunarInput");
+    expect(draftLunarText(lunar)).toBe("음력 10월 16일");
+    expect(draftLunarText(draft)).toBeNull();
+    expect(new URL(eventEditHref(lunar), "http://x").searchParams.get("lunar")).toBe("1");
+    expect(new URL(eventEditHref(draft), "http://x").searchParams.has("lunar")).toBe(false);
   });
 
   it("투표 [투표 열기]: 제목, 후보, 대상 (마감 없음)", () => {

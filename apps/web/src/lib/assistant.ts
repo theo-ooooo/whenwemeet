@@ -5,6 +5,7 @@
 // - 카드 글자 (날짜 시각 한 줄, 빈 시간 조건 한 줄), 예시 문장
 // - (#511) 고치기, 지우기 카드 → PATCH 본문과 범위, 고르기 후보 → 확인 카드 (D-283)
 import { addDays, clockRangeText, clockText, dateKeyOf, formatDateKo, formatMinutes, kstToIso, type DateKey } from "./date";
+import { lunarLabelOf } from "./lunar";
 import { newEventHref } from "./routes";
 import type { Event, EventInput, EventPatchInput, EventScope, Member, PollInput, PollOptionInput } from "./types";
 
@@ -24,6 +25,8 @@ export type EventDraftCard = {
   place: { text: string } | null;
   participants: number[];
   members: Member[];
+  /** (#566) "음력 3월 15일" 로 말한 날짜면 true (D-298). 카드에 음력 날짜를 같이 보이고 저장도 음력 입력으로 */
+  lunarInput?: boolean;
 };
 
 export type FreeQuery = {
@@ -152,6 +155,7 @@ export function buildHistory(messages: readonly ChatMessage[]): AssistantTurn[] 
 export function eventInputOf(d: EventDraftCard): EventInput {
   const input: EventInput = { title: d.title, startsAt: d.startsAt, endsAt: d.endsAt, allDay: d.allDay, participants: [...d.participants] };
   if (d.place?.text.trim()) input.place = { text: d.place.text.trim() };
+  if (d.lunarInput) input.lunarInput = true;
   return input;
 }
 
@@ -197,7 +201,7 @@ export const FROM_ASSISTANT = "assistant";
  * 일정 [고치기] 주소 `/events/new?title&start&end&allDay&participants&place&from=assistant` (D-273).
  * 종일은 폼이 시작, 끝 날짜를 읽게 시작 날 10:00, 마지막 날 11:00 으로 넘긴다 (빠른 추가 "자세히" 와 같은 방식)
  */
-export function eventEditHref(d: Pick<EventDraftCard, "title" | "startsAt" | "endsAt" | "allDay" | "participants" | "place">): string {
+export function eventEditHref(d: Pick<EventDraftCard, "title" | "startsAt" | "endsAt" | "allDay" | "participants" | "place" | "lunarInput">): string {
   const first = dateKeyOf(d.startsAt);
   const last = d.allDay ? addDays(dateKeyOf(d.endsAt), -1) : null;
   const q: Record<string, string> = {
@@ -208,6 +212,8 @@ export function eventEditHref(d: Pick<EventDraftCard, "title" | "startsAt" | "en
   if (d.allDay) q.allDay = "1";
   if (d.participants.length) q.participants = d.participants.join(",");
   if (d.place?.text.trim()) q.place = d.place.text.trim();
+  // (#566) 음력으로 말한 초안은 폼을 음력으로 연다
+  if (d.lunarInput) q.lunar = "1";
   q.from = FROM_ASSISTANT;
   return newEventHref(q);
 }
@@ -284,6 +290,11 @@ export function participantsParam(raw: string | null | undefined): number[] | nu
 }
 
 /* ---------- 카드 글자 ---------- */
+
+/** (#566) 음력으로 말한 초안의 둘째 줄 "음력 3월 15일" (시작 날짜의 음력). 아니면 null */
+export function draftLunarText(d: Pick<EventDraftCard, "startsAt" | "lunarInput">): string | null {
+  return d.lunarInput ? lunarLabelOf(dateKeyOf(d.startsAt)) : null;
+}
 
 /** 일정 초안 날짜 시각 한 줄: "11월 27일 (금) 오후 7:00 ~ 8:00", 종일 "11월 27일 (금) 하루 종일", 여러 날 종일 "11월 27일 (금) ~ 11월 29일 (일)" */
 export function draftWhenText(d: Pick<EventDraftCard, "startsAt" | "endsAt" | "allDay">): string {

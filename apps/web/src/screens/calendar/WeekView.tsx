@@ -14,6 +14,7 @@ import { weekRowTarget } from "@/lib/calendar-keys";
 import { groupByDay } from "@/lib/day-detail";
 import { dowOf, formatDateKo, formatEventTime, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
+import { lunarCellText } from "@/lib/lunar";
 import { fitWeek, packWeek, type BarPiece } from "@/lib/month-lanes";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import type { Event } from "@/lib/types";
@@ -53,6 +54,8 @@ type Props = {
   eventsError: string | null;
   onRetry: () => void;
   annByDay: ReadonlyMap<DateKey, Occurrence[]>;
+  /** (#566) 날짜 머리에 음력 한 줄 (내 정보 "달력에 음력 표시") */
+  showLunar?: boolean;
   /** 날짜 상세가 보여 주는 날 (머리에 선택 원) */
   anchor: DateKey | null;
   free: WeekFree;
@@ -70,7 +73,7 @@ const HOUR_PX = { wide: 48, phone: 40 };
 const GUTTER = 44;
 
 export function WeekView(props: Props) {
-  const { days, today, wide, events, eventsError, onRetry, annByDay, anchor, free, newHref, swipeRef, onOpenDay, onOpenEvent, onAdd } = props;
+  const { days, today, wide, events, eventsError, onRetry, annByDay, showLunar = false, anchor, free, newHref, swipeRef, onOpenDay, onOpenEvent, onAdd } = props;
   const hourPx = wide ? HOUR_PX.wide : HOUR_PX.phone;
   const rowPx = wide ? ALL_DAY_ROW.wide : ALL_DAY_ROW.phone;
   const who = useWho();
@@ -186,6 +189,8 @@ export function WeekView(props: Props) {
             anchor={anchor === d}
             tabbable={d === headKey}
             ann={annByDay.get(d) ?? []}
+            lunar={showLunar ? lunarCellText(d) : null}
+            showLunar={showLunar}
             wide={wide}
             onFocus={() => setHeadFocus(d)}
             onOpen={() => onOpenDay(d)}
@@ -298,13 +303,18 @@ export function WeekView(props: Props) {
   );
 }
 
-/** 날짜 머리 칸: 요일 11 + 날짜 숫자, 아래 기념일(하트) 또는 공휴일 이름 한 줄 (월 칸과 같은 우선순위, D-61) */
+/**
+ * 날짜 머리 칸: 요일 11 + 날짜 숫자, 아래 기념일(하트) 또는 공휴일 이름 한 줄 (월 칸과 같은 우선순위, D-61).
+ * (#566) 음력 표시를 켜면 숫자 아래 "10.6" 한 줄(10px, 넓은 화면 11px, 월 칸과 같은 색)
+ */
 function DayHead({
   date,
   today,
   anchor,
   tabbable,
   ann,
+  lunar,
+  showLunar,
   wide,
   onFocus,
   onOpen,
@@ -314,6 +324,8 @@ function DayHead({
   anchor: boolean;
   tabbable: boolean;
   ann: Occurrence[];
+  lunar: ReturnType<typeof lunarCellText>;
+  showLunar: boolean;
   wide: boolean;
   onFocus: () => void;
   onOpen: () => void;
@@ -325,7 +337,7 @@ function DayHead({
   const first = ann[0] ?? null;
   const annText = first ? occurrenceCellText(first) : null;
   const holidayText = first ? null : holiday;
-  const label = `${formatDateKo(date, true)}${holiday ? `, ${holiday}` : ""}${ann.length ? `, 기념일 ${ann.map(occurrenceTitle).join(", ")}` : ""}${isToday ? ", 오늘" : ""}`;
+  const label = `${formatDateKo(date, true)}${lunar ? `, ${lunar.label}` : ""}${holiday ? `, ${holiday}` : ""}${ann.length ? `, 기념일 ${ann.map(occurrenceTitle).join(", ")}` : ""}${isToday ? ", 오늘" : ""}`;
   const num = anchor ? "bg-sel-fill text-on-pri" : isToday ? "text-today-ink" : red ? "text-holiday" : "";
   return (
     <button
@@ -345,6 +357,14 @@ function DayHead({
       <span aria-hidden="true" className={`anim-pick grid size-[26px] place-items-center rounded-full text-[14px] leading-none font-bold ${num}`}>
         {parseKey(date).d}
       </span>
+      {showLunar && (
+        <span
+          aria-hidden="true"
+          className={`h-3 text-[10px] leading-3 tracking-[-0.02em] whitespace-nowrap tabular-nums fold:h-3.5 fold:text-[11px] fold:leading-3.5 ${lunar?.first ? "font-bold text-soft" : "font-medium text-ink-2"}`}
+        >
+          {lunar?.text}
+        </span>
+      )}
       <span aria-hidden="true" className={`flex h-3.5 max-w-full min-w-0 items-center gap-0.5 text-[10px] leading-3.5 font-semibold ${annText ? "text-acc-ink" : "text-holiday"}`}>
         {annText && <IconHeart size={wide ? 10 : 8} className="shrink-0" />}
         <span className="truncate">{annText ?? holidayText ?? ""}</span>

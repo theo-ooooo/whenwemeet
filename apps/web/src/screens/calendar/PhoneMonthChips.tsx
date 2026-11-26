@@ -13,9 +13,11 @@ const CHIP_H = 15;
 const CHIP_GAP = 2;
 /** 주 줄 위에서 첫 줄까지: 칸 위 테두리 1 + 위 여백 4 + 날짜 숫자 22 + 2 */
 const FIRST_TOP = 29;
+/** (#566) 음력 표시를 켜면 숫자 아래 음력 한 줄(10px 글자, 줄 높이 12)만큼 칩을 내린다. 칸도 104 → 116 (DayCell) */
+const PHONE_LUNAR_ROW = 12;
 const FADE_END = "linear-gradient(90deg, #000 calc(100% - 8px), transparent)";
 
-function PhoneChipView({ chip }: { chip: PhoneChip<Event> }) {
+function PhoneChipView({ chip, top0 }: { chip: PhoneChip<Event>; top0: number }) {
   const color = chipColor(chip.event);
   // 진짜 시작, 끝만 칸 안쪽 1px 에서 둥글게. 앞 주에서 이어지거나 다음 주로 넘어가는 쪽은 칸 끝까지 각지게
   const l = chip.roundStart ? 1 : 0;
@@ -29,7 +31,7 @@ function PhoneChipView({ chip }: { chip: PhoneChip<Event> }) {
       style={
         {
           "--chip-c": color,
-          top: FIRST_TOP + chip.lane * (CHIP_H + CHIP_GAP),
+          top: top0 + chip.lane * (CHIP_H + CHIP_GAP),
           height: CHIP_H,
           lineHeight: `${CHIP_H}px`,
           left: `calc(${chip.col} * 100% / 7 + ${l}px)`,
@@ -45,11 +47,12 @@ function PhoneChipView({ chip }: { chip: PhoneChip<Event> }) {
 }
 
 /** 한 주 줄(칸 7개 위에 겹친 칸) 의 칩들 */
-export function PhoneWeekChips({ chips }: { chips: readonly PhoneChip<Event>[] }) {
+export function PhoneWeekChips({ chips, lunarRow = false }: { chips: readonly PhoneChip<Event>[]; lunarRow?: boolean }) {
+  const top0 = FIRST_TOP + (lunarRow ? PHONE_LUNAR_ROW : 0);
   return (
     <div className="relative">
       {chips.map((c) => (
-        <PhoneChipView key={`${c.key}@${c.col}`} chip={c} />
+        <PhoneChipView key={`${c.key}@${c.col}`} chip={c} top0={top0} />
       ))}
     </div>
   );

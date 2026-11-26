@@ -282,6 +282,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
       members={members}
       now={now}
       onAddAt={(ms) => addAt(surfaceDate, ms)}
+      showLunar={showLunar}
     />
   ) : null;
   // 날짜 단계만 "이 날 일정 추가" 를 표면 바닥에 고정한다 (#175, #331). 빠른 추가, 상세는 자기 버튼이 있다.
@@ -321,6 +322,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
           onOpenEvent={(ev) => forward(eventStep(surfaceDate, ev))}
           onAdd={() => addPlain(surfaceDate)}
           onAddAt={(ms) => addAt(surfaceDate, ms)}
+          showLunar={showLunar}
         />
       )}
       {/* 왼쪽: 월 헤더 + 달력. (#331) 이 칸도 컨테이너 main 이라 안쪽 main-* 변형(좁은 제목줄, 요약 카드 3열/세로)은
@@ -377,6 +379,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             eventsError={eventsError}
             onRetry={reload}
             annByDay={annByDay}
+            showLunar={showLunar}
             anchor={wide && surfaceDate ? surfaceDate : null}
             free={{
               on: showFree,
