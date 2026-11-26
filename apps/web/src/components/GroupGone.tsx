@@ -16,7 +16,7 @@ export function GroupGone() {
       <title>{`${TITLE} | 언제볼까`}</title>
       <main
         role="alert"
-        className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))]"
+        className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))]"
       >
         <Symbol size={40} />
         <div className="mt-auto pt-16">

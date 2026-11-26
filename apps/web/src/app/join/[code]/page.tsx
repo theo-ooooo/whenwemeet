@@ -95,7 +95,7 @@ export default async function JoinPage({
   const inviter = data && inviterName(data);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+env(safe-area-inset-bottom))] pt-[max(60px,env(safe-area-inset-top))] fold:justify-center fold:py-16">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(34px+var(--sab))] pt-[max(60px,var(--sat))] fold:justify-center fold:py-16">
       {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 28/36, 좌우 24. 브랜드 크기 제목은 로그인만 (#174 L4) */}
       {/* (#429) 폰(<600)은 로고 위, 내용과 버튼은 엄지 닿는 아래(mt-auto). fold 이상은 화면이 커서 위아래로 갈라지면 가운데가
           절반 넘게 빈다. 로고와 내용을 한 덩어리(로고 아래 48)로 묶어 세로 가운데에 둔다 */}

@@ -127,7 +127,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function Ass
     <div
       className={
         variant === "screen"
-          ? "sticky bottom-0 -mx-5 mt-4 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:mx-0 fold:px-0"
+          ? "sticky bottom-0 -mx-5 mt-4 bg-surface px-5 pb-[calc(12px+var(--sab))] pt-2 fold:mx-0 fold:px-0"
           : "shrink-0 border-t border-line px-4 py-3"
       }
     >
@@ -208,7 +208,7 @@ export const AssistantChat = forwardRef<AssistantChatHandle, Props>(function Ass
       </p>
       {variant === "screen" ? (
         // 입력 줄이 화면 바닥에 오게 남은 높이를 채운다: 폰 머리줄 52 + 볼까 머리줄 48 + 본문 아래 여백 24 (넓은 화면은 위아래 28 + 머리줄 48)
-        <div className="flex min-h-[calc(100dvh-124px-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col fold:min-h-[calc(100dvh-104px)]">
+        <div className="flex min-h-[calc(100dvh-124px-var(--sat)-var(--sab))] flex-col fold:min-h-[calc(100dvh-104px)]">
           <div className="flex-1 pb-2">{body}</div>
           <div ref={end} />
           {footer}

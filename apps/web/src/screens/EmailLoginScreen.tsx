@@ -66,7 +66,7 @@ export function EmailLoginScreen({ next, entryError }: { next: string; entryErro
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] lg:pt-6">
+    <main className="mx-auto flex min-h-dvh w-full fold:max-w-[480px] flex-col px-6 pb-[calc(24px+var(--sab))] pt-[max(12px,var(--sat))] lg:pt-6">
       <div className="flex h-8 items-center">
         {/* 진입 화면 공통: 바탕 --bg, 로고 32, 제목 24/700, 좌우 24 (#174 L4) */}
         <Symbol size={32} />

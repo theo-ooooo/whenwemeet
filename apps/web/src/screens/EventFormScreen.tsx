@@ -226,7 +226,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
           )}
 
           {/* 저장 줄: 폰은 바닥에 붙는다(독은 폼 화면에서 숨김 #137). 넓은 화면은 내용 바로 아래 */}
-          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+env(safe-area-inset-bottom))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1">
+          <div className="sticky bottom-0 z-10 -mx-5 bg-surface px-5 pb-[calc(12px+var(--sab))] pt-2 fold:static fold:mx-0 fold:bg-transparent fold:px-0 fold:pb-0 fold:pt-1">
             <Button type="submit" size="xl" full disabled={!canSave} loading={saving}>
               {editing ? "저장" : "추가"}
             </Button>

@@ -62,7 +62,7 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl ${tone === "bg" ? "bg-surface" : "bg-paper"} px-4 pb-[calc(24px+env(safe-area-inset-bottom))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]`}
+        className={`anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl ${tone === "bg" ? "bg-surface" : "bg-paper"} px-4 pb-[calc(24px+var(--sab))] pt-2 outline-none lg:max-w-[400px] lg:rounded-lg lg:border lg:border-line lg:pb-5 lg:pt-3 lg:shadow-[var(--pop-shadow)]`}
       >
         <div aria-hidden="true" className="mx-auto mb-2 h-1 w-9 rounded-full bg-[var(--grab)] lg:hidden" />
         <SheetHeader titleId={titleId} title={title} onClose={onClose} />

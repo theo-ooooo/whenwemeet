@@ -154,7 +154,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
           {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
               글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3).
               (#552, D-295) ‹ 제목 하위 화면(ScreenHeader)에서는 숨긴다. 그 화면의 머리줄이 안전 영역을 갖는다 (globals.css) */}
-          <header data-app-topbar="" className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
+          <header data-app-topbar="" className="flex h-[calc(52px+var(--sat))] items-center pl-5 pr-3 pt-[var(--sat)] fold:hidden">
             <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
               <Symbol size={30} />
             </Link>
@@ -208,7 +208,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             // 사이드바를 72 레일로 접든 264 로 펼치든 화면이 실제로 받은 폭으로 1단/2단을 고른다
             className={`@container/main min-w-0 flex-1 px-5 ${
               isForm
-                ? "pb-[calc(24px+env(safe-area-inset-bottom))]"
+                ? "pb-[calc(24px+var(--sab))]"
                 : "pb-dock"
             } fold:px-8 fold:py-7 ${
               isCalendar ? "" : "fold:w-full fold:min-w-0"
@@ -234,7 +234,7 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             (#332, D-212) 독이 5칸이라 + 와 한 줄에 칸 44 다섯 + 이름 칩이 들어가는 폭은 390 부터다(dock 구간).
             그보다 좁으면(360, 320) 독이 줄 폭을 다 쓰고 + 는 독 위 오른쪽에 12 띄워 얹는다. 빈 왼쪽은 아래 본문을 누를 수 있게 둔다 */}
         <div
-          className={`pointer-events-none fixed inset-x-4 bottom-[calc(16px+env(safe-area-inset-bottom))] z-30 flex-col-reverse items-end gap-3 dock:flex-row dock:items-center dock:gap-2 fold:hidden ${
+          className={`pointer-events-none fixed inset-x-4 bottom-[calc(16px+var(--sab))] z-30 flex-col-reverse items-end gap-3 dock:flex-row dock:items-center dock:gap-2 fold:hidden ${
             isForm ? "hidden" : "flex"
           }`}
         >

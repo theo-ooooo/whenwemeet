@@ -72,7 +72,7 @@ export function AppUpdateRequired({ release, version }: { release: AppRelease; v
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl bg-paper px-6 pb-[calc(24px+env(safe-area-inset-bottom))] pt-8 text-center outline-none lg:max-w-[400px] lg:rounded-2xl lg:border lg:border-line lg:pb-6 lg:shadow-[var(--pop-shadow)]"
+        className="anim-sheet relative w-full fold:max-w-[480px] rounded-t-2xl bg-paper px-6 pb-[calc(24px+var(--sab))] pt-8 text-center outline-none lg:max-w-[400px] lg:rounded-2xl lg:border lg:border-line lg:pb-6 lg:shadow-[var(--pop-shadow)]"
       >
         <span
           aria-hidden="true"
