@@ -4,13 +4,37 @@
  * 판정과 계산은 순수 함수로 두고 `WeeklyPlanner` 는 데이터만 모은다
  */
 import { Injectable } from '@nestjs/common';
-import { addDays, DAY_MS, expand, KST_OFFSET_MS, kstDate, kstMidnight } from '../events/recurrence.js';
+import {
+  addDays,
+  DAY_MS,
+  expand,
+  KST_OFFSET_MS,
+  kstDate,
+  kstMidnight,
+} from '../events/recurrence.js';
 import { isBusyForAny } from '../free-slots/participants.js';
-import { clampFromToNow, findFreeSlots, type Interval } from '../free-slots/slots.js';
-import { anniversaryItemsOn, type AnniversaryItemType, type AnniversaryLike } from './anniversary-items.js';
-import { type PushPayload, type WeeklyItem, type WeeklyVariant, weeklyNudgePayload, weeklySummaryPayload } from './push-copy.js';
+import {
+  clampFromToNow,
+  findFreeSlots,
+  type Interval,
+} from '../free-slots/slots.js';
+import {
+  anniversaryItemsOn,
+  type AnniversaryItemType,
+  type AnniversaryLike,
+} from './anniversary-items.js';
+import {
+  type PushPayload,
+  type WeeklyItem,
+  type WeeklyVariant,
+  weeklyNudgePayload,
+  weeklySummaryPayload,
+} from './push-copy.js';
 import { PushLeaseRepository } from './push-lease.repository.js';
-import { type PlannedWeekly, PushNotificationsRepository } from './push-notifications.repository.js';
+import {
+  type PlannedWeekly,
+  PushNotificationsRepository,
+} from './push-notifications.repository.js';
 import {
   PushPlanningRepository,
   type WeeklyBusyRow,
@@ -37,7 +61,11 @@ export const NUDGE_STOP_DAYS = 90;
 export const NUDGE_COOLDOWN_DAYS = 21;
 export const NUDGE_MIN_MEMBERS = 2;
 /** 빈 시간 찾기 조건: 09:00 ~ 23:00, 최소 2시간, 종일 일정 제외 (D-12) */
-export const NUDGE_SLOT = { dayStartMin: 9 * 60, dayEndMin: 23 * 60, minMinutes: 120 } as const;
+export const NUDGE_SLOT = {
+  dayStartMin: 9 * 60,
+  dayEndMin: 23 * 60,
+  minMinutes: 120,
+} as const;
 
 /** KST 요일 번호 (0 일요일 ~ 6 토요일) */
 const kstDow = (date: string) => new Date(`${date}T00:00:00.000Z`).getUTCDay();
@@ -47,7 +75,9 @@ export function weeklyDue(now: Date, doneOn: string | null): string | null {
   const today = kstDate(now);
   if (kstDow(today) !== 1 || doneOn === today) return null;
   const hour = ((now.getTime() + KST_OFFSET_MS) % DAY_MS) / HOUR_MS;
-  return hour >= WEEKLY_HOUR_KST && hour < WEEKLY_PLAN_UNTIL_HOUR_KST ? today : null;
+  return hour >= WEEKLY_HOUR_KST && hour < WEEKLY_PLAN_UNTIL_HOUR_KST
+    ? today
+    : null;
 }
 
 /** "이번 주" = 월요일 00:00 ~ 다음 월요일 00:00 KST */
@@ -56,7 +86,8 @@ export function weekRange(monday: string): { from: Date; to: Date } {
 }
 
 /** 그 월요일 09:00 KST */
-export const weeklySendAt = (monday: string): Date => new Date(`${monday}T00:00:00.000Z`);
+export const weeklySendAt = (monday: string): Date =>
+  new Date(`${monday}T00:00:00.000Z`);
 
 /** dedupeKey 에서 월요일을 읽는다 ('W:{groupId}:{월요일}') */
 export function mondayOfKey(dedupeKey: string): string | null {
@@ -65,7 +96,10 @@ export function mondayOfKey(dedupeKey: string): string | null {
 }
 
 /** 팀마다 1건 (접근 A). 문구는 펼칠 때 */
-export function planWeekly(groupIds: number[], monday: string): PlannedWeekly[] {
+export function planWeekly(
+  groupIds: number[],
+  monday: string,
+): PlannedWeekly[] {
   const base = weeklySendAt(monday).getTime();
   return groupIds.map((groupId) => ({
     kind: 'WEEKLY',
@@ -86,29 +120,58 @@ export interface WeeklyOccurrence {
  * 팀 일정 회차 중 [from, to) 와 겹치는 것, 시작 순. 반복은 펼치고 취소 회차는 뺀다 (recurrence.expand).
  * 여러 날 일정은 이어져도 1개. 참여자(#248)와 무관하게 팀 전체
  */
-export function weekOccurrences(once: WeeklyEventRow[], series: WeeklySeriesRow[], from: Date, to: Date): WeeklyOccurrence[] {
+export function weekOccurrences(
+  once: WeeklyEventRow[],
+  series: WeeklySeriesRow[],
+  from: Date,
+  to: Date,
+): WeeklyOccurrence[] {
   const fromMs = from.getTime();
   const toMs = to.getTime();
   const all: WeeklyOccurrence[] = once
-    .filter((row) => row.startsAt.getTime() < toMs && row.endsAt.getTime() > fromMs)
+    .filter(
+      (row) => row.startsAt.getTime() < toMs && row.endsAt.getTime() > fromMs,
+    )
     .map(({ title, startsAt, endsAt }) => ({ title, startsAt, endsAt }));
   for (const row of series) {
     for (const occurrence of expand(row, row.exceptions, from, to)) {
-      all.push({ title: occurrence.title ?? row.title, startsAt: occurrence.startsAt, endsAt: occurrence.endsAt });
+      all.push({
+        title: occurrence.title ?? row.title,
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+      });
     }
   }
-  return all.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.title.localeCompare(b.title));
+  return all.sort(
+    (a, b) =>
+      a.startsAt.getTime() - b.startsAt.getTime() ||
+      a.title.localeCompare(b.title),
+  );
 }
 
 /** 요약 문구 줄: 시작을 이번 주 안으로 자른다 (지난주부터 이어지면 월요일) */
-export function summaryItems(occurrences: WeeklyOccurrence[], from: Date): WeeklyItem[] {
-  return occurrences.slice(0, 2).map((o) => ({ title: o.title, startsAt: new Date(Math.max(o.startsAt.getTime(), from.getTime())) }));
+export function summaryItems(
+  occurrences: WeeklyOccurrence[],
+  from: Date,
+): WeeklyItem[] {
+  return occurrences.slice(0, 2).map((o) => ({
+    title: o.title,
+    startsAt: new Date(Math.max(o.startsAt.getTime(), from.getTime())),
+  }));
 }
 
-const RANK: Record<AnniversaryItemType, number> = { YEARS: 0, DAYS: 1, YEARLY: 2, ORIGINAL: 2 };
+const RANK: Record<AnniversaryItemType, number> = {
+  YEARS: 0,
+  DAYS: 1,
+  YEARLY: 2,
+  ORIGINAL: 2,
+};
 
 /** 이번 주 첫 날의 기념일 항목 하나 (그날 안에서는 D-92 우선순위). 알림 시점 설정과 무관 */
-export function weekAnniversary(anniversaries: (AnniversaryLike & { name: string })[], monday: string): { date: string; title: string } | null {
+export function weekAnniversary(
+  anniversaries: (AnniversaryLike & { name: string })[],
+  monday: string,
+): { date: string; title: string } | null {
   for (let offset = 0; offset < 7; offset += 1) {
     const date = addDays(monday, offset);
     let best: { rank: number; title: string } | null = null;
@@ -116,7 +179,11 @@ export function weekAnniversary(anniversaries: (AnniversaryLike & { name: string
       const [first] = anniversaryItemsOn(a, date);
       if (!first) continue;
       const rank = RANK[first.type];
-      if (!best || rank < best.rank) best = { rank, title: first.label ? `${a.name} ${first.label}` : a.name };
+      if (!best || rank < best.rank)
+        best = {
+          rank,
+          title: first.label ? `${a.name} ${first.label}` : a.name,
+        };
     }
     if (best) return { date, title: best.title };
   }
@@ -141,15 +208,23 @@ export interface NudgeFacts {
 /** 빈 시간 계산 전 깨우기 조건 (D-205). 모두 만족하면 true */
 export function nudgeEligible(facts: NudgeFacts, now: Date): boolean {
   const ago = (days: number) => now.getTime() - days * DAY_MS;
-  if (facts.type !== 'TEAM' || facts.memberCount < NUDGE_MIN_MEMBERS) return false;
+  if (facts.type !== 'TEAM' || facts.memberCount < NUDGE_MIN_MEMBERS)
+    return false;
   if (facts.groupCreatedAt.getTime() > ago(NUDGE_QUIET_DAYS)) return false;
   if (facts.recentOccurrences > 0 || facts.recentCreated > 0) return false;
   if (facts.nudgedRecently) return false;
-  return (facts.lastCreatedAt ?? facts.groupCreatedAt).getTime() > ago(NUDGE_STOP_DAYS);
+  return (
+    (facts.lastCreatedAt ?? facts.groupCreatedAt).getTime() >
+    ago(NUDGE_STOP_DAYS)
+  );
 }
 
 /** 회차 수와 깨우기 사실, 빈 시간 수로 변형을 고른다. null 이면 보내지 않음 (CANCELLED) */
-export function decideWeekly(count: number, eligible: boolean, freeSlots: number): WeeklyVariant | null {
+export function decideWeekly(
+  count: number,
+  eligible: boolean,
+  freeSlots: number,
+): WeeklyVariant | null {
   if (count >= 1) return 'SUMMARY';
   return eligible && freeSlots >= 1 ? 'NUDGE' : null;
 }
@@ -158,13 +233,24 @@ export function decideWeekly(count: number, eligible: boolean, freeSlots: number
  * 깨우기 빈 시간 (빈 시간 찾기와 같은 규칙: 멤버들의 모든 팀 일정, #248 참여자, 종일 제외).
  * from 은 지금을 30분 경계로 올린 시각 (D-30)
  */
-export function nudgeSlots(busy: { once: WeeklyBusyRow[]; series: WeeklyBusySeries[] }, memberIds: number[], from: Date, to: Date): Interval[] {
+export function nudgeSlots(
+  busy: { once: WeeklyBusyRow[]; series: WeeklyBusySeries[] },
+  memberIds: number[],
+  from: Date,
+  to: Date,
+): Interval[] {
   const members = new Set(memberIds);
-  const ranges: Interval[] = busy.once.filter((row) => isBusyForAny(row, members)).map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));
+  const ranges: Interval[] = busy.once
+    .filter((row) => isBusyForAny(row, members))
+    .map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));
   for (const row of busy.series) {
     if (!isBusyForAny(row, members)) continue;
     for (const occurrence of expand(row, row.exceptions, from, to)) {
-      if (!occurrence.allDay) ranges.push({ startsAt: occurrence.startsAt, endsAt: occurrence.endsAt });
+      if (!occurrence.allDay)
+        ranges.push({
+          startsAt: occurrence.startsAt,
+          endsAt: occurrence.endsAt,
+        });
     }
   }
   ranges.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
@@ -189,20 +275,29 @@ export class WeeklyPlanner {
   async plan(now: Date): Promise<number> {
     const monday = weeklyDue(now, await this.leases.getWeeklyDoneOn());
     if (!monday) return 0;
-    const created = await this.notifications.createNotifications(planWeekly(await this.planning.listWeeklyGroupIds(), monday));
+    const created = await this.notifications.createNotifications(
+      planWeekly(await this.planning.listWeeklyGroupIds(), monday),
+    );
     await this.leases.setWeeklyDoneOn(monday);
     return created;
   }
 
   /** 펼치는 순간의 DB 로 변형과 문구를 정한다. 팀이 없거나 보낼 것이 없으면 null */
-  async build(groupId: number, monday: string, now: Date): Promise<WeeklyBuild | null> {
+  async build(
+    groupId: number,
+    monday: string,
+    now: Date,
+  ): Promise<WeeklyBuild | null> {
     const group = await this.planning.findWeeklyGroup(groupId);
     if (!group) return null;
     const { from, to } = weekRange(monday);
     const events = await this.planning.listWeeklyEvents(groupId, from, to);
     const occurrences = weekOccurrences(events.once, events.series, from, to);
     if (occurrences.length > 0) {
-      const anniversary = weekAnniversary(await this.planning.listGroupAnniversaries(groupId), monday);
+      const anniversary = weekAnniversary(
+        await this.planning.listGroupAnniversaries(groupId),
+        monday,
+      );
       return {
         variant: 'SUMMARY',
         payload: weeklySummaryPayload({
@@ -218,26 +313,69 @@ export class WeeklyPlanner {
     if (!(await this.nudgeEligible(group, groupId, monday, now))) return null;
     const slotFrom = clampFromToNow(from, now);
     if (slotFrom.getTime() >= to.getTime()) return null;
-    const slots = nudgeSlots(await this.planning.listWeeklyBusy(group.memberIds, slotFrom, to), group.memberIds, slotFrom, to);
+    const slots = nudgeSlots(
+      await this.planning.listWeeklyBusy(group.memberIds, slotFrom, to),
+      group.memberIds,
+      slotFrom,
+      to,
+    );
     if (decideWeekly(0, true, slots.length) !== 'NUDGE') return null;
-    return { variant: 'NUDGE', payload: weeklyNudgePayload({ groupName: group.name, groupCode: group.publicCode, monday, slots }) };
+    return {
+      variant: 'NUDGE',
+      payload: weeklyNudgePayload({
+        groupName: group.name,
+        groupCode: group.publicCode,
+        monday,
+        slots,
+      }),
+    };
   }
 
   /** 싼 조건부터 본다 (개인 팀, 멤버 수, 생성 14일은 쿼리 없이) */
-  private async nudgeEligible(group: WeeklyGroup, groupId: number, monday: string, now: Date): Promise<boolean> {
-    const base = { type: group.type, memberCount: group.memberIds.length, groupCreatedAt: group.createdAt };
-    const cheap: NudgeFacts = { ...base, recentOccurrences: 0, recentCreated: 0, lastCreatedAt: now, nudgedRecently: false };
+  private async nudgeEligible(
+    group: WeeklyGroup,
+    groupId: number,
+    monday: string,
+    now: Date,
+  ): Promise<boolean> {
+    const base = {
+      type: group.type,
+      memberCount: group.memberIds.length,
+      groupCreatedAt: group.createdAt,
+    };
+    const cheap: NudgeFacts = {
+      ...base,
+      recentOccurrences: 0,
+      recentCreated: 0,
+      lastCreatedAt: now,
+      nudgedRecently: false,
+    };
     if (!nudgeEligible(cheap, now)) return false;
     const quietFrom = kstMidnight(addDays(monday, -NUDGE_QUIET_DAYS));
     const { from } = weekRange(monday);
-    const recent = await this.planning.listWeeklyEvents(groupId, quietFrom, from);
+    const recent = await this.planning.listWeeklyEvents(
+      groupId,
+      quietFrom,
+      from,
+    );
     return nudgeEligible(
       {
         ...base,
-        recentOccurrences: weekOccurrences(recent.once, recent.series, quietFrom, from).length,
-        recentCreated: await this.planning.countCreatedLogsSince(groupId, new Date(now.getTime() - NUDGE_QUIET_DAYS * DAY_MS)),
+        recentOccurrences: weekOccurrences(
+          recent.once,
+          recent.series,
+          quietFrom,
+          from,
+        ).length,
+        recentCreated: await this.planning.countCreatedLogsSince(
+          groupId,
+          new Date(now.getTime() - NUDGE_QUIET_DAYS * DAY_MS),
+        ),
         lastCreatedAt: await this.planning.lastEventCreatedAt(groupId),
-        nudgedRecently: await this.planning.hasNudgeSince(groupId, kstMidnight(addDays(monday, -NUDGE_COOLDOWN_DAYS))),
+        nudgedRecently: await this.planning.hasNudgeSince(
+          groupId,
+          kstMidnight(addDays(monday, -NUDGE_COOLDOWN_DAYS)),
+        ),
       },
       now,
     );

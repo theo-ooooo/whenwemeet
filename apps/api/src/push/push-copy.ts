@@ -2,11 +2,19 @@
  * 알림 문구와 경로 (#188, 설계 푸시-알림.md 6장, D-95, D-98). 순수 함수 (단위 테스트 대상).
  * 시각은 KST `오전/오후 h:mm`, 날짜는 `M월 D일 (요일)` (올해가 아니면 `YYYY년` 앞에). 메모는 넣지 않는다
  */
-import { addDays, DAY_MS, KST_OFFSET_MS, kstDate, kstMidnight, type Repeat } from '../events/recurrence.js';
+import {
+  addDays,
+  DAY_MS,
+  KST_OFFSET_MS,
+  kstDate,
+  kstMidnight,
+  type Repeat,
+} from '../events/recurrence.js';
 import type { ChangeAction } from './coalesce.js';
 import type { EventReminder } from './remind-at.js';
 
-export type PushKindName = 'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY' | 'POLL' | 'NOTICE';
+export type PushKindName =
+  'REMINDER' | 'CHANGE' | 'ANNIVERSARY' | 'JOIN' | 'WEEKLY' | 'POLL' | 'NOTICE';
 /** (#277) WEEKLY 의 변형. 주간 요약, 조용한 팀 깨우기 (D-203) */
 export type WeeklyVariant = 'SUMMARY' | 'NUDGE';
 export type Platform = 'IOS' | 'ANDROID';
@@ -39,7 +47,13 @@ export interface ExpoMessage {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: '매주', BIWEEKLY: '격주', MONTHLY: '매월', YEARLY: '매년', YEARLY_LUNAR: '매년(음력)' };
+const REPEAT_NAME: Record<Repeat, string> = {
+  WEEKLY: '매주',
+  BIWEEKLY: '격주',
+  MONTHLY: '매월',
+  YEARLY: '매년',
+  YEARLY_LUNAR: '매년(음력)',
+};
 const MINUTE_MS = 60 * 1000;
 export const DELETED_MEMBER_NAME = '탈퇴한 멤버';
 
@@ -47,7 +61,10 @@ const epochSeconds = (ms: number) => Math.floor(ms / 1000);
 
 /** '14:30' 순간 → '오후 2:30'. 0시는 오전 12시, 12시는 오후 12시 (웹 meridiem) */
 export function kstTimeLabel(instant: Date): string {
-  const minutes = Math.floor((((instant.getTime() + KST_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS / MINUTE_MS);
+  const minutes = Math.floor(
+    ((((instant.getTime() + KST_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS) /
+      MINUTE_MS,
+  );
   const h = Math.floor(minutes / 60);
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h < 12 ? '오전' : '오후'} ${h12}:${String(minutes % 60).padStart(2, '0')}`;
@@ -78,20 +95,26 @@ export function copula(word: string): string {
  * (#311) 알림이 여는 웹 경로. 팀은 `?team=<팀 공개 코드>` 로 지정하고(웹이 쿠키를 바꾸고 주소에서 뗀다) 일정은 `/events/<일정 공개 코드>`.
  * 예전 `/g/<id>/...` 모양은 웹이 308 로 새 주소에 맞춰 주므로 이미 보낸 알림도 그대로 열린다
  */
-export function eventUrl(groupCode: string, eventCode: string, occurrence: string | null): string {
+export function eventUrl(
+  groupCode: string,
+  eventCode: string,
+  occurrence: string | null,
+): string {
   const query = new URLSearchParams({ team: groupCode });
   if (occurrence) query.set('occurrence', occurrence);
   return `/events/${eventCode}?${query.toString()}`;
 }
 
 export const newsUrl = (groupCode: string) => `/news?team=${groupCode}`;
-export const anniversariesUrl = (groupCode: string) => `/anniversaries?team=${groupCode}`;
+export const anniversariesUrl = (groupCode: string) =>
+  `/anniversaries?team=${groupCode}`;
 export const calendarUrl = (groupCode: string) => `/calendar?team=${groupCode}`;
 /** (#277) 다가오는 일정 목록 (D-70), 빈 시간 찾기 */
 export const upcomingUrl = (groupCode: string) => `/upcoming?team=${groupCode}`;
 export const freeUrl = (groupCode: string) => `/free?team=${groupCode}`;
 /** (#189) 약속 투표 화면 */
-export const pollUrl = (groupCode: string, pollCode: string) => `/polls/${pollCode}?team=${groupCode}`;
+export const pollUrl = (groupCode: string, pollCode: string) =>
+  `/polls/${pollCode}?team=${groupCode}`;
 /**
  * (#528) 공지 상세. 팀과 무관한 공개 경로. (#544) `?from=push` 로 웹이 읽은 경로를 push 로 기록한다 (D-293).
  * 이미 보낸 옛 경로(`/notices/{id}`)도 그대로 열리고 경로는 detail 로 남는다
@@ -121,20 +144,33 @@ export interface ReminderTarget {
 }
 
 /** 일정 알림 (설계 6장 REMINDER). today 는 지금의 KST 날짜 (연도 표기 판단) */
-export function reminderPayload(target: ReminderTarget, today: string): PushPayload {
+export function reminderPayload(
+  target: ReminderTarget,
+  today: string,
+): PushPayload {
   const date = kstDate(target.startsAt);
   let body: string;
   if (target.allDay) {
     const when = target.reminder === 'DAY_BEFORE_0900' ? '내일' : '오늘';
     const last = lastAllDayDate(target.endsAt);
-    body = last <= date ? `${when} 종일` : `${when}부터 ${kstDateLabel(last, today)}까지`;
+    body =
+      last <= date
+        ? `${when} 종일`
+        : `${when}부터 ${kstDateLabel(last, today)}까지`;
   } else {
     const time = kstTimeLabel(target.startsAt);
-    const lead: Partial<Record<EventReminder, string>> = { AT_START: '지금', MIN_10: '10분 뒤', HOUR_1: '1시간 뒤', DAY_1: '내일' };
+    const lead: Partial<Record<EventReminder, string>> = {
+      AT_START: '지금',
+      MIN_10: '10분 뒤',
+      HOUR_1: '1시간 뒤',
+      DAY_1: '내일',
+    };
     body = `${lead[target.reminder] ?? '지금'} ${time}`;
   }
   // 회차 시작(종일은 그날 끝 KST 24:00) 이 지나면 의미 없다 (D-98)
-  const expiresAt = target.allDay ? kstMidnight(addDays(lastAllDayDate(target.endsAt), 1)).getTime() : target.startsAt.getTime();
+  const expiresAt = target.allDay
+    ? kstMidnight(addDays(lastAllDayDate(target.endsAt), 1)).getTime()
+    : target.startsAt.getTime();
   return {
     title: target.title,
     subtitle: target.groupName,
@@ -171,12 +207,23 @@ export interface ChangeTarget {
 }
 
 /** 웹 newsPhrase 와 같은 문장 (추가는 묶은 결과라 로그의 범위와 관계없이 반복 여부만 본다) */
-export function changePhrase(action: ChangeAction, log: Pick<ChangeLogSnapshot, 'repeat' | 'scope' | 'occurrence'>): string {
-  if (action === 'CREATED') return log.repeat ? `${REPEAT_NAME[log.repeat]} 반복 일정을 추가했어요` : '일정을 추가했어요';
+export function changePhrase(
+  action: ChangeAction,
+  log: Pick<ChangeLogSnapshot, 'repeat' | 'scope' | 'occurrence'>,
+): string {
+  if (action === 'CREATED')
+    return log.repeat
+      ? `${REPEAT_NAME[log.repeat]} 반복 일정을 추가했어요`
+      : '일정을 추가했어요';
   if (log.scope && log.occurrence) {
     const day = monthDay(log.occurrence);
-    if (action === 'UPDATED') return log.scope === 'THIS' ? `${day} 일정만 수정했어요` : `${day}부터 반복 일정을 수정했어요`;
-    return log.scope === 'THIS' ? `${day} 일정을 삭제했어요` : `${day}부터 반복을 삭제했어요`;
+    if (action === 'UPDATED')
+      return log.scope === 'THIS'
+        ? `${day} 일정만 수정했어요`
+        : `${day}부터 반복 일정을 수정했어요`;
+    return log.scope === 'THIS'
+      ? `${day} 일정을 삭제했어요`
+      : `${day}부터 반복을 삭제했어요`;
   }
   return action === 'UPDATED' ? '일정을 수정했어요' : '일정을 삭제했어요';
 }
@@ -194,7 +241,11 @@ export function changePayload(target: ChangeTarget, now: Date): PushPayload {
     url = eventUrl(target.groupCode, log.eventCode, log.occurrence);
   } else {
     // 그 밖의 반복은 스냅샷이 (새) 원본 첫 회차라 회차 날짜도 스냅샷 시작 날짜
-    url = eventUrl(target.groupCode, log.eventCode, log.repeat ? startDate : null);
+    url = eventUrl(
+      target.groupCode,
+      log.eventCode,
+      log.repeat ? startDate : null,
+    );
   }
   return {
     title: `${target.actorName}님이 ${changePhrase(target.action, log)}`,
@@ -252,7 +303,12 @@ export function anniversaryPayload(target: AnniversaryTarget): PushPayload {
 }
 
 /** 새 멤버 합류 (설계 6장 JOIN). 문장에 팀 이름이 있어 subtitle 을 두지 않는다 */
-export function joinPayload(groupCode: string, groupName: string, memberName: string, now: Date): PushPayload {
+export function joinPayload(
+  groupCode: string,
+  groupName: string,
+  memberName: string,
+  now: Date,
+): PushPayload {
   return {
     title: `${memberName}님이 '${groupName}' 에 들어왔어요`,
     subtitle: null,
@@ -266,7 +322,13 @@ export function joinPayload(groupCode: string, groupName: string, memberName: st
  * (#279) 일정 가져오기 한 번에 팀원 변경 알림 1건 (D-166). 제목은 새 소식 줄과 같은 문장, 누르면 그 팀 달력.
  * 일정마다 보내지 않는다 (가져오기는 EventLog 와 2분 묶음을 거치지 않는다)
  */
-export function importPayload(groupCode: string, groupName: string, actorName: string, count: number, now: Date): PushPayload {
+export function importPayload(
+  groupCode: string,
+  groupName: string,
+  actorName: string,
+  count: number,
+  now: Date,
+): PushPayload {
   return {
     title: `${actorName}님이 일정 ${count.toLocaleString('en-US')}개를 가져왔어요`,
     subtitle: groupName,
@@ -285,7 +347,10 @@ export interface PollTarget {
 }
 
 /** (#189) 후보 하나를 문장으로: '11월 22일 (토) 오후 7:00', 종일은 '11월 22일 (토) 종일'. today 는 지금의 KST 날짜 (연도 표기) */
-export function pollTimeLabel(option: { startsAt: Date; allDay: boolean }, today: string): string {
+export function pollTimeLabel(
+  option: { startsAt: Date; allDay: boolean },
+  today: string,
+): string {
   return `${kstDateLabel(kstDate(option.startsAt), today)} ${option.allDay ? '종일' : kstTimeLabel(option.startsAt)}`;
 }
 
@@ -293,20 +358,37 @@ export function pollTimeLabel(option: { startsAt: Date; allDay: boolean }, today
  * (#189) 투표 열림 (설계 약속-투표.md 6장). 대상 팀원(연 사람 제외)에게 바로. 본문은 후보 수와 마감.
  * 만료는 24시간 뒤와 마감 중 이른 쪽 (마감이 지나면 답할 수 없다)
  */
-export function pollOpenedPayload(target: PollTarget & { actorName: string; optionCount: number; deadline: Date | null }, now: Date): PushPayload {
-  const deadline = target.deadline ? `, 마감 ${pollTimeLabel({ startsAt: target.deadline, allDay: false }, kstDate(now))}` : '';
-  const expiresAt = Math.min(now.getTime() + DAY_MS, target.deadline?.getTime() ?? Number.POSITIVE_INFINITY);
+export function pollOpenedPayload(
+  target: PollTarget & {
+    actorName: string;
+    optionCount: number;
+    deadline: Date | null;
+  },
+  now: Date,
+): PushPayload {
+  const deadline = target.deadline
+    ? `, 마감 ${pollTimeLabel({ startsAt: target.deadline, allDay: false }, kstDate(now))}`
+    : '';
+  const expiresAt = Math.min(
+    now.getTime() + DAY_MS,
+    target.deadline?.getTime() ?? Number.POSITIVE_INFINITY,
+  );
   return {
     title: `${target.actorName}님이 '${target.title}' 시간을 묻고 있어요`,
     subtitle: target.groupName,
     body: `후보 ${target.optionCount}개${deadline}`,
     url: pollUrl(target.groupCode, target.pollCode),
-    expiration: epochSeconds(Math.max(expiresAt, now.getTime() + 10 * MINUTE_MS)),
+    expiration: epochSeconds(
+      Math.max(expiresAt, now.getTime() + 10 * MINUTE_MS),
+    ),
   };
 }
 
 /** (#189) 마감 (연 사람에게 1건). 정하기는 마감 뒤에도 된다 */
-export function pollDeadlinePayload(target: PollTarget, now: Date): PushPayload {
+export function pollDeadlinePayload(
+  target: PollTarget,
+  now: Date,
+): PushPayload {
   return {
     title: `'${target.title}' 투표가 끝났어요`,
     subtitle: target.groupName,
@@ -318,7 +400,11 @@ export function pollDeadlinePayload(target: PollTarget, now: Date): PushPayload 
 
 /** (#189) 정함. 그 확정으로 생긴 일정의 팀원 변경 알림 대신 이 1건 (D-236). 누르면 그 일정 */
 export function pollClosedPayload(
-  target: PollTarget & { actorName: string; eventCode: string; option: { startsAt: Date; allDay: boolean } },
+  target: PollTarget & {
+    actorName: string;
+    eventCode: string;
+    option: { startsAt: Date; allDay: boolean };
+  },
   now: Date,
 ): PushPayload {
   return {
@@ -336,21 +422,32 @@ export const NOTICE_BODY_PREVIEW_MAX = 80;
 const graphemes = new Intl.Segmenter('ko', { granularity: 'grapheme' });
 
 /** (#528) 본문의 첫 줄(빈 줄은 건너뜀)을 앞뒤 공백을 자르고 상한까지. 글자는 보이는 글자(grapheme) 단위로 센다(이모지가 쪼개지지 않게) */
-export function noticeBodyPreview(body: string, max = NOTICE_BODY_PREVIEW_MAX): string | null {
+export function noticeBodyPreview(
+  body: string,
+  max = NOTICE_BODY_PREVIEW_MAX,
+): string | null {
   const line = body
     .split(/\r?\n/)
     .map((row) => row.trim())
     .find((row) => row.length > 0);
   if (!line) return null;
   const chars = Array.from(graphemes.segment(line), (part) => part.segment);
-  return chars.length <= max ? line : `${chars.slice(0, max - 1).join('').trimEnd()}…`;
+  return chars.length <= max
+    ? line
+    : `${chars
+        .slice(0, max - 1)
+        .join('')
+        .trimEnd()}…`;
 }
 
 /**
  * (#528) 공지 푸시 (D-287). 제목 = 공지 제목, 본문 = 본문 첫 줄. 팀이 없어 subtitle 과 Android 앞머리를 두지 않는다.
  * 누르면 공지 상세. 만료는 24시간 뒤 (변경 알림과 같음)
  */
-export function noticePayload(notice: { id: number; title: string; body: string }, now: Date): PushPayload {
+export function noticePayload(
+  notice: { id: number; title: string; body: string },
+  now: Date,
+): PushPayload {
   return {
     title: notice.title,
     subtitle: null,
@@ -385,7 +482,8 @@ export interface WeeklySummaryTarget {
 }
 
 /** 주간 알림 만료: 그 주 월요일 KST 24:00 (D-98 확장, D-203) */
-const weeklyExpiration = (monday: string) => epochSeconds(kstMidnight(addDays(monday, 1)).getTime());
+const weeklyExpiration = (monday: string) =>
+  epochSeconds(kstMidnight(addDays(monday, 1)).getTime());
 
 /**
  * (#277) 주간 요약 (설계 6장 WEEKLY SUMMARY). 숫자와 사실만, 권유형 문구 금지 (D-204).
@@ -393,10 +491,16 @@ const weeklyExpiration = (monday: string) => epochSeconds(kstMidnight(addDays(mo
  */
 export function weeklySummaryPayload(target: WeeklySummaryTarget): PushPayload {
   const shown = target.items.slice(0, 2);
-  let body = shown.map((item) => `${kstWeekday(item.startsAt)} ${item.title}`).join(', ');
-  if (target.count > shown.length) body += ` 외 ${target.count - shown.length}개`;
+  let body = shown
+    .map((item) => `${kstWeekday(item.startsAt)} ${item.title}`)
+    .join(', ');
+  if (target.count > shown.length)
+    body += ` 외 ${target.count - shown.length}개`;
   if (target.anniversary) {
-    const dow = WEEKDAYS[new Date(`${target.anniversary.date}T00:00:00.000Z`).getUTCDay()];
+    const dow =
+      WEEKDAYS[
+        new Date(`${target.anniversary.date}T00:00:00.000Z`).getUTCDay()
+      ];
     body += `. ${dow}요일은 ${copula(target.anniversary.title)}`;
   }
   return {
@@ -449,7 +553,13 @@ export function toExpoMessage(
     priority: 'high',
     channelId: 'default',
     data: { url: payload.url, kind, nid: notificationId },
-    expiration: kind === 'REMINDER' ? Math.max(payload.expiration, epochSeconds(now.getTime() + 10 * MINUTE_MS)) : payload.expiration,
+    expiration:
+      kind === 'REMINDER'
+        ? Math.max(
+            payload.expiration,
+            epochSeconds(now.getTime() + 10 * MINUTE_MS),
+          )
+        : payload.expiration,
   };
   if (payload.subtitle) {
     if (device.platform === 'IOS') message.subtitle = payload.subtitle;

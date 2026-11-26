@@ -20,7 +20,10 @@ export const SLOT_STEP_MINUTES = 30;
  * 다음 30분 경계로 올림. 이미 경계면 그대로 (14:37 → 15:00, 14:00 → 14:00).
  * KST 오프셋이 정시 단위라 UTC 기준 30분 경계가 곧 KST 30분 경계이므로 날짜 창 계산과 어긋나지 않는다
  */
-export function ceilToSlotStep(date: Date, stepMinutes: number = SLOT_STEP_MINUTES): Date {
+export function ceilToSlotStep(
+  date: Date,
+  stepMinutes: number = SLOT_STEP_MINUTES,
+): Date {
   const stepMs = stepMinutes * MINUTE_MS;
   return new Date(Math.ceil(date.getTime() / stepMs) * stepMs);
 }
@@ -50,7 +53,8 @@ export function mergeIntervals(sorted: readonly Interval[]): Interval[] {
   for (const interval of sorted) {
     const last = merged[merged.length - 1];
     if (last && interval.startsAt.getTime() <= last.endsAt.getTime()) {
-      if (interval.endsAt.getTime() > last.endsAt.getTime()) last.endsAt = interval.endsAt;
+      if (interval.endsAt.getTime() > last.endsAt.getTime())
+        last.endsAt = interval.endsAt;
       continue;
     }
     merged.push({ startsAt: interval.startsAt, endsAt: interval.endsAt });
@@ -62,7 +66,12 @@ export function mergeIntervals(sorted: readonly Interval[]): Interval[] {
  * [from, to) 를 KST 날짜별로 나눠 각 날의 [dayStart, dayEnd) 창을 만든다. 창은 [from, to) 로 잘라낸다.
  * dayStartMin/dayEndMin 은 자정 기준 분. 호출자가 dayStart < dayEnd 를 보장한다
  */
-export function buildDayWindows(from: Date, to: Date, dayStartMin: number, dayEndMin: number): Interval[] {
+export function buildDayWindows(
+  from: Date,
+  to: Date,
+  dayStartMin: number,
+  dayEndMin: number,
+): Interval[] {
   const windows: Interval[] = [];
   const fromMs = from.getTime();
   const toMs = to.getTime();
@@ -76,13 +85,18 @@ export function buildDayWindows(from: Date, to: Date, dayStartMin: number, dayEn
     const kstMidnightUtc = day * DAY_MS - KST_OFFSET_MS;
     const start = Math.max(kstMidnightUtc + dayStartMin * MINUTE_MS, fromMs);
     const end = Math.min(kstMidnightUtc + dayEndMin * MINUTE_MS, toMs);
-    if (start < end) windows.push({ startsAt: new Date(start), endsAt: new Date(end) });
+    if (start < end)
+      windows.push({ startsAt: new Date(start), endsAt: new Date(end) });
   }
   return windows;
 }
 
 /** 각 창에서 병합된 busy 를 빼고 길이 >= minMinutes 인 조각만 남긴다. busy 는 병합되어 정렬된 상태 */
-export function subtractBusy(windows: readonly Interval[], busy: readonly Interval[], minMinutes: number): Interval[] {
+export function subtractBusy(
+  windows: readonly Interval[],
+  busy: readonly Interval[],
+  minMinutes: number,
+): Interval[] {
   const minMs = minMinutes * MINUTE_MS;
   const free: Interval[] = [];
   let busyIndex = 0;
@@ -93,13 +107,18 @@ export function subtractBusy(windows: readonly Interval[], busy: readonly Interv
     let cursor = windowStart;
 
     // 창 시작 이전에 끝난 busy 는 건너뛴다 (창도 busy 도 정렬돼 있어 되돌아갈 일이 없다)
-    while (busyIndex < busy.length && busy[busyIndex].endsAt.getTime() <= windowStart) busyIndex += 1;
+    while (
+      busyIndex < busy.length &&
+      busy[busyIndex].endsAt.getTime() <= windowStart
+    )
+      busyIndex += 1;
 
     for (let i = busyIndex; i < busy.length; i += 1) {
       const busyStart = busy[i].startsAt.getTime();
       const busyEnd = busy[i].endsAt.getTime();
       if (busyStart >= windowEnd) break;
-      if (busyStart > cursor) pushIfLongEnough(free, cursor, Math.min(busyStart, windowEnd), minMs);
+      if (busyStart > cursor)
+        pushIfLongEnough(free, cursor, Math.min(busyStart, windowEnd), minMs);
       cursor = Math.max(cursor, busyEnd);
       if (cursor >= windowEnd) break;
     }
@@ -108,8 +127,14 @@ export function subtractBusy(windows: readonly Interval[], busy: readonly Interv
   return free;
 }
 
-function pushIfLongEnough(target: Interval[], start: number, end: number, minMs: number): void {
-  if (end - start >= minMs) target.push({ startsAt: new Date(start), endsAt: new Date(end) });
+function pushIfLongEnough(
+  target: Interval[],
+  start: number,
+  end: number,
+  minMs: number,
+): void {
+  if (end - start >= minMs)
+    target.push({ startsAt: new Date(start), endsAt: new Date(end) });
 }
 
 export interface FindFreeSlotsInput {
@@ -126,6 +151,14 @@ export interface FindFreeSlotsInput {
 /** 4~6단계 한 번에. 결과는 startsAt 오름차순, 최대 limit 개 */
 export function findFreeSlots(input: FindFreeSlotsInput): Interval[] {
   const merged = mergeIntervals(input.busy);
-  const windows = buildDayWindows(input.from, input.to, input.dayStartMin, input.dayEndMin);
-  return subtractBusy(windows, merged, input.minMinutes).slice(0, input.limit ?? MAX_SLOTS);
+  const windows = buildDayWindows(
+    input.from,
+    input.to,
+    input.dayStartMin,
+    input.dayEndMin,
+  );
+  return subtractBusy(windows, merged, input.minMinutes).slice(
+    0,
+    input.limit ?? MAX_SLOTS,
+  );
 }

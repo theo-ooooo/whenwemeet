@@ -74,7 +74,14 @@ const draft = {
 
 describe("카드 → 저장 본문", () => {
   it("일정 [추가]: 제목, 시각, 참여자, 직접 적은 장소. 알림은 싣지 않는다", () => {
-    expect(eventInputOf(draft)).toEqual({ title: "강남 회식", startsAt: draft.startsAt, endsAt: draft.endsAt, allDay: false, participants: [1, 2], place: { text: "강남" } });
+    expect(eventInputOf(draft)).toEqual({
+      title: "강남 회식",
+      startsAt: draft.startsAt,
+      endsAt: draft.endsAt,
+      allDay: false,
+      participants: [1, 2],
+      place: { text: "강남" },
+    });
     expect(eventInputOf({ ...draft, place: null })).not.toHaveProperty("place");
   });
 
@@ -110,7 +117,10 @@ describe("[고치기] 주소", () => {
   });
 
   it("종일은 allDay=1 과 시작 날 10:00, 마지막 날 11:00", () => {
-    const u = new URL(eventEditHref({ ...draft, allDay: true, startsAt: kst("2030-11-29T00:00"), endsAt: kst("2030-12-01T00:00"), place: null, participants: [] }), "http://x");
+    const u = new URL(
+      eventEditHref({ ...draft, allDay: true, startsAt: kst("2030-11-29T00:00"), endsAt: kst("2030-12-01T00:00"), place: null, participants: [] }),
+      "http://x",
+    );
     expect(u.searchParams.get("allDay")).toBe("1");
     expect(u.searchParams.get("start")).toBe(kst("2030-11-29T10:00"));
     expect(u.searchParams.get("end")).toBe(kst("2030-11-30T11:00"));
@@ -185,7 +195,9 @@ describe("카드 글자", () => {
     expect(draftWhenText(draft)).toBe("11월 29일 (금) 오후 7:00 ~ 8:00");
     expect(draftWhenText({ allDay: true, startsAt: kst("2030-11-29T00:00"), endsAt: kst("2030-11-30T00:00") })).toBe("11월 29일 (금) 하루 종일");
     expect(draftWhenText({ allDay: true, startsAt: kst("2030-11-29T00:00"), endsAt: kst("2030-12-01T00:00") })).toBe("11월 29일 (금) ~ 11월 30일 (토)");
-    expect(draftWhenText({ allDay: false, startsAt: kst("2030-11-29T22:00"), endsAt: kst("2030-11-30T02:00") })).toBe("11월 29일 (금) 오후 10:00 ~ 11월 30일 (토) 오전 2:00");
+    expect(draftWhenText({ allDay: false, startsAt: kst("2030-11-29T22:00"), endsAt: kst("2030-11-30T02:00") })).toBe(
+      "11월 29일 (금) 오후 10:00 ~ 11월 30일 (토) 오전 2:00",
+    );
   });
 
   it("빈 시간 조건 한 줄", () => {
@@ -207,7 +219,10 @@ describe("카드 글자", () => {
   });
 
   it("일정 목록 카드 → 일정 줄 모양", () => {
-    const ev = rowEventOf({ id: 7, publicCode: "abcd1234", title: "영화", startsAt: draft.startsAt, endsAt: draft.endsAt, allDay: false, occurrence: null, members: draft.members }, 2);
+    const ev = rowEventOf(
+      { id: 7, publicCode: "abcd1234", title: "영화", startsAt: draft.startsAt, endsAt: draft.endsAt, allDay: false, occurrence: null, members: draft.members },
+      2,
+    );
     expect(ev).toMatchObject({ id: 7, groupId: 2, publicCode: "abcd1234", creator: draft.members[0], participants: { all: false, members: draft.members } });
   });
 });

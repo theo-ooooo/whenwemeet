@@ -58,7 +58,14 @@ export function AdminTeamsScreen() {
         <label className="relative block min-w-0 flex-1">
           <span className="sr-only">{PLACEHOLDER[filter]}</span>
           <IconSearch size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2" />
-          <input type="search" className={`${inputClass} bg-paper pl-10`} placeholder={PLACEHOLDER[filter]} value={text} maxLength={50} onChange={(e) => setText(e.target.value)} />
+          <input
+            type="search"
+            className={`${inputClass} bg-paper pl-10`}
+            placeholder={PLACEHOLDER[filter]}
+            value={text}
+            maxLength={50}
+            onChange={(e) => setText(e.target.value)}
+          />
         </label>
       </div>
       {q.error && !q.items ? (

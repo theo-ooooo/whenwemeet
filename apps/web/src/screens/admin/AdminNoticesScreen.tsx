@@ -17,7 +17,10 @@ export function AdminNoticesScreen() {
       <AdminTitle
         title="공지사항"
         right={
-          <Link href="/admin/notices/new" className="inline-flex h-9 items-center gap-1 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95">
+          <Link
+            href="/admin/notices/new"
+            className="inline-flex h-9 items-center gap-1 rounded-sm bg-btn px-3 text-[13px] font-bold text-on-btn hover:brightness-95"
+          >
             <IconPlus size={14} strokeWidth={2.4} />새 공지
           </Link>
         }
@@ -34,7 +37,10 @@ export function AdminNoticesScreen() {
         <ul className="divide-y divide-line rounded-xl bg-paper px-4">
           {q.items.map((n) => (
             <li key={n.id}>
-              <Link href={`/admin/notices/${n.id}`} className="flex min-h-14 flex-col gap-1 py-3 hover:brightness-95 fold:flex-row fold:items-center fold:gap-3">
+              <Link
+                href={`/admin/notices/${n.id}`}
+                className="flex min-h-14 flex-col gap-1 py-3 hover:brightness-95 fold:flex-row fold:items-center fold:gap-3"
+              >
                 <span className="flex shrink-0 items-center gap-1.5 fold:w-[184px]">
                   {n.publishedAt ? <StatusBadge tone="on">게시</StatusBadge> : <StatusBadge tone="off">초안</StatusBadge>}
                   <NoticeKindBadge kind={n.kind} />
@@ -46,7 +52,9 @@ export function AdminNoticesScreen() {
                 </span>
                 <b className="min-w-0 flex-1 truncate text-[14px] font-semibold">{n.title}</b>
                 <span className="t-sub flex shrink-0 items-center gap-2 fold:w-[230px] fold:justify-end">
-                  {n.readCount !== undefined && (n.publishedAt !== null || n.readCount > 0) && <span className="tabular-nums">읽음 {n.readCount.toLocaleString("ko-KR")}</span>}
+                  {n.readCount !== undefined && (n.publishedAt !== null || n.readCount > 0) && (
+                    <span className="tabular-nums">읽음 {n.readCount.toLocaleString("ko-KR")}</span>
+                  )}
                   <span>{noticeDate(n.publishedAt)}</span>
                 </span>
               </Link>

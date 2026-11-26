@@ -100,7 +100,13 @@ export function directionsUrl(
 ): string {
   if (app === "naver") {
     if (resolved) {
-      const q = new URLSearchParams({ menu: "route", elng: String(resolved.lng), elat: String(resolved.lat), etext: resolved.name.trim() || "도착", pathType: "0" });
+      const q = new URLSearchParams({
+        menu: "route",
+        elng: String(resolved.lng),
+        elat: String(resolved.lat),
+        etext: resolved.name.trim() || "도착",
+        pathType: "0",
+      });
       return `https://map.naver.com/index.nhn?${q.toString()}`;
     }
     const label = placeLabel(place) ?? "";

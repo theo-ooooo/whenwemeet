@@ -86,53 +86,53 @@ export function PlaceField({
           }}
         />
       ) : (
-      <div className="flex min-h-11 items-center gap-3">
-        <IconPin size={18} className="shrink-0 text-ink-2" />
-        <label htmlFor={id} className="sr-only">
-          장소
-        </label>
-        <div className="relative min-w-0 flex-1">
-        <input
-          ref={inputRef}
-          id={id}
-          type="text"
-          role="combobox"
-          aria-expanded={showList}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
-          aria-describedby={hintId}
-          autoComplete="off"
-          enterKeyHint="done"
-          className={`-mx-1.5 min-h-11 w-[calc(100%+12px)] rounded-sm bg-transparent px-1.5 text-[14px] leading-5 text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 ${place.text ? "pr-10" : ""}`}
-          placeholder="장소 추가"
-          value={place.text}
-          onChange={(e) => {
-            onType(e.target.value);
-            setOpen(true);
-            setActive(-1);
-          }}
-          onFocus={() => setOpen(true)}
-          // 후보를 누르는 동안 닫히지 않게 한 박자 늦게 닫는다
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onKeyDown={onKeyDown}
-        />
-        {place.text && (
-          <button
-            type="button"
-            aria-label="장소 지우기"
-            onClick={() => {
-              onClear();
-              inputRef.current?.focus();
-            }}
-            className="hit absolute -right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
-          >
-            <IconClose size={16} />
-          </button>
-        )}
+        <div className="flex min-h-11 items-center gap-3">
+          <IconPin size={18} className="shrink-0 text-ink-2" />
+          <label htmlFor={id} className="sr-only">
+            장소
+          </label>
+          <div className="relative min-w-0 flex-1">
+            <input
+              ref={inputRef}
+              id={id}
+              type="text"
+              role="combobox"
+              aria-expanded={showList}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
+              aria-describedby={hintId}
+              autoComplete="off"
+              enterKeyHint="done"
+              className={`-mx-1.5 min-h-11 w-[calc(100%+12px)] rounded-sm bg-transparent px-1.5 text-[14px] leading-5 text-ink placeholder:text-ink-2 focus:outline-2 focus:outline-ink focus:outline-offset-0 ${place.text ? "pr-10" : ""}`}
+              placeholder="장소 추가"
+              value={place.text}
+              onChange={(e) => {
+                onType(e.target.value);
+                setOpen(true);
+                setActive(-1);
+              }}
+              onFocus={() => setOpen(true)}
+              // 후보를 누르는 동안 닫히지 않게 한 박자 늦게 닫는다
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              onKeyDown={onKeyDown}
+            />
+            {place.text && (
+              <button
+                type="button"
+                aria-label="장소 지우기"
+                onClick={() => {
+                  onClear();
+                  inputRef.current?.focus();
+                }}
+                className="hit absolute -right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
+              >
+                <IconClose size={16} />
+              </button>
+            )}
+          </div>
+          {nearLimit(charCount(place.text), PLACE_MAX) && <span className="shrink-0 text-[12px] tabular-nums text-ink-2">{placeHint(place)}</span>}
         </div>
-        {nearLimit(charCount(place.text), PLACE_MAX) && <span className="shrink-0 text-[12px] tabular-nums text-ink-2">{placeHint(place)}</span>}
-      </div>
       )}
 
       {showList && (
@@ -160,7 +160,9 @@ export function PlaceField({
               </li>
             ))}
           </ul>
-          {options.length > 0 && <p className="border-t border-line px-3 py-1 text-right text-[11px] leading-4 text-ink-2">{SOURCE_NOTE[options[0].provider]}</p>}
+          {options.length > 0 && (
+            <p className="border-t border-line px-3 py-1 text-right text-[11px] leading-4 text-ink-2">{SOURCE_NOTE[options[0].provider]}</p>
+          )}
           {q.isLoading && options.length === 0 && (
             <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-ink-2" aria-live="polite">
               <Spinner className="size-3.5" /> 장소를 찾는 중
@@ -198,7 +200,12 @@ function PickedCard({ id, picked, onClear }: { id: string; picked: NonNullable<D
         <b className="block truncate text-[14px] font-semibold leading-5">{name}</b>
         {address && <span className="block truncate text-[12px] leading-4 text-ink-2">{address}</span>}
       </span>
-      <button type="button" aria-label="고른 장소 풀기" onClick={onClear} className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink">
+      <button
+        type="button"
+        aria-label="고른 장소 풀기"
+        onClick={onClear}
+        className="hit -mr-1.5 grid size-8 shrink-0 place-items-center rounded-sm text-ink-2 hover:bg-hover hover:text-ink"
+      >
         <IconClose size={16} />
       </button>
     </div>

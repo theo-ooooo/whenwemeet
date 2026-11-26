@@ -36,7 +36,9 @@ describe("수정, 복제 주소", () => {
   it("회차면 occurrence 를 싣는다", () => {
     expect(eventEditHref({ publicCode: "evntcode", occurrence: null })).toBe("/events/evntcode/edit");
     expect(eventEditHref({ publicCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/evntcode/edit?occurrence=2026-11-18");
-    expect(eventEditHref({ publicCode: "evntcode", occurrence: "2026-11-18" }, "following")).toBe("/events/evntcode/edit?occurrence=2026-11-18&scope=following");
+    expect(eventEditHref({ publicCode: "evntcode", occurrence: "2026-11-18" }, "following")).toBe(
+      "/events/evntcode/edit?occurrence=2026-11-18&scope=following",
+    );
     expect(eventCopyHref({ publicCode: "evntcode", occurrence: "2026-11-18" })).toBe("/events/new?copy=evntcode&occurrence=2026-11-18");
     expect(eventCopyHref({ publicCode: "evntcode", occurrence: null })).toBe("/events/new?copy=evntcode");
   });

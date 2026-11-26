@@ -64,7 +64,9 @@ function formatter(name: string): Intl.DateTimeFormat | null {
 export function ianaName(tzid: string): string | null {
   const trimmed = tzid.trim().replace(/^"|"$/g, '');
   if (formatter(trimmed)) return trimmed;
-  const tail = /([A-Za-z]+\/[A-Za-z_+-]+(?:\/[A-Za-z_+-]+)?)$/.exec(trimmed)?.[1];
+  const tail = /([A-Za-z]+\/[A-Za-z_+-]+(?:\/[A-Za-z_+-]+)?)$/.exec(
+    trimmed,
+  )?.[1];
   if (tail && formatter(tail)) return tail;
   const windows = WINDOWS_ZONES[trimmed];
   return windows && formatter(windows) ? windows : null;
@@ -73,12 +75,21 @@ export function ianaName(tzid: string): string | null {
 /** 그 순간 그 시간대의 UTC 와의 차이(ms) */
 function ianaOffsetMs(name: string, instantMs: number): number {
   const parts = formatter(name)!.formatToParts(new Date(instantMs));
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
-  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour') % 24,
+    get('minute'),
+    get('second'),
+  );
   return asUtc - Math.floor(instantMs / 1000) * 1000;
 }
 
-const wallAsUtcMs = (wall: Wall) => Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s);
+const wallAsUtcMs = (wall: Wall) =>
+  Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s);
 
 /**
  * 벽시계 → UTC 순간. 서머타임으로 없는 시각(봄의 빈 한 시간)은 앞으로 밀고, 두 번 있는 시각(가을)은 앞의 것.
@@ -94,12 +105,24 @@ export function toInstant(wall: Wall, zone: Zone): Date {
     case 'IANA': {
       const first = local - ianaOffsetMs(zone.name, local);
       const second = local - ianaOffsetMs(zone.name, first);
-      const valid = [first, second].filter((instant) => instant + ianaOffsetMs(zone.name, instant) === local);
+      const valid = [first, second].filter(
+        (instant) => instant + ianaOffsetMs(zone.name, instant) === local,
+      );
       // 두 번 있는 시각은 앞의 것, 없는 시각은 바뀌기 전 오프셋으로 읽은 쪽 (RFC 5545 3.3.5)
-      return new Date(valid.length > 0 ? Math.min(...valid) : Math.max(first, second));
+      return new Date(
+        valid.length > 0 ? Math.min(...valid) : Math.max(first, second),
+      );
     }
     case 'VTIMEZONE': {
-      const time = ICAL.Time.fromData({ year: wall.y, month: wall.mo, day: wall.d, hour: wall.h, minute: wall.mi, second: wall.s, isDate: false });
+      const time = ICAL.Time.fromData({
+        year: wall.y,
+        month: wall.mo,
+        day: wall.d,
+        hour: wall.h,
+        minute: wall.mi,
+        second: wall.s,
+        isDate: false,
+      });
       return new Date(local - zone.tz.utcOffset(time) * 1000);
     }
   }

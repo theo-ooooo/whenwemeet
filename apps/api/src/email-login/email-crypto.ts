@@ -1,4 +1,11 @@
-import { createHash, createHmac, hkdfSync, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from 'node:crypto';
 import { isEmail } from 'class-validator';
 
 /**
@@ -26,7 +33,12 @@ export function normalizeEmail(raw: string): string {
 export function isAcceptableEmail(email: string): boolean {
   if (email.length === 0 || email.length > EMAIL_MAX_LENGTH) return false;
   if (!/^[\x21-\x7e]+$/.test(email)) return false;
-  return isEmail(email, { allow_utf8_local_part: false, require_tld: true, allow_ip_domain: false, allow_display_name: false });
+  return isEmail(email, {
+    allow_utf8_local_part: false,
+    require_tld: true,
+    allow_ip_domain: false,
+    allow_display_name: false,
+  });
 }
 
 /** 확인 화면용 가린 이메일. 로컬 부분 앞 2자(2자 이하면 1자) + `***` + `@도메인` (6-4) */
@@ -54,7 +66,9 @@ export function sha256hex(value: string): string {
 
 /** HKDF-SHA256(secret, info) 32바이트 (D-112). 소금은 비운다 (같은 비밀에서 늘 같은 키) */
 export function deriveKey(secret: string, info: string): Buffer {
-  return Buffer.from(hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), info, 32));
+  return Buffer.from(
+    hkdfSync('sha256', Buffer.from(secret, 'utf8'), Buffer.alloc(0), info, 32),
+  );
 }
 
 export function hmacHex(key: Buffer, value: string): string {
@@ -62,7 +76,11 @@ export function hmacHex(key: Buffer, value: string): string {
 }
 
 /** 코드 해시. 메일마다 다른 linkTokenHash 를 섞어 같은 코드도 메일마다 다른 해시가 된다 */
-export function hashCode(key: Buffer, linkTokenHash: string, code: string): string {
+export function hashCode(
+  key: Buffer,
+  linkTokenHash: string,
+  code: string,
+): string {
   return hmacHex(key, `${linkTokenHash}:${code}`);
 }
 
@@ -70,10 +88,17 @@ export function hashCode(key: Buffer, linkTokenHash: string, code: string): stri
 export function safeEqualHex(a: string, b: string): boolean {
   const left = Buffer.from(a, 'hex');
   const right = Buffer.from(b, 'hex');
-  return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+  return (
+    left.length === right.length &&
+    left.length > 0 &&
+    timingSafeEqual(left, right)
+  );
 }
 
 /** 임의 문자열 상수 시간 비교 (내부 키, 심사 이메일). 길이를 드러내지 않게 sha256 끼리 비교한다 */
 export function safeEqualText(a: string, b: string): boolean {
-  return timingSafeEqual(createHash('sha256').update(a, 'utf8').digest(), createHash('sha256').update(b, 'utf8').digest());
+  return timingSafeEqual(
+    createHash('sha256').update(a, 'utf8').digest(),
+    createHash('sha256').update(b, 'utf8').digest(),
+  );
 }

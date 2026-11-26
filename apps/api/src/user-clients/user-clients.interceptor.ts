@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import type { Observable } from 'rxjs';
@@ -20,10 +25,15 @@ export class UserClientsInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() === 'http') {
-      const request = context.switchToHttp().getRequest<Request & { user?: AuthUser }>();
+      const request = context
+        .switchToHttp()
+        .getRequest<Request & { user?: AuthUser }>();
       const userId = request.user?.id;
       if (userId !== undefined) {
-        const client = trustedClientOf(request, this.config.get<string>('INTERNAL_API_KEY'));
+        const client = trustedClientOf(
+          request,
+          this.config.get<string>('INTERNAL_API_KEY'),
+        );
         if (client) void this.clients.record(userId, client);
       }
     }

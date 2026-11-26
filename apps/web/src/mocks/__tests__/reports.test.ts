@@ -15,7 +15,10 @@ describe("목 신고하기 (#536)", () => {
     const first = call("POST", "/reports", ME_ID, { targetType: "event", targetId: 5, reason: "spam", detail: " 광고 " });
     expect(first.status).toBe(201);
     expect(first.body.data).toMatchObject({ targetType: "event", targetId: 5, duplicate: false });
-    expect(call("POST", "/reports", ME_ID, { targetType: "event", targetId: 5, reason: "abuse" }).body.data).toMatchObject({ id: first.body.data.id, duplicate: true });
+    expect(call("POST", "/reports", ME_ID, { targetType: "event", targetId: 5, reason: "abuse" }).body.data).toMatchObject({
+      id: first.body.data.id,
+      duplicate: true,
+    });
     expect(call("POST", "/reports", ME_ID, { targetType: "event", targetId: 2, reason: "spam" }).status).toBe(403);
     expect(call("POST", "/reports", ME_ID, { targetType: "group", targetId: PERSONAL_ID, reason: "spam" }).status).toBe(403);
     expect(call("POST", "/reports", ME_ID, { targetType: "group", targetId: TEAM_ID, reason: "spam" }).status).toBe(201);
@@ -26,7 +29,8 @@ describe("목 신고하기 (#536)", () => {
 
   it("하루 10번 (최근 24시간)", () => {
     // 시드에 오늘 내 신고가 1건(일정 30) 있다
-    for (const id of [1, 5, 7, 32, 34, 37, 39]) expect(call("POST", "/reports", ME_ID, { targetType: "event", targetId: id, reason: "spam" }).status).toBeLessThan(300);
+    for (const id of [1, 5, 7, 32, 34, 37, 39])
+      expect(call("POST", "/reports", ME_ID, { targetType: "event", targetId: id, reason: "spam" }).status).toBeLessThan(300);
     expect(call("POST", "/reports", ME_ID, { targetType: "user", targetId: OTHER_ID, reason: "abuse" }).status).toBe(201);
     expect(call("POST", "/reports", ME_ID, { targetType: "user", targetId: MOM_ID, reason: "abuse" }).status).toBe(201);
     expect(call("POST", "/reports", ME_ID, { targetType: "user", targetId: DAD_ID, reason: "abuse" }).status).toBe(429);
@@ -54,7 +58,11 @@ describe("목 대시보드 (#537)", () => {
   beforeEach(() => resetStore());
 
   it("7일, 30일: 날짜 수, 합계와 쓰는 곳은 목 상태에서", () => {
-    const week = call("GET", "/admin/stats", ME_ID, null, "range=7").body.data as unknown as { days: unknown[]; totals: Record<string, number>; platforms: Record<string, number> };
+    const week = call("GET", "/admin/stats", ME_ID, null, "range=7").body.data as unknown as {
+      days: unknown[];
+      totals: Record<string, number>;
+      platforms: Record<string, number>;
+    };
     expect(week.days).toHaveLength(7);
     expect(week.totals.openReports).toBe(3);
     expect(week.platforms.ios).toBeGreaterThan(0);

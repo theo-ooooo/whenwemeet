@@ -33,9 +33,34 @@ const { MemoSection } = await import("../MemoSection");
 
 const PICKED: Place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
 const FREE: Place = { text: "할머니 댁", query: null, kakaoPlaceId: null, url: null };
-const LIVE = { provider: "kakao", kakaoPlaceId: "8209184", naverKey: null, name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
-const NPICKED: Place = { text: null, query: "숲", kakaoPlaceId: null, naverKey: "0123456789abcdef", provider: "naver", url: "https://map.naver.com/p/search/%EC%88%B2" };
-const NLIVE = { provider: "naver", kakaoPlaceId: null, naverKey: "0123456789abcdef", name: "서울숲", address: "서울특별시 성동구 뚝섬로 273", lat: 37.5419644, lng: 127.0385663, category: "숲,숲길" };
+const LIVE = {
+  provider: "kakao",
+  kakaoPlaceId: "8209184",
+  naverKey: null,
+  name: "서울숲",
+  address: "서울 성동구 뚝섬로 273",
+  lat: 37.5444,
+  lng: 127.0374,
+  category: "공원",
+};
+const NPICKED: Place = {
+  text: null,
+  query: "숲",
+  kakaoPlaceId: null,
+  naverKey: "0123456789abcdef",
+  provider: "naver",
+  url: "https://map.naver.com/p/search/%EC%88%B2",
+};
+const NLIVE = {
+  provider: "naver",
+  kakaoPlaceId: null,
+  naverKey: "0123456789abcdef",
+  name: "서울숲",
+  address: "서울특별시 성동구 뚝섬로 273",
+  lat: 37.5419644,
+  lng: 127.0385663,
+  category: "숲,숲길",
+};
 
 /** 가짜 네이버 지도 SDK */
 function fakeNaver() {

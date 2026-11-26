@@ -59,7 +59,10 @@ export function GroupHiddenModal({ team, reason, onOpenOther }: { team: GroupSum
               <CloseButton onClick={onOpenOther} />
             </div>
             <div className="flex flex-col items-center break-keep text-center">
-              <span aria-hidden="true" className="grid size-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger">
+              <span
+                aria-hidden="true"
+                className="grid size-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger"
+              >
                 <IconShield size={30} />
               </span>
               <p className="mt-4 text-[14px] font-bold text-danger">{team.name}</p>

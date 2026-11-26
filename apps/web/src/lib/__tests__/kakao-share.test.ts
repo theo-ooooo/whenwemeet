@@ -87,9 +87,7 @@ describe("inviteKakaoFeed (#195, D-159 와 같은 문구)", () => {
   });
 
   it("미리보기 오리진은 공유 주소를 따른다 (프리뷰, 로컬)", () => {
-    const f = inviteKakaoFeed(
-      group({ inviteUrl: "http://localhost:3000/join/ABC123", inviteShareUrl: `http://localhost:3000/join/ABC123?by=${BY}` }),
-    );
+    const f = inviteKakaoFeed(group({ inviteUrl: "http://localhost:3000/join/ABC123", inviteShareUrl: `http://localhost:3000/join/ABC123?by=${BY}` }));
     expect(f?.imageUrl).toBe(`http://localhost:3000/og/join/ABC123?by=${BY}`);
   });
 

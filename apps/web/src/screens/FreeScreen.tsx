@@ -93,10 +93,7 @@ export function FreeScreen() {
     { enabled: !conditionError, debounceMs: 300 },
   );
   // 달력 개요와 같은 규칙(지금을 30분 경계로 올림)으로 자른다 (#136)
-  const result = useMemo(
-    () => (freeQ.data ? { ...freeQ.data, slots: upcomingSlots(freeQ.data.slots, minMinutes) } : undefined),
-    [freeQ.data, minMinutes],
-  );
+  const result = useMemo(() => (freeQ.data ? { ...freeQ.data, slots: upcomingSlots(freeQ.data.slots, minMinutes) } : undefined), [freeQ.data, minMinutes]);
   const loading = freeQ.isLoading;
   const error = freeQ.error ? messageOf(freeQ.error, "빈 시간을 계산하지 못했어요. 다시 시도해 주세요") : null;
 
@@ -134,16 +131,40 @@ export function FreeScreen() {
           (QA 2026-11-14) 종일 일정 칩도 폰에 보인다: 조건이 결과에 적용되는데 폰에서만 빠져 있었다 */}
       <div role="group" aria-label="찾는 조건" className="mt-1 flex items-center gap-1.5">
         <div className="-ml-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pl-4 fold:flex-initial [scrollbar-width:none] fold:ml-0 fold:flex-wrap fold:overflow-visible fold:pl-0 [&::-webkit-scrollbar]:hidden">
-          <button type="button" aria-haspopup="dialog" aria-label={`기간 ${periodText(period, range.from, addDays(range.to, -1))}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`기간 ${periodText(period, range.from, addDays(range.to, -1))}, 조건 바꾸기`}
+            onClick={() => setCondOpen(true)}
+            className={chipCls}
+          >
             <span className={pill}>{periodText(period, range.from, addDays(range.to, -1))}</span>
           </button>
-          <button type="button" aria-haspopup="dialog" aria-label={`시간대 ${dayRangeText(dayStart, dayEnd)}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`시간대 ${dayRangeText(dayStart, dayEnd)}, 조건 바꾸기`}
+            onClick={() => setCondOpen(true)}
+            className={chipCls}
+          >
             <span className={pill}>{dayRangeText(dayStart, dayEnd)}</span>
           </button>
-          <button type="button" aria-haspopup="dialog" aria-label={`최소 길이 ${minLengthText(minMinutes)}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`최소 길이 ${minLengthText(minMinutes)}, 조건 바꾸기`}
+            onClick={() => setCondOpen(true)}
+            className={chipCls}
+          >
             <span className={pill}>{minLengthText(minMinutes)}</span>
           </button>
-          <button type="button" aria-haspopup="dialog" aria-label={`${includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}, 조건 바꾸기`} onClick={() => setCondOpen(true)} className={chipCls}>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={`${includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}, 조건 바꾸기`}
+            onClick={() => setCondOpen(true)}
+            className={chipCls}
+          >
             <span className={pill}>{includeAllDay ? "종일 일정 포함" : "종일 일정 제외"}</span>
           </button>
         </div>
@@ -289,7 +310,9 @@ export function FreeScreen() {
         <div className="space-y-3.5 pb-1">
           <div>
             {/* 하나만 고르는 것은 세그먼트 하나로 (기념일 종류, 테마와 같은 모양, #174 L2) */}
-            <h3 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">기간</h3>
+            <h3 id="free-period" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">
+              기간
+            </h3>
             <Segmented labelledBy="free-period" value={period} options={PERIOD_OPTIONS} onChange={setPeriod} />
             {period === "custom" && (
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -316,7 +339,9 @@ export function FreeScreen() {
                 <TimePicker label="시작 시각" value={dayStart} onChange={setDayStart} to={DAY_END_MAX - 30} />
               </div>
               {/* 가운데 '~' (#174 L12). 스크린리더는 피커 라벨(시작 시각, 끝나는 시각)로 읽는다 */}
-              <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">~</span>
+              <span aria-hidden="true" className="shrink-0 text-[14px] text-ink-2">
+                ~
+              </span>
               <div className="min-w-0 flex-1">
                 <TimePicker label="끝나는 시각" value={dayEnd} onChange={setDayEnd} from={30} allow24 />
               </div>
@@ -324,7 +349,9 @@ export function FreeScreen() {
           </div>
 
           <div>
-            <h3 id="free-min" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">최소 길이</h3>
+            <h3 id="free-min" className="mb-1.5 text-[12px] font-medium leading-4 text-ink-2">
+              최소 길이
+            </h3>
             <Segmented
               labelledBy="free-min"
               value={String(minMinutes)}
@@ -334,7 +361,12 @@ export function FreeScreen() {
           </div>
 
           <div className="border-t border-line pt-3">
-            <Toggle checked={includeAllDay} onChange={setIncludeAllDay} label="종일 일정도 바쁜 시간으로" description="여행, 휴가처럼 하루를 비우는 일정이 있을 때 켜 주세요" />
+            <Toggle
+              checked={includeAllDay}
+              onChange={setIncludeAllDay}
+              label="종일 일정도 바쁜 시간으로"
+              description="여행, 휴가처럼 하루를 비우는 일정이 있을 때 켜 주세요"
+            />
           </div>
           {conditionError && (
             <p role="alert" className="text-[13px] text-danger">

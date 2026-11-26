@@ -9,8 +9,7 @@ import { createPortal } from "react-dom";
 import { SheetHeader } from "../ui";
 import { useLayout } from "@/lib/useLayout";
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const MARGIN = 12;
 const GAP = 6;
@@ -181,6 +180,7 @@ const chipBase =
 export function triggerClassOf(look: PickerLook): string {
   if (look === "chip") return `${chipBase} bg-surface`;
   if (look === "chipInset") return `${chipBase} bg-paper`;
-  if (look === "row") return "flex min-h-11 w-full items-center gap-3 rounded-sm py-1 text-left focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-45";
+  if (look === "row")
+    return "flex min-h-11 w-full items-center gap-3 rounded-sm py-1 text-left focus:outline-2 focus:outline-ink focus:outline-offset-0 disabled:opacity-45";
   return triggerClass;
 }

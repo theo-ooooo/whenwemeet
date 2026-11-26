@@ -10,8 +10,7 @@ import { useMutation } from "./_useMutation";
  */
 export function useRestoreEvent(groupId: number) {
   const fn = useCallback(
-    (deletionId: number) =>
-      api<EventRestoreResult>(`/groups/${groupId}/event-deletions/${deletionId}/restore`, { method: "POST" }),
+    (deletionId: number) => api<EventRestoreResult>(`/groups/${groupId}/event-deletions/${deletionId}/restore`, { method: "POST" }),
     [groupId],
   );
   return useMutation(fn);

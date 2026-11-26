@@ -55,20 +55,38 @@ export class FakeNaver {
         const v = req.headers[name];
         return Array.isArray(v) ? v[0] : v;
       };
-      this.requests.push({ query: Object.fromEntries(url.searchParams), id: header('x-ncp-apigw-api-key-id'), secret: header('x-ncp-apigw-api-key') });
+      this.requests.push({
+        query: Object.fromEntries(url.searchParams),
+        id: header('x-ncp-apigw-api-key-id'),
+        secret: header('x-ncp-apigw-api-key'),
+      });
       res.setHeader('content-type', 'application/json');
       if (this.status !== 200) {
         res.statusCode = this.status;
         res.end(JSON.stringify({ errorMessage: 'limit', errorCode: '012' }));
         return;
       }
-      const items = (url.searchParams.get('query') ?? '').includes('서울숲') ? ITEMS : [];
-      res.end(JSON.stringify({ lastBuildDate: new Date().toUTCString(), total: items.length, start: 1, display: items.length, items }));
+      const items = (url.searchParams.get('query') ?? '').includes('서울숲')
+        ? ITEMS
+        : [];
+      res.end(
+        JSON.stringify({
+          lastBuildDate: new Date().toUTCString(),
+          total: items.length,
+          start: 1,
+          display: items.length,
+          items,
+        }),
+      );
     });
-    await new Promise<void>((resolve) => this.server!.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) =>
+      this.server!.listen(0, '127.0.0.1', resolve),
+    );
   }
 
   async stop(): Promise<void> {
-    await new Promise<void>((resolve) => this.server?.close(() => resolve()) ?? resolve());
+    await new Promise<void>(
+      (resolve) => this.server?.close(() => resolve()) ?? resolve(),
+    );
   }
 }

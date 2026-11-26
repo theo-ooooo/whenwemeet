@@ -48,7 +48,9 @@ function Tiles({ stats }: { stats: NoticeStats }) {
         {noticeStatTiles(stats).map((t) => (
           <div key={t.label} className="min-h-[84px] rounded-xl bg-paper px-3.5 py-3">
             <span className="block text-[12px] font-semibold leading-4 text-ink-2">{t.label}</span>
-            <span className={`mt-1 block text-[22px] font-bold leading-7 tracking-[-0.02em] tabular-nums ${t.warn ? "text-danger" : "text-ink"}`}>{t.value}</span>
+            <span className={`mt-1 block text-[22px] font-bold leading-7 tracking-[-0.02em] tabular-nums ${t.warn ? "text-danger" : "text-ink"}`}>
+              {t.value}
+            </span>
             {t.hint && <span className="block text-[11px] leading-4 text-ink-2">{t.hint}</span>}
           </div>
         ))}
@@ -95,7 +97,14 @@ function Readers({ id, stats }: { id: number; stats: NoticeStats | null }) {
           <label className="relative block min-w-0 flex-1">
             <span className="sr-only">이름으로 찾기</span>
             <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2" />
-            <input type="search" className={`${inputClass} min-h-10 py-2 pl-9`} placeholder="이름으로 찾기" value={text} maxLength={50} onChange={(e) => setText(e.target.value)} />
+            <input
+              type="search"
+              className={`${inputClass} min-h-10 py-2 pl-9`}
+              placeholder="이름으로 찾기"
+              value={text}
+              maxLength={50}
+              onChange={(e) => setText(e.target.value)}
+            />
           </label>
           {!unread && (
             <label className="block w-[118px] shrink-0">

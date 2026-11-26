@@ -6,7 +6,9 @@
     "dev": "pnpm -r --parallel --filter ./apps/* dev",
     "build": "pnpm -r --filter ./apps/* build",
     "lint": "pnpm -r --filter ./apps/* lint",
-    "knip": "knip"
+    "knip": "knip",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\" \"apps/api/test/**/*.ts\" \"apps/mobile/*.ts\"",
+    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx}\" \"apps/api/test/**/*.ts\" \"apps/mobile/*.ts\""
   },
   "pnpm": {
     "patchedDependencies": {
@@ -14,6 +16,7 @@
     }
   },
   "devDependencies": {
-    "knip": "^5"
+    "knip": "^5",
+    "prettier": "^3.4.2"
   }
 }

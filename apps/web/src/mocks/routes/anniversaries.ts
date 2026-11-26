@@ -5,7 +5,7 @@ import { memberOf } from "../fixtures";
 import { errorBody } from "@/lib/envelope";
 import { err, nextId, nowIso, ok, type GroupReq, type MockResult } from "./shared";
 
-  // (#305) 이 팀 달력에 보이는 멤버 생일 (가입순). 생일이 있고 그 팀 showBirthday 가 켜진 멤버만
+// (#305) 이 팀 달력에 보이는 멤버 생일 (가입순). 생일이 있고 그 팀 showBirthday 가 켜진 멤버만
 export function birthdaysRoute(req: GroupReq): MockResult | null {
   const { s, method, groupId, rest } = req;
   if (rest[0] === "birthdays" && rest.length === 1 && method === "GET") {
@@ -47,8 +47,7 @@ export function anniversaryRoutes(req: GroupReq): MockResult | null {
     const REMINDERS = ["DAY_OF", "DAY_BEFORE", "WEEK_BEFORE"] as const;
     type Reminder = (typeof REMINDERS)[number];
     const remindersOk = (v: unknown) =>
-      v === undefined ||
-      (Array.isArray(v) && v.every((r) => REMINDERS.includes(r as Reminder)) && new Set(v).size === v.length);
+      v === undefined || (Array.isArray(v) && v.every((r) => REMINDERS.includes(r as Reminder)) && new Set(v).size === v.length);
     const orderReminders = (v: unknown) => REMINDERS.filter((r) => (v as Reminder[]).includes(r));
     const validate = (name: unknown, date: unknown, partial: boolean, kind?: unknown, reminders?: unknown): MockResult | null => {
       if (kind !== undefined && !KINDS.includes(kind as (typeof KINDS)[number])) {

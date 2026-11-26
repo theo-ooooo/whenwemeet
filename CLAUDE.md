@@ -54,6 +54,7 @@
 - 브랜치 흐름: `feature → develop → main`. `develop` 이 기본 브랜치(통합), `main` 은 배포본. 둘 다 직접 push 금지. **모든 변경은 이슈 → 브랜치 → PR(→ develop) → 머지**
 - 배포는 `develop → main` PR 하나로 (제목 `release: vX.Y.Z`), **머지 커밋으로 머지**(`gh pr merge --merge`) 후 태그. squash 하면 main 에 develop 에 없는 커밋이 생겨 다음 릴리스가 충돌한다 (#79)
 - 브랜치: `<type>/<이슈번호>-<짧은-영문>` (예: `docs/1-planning`, `feat/4-auth-kakao`, `fix/12-event-overlap`)
+- 포맷: prettier 설정은 루트 `.prettierrc.json`(웹, 모바일 큰따옴표 160자), `apps/api/.prettierrc.json`(작은따옴표 160자). 커밋 전 `pnpm format`, CI 가 `pnpm format:check` 로 막는다 (#578)
 - 커밋: `<type>: 메시지 (#이슈번호)` — type 은 feat, fix, docs, chore, refactor, test, infra
 - PR 제목 = 커밋 type 규칙과 동일. 본문은 `.github/PULL_REQUEST_TEMPLATE.md` 채움. 기능/수정 PR(→ develop) 머지는 squash
 - GATE 승인(기획/설계) 은 **해당 PR 승인 또는 "기획 승인" 댓글** 로 대체

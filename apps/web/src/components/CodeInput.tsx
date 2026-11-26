@@ -11,7 +11,10 @@ export const CODE_LENGTH = 6;
 export function normalizeCode(raw: string): string {
   const fromLink = /\/join\/([A-Za-z0-9]+)/.exec(raw);
   const s = fromLink ? fromLink[1] : raw;
-  return s.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
+  return s
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, CODE_LENGTH);
 }
 
 type Props = {

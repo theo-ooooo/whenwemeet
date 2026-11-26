@@ -6,7 +6,9 @@ import { applyTestEnv } from './test-env.js';
 export default function globalSetup(): void {
   const url = applyTestEnv();
   if (!/whenwemeet_test|_test\b/.test(new URL(url).pathname)) {
-    throw new Error('TEST_DATABASE_URL 은 이름이 _test 로 끝나는 DB 여야 해요 (개발 DB 보호)');
+    throw new Error(
+      'TEST_DATABASE_URL 은 이름이 _test 로 끝나는 DB 여야 해요 (개발 DB 보호)',
+    );
   }
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),

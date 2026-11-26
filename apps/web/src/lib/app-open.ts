@@ -114,12 +114,7 @@ export function webFallbackUrl(origin: string, path: string): string {
  * - iOS: 커스텀 스킴. 앱이 없으면 아무 일도 없으므로(카카오톡) 호출부가 시간 초과 뒤 설치 버튼을 보여 준다
  * - Android: intent. 사용자가 직접 누른 경우(manual)이고 스토어가 열려 있으면 폴백을 스토어로, 아니면 웹(app=0)으로
  */
-export function appOpenUrl(
-  os: MobileOs,
-  origin: string,
-  path: string,
-  opts: { manual: boolean; storeUrl: string | null },
-): string {
+export function appOpenUrl(os: MobileOs, origin: string, path: string, opts: { manual: boolean; storeUrl: string | null }): string {
   if (os === "ios") return appSchemeUrl(path);
   const fallback = opts.manual && opts.storeUrl ? opts.storeUrl : webFallbackUrl(origin, path);
   return androidIntentUrl(path, fallback);

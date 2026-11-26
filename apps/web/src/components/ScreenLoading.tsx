@@ -41,9 +41,7 @@ export function ScreenLoading({ title, kind = "list", back }: Props) {
         </div>
       ) : (
         <>
-          <div className="flex h-10 items-center">
-            {title ? <p className="t-title">{title}</p> : <Skeleton className="h-6 w-28" />}
-          </div>
+          <div className="flex h-10 items-center">{title ? <p className="t-title">{title}</p> : <Skeleton className="h-6 w-28" />}</div>
           <ListSkeleton />
         </>
       )}

@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { CalendarType } from '../generated/prisma/enums.js';
-import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow } from '../common/member.js';
+import {
+  toUserRow,
+  USER_PUBLIC_SELECT,
+  type MembershipRow,
+} from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -23,7 +27,11 @@ export interface BirthdayFeedRow {
 }
 
 /** 이 팀에 생일을 보이는 멤버: 생일이 있고 그 팀 멤버십의 showBirthday 가 켜짐 (D-231) */
-const shownIn = (groupId: number) => ({ groupId, showBirthday: true, user: { birthday: { not: null } } });
+const shownIn = (groupId: number) => ({
+  groupId,
+  showBirthday: true,
+  user: { birthday: { not: null } },
+});
 
 /**
  * (#305) 멤버 생일 읽기. 생일은 User 한 칸이라 팀 멤버십을 따라 읽기만 한다 (쓰기는 UsersRepository).
@@ -46,16 +54,28 @@ export class BirthdaysRepository {
         color: true,
         displayName: true,
         joinedAt: true,
-        user: { select: { ...USER_PUBLIC_SELECT.select, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true } },
+        user: {
+          select: {
+            ...USER_PUBLIC_SELECT.select,
+            birthday: true,
+            birthdayCalendar: true,
+            birthdayLeapMonth: true,
+          },
+        },
       },
     });
-    return rows.map(({ user: { birthday, birthdayCalendar, birthdayLeapMonth, ...user }, ...row }) => ({
-      ...row,
-      user: toUserRow(user, this.urls),
-      birthday: birthday!,
-      birthdayCalendar,
-      birthdayLeapMonth,
-    }));
+    return rows.map(
+      ({
+        user: { birthday, birthdayCalendar, birthdayLeapMonth, ...user },
+        ...row
+      }) => ({
+        ...row,
+        user: toUserRow(user, this.urls),
+        birthday: birthday!,
+        birthdayCalendar,
+        birthdayLeapMonth,
+      }),
+    );
   }
 
   /** (#193) 피드: 기념일 포함이 켜져 있을 때 같이 싣는다 */
@@ -63,7 +83,19 @@ export class BirthdaysRepository {
     const rows = await this.prisma.membership.findMany({
       where: shownIn(groupId),
       orderBy: { userId: 'asc' },
-      select: { userId: true, displayName: true, user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true, updatedAt: true } } },
+      select: {
+        userId: true,
+        displayName: true,
+        user: {
+          select: {
+            nickname: true,
+            birthday: true,
+            birthdayCalendar: true,
+            birthdayLeapMonth: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
     return rows.map((row) => ({
       userId: row.userId,

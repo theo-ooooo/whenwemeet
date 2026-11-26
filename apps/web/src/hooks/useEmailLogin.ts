@@ -9,19 +9,13 @@ export type EmailRequestResult = { cooldownSec?: number; expiresInSec?: number }
 
 /** 로그인 메일 보내기 (처음, 다시 보내기) */
 export function useRequestEmailLogin() {
-  const fn = useCallback(
-    (input: { email: string; next: string }) => authEmailPost<EmailRequestResult>("request", input),
-    [],
-  );
+  const fn = useCallback((input: { email: string; next: string }) => authEmailPost<EmailRequestResult>("request", input), []);
   return useMutation(fn);
 }
 
 /** 6자리 코드로 로그인. 결과의 redirect 로 이동한다 */
 export function useVerifyEmailCode() {
-  const fn = useCallback(
-    (input: { email: string; code: string }) => authEmailPost<{ redirect: string }>("code", input),
-    [],
-  );
+  const fn = useCallback((input: { email: string; code: string }) => authEmailPost<{ redirect: string }>("code", input), []);
   return useMutation(fn, { keepPendingAfterSuccess: true });
 }
 

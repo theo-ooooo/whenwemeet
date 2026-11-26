@@ -17,14 +17,11 @@ import {
 const ORIGIN = "https://whenwemeet.day";
 const ON = { ios: true, android: true };
 const OFF = { ios: false, android: false };
-const KAKAO_IOS =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 25.9.0";
+const KAKAO_IOS = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 KAKAOTALK 25.9.0";
 const KAKAO_ANDROID =
   "Mozilla/5.0 (Linux; Android 15; SM-S928N Build/AP3A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0 Mobile Safari/537.36;KAKAOTALK 2610910";
-const SAFARI_IOS =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1";
-const CHROME_ANDROID =
-  "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36";
+const SAFARI_IOS = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1";
+const CHROME_ANDROID = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36";
 const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15";
 const APP_IOS = `${SAFARI_IOS} WhenwemeetApp/1.0.0 (ios)`;
 const APP_ANDROID = `${CHROME_ANDROID} WhenwemeetApp/1.0.0 (android)`;
@@ -114,9 +111,7 @@ describe("앱 열기 주소", () => {
       "intent://join/ABC123#Intent;scheme=whenwemeet;package=day.whenwemeet.app;" +
         "S.browser_fallback_url=https%3A%2F%2Fwhenwemeet.day%2Fjoin%2FABC123%3Fapp%3D0;end",
     );
-    expect(androidIntentUrl("/join/ABC123?auto=1", null)).toBe(
-      "intent://join/ABC123?auto=1#Intent;scheme=whenwemeet;package=day.whenwemeet.app;end",
-    );
+    expect(androidIntentUrl("/join/ABC123?auto=1", null)).toBe("intent://join/ABC123?auto=1#Intent;scheme=whenwemeet;package=day.whenwemeet.app;end");
   });
   it("웹 폴백은 같은 주소 + app=0", () => {
     expect(webFallbackUrl(ORIGIN, "/join/ABC123?auto=1")).toBe("https://whenwemeet.day/join/ABC123?auto=1&app=0");
@@ -129,12 +124,8 @@ describe("앱 열기 주소", () => {
   it("Android 폴백: 직접 누름 + 스토어 공개면 Play 스토어, 아니면 웹(app=0)", () => {
     const fb = (u: string) => decodeURIComponent(/S\.browser_fallback_url=([^;]+)/.exec(u)![1]);
     expect(fb(appOpenUrl("android", ORIGIN, "/join/AB", { manual: true, storeUrl: PLAY_STORE_URL }))).toBe(PLAY_STORE_URL);
-    expect(fb(appOpenUrl("android", ORIGIN, "/join/AB", { manual: false, storeUrl: PLAY_STORE_URL }))).toBe(
-      "https://whenwemeet.day/join/AB?app=0",
-    );
-    expect(fb(appOpenUrl("android", ORIGIN, "/join/AB", { manual: true, storeUrl: null }))).toBe(
-      "https://whenwemeet.day/join/AB?app=0",
-    );
+    expect(fb(appOpenUrl("android", ORIGIN, "/join/AB", { manual: false, storeUrl: PLAY_STORE_URL }))).toBe("https://whenwemeet.day/join/AB?app=0");
+    expect(fb(appOpenUrl("android", ORIGIN, "/join/AB", { manual: true, storeUrl: null }))).toBe("https://whenwemeet.day/join/AB?app=0");
   });
 });
 

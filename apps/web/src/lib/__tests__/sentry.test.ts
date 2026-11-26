@@ -24,13 +24,21 @@ describe("sentryOptions", () => {
   it("beforeSend, beforeBreadcrumb 가 거른다", () => {
     const o = sentryOptions({ dsn: DSN });
     expect(o?.beforeSend({ message: "a@b.com" })).toEqual({ message: FILTERED });
-    expect(o?.beforeBreadcrumb({ category: "fetch", data: { url: "/api/x?token=t" } })).toEqual({ category: "fetch", data: { url: `/api/x?token=${FILTERED}` } });
+    expect(o?.beforeBreadcrumb({ category: "fetch", data: { url: "/api/x?token=t" } })).toEqual({
+      category: "fetch",
+      data: { url: `/api/x?token=${FILTERED}` },
+    });
   });
 
   it("서버 환경은 SENTRY_ENVIRONMENT > VERCEL_ENV > NODE_ENV, 릴리스는 VERCEL_GIT_COMMIT_SHA", () => {
-    expect(serverSentryOptions({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: "staging", VERCEL_ENV: "production", NODE_ENV: "production" })?.environment).toBe("staging");
+    expect(serverSentryOptions({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: "staging", VERCEL_ENV: "production", NODE_ENV: "production" })?.environment).toBe(
+      "staging",
+    );
     expect(serverSentryOptions({ SENTRY_DSN: DSN, VERCEL_ENV: "preview", NODE_ENV: "production" })?.environment).toBe("preview");
-    expect(serverSentryOptions({ SENTRY_DSN: DSN, NODE_ENV: "production", VERCEL_GIT_COMMIT_SHA: "sha1" })).toMatchObject({ environment: "production", release: "sha1" });
+    expect(serverSentryOptions({ SENTRY_DSN: DSN, NODE_ENV: "production", VERCEL_GIT_COMMIT_SHA: "sha1" })).toMatchObject({
+      environment: "production",
+      release: "sha1",
+    });
   });
 });
 

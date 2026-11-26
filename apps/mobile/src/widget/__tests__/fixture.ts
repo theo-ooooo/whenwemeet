@@ -29,4 +29,3 @@ export function sample(over: Partial<WidgetSnapshot> = {}): WidgetSnapshot {
     ...over,
   };
 }
-

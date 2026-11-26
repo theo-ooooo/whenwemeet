@@ -25,7 +25,16 @@ vi.mock("@/hooks", () => ({
 
 const { NotificationSettingsScreen } = await import("../NotificationSettingsScreen");
 
-const DEFAULTS: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true };
+const DEFAULTS: NotificationSettings = {
+  reminder: true,
+  change: true,
+  anniversary: true,
+  join: true,
+  weekly: true,
+  weeklyNudge: false,
+  poll: true,
+  notice: true,
+};
 const switchOf = (name: string) => screen.getByRole("switch", { name: new RegExp(`^${name}`) });
 
 describe("NotificationSettingsScreen (#277)", () => {

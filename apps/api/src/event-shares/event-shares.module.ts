@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { EventsModule } from '../events/events.module.js';
 import { GroupsModule } from '../groups/groups.module.js';
-import { EventShareLinksController, EventSharesController } from './event-shares.controller.js';
+import {
+  EventShareLinksController,
+  EventSharesController,
+} from './event-shares.controller.js';
 import { EventSharesDataModule } from './event-shares-data.module.js';
 import { EventSharesService } from './event-shares.service.js';
 

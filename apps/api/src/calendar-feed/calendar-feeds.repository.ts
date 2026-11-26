@@ -49,11 +49,19 @@ export class CalendarFeedsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findMine(userId: number, groupId: number): Promise<CalendarFeedRow | null> {
-    return this.prisma.calendarFeed.findUnique({ where: { userId_groupId: { userId, groupId } }, select: FEED_SELECT });
+    return this.prisma.calendarFeed.findUnique({
+      where: { userId_groupId: { userId, groupId } },
+      select: FEED_SELECT,
+    });
   }
 
   /** 없으면 새 토큰으로 만들고, 있으면 설정만 바꾼다 (토큰 유지) */
-  upsert(userId: number, groupId: number, settings: CalendarFeedSettings, token: FeedTokenInput): Promise<CalendarFeedRow> {
+  upsert(
+    userId: number,
+    groupId: number,
+    settings: CalendarFeedSettings,
+    token: FeedTokenInput,
+  ): Promise<CalendarFeedRow> {
     return this.prisma.calendarFeed.upsert({
       where: { userId_groupId: { userId, groupId } },
       create: { userId, groupId, ...token, ...settings },
@@ -63,8 +71,15 @@ export class CalendarFeedsRepository {
   }
 
   /** 토큰 교체 (재발급, 서버 비밀이 바뀐 뒤 주소 다시 맞추기). 행이 없으면 null */
-  async replaceToken(userId: number, groupId: number, token: FeedTokenInput): Promise<CalendarFeedRow | null> {
-    const { count } = await this.prisma.calendarFeed.updateMany({ where: { userId, groupId }, data: token });
+  async replaceToken(
+    userId: number,
+    groupId: number,
+    token: FeedTokenInput,
+  ): Promise<CalendarFeedRow | null> {
+    const { count } = await this.prisma.calendarFeed.updateMany({
+      where: { userId, groupId },
+      data: token,
+    });
     return count > 0 ? this.findMine(userId, groupId) : null;
   }
 
@@ -76,14 +91,27 @@ export class CalendarFeedsRepository {
   findByHash(tokenHash: string): Promise<CalendarFeedWithGroup | null> {
     return this.prisma.calendarFeed.findUnique({
       where: { tokenHash },
-      select: { ...FEED_SELECT, group: { select: { name: true, publicCode: true, type: true } } },
+      select: {
+        ...FEED_SELECT,
+        group: { select: { name: true, publicCode: true, type: true } },
+      },
     });
   }
 
   /** 마지막으로 가져간 시각. 직전 기록이 1분 안이면 쓰지 않는다 */
   async touchFetched(id: number, now: Date): Promise<void> {
     await this.prisma.calendarFeed.updateMany({
-      where: { id, OR: [{ lastFetchedAt: null }, { lastFetchedAt: { lt: new Date(now.getTime() - FETCH_TOUCH_INTERVAL_MS) } }] },
+      where: {
+        id,
+        OR: [
+          { lastFetchedAt: null },
+          {
+            lastFetchedAt: {
+              lt: new Date(now.getTime() - FETCH_TOUCH_INTERVAL_MS),
+            },
+          },
+        ],
+      },
       data: { lastFetchedAt: now },
     });
   }

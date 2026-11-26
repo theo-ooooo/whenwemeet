@@ -23,7 +23,10 @@ export function usePlaceResolve(place: Ref) {
   const cached = key !== null && memory.has(key) ? { place: memory.get(key) ?? null } : null;
   // 카카오는 provider 를 빼고 부른다 (옛 API 와 같은 주소)
   const params = ref ? (ref.provider === "naver" ? { provider: "naver", id: ref.id, q } : { id: ref.id, q }) : null;
-  const r = useQuery<{ place: PlaceCandidate | null }>(key && params ? `/places/resolve${qs(params)}` : null, { enabled: key !== null && cached === null, initialData: cached });
+  const r = useQuery<{ place: PlaceCandidate | null }>(key && params ? `/places/resolve${qs(params)}` : null, {
+    enabled: key !== null && cached === null,
+    initialData: cached,
+  });
   useEffect(() => {
     if (key !== null && r.data) memory.set(key, r.data.place);
   }, [key, r.data]);

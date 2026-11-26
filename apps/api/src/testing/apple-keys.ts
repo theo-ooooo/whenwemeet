@@ -1,4 +1,12 @@
-import { createLocalJWKSet, exportJWK, exportPKCS8, generateKeyPair, SignJWT, type CryptoKey, type JWTVerifyGetKey } from 'jose';
+import {
+  createLocalJWKSet,
+  exportJWK,
+  exportPKCS8,
+  generateKeyPair,
+  SignJWT,
+  type CryptoKey,
+  type JWTVerifyGetKey,
+} from 'jose';
 
 /** 테스트용 애플 설정 값 (가짜). 키는 테스트마다 새로 만든다 */
 export const APPLE_TEST_ENV = {
@@ -28,7 +36,12 @@ export async function createAppleTestKeys(): Promise<AppleTestKeys> {
   const rsa = await generateKeyPair('RS256');
   const foreign = await generateKeyPair('RS256');
   const ec = await generateKeyPair('ES256', { extractable: true });
-  const jwk = { ...(await exportJWK(rsa.publicKey)), kid: APPLE_TEST_KID, alg: 'RS256', use: 'sig' };
+  const jwk = {
+    ...(await exportJWK(rsa.publicKey)),
+    kid: APPLE_TEST_KID,
+    alg: 'RS256',
+    use: 'sig',
+  };
   return {
     jwks: createLocalJWKSet({ keys: [jwk] }),
     foreignKey: foreign.privateKey,
@@ -53,14 +66,21 @@ export interface AppleTokenOptions {
 }
 
 /** Apple identity token 모양의 JWT */
-export async function signAppleToken(keys: AppleTestKeys, options: AppleTokenOptions = {}): Promise<string> {
+export async function signAppleToken(
+  keys: AppleTestKeys,
+  options: AppleTokenOptions = {},
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const claims: Record<string, unknown> = {};
   if (options.nonce !== null) claims.nonce = options.nonce ?? 'nonce';
-  if (options.nonceSupported !== undefined) claims.nonce_supported = options.nonceSupported;
+  if (options.nonceSupported !== undefined)
+    claims.nonce_supported = options.nonceSupported;
   if (options.email) claims.email = options.email;
   return new SignJWT(claims)
-    .setProtectedHeader({ alg: options.alg ?? 'RS256', kid: options.kid ?? APPLE_TEST_KID })
+    .setProtectedHeader({
+      alg: options.alg ?? 'RS256',
+      kid: options.kid ?? APPLE_TEST_KID,
+    })
     .setIssuer(options.iss ?? 'https://appleid.apple.com')
     .setAudience(options.aud ?? APPLE_TEST_ENV.APPLE_BUNDLE_ID)
     .setSubject(options.sub ?? '001234.apple-sub.0001')

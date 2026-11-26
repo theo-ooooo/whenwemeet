@@ -1,5 +1,9 @@
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
-import { adminPlatformSeenOf, adminPlatformsOf, UsersRepository } from '../users/users.repository.js';
+import {
+  adminPlatformSeenOf,
+  adminPlatformsOf,
+  UsersRepository,
+} from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 import { AdminUsersService } from './admin-users.service.js';
 
@@ -7,7 +11,17 @@ describe('AdminUsersService (#515)', () => {
   let users: RepositoryMock<UsersRepository>;
   let actions: RepositoryMock<AdminActionsRepository>;
   let service: AdminUsersService;
-  const row = { id: 8, nickname: '하늘', role: 'admin' as const, profileImageUrl: null, createdAt: new Date(0), providers: ['KAKAO' as const], platforms: ['ios' as const], platformLastSeen: [], lastAppLoginAt: null };
+  const row = {
+    id: 8,
+    nickname: '하늘',
+    role: 'admin' as const,
+    profileImageUrl: null,
+    createdAt: new Date(0),
+    providers: ['KAKAO' as const],
+    platforms: ['ios' as const],
+    platformLastSeen: [],
+    lastAppLoginAt: null,
+  };
 
   beforeEach(() => {
     users = mockRepository(UsersRepository);
@@ -17,7 +31,10 @@ describe('AdminUsersService (#515)', () => {
   });
 
   it('내 역할은 바꿀 수 없다 (403, 저장, 기록 없음)', async () => {
-    await expect(service.changeRole(5, 5, 'user')).rejects.toMatchObject({ code: 'FORBIDDEN', message: '내 역할은 바꿀 수 없어요' });
+    await expect(service.changeRole(5, 5, 'user')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: '내 역할은 바꿀 수 없어요',
+    });
     expect(users.updateRole).not.toHaveBeenCalled();
     expect(actions.record).not.toHaveBeenCalled();
   });
@@ -26,21 +43,48 @@ describe('AdminUsersService (#515)', () => {
     users.updateRole.mockResolvedValueOnce(row);
     expect(await service.changeRole(5, 8, 'admin')).toEqual(row);
     expect(users.updateRole).toHaveBeenCalledWith(8, 'admin');
-    expect(actions.record).toHaveBeenCalledWith({ adminId: 5, action: 'user_role', targetType: 'user', targetId: 8, reason: 'admin' });
+    expect(actions.record).toHaveBeenCalledWith({
+      adminId: 5,
+      action: 'user_role',
+      targetType: 'user',
+      targetId: 8,
+      reason: 'admin',
+    });
     users.updateRole.mockResolvedValueOnce(null);
-    await expect(service.changeRole(5, 9, 'user')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.changeRole(5, 9, 'user')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 
   it('list 는 저장소에 그대로', async () => {
     users.listForAdmin.mockResolvedValue({ items: [row], nextCursor: null });
-    expect(await service.list({ q: '하', platform: 'android', limit: 20, cursor: null })).toEqual({ items: [row], nextCursor: null });
-    expect(users.listForAdmin).toHaveBeenCalledWith({ q: '하', platform: 'android', limit: 20, cursor: null });
+    expect(
+      await service.list({
+        q: '하',
+        platform: 'android',
+        limit: 20,
+        cursor: null,
+      }),
+    ).toEqual({ items: [row], nextCursor: null });
+    expect(users.listForAdmin).toHaveBeenCalledWith({
+      q: '하',
+      platform: 'android',
+      limit: 20,
+      cursor: null,
+    });
   });
 
   it('(#528, #532) adminPlatformsOf: 기록 있는 기종(ios, android, web 순), 아무 기록도 앱 로그인도 없으면 web, 앱 로그인만 있으면 모름([])', () => {
     const at = new Date('2026-11-20T00:00:00.000Z');
-    expect(adminPlatformsOf([{ platform: 'web' }, { platform: 'android' }, { platform: 'ios' }], null)).toEqual(['ios', 'android', 'web']);
-    expect(adminPlatformsOf([{ platform: 'android' }], at)).toEqual(['android']);
+    expect(
+      adminPlatformsOf(
+        [{ platform: 'web' }, { platform: 'android' }, { platform: 'ios' }],
+        null,
+      ),
+    ).toEqual(['ios', 'android', 'web']);
+    expect(adminPlatformsOf([{ platform: 'android' }], at)).toEqual([
+      'android',
+    ]);
     expect(adminPlatformsOf([], null)).toEqual(['web']);
     expect(adminPlatformsOf([], at)).toEqual([]);
   });
@@ -53,8 +97,16 @@ describe('AdminUsersService (#515)', () => {
     ];
     const devices = [
       { platform: 'IOS' as const, appVersion: '1.2.0', lastSeenAt: t('26') },
-      { platform: 'ANDROID' as const, appVersion: '1.1.0', lastSeenAt: t('20') },
-      { platform: 'ANDROID' as const, appVersion: '1.2.0', lastSeenAt: t('22') },
+      {
+        platform: 'ANDROID' as const,
+        appVersion: '1.1.0',
+        lastSeenAt: t('20'),
+      },
+      {
+        platform: 'ANDROID' as const,
+        appVersion: '1.2.0',
+        lastSeenAt: t('22'),
+      },
     ];
     expect(adminPlatformSeenOf(clients, devices)).toEqual([
       { platform: 'ios', appVersion: '1.3.0', lastSeenAt: t('25') },

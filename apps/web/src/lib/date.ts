@@ -68,9 +68,7 @@ export function addDays(key: DateKey, n: number): DateKey {
 export function daysBetween(a: DateKey, b: DateKey): number {
   const pa = parseKey(a);
   const pb = parseKey(b);
-  return Math.round(
-    (Date.UTC(pb.y, pb.m - 1, pb.d) - Date.UTC(pa.y, pa.m - 1, pa.d)) / DAY_MS,
-  );
+  return Math.round((Date.UTC(pb.y, pb.m - 1, pb.d) - Date.UTC(pa.y, pa.m - 1, pa.d)) / DAY_MS);
 }
 
 export function dowOf(key: DateKey): number {

@@ -23,10 +23,24 @@ export const QUIET_5XX_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
 ]);
 
 /** SDK 가 스스로 모으는 것을 모두 끈다. 헤더는 진단에 필요한 몇 개만 (나머지는 scrubEvent 가 한 번 더 거른다) */
-export const PRIVATE_DATA_COLLECTION: NonNullable<NodeOptions['dataCollection']> = {
+export const PRIVATE_DATA_COLLECTION: NonNullable<
+  NodeOptions['dataCollection']
+> = {
   userInfo: false,
   cookies: false,
-  httpHeaders: { request: { allow: ['accept', 'accept-language', 'content-length', 'content-type', 'host', 'user-agent'] }, response: false },
+  httpHeaders: {
+    request: {
+      allow: [
+        'accept',
+        'accept-language',
+        'content-length',
+        'content-type',
+        'host',
+        'user-agent',
+      ],
+    },
+    response: false,
+  },
   httpBodies: [],
   urlQueryParams: false,
   graphQL: { document: false, variables: false },
@@ -47,7 +61,8 @@ export function sentryOptions(env: NodeJS.ProcessEnv): NodeOptions | null {
   if (!dsn) return null;
   return {
     dsn,
-    environment: text(env.SENTRY_ENVIRONMENT) || text(env.NODE_ENV) || 'development',
+    environment:
+      text(env.SENTRY_ENVIRONMENT) || text(env.NODE_ENV) || 'development',
     // release 는 비워 두면 SDK 가 SENTRY_RELEASE, RAILWAY_GIT_COMMIT_SHA 순으로 채운다
     tracesSampleRate: undefined,
     tracesSampler: undefined,
@@ -68,7 +83,9 @@ export function initSentry(env: NodeJS.ProcessEnv = process.env): boolean {
 /** 이 예외를 Sentry 로 보낼지. 5xx 만, 그중 의도한 상태(설정 없음, DB 점검)는 빼고 */
 export function shouldReport(exception: unknown, status: number): boolean {
   if (status < 500) return false;
-  return !(exception instanceof ApiException && QUIET_5XX_CODES.has(exception.code));
+  return !(
+    exception instanceof ApiException && QUIET_5XX_CODES.has(exception.code)
+  );
 }
 
 /** 오류 하나를 보낸다. SDK 가 꺼져 있으면 아무것도 하지 않는다. `where` 는 HTTP 밖(스케줄러 등)에서 난 곳 */

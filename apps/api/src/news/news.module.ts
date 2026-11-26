@@ -7,7 +7,12 @@ import { NewsController } from './news.controller.js';
 import { NewsService } from './news.service.js';
 
 @Module({
-  imports: [GroupsModule, MembershipsModule, EventLogsModule, GroupActivitiesModule],
+  imports: [
+    GroupsModule,
+    MembershipsModule,
+    EventLogsModule,
+    GroupActivitiesModule,
+  ],
   controllers: [NewsController],
   providers: [NewsService],
 })

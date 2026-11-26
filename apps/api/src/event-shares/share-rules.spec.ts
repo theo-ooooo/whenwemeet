@@ -1,4 +1,11 @@
-import { generateShareToken, landingDate, resolveSharedOccurrence, SHARE_TOKEN_PATTERN, shareExpiresAt, type ShareableEvent } from './share-rules.js';
+import {
+  generateShareToken,
+  landingDate,
+  resolveSharedOccurrence,
+  SHARE_TOKEN_PATTERN,
+  shareExpiresAt,
+  type ShareableEvent,
+} from './share-rules.js';
 
 const kst = (value: string) => new Date(`${value}+09:00`);
 
@@ -11,7 +18,13 @@ const ONCE: ShareableEvent = {
   repeatUntil: null,
   repeatAnchor: null,
 };
-const WEEKLY: ShareableEvent = { ...ONCE, title: '회의', startsAt: kst('2027-01-06T10:00:00'), endsAt: kst('2027-01-06T11:00:00'), repeat: 'WEEKLY' };
+const WEEKLY: ShareableEvent = {
+  ...ONCE,
+  title: '회의',
+  startsAt: kst('2027-01-06T10:00:00'),
+  endsAt: kst('2027-01-06T11:00:00'),
+  repeat: 'WEEKLY',
+};
 
 describe('share-rules (#274)', () => {
   it('토큰은 base64url 22자, 매번 다르다', () => {
@@ -24,12 +37,22 @@ describe('share-rules (#274)', () => {
 
   it('만료: 회차 끝 + 1일, 만든 때 + 30일을 넘지 않음', () => {
     const now = kst('2027-01-01T12:00:00');
-    expect(shareExpiresAt(kst('2027-01-09T21:00:00'), now)).toEqual(kst('2027-01-10T21:00:00'));
-    expect(shareExpiresAt(kst('2027-03-01T00:00:00'), now)).toEqual(kst('2027-01-31T12:00:00'));
+    expect(shareExpiresAt(kst('2027-01-09T21:00:00'), now)).toEqual(
+      kst('2027-01-10T21:00:00'),
+    );
+    expect(shareExpiresAt(kst('2027-03-01T00:00:00'), now)).toEqual(
+      kst('2027-01-31T12:00:00'),
+    );
   });
 
   it('한 번짜리: occurrence null 이면 그대로, 값이 있으면(반복이던 일정) 없음', () => {
-    expect(resolveSharedOccurrence(ONCE, [], null)).toEqual({ title: '저녁', startsAt: ONCE.startsAt, endsAt: ONCE.endsAt, allDay: false, occurrence: null });
+    expect(resolveSharedOccurrence(ONCE, [], null)).toEqual({
+      title: '저녁',
+      startsAt: ONCE.startsAt,
+      endsAt: ONCE.endsAt,
+      allDay: false,
+      occurrence: null,
+    });
     expect(resolveSharedOccurrence(ONCE, [], '2027-01-09')).toBeNull();
   });
 
@@ -41,13 +64,35 @@ describe('share-rules (#274)', () => {
       allDay: false,
       occurrence: '2027-01-13',
     });
-    expect(resolveSharedOccurrence(WEEKLY, [], null)?.occurrence).toBe('2027-01-06');
+    expect(resolveSharedOccurrence(WEEKLY, [], null)?.occurrence).toBe(
+      '2027-01-06',
+    );
     expect(resolveSharedOccurrence(WEEKLY, [], '2027-01-14')).toBeNull();
-    expect(resolveSharedOccurrence(WEEKLY, [{ occurrence: '2027-01-13', cancelled: true }], '2027-01-13')).toBeNull();
-    expect(resolveSharedOccurrence({ ...WEEKLY, repeatUntil: '2027-01-12' }, [], '2027-01-13')).toBeNull();
+    expect(
+      resolveSharedOccurrence(
+        WEEKLY,
+        [{ occurrence: '2027-01-13', cancelled: true }],
+        '2027-01-13',
+      ),
+    ).toBeNull();
+    expect(
+      resolveSharedOccurrence(
+        { ...WEEKLY, repeatUntil: '2027-01-12' },
+        [],
+        '2027-01-13',
+      ),
+    ).toBeNull();
     const moved = resolveSharedOccurrence(
       WEEKLY,
-      [{ occurrence: '2027-01-13', cancelled: false, title: '옮김', startsAt: kst('2027-01-14T15:00:00'), endsAt: kst('2027-01-14T16:00:00') }],
+      [
+        {
+          occurrence: '2027-01-13',
+          cancelled: false,
+          title: '옮김',
+          startsAt: kst('2027-01-14T15:00:00'),
+          endsAt: kst('2027-01-14T16:00:00'),
+        },
+      ],
       '2027-01-13',
     );
     expect(moved).toMatchObject({ title: '옮김', occurrence: '2027-01-13' });

@@ -17,8 +17,26 @@ vi.mock("@/hooks", () => ({
 
 const { PlaceField } = await import("../PlaceField");
 
-const C = (id: string, name: string): PlaceCandidate => ({ provider: "kakao", kakaoPlaceId: id, naverKey: null, name, address: `${name} 주소`, lat: 37.5, lng: 127, category: "카페" });
-const N = (key: string, name: string): PlaceCandidate => ({ provider: "naver", kakaoPlaceId: null, naverKey: key, name, address: `${name} 주소`, lat: 37.5, lng: 127, category: "카페" });
+const C = (id: string, name: string): PlaceCandidate => ({
+  provider: "kakao",
+  kakaoPlaceId: id,
+  naverKey: null,
+  name,
+  address: `${name} 주소`,
+  lat: 37.5,
+  lng: 127,
+  category: "카페",
+});
+const N = (key: string, name: string): PlaceCandidate => ({
+  provider: "naver",
+  kakaoPlaceId: null,
+  naverKey: key,
+  name,
+  address: `${name} 주소`,
+  lat: 37.5,
+  lng: 127,
+  category: "카페",
+});
 
 function setup(text = "카페", picked: null | { name: string | null } = null) {
   const onType = vi.fn();
@@ -26,7 +44,10 @@ function setup(text = "카페", picked: null | { name: string | null } = null) {
   const onClear = vi.fn();
   render(
     <PlaceField
-      place={{ text: picked ? "" : text, picked: picked ? { provider: "kakao", id: "1", query: "숲", name: picked.name, address: picked.name ? "서울" : null } : null }}
+      place={{
+        text: picked ? "" : text,
+        picked: picked ? { provider: "kakao", id: "1", query: "숲", name: picked.name, address: picked.name ? "서울" : null } : null,
+      }}
       onType={onType}
       onPick={onPick}
       onClear={onClear}
@@ -111,7 +132,12 @@ describe("PlaceField", () => {
 
   it("(D-259) 고른 네이버 장소 안내는 네이버로", () => {
     render(
-      <PlaceField place={{ text: "", picked: { provider: "naver", id: "0123456789abcdef", query: "숲", name: "서울숲", address: "서울" } }} onType={vi.fn()} onPick={vi.fn()} onClear={vi.fn()} />,
+      <PlaceField
+        place={{ text: "", picked: { provider: "naver", id: "0123456789abcdef", query: "숲", name: "서울숲", address: "서울" } }}
+        onType={vi.fn()}
+        onPick={vi.fn()}
+        onClear={vi.fn()}
+      />,
     );
     expect(document.body.textContent).toContain("네이버 장소로 저장돼요");
   });

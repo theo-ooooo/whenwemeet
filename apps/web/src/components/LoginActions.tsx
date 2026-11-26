@@ -76,13 +76,7 @@ export function LoginActions({
   return (
     <div className="flex flex-col gap-2">
       {loginChoices(false, appleEnabled, emailEnabled).map((c) =>
-        c === "apple" ? (
-          <AppleButton key={c} next={next} />
-        ) : c === "email" ? (
-          <EmailLoginButton key={c} next={next} />
-        ) : (
-          <KakaoButton key={c} next={next} />
-        ),
+        c === "apple" ? <AppleButton key={c} next={next} /> : c === "email" ? <EmailLoginButton key={c} next={next} /> : <KakaoButton key={c} next={next} />,
       )}
     </div>
   );

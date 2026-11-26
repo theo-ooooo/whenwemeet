@@ -20,11 +20,23 @@ export class PollPlanner {
 
   /** 이번 틱에 예약한 마감 알림 수 */
   async plan(now: Date): Promise<number> {
-    const due = await this.planning.listDuePollDeadlines(now, POLL_DEADLINE_LIMIT);
+    const due = await this.planning.listDuePollDeadlines(
+      now,
+      POLL_DEADLINE_LIMIT,
+    );
     let scheduled = 0;
     for (const poll of due) {
-      const payload = pollDeadlinePayload({ groupName: poll.groupName, groupCode: poll.groupCode, pollCode: poll.pollCode, title: poll.title }, now);
-      if (await this.notifications.schedulePollDeadline(poll, payload, now)) scheduled += 1;
+      const payload = pollDeadlinePayload(
+        {
+          groupName: poll.groupName,
+          groupCode: poll.groupCode,
+          pollCode: poll.pollCode,
+          title: poll.title,
+        },
+        now,
+      );
+      if (await this.notifications.schedulePollDeadline(poll, payload, now))
+        scheduled += 1;
     }
     return scheduled;
   }

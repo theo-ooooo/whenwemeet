@@ -32,7 +32,12 @@ export interface ClaimedDelivery {
   platform: Platform;
   /** 이번 시도를 더한 횟수 */
   attempts: number;
-  notification: { id: number; kind: PushKindName; scheduledAt: Date; payload: PushPayload | null };
+  notification: {
+    id: number;
+    kind: PushKindName;
+    scheduledAt: Date;
+    payload: PushPayload | null;
+  };
 }
 
 export interface ReceiptCandidate {
@@ -72,20 +77,30 @@ export class PushDeliveryRepository {
         payload: true,
       },
     });
-    return rows.map((row) => ({ ...row, occurrence: row.occurrence === null ? null : dbToDate(row.occurrence), payload: asPayload(row.payload) }));
+    return rows.map((row) => ({
+      ...row,
+      occurrence: row.occurrence === null ? null : dbToDate(row.occurrence),
+      payload: asPayload(row.payload),
+    }));
   }
 
   /** PENDING 인 것만 SKIPPED (D-88) */
   async markSkipped(ids: number[]): Promise<number> {
     if (ids.length === 0) return 0;
-    const { count } = await this.prisma.pushNotification.updateMany({ where: { id: { in: ids }, status: 'PENDING' }, data: { status: 'SKIPPED' } });
+    const { count } = await this.prisma.pushNotification.updateMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      data: { status: 'SKIPPED' },
+    });
     return count;
   }
 
   /** (#277) PENDING 인 것만 CANCELLED (주간 알림을 보내지 않기로 판정) */
   async markCancelled(ids: number[]): Promise<number> {
     if (ids.length === 0) return 0;
-    const { count } = await this.prisma.pushNotification.updateMany({ where: { id: { in: ids }, status: 'PENDING' }, data: { status: 'CANCELLED' } });
+    const { count } = await this.prisma.pushNotification.updateMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      data: { status: 'CANCELLED' },
+    });
     return count;
   }
 
@@ -93,16 +108,27 @@ export class PushDeliveryRepository {
    * PENDING → DISPATCHED 가 1행일 때만 기기별 발송(QUEUED)을 만든다 (두 번 펼치지 않음, D-89).
    * payload 를 주면 함께 저장한다. 펼쳤으면 true
    */
-  async dispatchTx(notificationId: number, now: Date, payload: PushPayload | null, recipients: Recipient[]): Promise<boolean> {
+  async dispatchTx(
+    notificationId: number,
+    now: Date,
+    payload: PushPayload | null,
+    recipients: Recipient[],
+  ): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.pushNotification.updateMany({
         where: { id: notificationId, status: 'PENDING' },
-        data: { status: 'DISPATCHED', dispatchedAt: now, ...(payload ? { payload: toJson(payload) } : {}) },
+        data: {
+          status: 'DISPATCHED',
+          dispatchedAt: now,
+          ...(payload ? { payload: toJson(payload) } : {}),
+        },
       });
       if (count !== 1) return false;
       for (let i = 0; i < recipients.length; i += DELIVERY_INSERT_CHUNK) {
         await tx.pushDelivery.createMany({
-          data: recipients.slice(i, i + DELIVERY_INSERT_CHUNK).map((recipient) => ({ notificationId, ...recipient })),
+          data: recipients
+            .slice(i, i + DELIVERY_INSERT_CHUNK)
+            .map((recipient) => ({ notificationId, ...recipient })),
           skipDuplicates: true,
         });
       }
@@ -123,7 +149,9 @@ export class PushDeliveryRepository {
         token: true,
         platform: true,
         attempts: true,
-        notification: { select: { id: true, kind: true, scheduledAt: true, payload: true } },
+        notification: {
+          select: { id: true, kind: true, scheduledAt: true, payload: true },
+        },
       },
     });
     if (rows.length === 0) return [];
@@ -134,36 +162,60 @@ export class PushDeliveryRepository {
     return rows.map((row) => ({
       ...row,
       attempts: row.attempts + 1,
-      notification: { ...row.notification, payload: asPayload(row.notification.payload) },
+      notification: {
+        ...row.notification,
+        payload: asPayload(row.notification.payload),
+      },
     }));
   }
 
-  async markSent(sent: { id: number; ticketId: string }[], now: Date): Promise<void> {
+  async markSent(
+    sent: { id: number; ticketId: string }[],
+    now: Date,
+  ): Promise<void> {
     if (sent.length === 0) return;
     await this.prisma.$transaction(
-      sent.map(({ id, ticketId }) => this.prisma.pushDelivery.update({ where: { id }, data: { status: 'SENT', ticketId, sentAt: now }, select: { id: true } })),
+      sent.map(({ id, ticketId }) =>
+        this.prisma.pushDelivery.update({
+          where: { id },
+          data: { status: 'SENT', ticketId, sentAt: now },
+          select: { id: true },
+        }),
+      ),
     );
   }
 
   async markFailed(ids: number[], error: string): Promise<void> {
     if (ids.length === 0) return;
-    await this.prisma.pushDelivery.updateMany({ where: { id: { in: ids } }, data: { status: 'FAILED', error } });
+    await this.prisma.pushDelivery.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'FAILED', error },
+    });
   }
 
   async requeue(ids: number[]): Promise<void> {
     if (ids.length === 0) return;
-    await this.prisma.pushDelivery.updateMany({ where: { id: { in: ids } }, data: { status: 'QUEUED' } });
+    await this.prisma.pushDelivery.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'QUEUED' },
+    });
   }
 
   // ---------- 영수증 (설계 5-7) ----------
 
   /** 보낸 지 15분 ~ 23시간이고 아직 확인하지 않은 것 */
-  async listReceiptCandidates(now: Date, limit: number): Promise<ReceiptCandidate[]> {
+  async listReceiptCandidates(
+    now: Date,
+    limit: number,
+  ): Promise<ReceiptCandidate[]> {
     const rows = await this.prisma.pushDelivery.findMany({
       where: {
         status: 'SENT',
         receiptCheckedAt: null,
-        sentAt: { lte: new Date(now.getTime() - 15 * 60 * 1000), gte: new Date(now.getTime() - 23 * 60 * 60 * 1000) },
+        sentAt: {
+          lte: new Date(now.getTime() - 15 * 60 * 1000),
+          gte: new Date(now.getTime() - 23 * 60 * 60 * 1000),
+        },
       },
       orderBy: { id: 'asc' },
       take: limit,
@@ -174,6 +226,9 @@ export class PushDeliveryRepository {
 
   async saveReceipts(ids: number[], receipt: string, now: Date): Promise<void> {
     if (ids.length === 0) return;
-    await this.prisma.pushDelivery.updateMany({ where: { id: { in: ids } }, data: { receipt, receiptCheckedAt: now } });
+    await this.prisma.pushDelivery.updateMany({
+      where: { id: { in: ids } },
+      data: { receipt, receiptCheckedAt: now },
+    });
   }
 }

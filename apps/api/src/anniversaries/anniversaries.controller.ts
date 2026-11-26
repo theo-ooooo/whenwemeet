@@ -3,7 +3,10 @@ import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { IdParam } from '../common/id-param.js';
 import { AnniversariesService } from './anniversaries.service.js';
-import { CreateAnniversaryDto, UpdateAnniversaryDto } from './dto/anniversary.dto.js';
+import {
+  CreateAnniversaryDto,
+  UpdateAnniversaryDto,
+} from './dto/anniversary.dto.js';
 
 @Controller('groups/:groupId/anniversaries')
 export class AnniversariesController {
@@ -15,7 +18,11 @@ export class AnniversariesController {
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: CreateAnniversaryDto) {
+  create(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Body() dto: CreateAnniversaryDto,
+  ) {
     return this.anniversaries.create(user.id, groupId, dto);
   }
 

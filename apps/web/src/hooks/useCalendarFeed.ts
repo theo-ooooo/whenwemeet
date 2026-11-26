@@ -14,10 +14,7 @@ export function useCalendarFeed(groupId: number, opts?: QueryOptions<CalendarFee
 
 /** (#193) 만들기와 설정 PUT /groups/:id/calendar-feed. 없으면 만들고 있으면 설정만 (주소 그대로) */
 export function useSaveCalendarFeed(groupId: number, opts?: MutationOptions) {
-  const fn = useCallback(
-    (input: CalendarFeedSettings) => api<CalendarFeed>(`/groups/${groupId}/calendar-feed`, { method: "PUT", body: input }),
-    [groupId],
-  );
+  const fn = useCallback((input: CalendarFeedSettings) => api<CalendarFeed>(`/groups/${groupId}/calendar-feed`, { method: "PUT", body: input }), [groupId]);
   return useMutation(fn, opts);
 }
 

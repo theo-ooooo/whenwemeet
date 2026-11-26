@@ -10,7 +10,13 @@ import { PollsService } from './polls.service.js';
 
 /** (#189) 약속 투표. 마감 알림은 PushModule 의 틱이 맡는다 (PollPlanner) */
 @Module({
-  imports: [GroupsModule, EventsModule, FreeSlotsModule, GroupActivitiesModule, PushModule],
+  imports: [
+    GroupsModule,
+    EventsModule,
+    FreeSlotsModule,
+    GroupActivitiesModule,
+    PushModule,
+  ],
   controllers: [PollsController, PollLookupController],
   providers: [PollsService, PollsRepository],
 })

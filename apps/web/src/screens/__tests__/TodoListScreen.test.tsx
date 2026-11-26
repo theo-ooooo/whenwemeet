@@ -26,7 +26,13 @@ const editor = {
 };
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, back: vi.fn() }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show }) }));
 vi.mock("@/components/AppShell", () => ({ useGroupContext: () => ({ groupId: 2, group: { me: { userId: 1 } } }) }));
 vi.mock("@/hooks", () => ({

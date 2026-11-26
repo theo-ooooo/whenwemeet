@@ -1,7 +1,20 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, IsString, Length, Matches, MaxLength, ValidateBy } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+  ValidateBy,
+} from 'class-validator';
 import { Trim } from '../../common/validation.js';
-import { CODE_PATTERN, EMAIL_MAX_LENGTH, isAcceptableEmail, normalizeEmail } from '../email-crypto.js';
+import {
+  CODE_PATTERN,
+  EMAIL_MAX_LENGTH,
+  isAcceptableEmail,
+  normalizeEmail,
+} from '../email-crypto.js';
 
 export const EMAIL_LOGIN_CLIENTS = ['web', 'app'] as const;
 /** (#198) 이메일 메일의 쓰임 */
@@ -10,13 +23,17 @@ export const EMAIL_PURPOSES = ['LOGIN', 'LINK'] as const;
 /** 앞뒤 공백 제거 + 소문자 → ASCII `로컬@도메인.최상위`, 191자 이하 (D-110) */
 export function EmailAddress(): PropertyDecorator {
   return (target, key) => {
-    Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? normalizeEmail(value) : value))(target, key);
+    Transform(({ value }: { value: unknown }) =>
+      typeof value === 'string' ? normalizeEmail(value) : value,
+    )(target, key);
     ValidateBy(
       {
         name: 'emailAddress',
         validator: {
-          validate: (value: unknown) => typeof value === 'string' && isAcceptableEmail(value),
-          defaultMessage: () => `이메일 주소를 다시 확인해 주세요 (${EMAIL_MAX_LENGTH}자 이하)`,
+          validate: (value: unknown) =>
+            typeof value === 'string' && isAcceptableEmail(value),
+          defaultMessage: () =>
+            `이메일 주소를 다시 확인해 주세요 (${EMAIL_MAX_LENGTH}자 이하)`,
         },
       },
       {},
@@ -28,7 +45,9 @@ export function EmailAddress(): PropertyDecorator {
 function ClientField(): PropertyDecorator {
   return (target, key) => {
     IsOptional()(target, key);
-    IsIn(EMAIL_LOGIN_CLIENTS, { message: 'client 는 web 또는 app 이어야 해요' })(target, key);
+    IsIn(EMAIL_LOGIN_CLIENTS, {
+      message: 'client 는 web 또는 app 이어야 해요',
+    })(target, key);
   };
 }
 

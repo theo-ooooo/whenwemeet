@@ -104,7 +104,9 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
     for (const c of st.challenges) if (c.email === email && (c.purpose ?? "LOGIN") === purpose && alive(c, now)) c.invalidatedAt = now;
     const next = typeof body?.next === "string" && body.next.startsWith("/") ? body.next : "/";
     st.challenges.push({ purpose, email, createdAt: now, next, attempts: 0, usedAt: null, invalidatedAt: null, signupToken: null, signupExpiresAt: 0 });
-    console.info(purpose === "LINK" ? `[mock email] ${email} 연결 코드 ${MOCK_EMAIL_CODE}` : `[mock email] ${email} 링크 /auth/email?token=mock 코드 ${MOCK_EMAIL_CODE}`);
+    console.info(
+      purpose === "LINK" ? `[mock email] ${email} 연결 코드 ${MOCK_EMAIL_CODE}` : `[mock email] ${email} 링크 /auth/email?token=mock 코드 ${MOCK_EMAIL_CODE}`,
+    );
     return ok({ cooldownSec: 60, expiresInSec: 900 });
   }
 
@@ -121,7 +123,16 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
     if (name === "link/inspect") return ok({ state: stateName, emailMasked: stateName === "INVALID" ? null : masked });
     if (stateName !== "VALID") return err(400, "EMAIL_LINK_INVALID", "로그인 링크를 쓸 수 없어요", { reason: stateName });
     // 요청 없이 mock 링크를 바로 연 경우는 기본 사용자 메일로 본다
-    const c = latest ?? { email: "jiwoo@example.com", createdAt: now, next: "/", attempts: 0, usedAt: null, invalidatedAt: null, signupToken: null, signupExpiresAt: 0 };
+    const c = latest ?? {
+      email: "jiwoo@example.com",
+      createdAt: now,
+      next: "/",
+      attempts: 0,
+      usedAt: null,
+      invalidatedAt: null,
+      signupToken: null,
+      signupExpiresAt: 0,
+    };
     if (!latest) st.challenges.push(c);
     return consume(c, now);
   }
@@ -164,7 +175,9 @@ export function mockEmailLogin(s: Store, method: string, path: string, body: Rec
 export function consumeMockLinkCode(rawEmail: string, code: string): Result | null {
   const email = normalizeEmail(rawEmail);
   const now = Date.now();
-  const c = state().challenges.filter((x) => x.email === email && x.purpose === "LINK" && alive(x, now)).at(-1);
+  const c = state()
+    .challenges.filter((x) => x.email === email && x.purpose === "LINK" && alive(x, now))
+    .at(-1);
   if (!c) return err(400, "EMAIL_CODE_EXPIRED", "코드가 만료됐어요. 메일을 다시 받아 주세요");
   if (code !== MOCK_EMAIL_CODE) {
     c.attempts += 1;

@@ -14,7 +14,10 @@ export const INVITER_NAME_MAX = 20;
 export function clampTeamName(name: string, max = TEAM_NAME_MAX): string {
   const chars = Array.from(name.trim().replace(/\s+/g, " "));
   if (chars.length <= max) return chars.join("");
-  return `${chars.slice(0, max - 1).join("").trimEnd()}…`;
+  return `${chars
+    .slice(0, max - 1)
+    .join("")
+    .trimEnd()}…`;
 }
 
 /** 왼쪽 글 칸(약 620px)에 2줄 안으로 들어가는 크기. 한글 한 자 폭은 글자 크기의 약 0.95 */

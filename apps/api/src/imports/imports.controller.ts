@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { IdParam } from '../common/id-param.js';
@@ -17,14 +24,24 @@ export class ImportsController {
   @HttpCode(200)
   @RateLimit('icsPreview')
   @UseInterceptors(IcsFileInterceptor)
-  preview(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @UploadedFile() file: UploadedIcs | undefined, @Body() options: ImportOptionsDto) {
+  preview(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @UploadedFile() file: UploadedIcs | undefined,
+    @Body() options: ImportOptionsDto,
+  ) {
     return this.imports.preview(user.id, groupId, file, options);
   }
 
   @Post()
   @RateLimit('icsImport')
   @UseInterceptors(IcsFileInterceptor)
-  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @UploadedFile() file: UploadedIcs | undefined, @Body() options: ImportCreateDto) {
+  create(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @UploadedFile() file: UploadedIcs | undefined,
+    @Body() options: ImportCreateDto,
+  ) {
     return this.imports.import(user.id, groupId, file, options);
   }
 }

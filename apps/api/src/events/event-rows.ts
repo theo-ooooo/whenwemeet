@@ -1,8 +1,23 @@
-import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
+import {
+  toUserRowOrNull,
+  USER_PUBLIC_SELECT,
+  type UserPublicRecord,
+  type UserRow,
+} from '../common/member.js';
 import type { FileUrlBuilder } from '../files/file-url.builder.js';
 import type { ParticipantSet } from './participants.js';
-import { exceptionPlaceFromColumns, PLACE_SELECT, type PlaceColumns, placeFromColumns, type PlaceValue } from './place.js';
-import type { EventReminderValue, ExceptionRule, Repeat } from './recurrence.js';
+import {
+  exceptionPlaceFromColumns,
+  PLACE_SELECT,
+  type PlaceColumns,
+  placeFromColumns,
+  type PlaceValue,
+} from './place.js';
+import type {
+  EventReminderValue,
+  ExceptionRule,
+  Repeat,
+} from './recurrence.js';
 
 /** 일정 행 모양과 DB 값 변환. 일정 저장소들이 같이 쓴다. events.repository 에서 옮김 (#504) */
 
@@ -104,14 +119,18 @@ export type EventExceptionRow = ExceptionRule & {
   place: PlaceValue | null;
 };
 
-type EventRecord = Omit<EventRow, 'creator' | 'repeatUntil' | 'repeatAnchor' | 'participantIds' | 'place'> &
+type EventRecord = Omit<
+  EventRow,
+  'creator' | 'repeatUntil' | 'repeatAnchor' | 'participantIds' | 'place'
+> &
   PlaceColumns & {
     repeatUntil: Date | null;
     repeatAnchor: Date | null;
     creator: UserPublicRecord | null;
     participants: { userId: number }[];
   };
-type ExceptionRecord = Omit<EventExceptionRow, 'occurrence' | 'place'> & PlaceColumns & { occurrence: Date };
+type ExceptionRecord = Omit<EventExceptionRow, 'occurrence' | 'place'> &
+  PlaceColumns & { occurrence: Date };
 
 /** `YYYY-MM-DD` ↔ `@db.Date`. 시각 없는 값이라 UTC 자정으로 고정해 날짜가 밀리지 않게 한다 (기념일과 같은 규칙) */
 export function dateToDb(value: string): Date {
@@ -122,12 +141,24 @@ export function dbToDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-export function toEventRow({ participants, placeId, placeProvider, placeQuery, placeText, ...record }: EventRecord, urls: FileUrlBuilder): EventRow {
+export function toEventRow(
+  {
+    participants,
+    placeId,
+    placeProvider,
+    placeQuery,
+    placeText,
+    ...record
+  }: EventRecord,
+  urls: FileUrlBuilder,
+): EventRow {
   return {
     ...record,
     place: placeFromColumns({ placeId, placeProvider, placeQuery, placeText }),
-    repeatUntil: record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
-    repeatAnchor: record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
+    repeatUntil:
+      record.repeatUntil === null ? null : dbToDate(record.repeatUntil),
+    repeatAnchor:
+      record.repeatAnchor === null ? null : dbToDate(record.repeatAnchor),
     creator: toUserRowOrNull(record.creator, urls),
     participantIds: participantIdsOf(participants),
   };
@@ -139,14 +170,31 @@ export function participantIdsOf(rows: { userId: number }[]): number[] {
 }
 
 /** (#248) 읽은 일정 행의 참여자 */
-export function participantSetOf(record: { allMembers: boolean; participants: { userId: number }[] }): ParticipantSet {
-  return { allMembers: record.allMembers, ids: record.allMembers ? [] : participantIdsOf(record.participants) };
+export function participantSetOf(record: {
+  allMembers: boolean;
+  participants: { userId: number }[];
+}): ParticipantSet {
+  return {
+    allMembers: record.allMembers,
+    ids: record.allMembers ? [] : participantIdsOf(record.participants),
+  };
 }
 
-export function toExceptionRow({ placeId, placeProvider, placeQuery, placeText, ...record }: ExceptionRecord): EventExceptionRow {
+export function toExceptionRow({
+  placeId,
+  placeProvider,
+  placeQuery,
+  placeText,
+  ...record
+}: ExceptionRecord): EventExceptionRow {
   return {
     ...record,
     occurrence: dbToDate(record.occurrence),
-    place: exceptionPlaceFromColumns({ placeId, placeProvider, placeQuery, placeText }),
+    place: exceptionPlaceFromColumns({
+      placeId,
+      placeProvider,
+      placeQuery,
+      placeText,
+    }),
   };
 }

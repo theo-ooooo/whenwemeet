@@ -125,7 +125,22 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay, members, now, onAddAt, showLunar = false }: Props) {
+function DayBody({
+  date,
+  today,
+  titleId,
+  events,
+  eventsError,
+  onRetry,
+  anniversaries,
+  onClose,
+  onOpenEvent,
+  onPickDay,
+  members,
+  now,
+  onAddAt,
+  showLunar = false,
+}: Props) {
   const bar = useMemo(() => (events && members ? busyByMember(events, members, dayWindow(date)) : null), [events, members, date]);
   const holiday = holidayOf(date);
   const [prev, , next] = panelDays(date);
@@ -184,10 +199,7 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         <ul className="mt-1">
           {anniversaries.map((o) => (
             <li key={`${o.anniversary.id}-${o.type}`}>
-              <Link
-                href={ANNIVERSARIES_PATH}
-                className="-mx-1.5 flex h-9 items-center gap-2 rounded-sm px-1.5 text-[14px] hover:bg-hover"
-              >
+              <Link href={ANNIVERSARIES_PATH} className="-mx-1.5 flex h-9 items-center gap-2 rounded-sm px-1.5 text-[14px] hover:bg-hover">
                 <IconHeart size={16} className="shrink-0 text-acc-ink" />
                 <span className="min-w-0 flex-1 truncate">{occurrenceTitle(o)}</span>
                 <b className="shrink-0 text-[12px] font-bold text-acc-ink">{dayBadge(date, today)}</b>
@@ -257,7 +269,8 @@ export function DayAddButton({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       className="flex h-11 w-full items-center justify-center gap-1.5 rounded-md bg-btn text-[13.5px] font-bold text-on-btn hover:brightness-95"
     >
-      <IconPlus size={16} strokeWidth={2.2} />이날 일정 추가
+      <IconPlus size={16} strokeWidth={2.2} />
+      이날 일정 추가
     </button>
   );
 }

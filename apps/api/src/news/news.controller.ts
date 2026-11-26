@@ -10,7 +10,11 @@ export class NewsController {
 
   /** `?v=2` 면 팀 활동 기록을 섞는다 (#191). 없거나 다른 값이면 예전 응답 그대로 (D-155) */
   @Get()
-  list(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Query('v') v?: string) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Query('v') v?: string,
+  ) {
     return this.news.list(user.id, groupId, new Date(), v === '2' ? 2 : 1);
   }
 

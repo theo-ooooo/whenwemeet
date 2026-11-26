@@ -52,6 +52,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # (#578) 포맷 검사. 설정은 루트 .prettierrc.json(웹, 모바일), apps/api/.prettierrc.json(API). 고치려면 pnpm format
+      - name: prettier 포맷 검사
+        run: pnpm format:check
+
       # 서비스 컨테이너는 DB 를 하나만 만들므로 테스트 DB 는 여기서 생성 (문자셋은 서버 기본값과 동일하게 명시)
       - name: 테스트 DB 생성
         run: >-

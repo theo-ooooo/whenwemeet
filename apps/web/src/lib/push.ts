@@ -29,15 +29,11 @@ export type SyncAction = { kind: "none" } | { kind: "put"; status: PushStatus & 
  * - 그 밖(토큰 없음, 거부, 미정) 인데 이 기기에 등록한 토큰이 남아 있으면: 서버에서 지운다 (OS 에서 알림을 끈 기기 정리)
  * - 응답이 없으면(시간 초과, 옛 앱) 아무것도 하지 않는다
  */
-export function syncAction(
-  status: PushStatus | null,
-  storedToken: string | null,
-  lastPut: { token: string; at: number } | null,
-  now: number,
-): SyncAction {
+export function syncAction(status: PushStatus | null, storedToken: string | null, lastPut: { token: string; at: number } | null, now: number): SyncAction {
   if (!status) return { kind: "none" };
   if (status.permission === "granted" && status.token) {
-    const fresh = lastPut !== null && lastPut.token === status.token && storedToken === status.token && now - lastPut.at < PUSH_PUT_INTERVAL_MS && now >= lastPut.at;
+    const fresh =
+      lastPut !== null && lastPut.token === status.token && storedToken === status.token && now - lastPut.at < PUSH_PUT_INTERVAL_MS && now >= lastPut.at;
     return fresh ? { kind: "none" } : { kind: "put", status: status as PushStatus & { token: string } };
   }
   return storedToken ? { kind: "delete", token: storedToken } : { kind: "none" };

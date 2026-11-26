@@ -3,14 +3,7 @@
 // 그래서 색과 문구를 함수 안에 둔다. 값 계산은 셸이 미리 해서 props(WidgetProps)로 넣는다 (snapshot.ts widgetProps).
 // 잠금 상태 가림: 시스템 설정 "잠금 상태에서 위젯 내용 가리기" 를 따른다. 일정 제목이 민감할 수 있어 unredacted 를 쓰지 않는다
 import { Ellipse, HStack, Link, Spacer, Text, VStack } from "@expo/ui/swift-ui";
-import {
-  containerBackground,
-  font,
-  foregroundStyle,
-  frame,
-  lineLimit,
-  widgetURL,
-} from "@expo/ui/swift-ui/modifiers";
+import { containerBackground, font, foregroundStyle, frame, lineLimit, widgetURL } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 import { SIGNED_OUT_PROPS, toNativeProps, type WidgetProps } from "./snapshot";
 
@@ -38,25 +31,16 @@ const TodayWidget = (p: WidgetProps, env: WidgetEnvironment) => {
 
   // 일정 칸에 들어갈 안내 한 줄 (없으면 null)
   const notice =
-    p.kind === "signedOut"
-      ? "언제볼까를 열어 로그인해 주세요"
-      : !p.known
-        ? "앱을 열면 새로 고쳐져요"
-        : p.rows.length === 0
-          ? "오늘은 일정이 없어요"
-          : null;
+    p.kind === "signedOut" ? "언제볼까를 열어 로그인해 주세요" : !p.known ? "앱을 열면 새로 고쳐져요" : p.rows.length === 0 ? "오늘은 일정이 없어요" : null;
   const noticeView = notice ? (
-    <Text modifiers={[font({ size: 14, weight: "semibold" }), foregroundStyle(p.kind === "signedOut" ? c.ink : c.mute), lineLimit(3)]}>
-      {notice}
-    </Text>
+    <Text modifiers={[font({ size: 14, weight: "semibold" }), foregroundStyle(p.kind === "signedOut" ? c.ink : c.mute), lineLimit(3)]}>{notice}</Text>
   ) : null;
   // 24시간 넘게 앱을 안 열었으면 날짜는 넘어가되 아래 작게 알린다 (범위를 벗어나 위 안내가 이미 같은 말이면 생략)
   const staleView =
     p.kind === "today" && p.stale && p.known ? (
       <Text modifiers={[font({ size: 10 }), foregroundStyle(c.mute), lineLimit(1)]}>앱을 열면 새로 고쳐져요</Text>
     ) : null;
-  const moreView =
-    p.more > 0 ? <Text modifiers={[font({ size: 11, weight: "medium" }), foregroundStyle(c.mute)]}>{`+${p.more}개`}</Text> : null;
+  const moreView = p.more > 0 ? <Text modifiers={[font({ size: 11, weight: "medium" }), foregroundStyle(c.mute)]}>{`+${p.more}개`}</Text> : null;
 
   if (!medium) {
     // 작은: 오늘 첫 일정 하나 + 가장 가까운 기념일
@@ -65,11 +49,7 @@ const TodayWidget = (p: WidgetProps, env: WidgetEnvironment) => {
       <VStack
         alignment="leading"
         spacing={4}
-        modifiers={[
-          containerBackground(c.bg, "widget"),
-          widgetURL(p.url),
-          frame({ maxWidth: 10000, maxHeight: 10000, alignment: "topLeading" }),
-        ]}
+        modifiers={[containerBackground(c.bg, "widget"), widgetURL(p.url), frame({ maxWidth: 10000, maxHeight: 10000, alignment: "topLeading" })]}
       >
         {header}
         <Spacer />
@@ -101,11 +81,7 @@ const TodayWidget = (p: WidgetProps, env: WidgetEnvironment) => {
 
   // 중간: 왼쪽 오늘 일정 최대 3개 + "+N개", 오른쪽 기념일 D-day (누르면 기념일 화면)
   return (
-    <HStack
-      spacing={12}
-      alignment="top"
-      modifiers={[containerBackground(c.bg, "widget"), widgetURL(p.url)]}
-    >
+    <HStack spacing={12} alignment="top" modifiers={[containerBackground(c.bg, "widget"), widgetURL(p.url)]}>
       <VStack alignment="leading" spacing={6} modifiers={[frame({ maxWidth: 10000, maxHeight: 10000, alignment: "topLeading" })]}>
         {header}
         {noticeView}

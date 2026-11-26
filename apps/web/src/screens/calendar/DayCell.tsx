@@ -159,7 +159,12 @@ export function DayCell({
   const moreVar = { "--more2": rowTop(1), "--more3": rowTop(2) } as React.CSSProperties;
 
   return (
-    <div role="gridcell" aria-selected={isSelected} data-date={dateKey} className={`relative ${lunarRow ? "h-[116px]" : "h-[104px]"} border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]`}>
+    <div
+      role="gridcell"
+      aria-selected={isSelected}
+      data-date={dateKey}
+      className={`relative ${lunarRow ? "h-[116px]" : "h-[104px]"} border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]`}
+    >
       {/* (#201) 포커스 링은 칸 안쪽 2px(아래 span). 바깥으로 그리면 옆 칸 테두리, 겹쳐 그리는 칩, 달력 카드 가장자리에 잘린다.
           아래 탭(폰 독)에 가리지 않게 스크롤 여백을 둔다 */}
       <button
@@ -197,7 +202,11 @@ export function DayCell({
       )}
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
         <span className="relative flex max-w-full min-w-0 items-center tall:gap-1 @max-[84px]:tall:gap-0">
-          <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none max-fold:size-[22px] max-fold:text-[12px] tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
+          <span
+            className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none max-fold:size-[22px] max-fold:text-[12px] tall:ml-0.5 tall:size-6 ${numClass}`}
+          >
+            {p.d}
+          </span>
           {holidayText && (
             <span aria-hidden="true" className={`hidden truncate text-[11px] font-medium tall:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}>
               {holidayText}
@@ -216,14 +225,20 @@ export function DayCell({
           {/* (#566) 높은 칸이 좁으면(폭 84 미만, 폴드 600 등) 10px, 자간을 좁히고 오른쪽 여백 없이 "11.24" 다섯 자가 들어가게.
               공휴일, 기념일 이름이 있는 칸은 폭 128 미만이면 이름이 한두 글자 조각으로 잘리므로 이름을 남기고 음력을 숨긴다 (D-61 우선순위) */}
           {lunar && (
-            <span aria-hidden="true" className={`ml-auto hidden shrink-0 pr-1 text-[11px] leading-4 tracking-[-0.01em] whitespace-nowrap tabular-nums tall:inline @max-[84px]:pr-0 @max-[84px]:text-[10px] @max-[84px]:tracking-[-0.05em] ${lined ? "@max-[128px]:tall:hidden" : ""} ${lunarClass}`}>
+            <span
+              aria-hidden="true"
+              className={`ml-auto hidden shrink-0 pr-1 text-[11px] leading-4 tracking-[-0.01em] whitespace-nowrap tabular-nums tall:inline @max-[84px]:pr-0 @max-[84px]:text-[10px] @max-[84px]:tracking-[-0.05em] ${lined ? "@max-[128px]:tall:hidden" : ""} ${lunarClass}`}
+            >
               {lunar.text}
             </span>
           )}
         </span>
         {/* (#566, D-298) 폰: 날짜 숫자 바로 아래 가운데 한 줄 10px "10.6" (모든 날). 높이 12 를 칸이 늘려 받는다(116) */}
         {lunarRow && (
-          <span aria-hidden="true" className={`block h-3 max-w-full shrink-0 truncate text-[10px] leading-3 tracking-[-0.02em] tabular-nums fold:hidden ${lunarClass}`}>
+          <span
+            aria-hidden="true"
+            className={`block h-3 max-w-full shrink-0 truncate text-[10px] leading-3 tracking-[-0.02em] tabular-nums fold:hidden ${lunarClass}`}
+          >
             {lunar?.text}
           </span>
         )}
@@ -280,7 +295,9 @@ export function DayCell({
               )}
               {/* 기념일, 공휴일 줄이 있으면 칸 높이가 모자라 일정 제목 줄은 숨긴다 (막대, 점은 유지).
                   공휴일 줄은 shrink-0 이라야 truncate(overflow hidden) 때문에 높이 0 으로 눌려 사라지지 않는다 (#140 L2) */}
-              {labelEvent && !annText && !holidayText && <span className="mx-auto mt-px hidden max-w-[94%] truncate fold:block text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>}
+              {labelEvent && !annText && !holidayText && (
+                <span className="mx-auto mt-px hidden max-w-[94%] truncate fold:block text-[10px] font-medium leading-3 text-ink-2">{labelEvent.title}</span>
+              )}
             </>
           )}
         </span>
@@ -317,8 +334,24 @@ export function DayCell({
             </button>
           ))}
           {/* "+N개 더" 는 마지막 줄 (2줄이면 1번, 3줄이면 2번 줄) */}
-          {fit2.more > 0 && <span aria-hidden="true" className="absolute inset-x-0 top-[var(--more2)] mt-0.5 block truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden">+{fit2.more}<span className="@max-[60px]:hidden">개 더</span></span>}
-          {fit3.more > 0 && <span aria-hidden="true" className="absolute inset-x-0 top-[var(--more3)] mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block">+{fit3.more}<span className="@max-[60px]:hidden">개 더</span></span>}
+          {fit2.more > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0 top-[var(--more2)] mt-0.5 block truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:hidden"
+            >
+              +{fit2.more}
+              <span className="@max-[60px]:hidden">개 더</span>
+            </span>
+          )}
+          {fit3.more > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0 top-[var(--more3)] mt-0.5 hidden truncate whitespace-nowrap px-1 text-[11px] font-medium leading-4 text-ink-2 taller:block"
+            >
+              +{fit3.more}
+              <span className="@max-[60px]:hidden">개 더</span>
+            </span>
+          )}
         </span>
       </div>
     </div>

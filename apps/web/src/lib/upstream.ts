@@ -66,7 +66,18 @@ export async function upstream(opts: {
   /** (#532) 브라우저(앱 셸 웹뷰 포함)의 User-Agent. 내부 키와 같이 X-Client-UA 로 싣는다. API 가 로그인한 요청의 기종을 남긴다 (D-288) */
   userAgent?: string | null;
 }): Promise<UpstreamResult> {
-  const { method, path, search = "", body = null, contentType = null, token, timeoutMs = UPSTREAM_TIMEOUT_MS, internal, clientSource = null, userAgent = null } = opts;
+  const {
+    method,
+    path,
+    search = "",
+    body = null,
+    contentType = null,
+    token,
+    timeoutMs = UPSTREAM_TIMEOUT_MS,
+    internal,
+    clientSource = null,
+    userAgent = null,
+  } = opts;
 
   if (isMock()) {
     const { mockHandle, mockUserFromToken } = await import("@/mocks/handler");
@@ -77,9 +88,7 @@ export async function upstream(opts: {
       const form = await new Response(body, { headers: { "Content-Type": contentType ?? "" } }).formData();
       const file = form.get("file");
       parsed =
-        file instanceof Blob
-          ? { file: { type: file.type, size: file.size, url: putMockFile(file.type, new Uint8Array(await file.arrayBuffer())) } }
-          : {};
+        file instanceof Blob ? { file: { type: file.type, size: file.size, url: putMockFile(file.type, new Uint8Array(await file.arrayBuffer())) } } : {};
     } else if (body) {
       try {
         parsed = JSON.parse(body) as Record<string, unknown>;
@@ -126,4 +135,3 @@ export async function upstream(opts: {
     return { status, body: errorBody(status, UPSTREAM_UNAVAILABLE, UNAVAILABLE_MESSAGE) };
   }
 }
-

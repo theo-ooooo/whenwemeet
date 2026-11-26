@@ -214,7 +214,10 @@ function InviteSheet({ group, open, onClose, onSaved }: { group: GroupDetail; op
       <Sheet open={open} onClose={onClose} title="초대하기">
         <div className="pb-1">
           <p className="text-[13px] leading-5 text-soft">링크를 열거나 코드를 입력하면 이 달력에 합류해요</p>
-          <p className="mt-3 rounded-sm bg-surface py-3 text-center text-[28px] font-bold leading-9 tracking-[0.18em] tabular-nums" aria-label={`초대 코드 ${group.inviteCode?.split("").join(" ")}`}>
+          <p
+            className="mt-3 rounded-sm bg-surface py-3 text-center text-[28px] font-bold leading-9 tracking-[0.18em] tabular-nums"
+            aria-label={`초대 코드 ${group.inviteCode?.split("").join(" ")}`}
+          >
             {group.inviteCode}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">

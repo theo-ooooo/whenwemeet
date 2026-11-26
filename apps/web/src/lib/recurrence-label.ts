@@ -54,12 +54,7 @@ export function recurrenceLines(ev: SeriesLike & { repeatUntil: string | null },
  * 반복 일정을 고치면서 주기를 그대로 두고 날짜도 그대로면(시각을 안 건드렸거나 원래 회차 날짜 그대로) 서버가 규칙을 이어받으므로
  * 원본 기준 날짜로, 아니면 폼의 시작 날짜(새 시작이 기준) 로 설명한다
  */
-export function formRuleDate(
-  series: (SeriesLike & { occurrence: string | null }) | null,
-  repeat: Repeat,
-  startDate: DateKey,
-  timesKept: boolean,
-): DateKey {
+export function formRuleDate(series: (SeriesLike & { occurrence: string | null }) | null, repeat: Repeat, startDate: DateKey, timesKept: boolean): DateKey {
   if (!series || repeat !== series.repeat) return startDate;
   return timesKept || startDate === series.occurrence ? ruleDateKey(series) : startDate;
 }

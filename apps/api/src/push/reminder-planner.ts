@@ -1,8 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { addDays, expand, kstDate, type SeriesRule } from '../events/recurrence.js';
+import {
+  addDays,
+  expand,
+  kstDate,
+  type SeriesRule,
+} from '../events/recurrence.js';
 import { reminderPayload } from './push-copy.js';
 import type { PlannedNotification } from './push-notifications.repository.js';
-import { type OnceReminderRow, PushPlanningRepository, type ReminderSeriesRow } from './push-planning.repository.js';
+import {
+  type OnceReminderRow,
+  PushPlanningRepository,
+  type ReminderSeriesRow,
+} from './push-planning.repository.js';
 import { remindAt, type EventReminder } from './remind-at.js';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -13,17 +22,31 @@ export const SERIES_LAG_MS = 24 * HOUR_MS;
 const EXCEPTION_DATE_MARGIN_DAYS = 32;
 
 /** 일정 알림 중복 방지 키 (D-89). 일정, 회차, 알림 시각(epoch 초) */
-export function reminderDedupeKey(eventId: number, occurrence: string | null, at: Date): string {
+export function reminderDedupeKey(
+  eventId: number,
+  occurrence: string | null,
+  at: Date,
+): string {
   return `R:${eventId}:${occurrence ?? '-'}:${Math.floor(at.getTime() / 1000)}`;
 }
 
-const inWindow = (at: Date, lo: Date, hi: Date) => at.getTime() > lo.getTime() && at.getTime() <= hi.getTime();
+const inWindow = (at: Date, lo: Date, hi: Date) =>
+  at.getTime() > lo.getTime() && at.getTime() <= hi.getTime();
 
 /** 한 번짜리: 창 (lo, hi] 안이고 알림 시각 >= reminderSetAt 인 것만 (D-86) */
-export function planOnceReminders(rows: OnceReminderRow[], lo: Date, hi: Date, now: Date): PlannedNotification[] {
+export function planOnceReminders(
+  rows: OnceReminderRow[],
+  lo: Date,
+  hi: Date,
+  now: Date,
+): PlannedNotification[] {
   const today = kstDate(now);
   return rows
-    .filter((row) => inWindow(row.remindAt, lo, hi) && row.remindAt.getTime() >= row.reminderSetAt.getTime())
+    .filter(
+      (row) =>
+        inWindow(row.remindAt, lo, hi) &&
+        row.remindAt.getTime() >= row.reminderSetAt.getTime(),
+    )
     .map((row) => ({
       kind: 'REMINDER',
       dedupeKey: reminderDedupeKey(row.id, null, row.remindAt),
@@ -55,7 +78,12 @@ export function planOnceReminders(rows: OnceReminderRow[], lo: Date, hi: Date, n
  * 기준(max(원본.reminderSetAt, 예외.reminderSetAt)) 이후인 것만 (설계 5-3, D-85, D-86).
  * 종일 여부와 안 맞는 값(회차 예외로 종일을 바꾼 경우)은 건너뛴다
  */
-export function planSeriesReminders(series: ReminderSeriesRow, lo: Date, hi: Date, now: Date): PlannedNotification[] {
+export function planSeriesReminders(
+  series: ReminderSeriesRow,
+  lo: Date,
+  hi: Date,
+  now: Date,
+): PlannedNotification[] {
   const today = kstDate(now);
   const rule: SeriesRule = {
     startsAt: series.startsAt,
@@ -65,9 +93,16 @@ export function planSeriesReminders(series: ReminderSeriesRow, lo: Date, hi: Dat
     repeatUntil: series.repeatUntil,
     repeatAnchor: series.repeatAnchor,
   };
-  const byDate = new Map(series.exceptions.map((exception) => [exception.occurrence, exception]));
+  const byDate = new Map(
+    series.exceptions.map((exception) => [exception.occurrence, exception]),
+  );
   // expand 는 [from, to) 겹침이라 회차 시작 = hi + 24시간 도 들도록 1ms 늘린다
-  const occurrences = expand(rule, series.exceptions, new Date(lo.getTime() - SERIES_LEAD_MS), new Date(hi.getTime() + SERIES_LAG_MS + 1));
+  const occurrences = expand(
+    rule,
+    series.exceptions,
+    new Date(lo.getTime() - SERIES_LEAD_MS),
+    new Date(hi.getTime() + SERIES_LAG_MS + 1),
+  );
   const planned: PlannedNotification[] = [];
   for (const occurrence of occurrences) {
     const exception = byDate.get(occurrence.occurrence);
@@ -75,7 +110,10 @@ export function planSeriesReminders(series: ReminderSeriesRow, lo: Date, hi: Dat
     if (reminder === 'NONE') continue;
     const at = remindAt(occurrence.startsAt, occurrence.allDay, reminder);
     if (!at || !inWindow(at, lo, hi)) continue;
-    const base = Math.max(series.reminderSetAt.getTime(), exception?.reminderSetAt?.getTime() ?? 0);
+    const base = Math.max(
+      series.reminderSetAt.getTime(),
+      exception?.reminderSetAt?.getTime() ?? 0,
+    );
     if (at.getTime() < base) continue;
     planned.push({
       kind: 'REMINDER',
@@ -115,8 +153,16 @@ export class ReminderPlanner {
     const to = new Date(hi.getTime() + SERIES_LAG_MS + 1);
     const [once, series] = await Promise.all([
       this.push.listOnceReminders(lo, hi),
-      this.push.listReminderSeries(from, to, addDays(kstDate(lo), -EXCEPTION_DATE_MARGIN_DAYS), addDays(kstDate(hi), EXCEPTION_DATE_MARGIN_DAYS)),
+      this.push.listReminderSeries(
+        from,
+        to,
+        addDays(kstDate(lo), -EXCEPTION_DATE_MARGIN_DAYS),
+        addDays(kstDate(hi), EXCEPTION_DATE_MARGIN_DAYS),
+      ),
     ]);
-    return [...planOnceReminders(once, lo, hi, now), ...series.flatMap((row) => planSeriesReminders(row, lo, hi, now))];
+    return [
+      ...planOnceReminders(once, lo, hi, now),
+      ...series.flatMap((row) => planSeriesReminders(row, lo, hi, now)),
+    ];
   }
 }

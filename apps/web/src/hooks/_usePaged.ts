@@ -60,5 +60,14 @@ export function usePaged<T>(path: string | null, opts: QueryOptions<Page<T>> = {
     [base, items, next],
   );
 
-  return { items, error: first.error ?? moreError, isLoading: first.isLoading, hasMore: next !== null, loadingMore, loadMore, refetch: first.refetch, setItems };
+  return {
+    items,
+    error: first.error ?? moreError,
+    isLoading: first.isLoading,
+    hasMore: next !== null,
+    loadingMore,
+    loadMore,
+    refetch: first.refetch,
+    setItems,
+  };
 }

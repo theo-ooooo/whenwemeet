@@ -16,7 +16,8 @@ const REMINDERS: readonly EventReminder[] = ["NONE", "AT_START", "MIN_10", "HOUR
 /** 본문의 reminder 를 읽는다. 없으면 undefined, 모르는 값이면 오류 */
 export function reminderIn(v: unknown): EventReminder | undefined | MockResult {
   if (v === undefined) return undefined;
-  if (!REMINDERS.includes(v as EventReminder)) return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "알림 값을 확인해 주세요", [{ field: "reminder", message: "알림 값을 확인해 주세요" }]) };
+  if (!REMINDERS.includes(v as EventReminder))
+    return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "알림 값을 확인해 주세요", [{ field: "reminder", message: "알림 값을 확인해 주세요" }]) };
   return v as EventReminder;
 }
 
@@ -25,7 +26,6 @@ export function reminderFit(r: EventReminder, allDay: boolean): MockResult | nul
   const message = reminderError(r, allDay);
   return message ? { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "reminder", message }]) } : null;
 }
-
 
 /** 수정 결과의 알림: 본문에 있으면 그 값, 없으면 지금 값. 종일이 바뀌어 맞지 않게 되면 NONE (4-1) */
 export function mergedReminder(input: EventReminder | undefined, current: EventReminder, allDay: boolean): EventReminder | MockResult {
@@ -139,7 +139,13 @@ function rsvpSummary(s: Store, out: EventOut, userId: number) {
   const ids = new Set(out.participants.members.map((m) => m.userId));
   const rows = (s.rsvps ?? []).filter((r) => r.eventId === out.id && r.occurrence === responseKey(out) && ids.has(r.userId));
   const count = (v: Rsvp) => rows.filter((r) => r.status === v).length;
-  return { going: count("GOING"), notGoing: count("NOT_GOING"), maybe: count("MAYBE"), pending: ids.size - rows.length, mine: rows.find((r) => r.userId === userId)?.status ?? null };
+  return {
+    going: count("GOING"),
+    notGoing: count("NOT_GOING"),
+    maybe: count("MAYBE"),
+    pending: ids.size - rows.length,
+    mine: rows.find((r) => r.userId === userId)?.status ?? null,
+  };
 }
 
 function reactionSummary(s: Store, out: EventOut, userId: number) {
@@ -189,17 +195,52 @@ export function responseRoute(s: Store, out: EventOut, userId: number, kind: str
     const current = at >= 0 ? rows[at].status : null;
     if (current !== status) {
       if (at >= 0) rows.splice(at, 1);
-      if (status !== null) rows.push({ eventId: out.id, occurrence: key, userId, status: status as Rsvp, seenStartsAt: out.startsAt, seenEndsAt: out.endsAt, updatedAt: nowIso() });
+      if (status !== null)
+        rows.push({
+          eventId: out.id,
+          occurrence: key,
+          userId,
+          status: status as Rsvp,
+          seenStartsAt: out.startsAt,
+          seenEndsAt: out.endsAt,
+          updatedAt: nowIso(),
+        });
       // 새 소식: 2분 안 같은 회차는 그 줄을 고치고, 취소는 그 줄만 지운다 (D-227)
       const acts = (s.activities ??= []);
       const since = new Date(Date.now() - 2 * 60_000).toISOString();
-      const same = acts.find((a) => a.type === "EVENT_RSVP" && a.actorId === userId && a.createdAt >= since && a.payload.eventId === out.id && (a.payload.occurrence ?? null) === out.occurrence);
+      const same = acts.find(
+        (a) =>
+          a.type === "EVENT_RSVP" &&
+          a.actorId === userId &&
+          a.createdAt >= since &&
+          a.payload.eventId === out.id &&
+          (a.payload.occurrence ?? null) === out.occurrence,
+      );
       if (status === null) {
         if (same) s.activities = acts.filter((a) => a !== same);
       } else {
-        const payload = { eventId: out.id, eventCode: out.publicCode, occurrence: out.occurrence, title: out.title, startsAt: out.startsAt, endsAt: out.endsAt, allDay: out.allDay, status: status as Rsvp };
+        const payload = {
+          eventId: out.id,
+          eventCode: out.publicCode,
+          occurrence: out.occurrence,
+          title: out.title,
+          startsAt: out.startsAt,
+          endsAt: out.endsAt,
+          allDay: out.allDay,
+          status: status as Rsvp,
+        };
         if (same) Object.assign(same, { payload, createdAt: nowIso() });
-        else acts.push({ id: nextId(), groupId: out.groupId, type: "EVENT_RSVP", actorId: userId, actorName: memberOf(s, out.groupId, userId).displayName, anniversaryId: null, payload, createdAt: nowIso() });
+        else
+          acts.push({
+            id: nextId(),
+            groupId: out.groupId,
+            type: "EVENT_RSVP",
+            actorId: userId,
+            actorName: memberOf(s, out.groupId, userId).displayName,
+            anniversaryId: null,
+            payload,
+            createdAt: nowIso(),
+          });
       }
     }
     return ok(rsvpSummary(s, out, userId));
@@ -221,7 +262,10 @@ export type RepeatRow = EventRow & { repeat: Repeat };
 /** 반복 원본의 회차 하나 (취소, 규칙 밖이면 null) */
 export function occurrenceOf(e: RepeatRow, date: string): MockOccurrence | null {
   if (!isOccurrenceDate(e, date)) return null;
-  return applyException(originalOccurrence(e, date), e.exceptions.find((x) => x.occurrence === date));
+  return applyException(
+    originalOccurrence(e, date),
+    e.exceptions.find((x) => x.occurrence === date),
+  );
 }
 
 /** 반복 규칙 검사 (설계 4-1). repeat 가 null 이면 통과 */

@@ -8,7 +8,13 @@ import { MEMBER_COLORS, type Event } from "@/lib/types";
 import { packWeek, phoneWeek } from "@/lib/month-lanes";
 import { PhoneWeekChips } from "../PhoneMonthChips";
 
-const member = (userId: number, name: string, color: string) => ({ userId, displayName: name, color, profileImageUrl: null, joinedAt: "2026-11-01T00:00:00.000Z" });
+const member = (userId: number, name: string, color: string) => ({
+  userId,
+  displayName: name,
+  color,
+  profileImageUrl: null,
+  joinedAt: "2026-11-01T00:00:00.000Z",
+});
 let seq = 0;
 const ev = (title: string, first: string, last: string, over: Partial<Event> = {}): Event =>
   ({

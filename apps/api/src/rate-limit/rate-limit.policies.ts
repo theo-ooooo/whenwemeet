@@ -26,7 +26,10 @@ export type RateLimitPolicy =
   | 'assistant'
   | 'report';
 
-export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule[]> = {
+export const RATE_LIMIT_POLICIES: Record<
+  RateLimitPolicy,
+  readonly RateLimitRule[]
+> = {
   login: [{ scope: 'ip', limit: 20, windowSec: 60 }],
   invitePreview: [{ scope: 'ip', limit: 30, windowSec: 60 }],
   // 6자리 코드 추측 방지: 계정을 여러 개 만들어도 IP 한도에, IP 를 바꿔도 계정 한도에 걸린다.
@@ -58,5 +61,13 @@ export const RATE_LIMIT_POLICIES: Record<RateLimitPolicy, readonly RateLimitRule
 };
 
 /** 모든 요청의 기본 한도. 유효한 JWT 면 사용자 기준, 아니면 IP 기준 (같은 IP 의 여러 사용자가 한도를 나눠 쓰지 않게) */
-export const DEFAULT_USER_RULE: RateLimitRule = { scope: 'user', limit: 300, windowSec: 60 };
-export const DEFAULT_IP_RULE: RateLimitRule = { scope: 'ip', limit: 600, windowSec: 60 };
+export const DEFAULT_USER_RULE: RateLimitRule = {
+  scope: 'user',
+  limit: 300,
+  windowSec: 60,
+};
+export const DEFAULT_IP_RULE: RateLimitRule = {
+  scope: 'ip',
+  limit: 600,
+  windowSec: 60,
+};

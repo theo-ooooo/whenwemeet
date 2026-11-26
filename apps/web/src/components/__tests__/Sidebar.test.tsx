@@ -14,11 +14,23 @@ vi.mock("@/hooks", () => ({
   usePolls: (...a: unknown[]) => usePolls(...a),
   useRefetchOnVisible: () => {},
 }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 
 const { Sidebar } = await import("../Sidebar");
 
-const member = (userId: number, name: string, color: string) => ({ userId, displayName: name, color, profileImageUrl: null, joinedAt: "2026-11-01T00:00:00.000Z" });
+const member = (userId: number, name: string, color: string) => ({
+  userId,
+  displayName: name,
+  color,
+  profileImageUrl: null,
+  joinedAt: "2026-11-01T00:00:00.000Z",
+});
 const group = {
   id: 6,
   type: "TEAM",
@@ -35,7 +47,20 @@ const group = {
 function setup(over: Partial<React.ComponentProps<typeof Sidebar>> = {}) {
   const onToggle = vi.fn();
   const onSwitchTeam = vi.fn();
-  render(<Sidebar groupId={6} group={group} tab="free" unread={3} enabled refreshKey="k" onSwitchTeam={onSwitchTeam} collapsed={false} onToggle={onToggle} {...over} />);
+  render(
+    <Sidebar
+      groupId={6}
+      group={group}
+      tab="free"
+      unread={3}
+      enabled
+      refreshKey="k"
+      onSwitchTeam={onSwitchTeam}
+      collapsed={false}
+      onToggle={onToggle}
+      {...over}
+    />,
+  );
   return { onToggle, onSwitchTeam };
 }
 
@@ -87,7 +112,9 @@ describe("(#276) 할 일 메뉴", () => {
   it("펼친 사이드바: 기념일과 새 소식 사이, 할 일 화면에서 켜진다", () => {
     setup({ tab: "todos" });
     const nav = screen.getByRole("navigation", { name: "주요 화면" });
-    const names = within(nav).getAllByRole("link").map((a) => a.textContent);
+    const names = within(nav)
+      .getAllByRole("link")
+      .map((a) => a.textContent);
     expect(names.indexOf("할 일")).toBe(names.indexOf("기념일") + 1);
     const current = within(nav).getByRole("link", { current: "page" });
     expect(current.getAttribute("href")).toBe("/todos");
@@ -99,8 +126,38 @@ describe("(#189) 정하는 중 한 줄", () => {
     usePolls.mockReturnValueOnce({
       args: [],
       data: [
-        { id: 1, publicCode: "poll1xxx", title: "저녁 약속", status: "OPEN", deadline: null, expired: false, eventId: null, eventCode: null, voterCount: 1, targetCount: 2, votedByMe: false, allPast: false, createdAt: "", closedAt: null },
-        { id: 2, publicCode: "poll2xxx", title: "여행", status: "OPEN", deadline: null, expired: false, eventId: null, eventCode: null, voterCount: 0, targetCount: 2, votedByMe: false, allPast: false, createdAt: "", closedAt: null },
+        {
+          id: 1,
+          publicCode: "poll1xxx",
+          title: "저녁 약속",
+          status: "OPEN",
+          deadline: null,
+          expired: false,
+          eventId: null,
+          eventCode: null,
+          voterCount: 1,
+          targetCount: 2,
+          votedByMe: false,
+          allPast: false,
+          createdAt: "",
+          closedAt: null,
+        },
+        {
+          id: 2,
+          publicCode: "poll2xxx",
+          title: "여행",
+          status: "OPEN",
+          deadline: null,
+          expired: false,
+          eventId: null,
+          eventCode: null,
+          voterCount: 0,
+          targetCount: 2,
+          votedByMe: false,
+          allPast: false,
+          createdAt: "",
+          closedAt: null,
+        },
       ],
       error: null,
       refetch: vi.fn(),
@@ -126,7 +183,18 @@ describe("접힌 72 레일", () => {
     expect(links.map((a) => a.getAttribute("href"))).toEqual(["/calendar", "/free", "/anniversaries", "/todos", "/news", "/team"]);
     // 툴팁: 칸마다 하나, 스크린 리더에서는 숨김 (이름은 aria-label 로)
     const tips = aside.querySelectorAll("[data-tooltip]");
-    expect([...tips].map((t) => t.textContent)).toEqual(["우리 둘", "일정 검색", "달력", "빈 시간", "기념일", "할 일", "새 소식", "팀 설정", "내 정보", "펼치기"]);
+    expect([...tips].map((t) => t.textContent)).toEqual([
+      "우리 둘",
+      "일정 검색",
+      "달력",
+      "빈 시간",
+      "기념일",
+      "할 일",
+      "새 소식",
+      "팀 설정",
+      "내 정보",
+      "펼치기",
+    ]);
     for (const t of tips) expect(t.getAttribute("aria-hidden")).toBe("true");
     // 툴팁은 마우스와 키보드 포커스 둘 다에서 보인다 (같은 칸 group 안)
     for (const t of tips) {

@@ -31,10 +31,7 @@ const WEB_LOGIN_PATHS = ["/auth/kakao", "/auth/apple"];
 const WEB_LOGIN_PAGE = "/login";
 
 export type NavigationDecision =
-  | { kind: "allow" }
-  | { kind: "nativeLogin"; next: string; reason?: "expired" }
-  | { kind: "external"; url: string }
-  | { kind: "block" };
+  { kind: "allow" } | { kind: "nativeLogin"; next: string; reason?: "expired" } | { kind: "external"; url: string } | { kind: "block" };
 
 /** 웹뷰 최상위 이동 판정 (onShouldStartLoadWithRequest) */
 export function decideNavigation(raw: string, webOrigin: string): NavigationDecision {
@@ -47,14 +44,9 @@ export function decideNavigation(raw: string, webOrigin: string): NavigationDeci
     }
     // (D-178) /login 문서 이동(서버 리다이렉트 포함)은 웹 화면이 잠깐 보였다가 네이티브 화면이 덮는 깜빡임이 없게 바로 네이티브로.
     // error 가 붙은 경우(handoff 실패 등)는 웹이 문구를 그리게 둔다 (웹은 그 뒤 login 메시지로 네이티브 화면을 연다)
-    if (
-      (u.pathname === WEB_LOGIN_PAGE || u.pathname === `${WEB_LOGIN_PAGE}/`) &&
-      !u.searchParams.has("error")
-    ) {
+    if ((u.pathname === WEB_LOGIN_PAGE || u.pathname === `${WEB_LOGIN_PAGE}/`) && !u.searchParams.has("error")) {
       const next = safeNext(u.searchParams.get("next"));
-      return u.searchParams.get("reason") === "expired"
-        ? { kind: "nativeLogin", next, reason: "expired" }
-        : { kind: "nativeLogin", next };
+      return u.searchParams.get("reason") === "expired" ? { kind: "nativeLogin", next, reason: "expired" } : { kind: "nativeLogin", next };
     }
     return { kind: "allow" };
   }
@@ -189,10 +181,7 @@ export function buildAuthAppUrl(webOrigin: string, handoff: string, verifier: st
  * API 는 웹 경로만 싣고 셸이 webOrigin 을 붙인다. safeNext 와 같은 규칙으로 상대 경로만 받고
  * 절대 주소, `//`, 백슬래시, 제어문자는 null (그때는 아무 데도 가지 않는다)
  */
-export function notificationTarget(
-  data: unknown,
-  webOrigin: string,
-): { path: string; url: string } | null {
+export function notificationTarget(data: unknown, webOrigin: string): { path: string; url: string } | null {
   if (!data || typeof data !== "object") return null;
   const raw = (data as Record<string, unknown>).url;
   if (typeof raw !== "string" || raw.length === 0) return null;

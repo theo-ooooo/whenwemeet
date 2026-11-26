@@ -82,7 +82,8 @@ export function useCalendarSteps({ initialEvent, pathname, searchParams, today, 
     const t = setTimeout(() => {
       if (onEventRoute()) return;
       const first = parseDayStep(new URLSearchParams(window.location.search), todayKey());
-      if (first.open && first.step === "add") writeUrl(`${CALENDAR_PATH}${withDayStep(window.location.search, { step: "day", date: first.date }, todayKey())}`, "replace");
+      if (first.open && first.step === "add")
+        writeUrl(`${CALENDAR_PATH}${withDayStep(window.location.search, { step: "day", date: first.date }, todayKey())}`, "replace");
     }, 0);
     return () => clearTimeout(t);
   }, []);

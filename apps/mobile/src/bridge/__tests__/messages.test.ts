@@ -197,7 +197,12 @@ describe("(#197) widgetSnapshot, widgetClear", () => {
   });
 
   it("위젯 스냅샷만 4KB 넘게 받고 16KB 는 넘지 못한다", () => {
-    const pad = (n: number) => ({ ...snapshot, generatedAt: snapshot.generatedAt, groups: [{ id: 1, name: "우리 둘", color: 0, code: "team1xxx" }], filler: "x".repeat(n) });
+    const pad = (n: number) => ({
+      ...snapshot,
+      generatedAt: snapshot.generatedAt,
+      groups: [{ id: 1, name: "우리 둘", color: 0, code: "team1xxx" }],
+      filler: "x".repeat(n),
+    });
     expect(p({ v: 1, type: "widgetSnapshot", snapshot: pad(10_000) })?.type).toBe("widgetSnapshot");
     expect(p({ v: 1, type: "widgetSnapshot", snapshot: pad(17_000) })).toBeNull();
     expect(p({ v: 1, type: "logout", filler: "x".repeat(5_000) })).toBeNull();

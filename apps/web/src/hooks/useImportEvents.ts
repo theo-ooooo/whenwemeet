@@ -25,18 +25,12 @@ function toForm({ file, range, participants, include }: ImportInput): FormData {
 
 /** 미리보기 POST /groups/:id/imports/preview (multipart). 서버는 아무것도 저장하지 않는다 */
 export function usePreviewImport(opts?: MutationOptions) {
-  const fn = useCallback(
-    (input: ImportInput) => api<ImportPreview>(`/groups/${input.groupId}/imports/preview`, { method: "POST", form: toForm(input) }),
-    [],
-  );
+  const fn = useCallback((input: ImportInput) => api<ImportPreview>(`/groups/${input.groupId}/imports/preview`, { method: "POST", form: toForm(input) }), []);
   return useMutation(fn, opts);
 }
 
 /** 넣기 POST /groups/:id/imports (multipart). 같은 파일을 다시 올려도 들어간 것은 건너뛴다 */
 export function useImportEvents(opts?: MutationOptions) {
-  const fn = useCallback(
-    (input: ImportInput) => api<ImportResult>(`/groups/${input.groupId}/imports`, { method: "POST", form: toForm(input) }),
-    [],
-  );
+  const fn = useCallback((input: ImportInput) => api<ImportResult>(`/groups/${input.groupId}/imports`, { method: "POST", form: toForm(input) }), []);
   return useMutation(fn, opts);
 }

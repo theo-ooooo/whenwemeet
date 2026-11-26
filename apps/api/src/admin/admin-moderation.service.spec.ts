@@ -3,12 +3,28 @@ import { PREFERENCE_DEFAULTS } from '../notification-preferences/notification-pr
 import { mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
-import { type AdminEventDetail, type AdminGroupDetail, AdminModerationRepository } from './admin-moderation.repository.js';
+import {
+  type AdminEventDetail,
+  type AdminGroupDetail,
+  AdminModerationRepository,
+} from './admin-moderation.repository.js';
 import { AdminModerationService } from './admin-moderation.service.js';
 import { AdminReportsRepository } from './admin-reports.repository.js';
 
 const at = new Date('2026-11-25T00:00:00.000Z');
-const group: AdminGroupDetail = { id: 5, name: '팀', type: 'TEAM', owner: null, memberPreview: [], memberCount: 2, eventCount: 1, createdAt: at, hidden: null, members: [], recentEvents: [] };
+const group: AdminGroupDetail = {
+  id: 5,
+  name: '팀',
+  type: 'TEAM',
+  owner: null,
+  memberPreview: [],
+  memberCount: 2,
+  eventCount: 1,
+  createdAt: at,
+  hidden: null,
+  members: [],
+  recentEvents: [],
+};
 const event: AdminEventDetail = {
   id: 9,
   title: '광고',
@@ -40,18 +56,36 @@ describe('AdminModerationService (#515, D-286)', () => {
     preferences = mockRepository(NotificationPreferencesRepository);
     reports = mockRepository(AdminReportsRepository);
     reports.closeOpen.mockResolvedValue(0);
-    service = new AdminModerationService(repo as never, users as never, actions as never, preferences as never, reports as never);
+    service = new AdminModerationService(
+      repo as never,
+      users as never,
+      actions as never,
+      preferences as never,
+      reports as never,
+    );
   });
 
   it('팀 숨기기: 사유와 관리자, 시각을 저장하고 group_hide 기록. 없는 팀은 404 (기록 없음)', async () => {
     repo.setGroupHidden.mockResolvedValueOnce(true);
     repo.findGroup.mockResolvedValue(group);
     await service.hideGroup(1, 5, '광고', at);
-    expect(repo.setGroupHidden).toHaveBeenCalledWith(5, { reason: '광고', hiddenAt: at, hiddenById: 1 });
-    expect(actions.record).toHaveBeenCalledWith({ adminId: 1, action: 'group_hide', targetType: 'group', targetId: 5, reason: '광고' });
+    expect(repo.setGroupHidden).toHaveBeenCalledWith(5, {
+      reason: '광고',
+      hiddenAt: at,
+      hiddenById: 1,
+    });
+    expect(actions.record).toHaveBeenCalledWith({
+      adminId: 1,
+      action: 'group_hide',
+      targetType: 'group',
+      targetId: 5,
+      reason: '광고',
+    });
     actions.record.mockClear();
     repo.setGroupHidden.mockResolvedValueOnce(false);
-    await expect(service.hideGroup(1, 6, '광고', at)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.hideGroup(1, 6, '광고', at)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
     expect(actions.record).not.toHaveBeenCalled();
   });
 
@@ -64,20 +98,37 @@ describe('AdminModerationService (#515, D-286)', () => {
     repo.findEvent.mockResolvedValue(event);
     await service.unhideEvent(1, 9);
     expect(repo.setEventHidden).toHaveBeenCalledWith(9, null);
-    expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual(['group_unhide', 'event_unhide']);
+    expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual([
+      'group_unhide',
+      'event_unhide',
+    ]);
   });
 
   it('삭제: 이름(제목)을 reason 에 남기고, 없으면 404', async () => {
     repo.findGroup.mockResolvedValueOnce(group);
     repo.deleteGroupTx.mockResolvedValueOnce(true);
     expect(await service.deleteGroup(1, 5)).toEqual({ ok: true });
-    expect(actions.record).toHaveBeenLastCalledWith({ adminId: 1, action: 'group_delete', targetType: 'group', targetId: 5, reason: '팀' });
+    expect(actions.record).toHaveBeenLastCalledWith({
+      adminId: 1,
+      action: 'group_delete',
+      targetType: 'group',
+      targetId: 5,
+      reason: '팀',
+    });
     repo.findEvent.mockResolvedValueOnce(event);
     repo.deleteEvent.mockResolvedValueOnce(true);
     await service.deleteEvent(1, 9);
-    expect(actions.record).toHaveBeenLastCalledWith({ adminId: 1, action: 'event_delete', targetType: 'event', targetId: 9, reason: '광고' });
+    expect(actions.record).toHaveBeenLastCalledWith({
+      adminId: 1,
+      action: 'event_delete',
+      targetType: 'event',
+      targetId: 9,
+      reason: '광고',
+    });
     repo.findGroup.mockResolvedValueOnce(null);
-    await expect(service.deleteGroup(1, 7)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(service.deleteGroup(1, 7)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
     expect(repo.deleteGroupTx).toHaveBeenCalledTimes(1);
   });
 
@@ -86,15 +137,36 @@ describe('AdminModerationService (#515, D-286)', () => {
     repo.findGroup.mockResolvedValue(group);
     reports.closeOpen.mockResolvedValueOnce(2);
     await service.hideGroup(1, 5, '광고', at);
-    expect(reports.closeOpen).toHaveBeenCalledWith({ targetType: 'group', targetId: 5, status: 'resolved', adminId: 1, resolution: '숨김: 광고', at });
-    expect(actions.record).toHaveBeenLastCalledWith({ adminId: 1, action: 'report_resolve', targetType: 'group', targetId: 5, reason: '숨김: 광고' });
+    expect(reports.closeOpen).toHaveBeenCalledWith({
+      targetType: 'group',
+      targetId: 5,
+      status: 'resolved',
+      adminId: 1,
+      resolution: '숨김: 광고',
+      at,
+    });
+    expect(actions.record).toHaveBeenLastCalledWith({
+      adminId: 1,
+      action: 'report_resolve',
+      targetType: 'group',
+      targetId: 5,
+      reason: '숨김: 광고',
+    });
     // 닫을 신고가 없으면 기록하지 않는다
     actions.record.mockClear();
     repo.findEvent.mockResolvedValueOnce(event);
     repo.deleteEvent.mockResolvedValueOnce(true);
     await service.deleteEvent(1, 9);
-    expect(reports.closeOpen).toHaveBeenLastCalledWith(expect.objectContaining({ targetType: 'event', targetId: 9, resolution: '삭제' }));
-    expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual(['event_delete']);
+    expect(reports.closeOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        targetType: 'event',
+        targetId: 9,
+        resolution: '삭제',
+      }),
+    );
+    expect(actions.record.mock.calls.map(([input]) => input.action)).toEqual([
+      'event_delete',
+    ]);
     // 사유가 길면 200자로 자른다
     repo.setEventHidden.mockResolvedValueOnce(true);
     repo.findEvent.mockResolvedValue(event);
@@ -106,10 +178,24 @@ describe('AdminModerationService (#515, D-286)', () => {
     repo.setEventHidden.mockResolvedValueOnce(true);
     repo.findEvent.mockResolvedValue(event);
     await service.hideEvent(2, 9, '스팸', at);
-    expect(repo.setEventHidden).toHaveBeenCalledWith(9, { reason: '스팸', hiddenAt: at, hiddenById: 2 });
+    expect(repo.setEventHidden).toHaveBeenCalledWith(9, {
+      reason: '스팸',
+      hiddenAt: at,
+      hiddenById: 2,
+    });
     users.findForAdmin.mockResolvedValueOnce(null);
     await expect(service.user(3)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
+    users.findForAdmin.mockResolvedValueOnce({
+      id: 3,
+      nickname: 'a',
+      role: 'user',
+      profileImageUrl: null,
+      createdAt: at,
+      providers: [],
+      platforms: ['web'],
+      platformLastSeen: [],
+      lastAppLoginAt: null,
+    });
     repo.listGroupsOfUser.mockResolvedValueOnce([group]);
     preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS });
     repo.listPushDevicesOfUser.mockResolvedValueOnce([]);
@@ -117,15 +203,43 @@ describe('AdminModerationService (#515, D-286)', () => {
   });
 
   it('(#528) 사용자 상세: 알림 설정은 내 정보 > 알림 과 같은 키(공지 포함), 기기는 토큰 없이', async () => {
-    users.findForAdmin.mockResolvedValueOnce({ id: 3, nickname: 'a', role: 'user', profileImageUrl: null, createdAt: at, providers: [], platforms: ['web'], platformLastSeen: [], lastAppLoginAt: null });
+    users.findForAdmin.mockResolvedValueOnce({
+      id: 3,
+      nickname: 'a',
+      role: 'user',
+      profileImageUrl: null,
+      createdAt: at,
+      providers: [],
+      platforms: ['web'],
+      platformLastSeen: [],
+      lastAppLoginAt: null,
+    });
     repo.listGroupsOfUser.mockResolvedValueOnce([]);
-    preferences.find.mockResolvedValueOnce({ ...PREFERENCE_DEFAULTS, NOTICE: false, CHANGE: false });
-    const device = { platform: 'IOS' as const, appVersion: '1.3.0', createdAt: at, lastSeenAt: at };
+    preferences.find.mockResolvedValueOnce({
+      ...PREFERENCE_DEFAULTS,
+      NOTICE: false,
+      CHANGE: false,
+    });
+    const device = {
+      platform: 'IOS' as const,
+      appVersion: '1.3.0',
+      createdAt: at,
+      lastSeenAt: at,
+    };
     repo.listPushDevicesOfUser.mockResolvedValueOnce([device]);
     const { notifications } = await service.user(3);
     expect(preferences.find).toHaveBeenCalledWith(3);
     expect(notifications).toEqual({
-      settings: { reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: false },
+      settings: {
+        reminder: true,
+        change: false,
+        anniversary: true,
+        join: true,
+        weekly: true,
+        weeklyNudge: false,
+        poll: true,
+        notice: false,
+      },
       devices: [device],
     });
   });

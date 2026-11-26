@@ -17,9 +17,15 @@ export class BareExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<Response>();
     const { status } = this.translator.translate(exception);
-    if (status >= 500) this.logger.error(exception instanceof Error ? (exception.stack ?? exception.message) : String(exception));
+    if (status >= 500)
+      this.logger.error(
+        exception instanceof Error
+          ? (exception.stack ?? exception.message)
+          : String(exception),
+      );
     if (shouldReport(exception, status)) reportError(exception);
-    if (exception instanceof RateLimitedException) res.setHeader('Retry-After', String(exception.retryAfterSec));
+    if (exception instanceof RateLimitedException)
+      res.setHeader('Retry-After', String(exception.retryAfterSec));
     res.setHeader('Cache-Control', 'no-store');
     res.status(status).end();
   }

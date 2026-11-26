@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createNaverPlaceSearchProvider, NAVER_PLACE_SEARCH_PROVIDER } from './naver-place-search.provider.js';
-import { createPlaceSearchProvider, PLACE_SEARCH_PROVIDER } from './place-search.provider.js';
+import {
+  createNaverPlaceSearchProvider,
+  NAVER_PLACE_SEARCH_PROVIDER,
+} from './naver-place-search.provider.js';
+import {
+  createPlaceSearchProvider,
+  PLACE_SEARCH_PROVIDER,
+} from './place-search.provider.js';
 import { PlacesController } from './places.controller.js';
 import { PlacesService } from './places.service.js';
 
@@ -10,8 +16,17 @@ import { PlacesService } from './places.service.js';
   controllers: [PlacesController],
   providers: [
     PlacesService,
-    { provide: PLACE_SEARCH_PROVIDER, inject: [ConfigService], useFactory: (config: ConfigService) => createPlaceSearchProvider(config) },
-    { provide: NAVER_PLACE_SEARCH_PROVIDER, inject: [ConfigService], useFactory: (config: ConfigService) => createNaverPlaceSearchProvider(config) },
+    {
+      provide: PLACE_SEARCH_PROVIDER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => createPlaceSearchProvider(config),
+    },
+    {
+      provide: NAVER_PLACE_SEARCH_PROVIDER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        createNaverPlaceSearchProvider(config),
+    },
   ],
   exports: [PlacesService],
 })

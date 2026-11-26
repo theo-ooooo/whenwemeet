@@ -51,8 +51,7 @@ describe("(#552) 위쪽 바 숨김 규칙", () => {
 
   it("본문(main) 안에 ScreenHeader 가 있을 때만 위쪽 바를 고른다", () => {
     const { selector } = topbarRule();
-    const shell = (body: string, outside = "") =>
-      `<div data-app-shell=""><header data-app-topbar=""></header><main>${body}</main></div>${outside}`;
+    const shell = (body: string, outside = "") => `<div data-app-shell=""><header data-app-topbar=""></header><main>${body}</main></div>${outside}`;
 
     document.body.innerHTML = shell(`<div><div data-screen-header=""></div></div>`);
     expect(selectByRule(selector)).toHaveLength(1);

@@ -21,15 +21,7 @@ import { dayBadge } from "@/lib/day-detail";
 import { formatDateKo, kstToIso, todayKey, type DateKey } from "@/lib/date";
 import { eventKey } from "@/lib/recurrence";
 import type { Anniversary } from "@/lib/types";
-import {
-  groupPast,
-  groupUpcoming,
-  pastWindow,
-  monthBreak,
-  upcomingWindow,
-  windowRangeText,
-  type UpcomingDay,
-} from "@/lib/upcoming";
+import { groupPast, groupUpcoming, pastWindow, monthBreak, upcomingWindow, windowRangeText, type UpcomingDay } from "@/lib/upcoming";
 
 export function UpcomingScreen() {
   const { groupId } = useGroupContext();
@@ -74,7 +66,7 @@ export function UpcomingScreen() {
           {pastCount === 0 ? "지난 30일 보기" : "지난 30일 더 보기"}
           <IconChevronRight size={14} className="-rotate-90" />
         </button>
-      {pastCount > 0 && (
+        {pastCount > 0 && (
           <section aria-label="지난 일정" className="mt-4">
             <PastList groupId={groupId} index={pastCount} prevDate={null} today={today} nowMs={nowMs} />
             <h2 className="mt-6 flex items-center gap-2 text-[13px] font-bold leading-[18px] text-today-ink">
@@ -155,11 +147,7 @@ function WindowList(props: WindowProps) {
 
       {isLast ? (
         <div className="mt-6 flex flex-col items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onMore}
-            className="h-11 w-full rounded-md border border-line bg-paper text-[13.5px] font-bold hover:brightness-95"
-          >
+          <button type="button" onClick={onMore} className="h-11 w-full rounded-md border border-line bg-paper text-[13.5px] font-bold hover:brightness-95">
             30일 더 보기
           </button>
           <span className="text-[12px] leading-4 text-ink-2">{windowRangeText({ from: today, to: range.to })} 일정이에요</span>
@@ -184,8 +172,7 @@ function PastList({ groupId, index, prevDate, today, nowMs }: { groupId: number;
   return (
     <>
       {days.length === 0 ? (
-        <p className="flex min-h-11 items-center text-[14px] text-ink-2">{windowRangeText(range)}에는 지난 일정이 없어요.
-        </p>
+        <p className="flex min-h-11 items-center text-[14px] text-ink-2">{windowRangeText(range)}에는 지난 일정이 없어요.</p>
       ) : (
         <DayGroups days={days} prevDate={prevDate} today={today} first={prevDate === null} nowMs={nowMs} />
       )}
@@ -194,19 +181,7 @@ function PastList({ groupId, index, prevDate, today, nowMs }: { groupId: number;
   );
 }
 
-function DayGroups({
-  days,
-  prevDate,
-  today,
-  first,
-  nowMs,
-}: {
-  days: UpcomingDay[];
-  prevDate: DateKey | null;
-  today: DateKey;
-  first: boolean;
-  nowMs: number;
-}) {
+function DayGroups({ days, prevDate, today, first, nowMs }: { days: UpcomingDay[]; prevDate: DateKey | null; today: DateKey; first: boolean; nowMs: number }) {
   const who = useWho();
   return (
     <>
@@ -215,9 +190,7 @@ function DayGroups({
         const tone = d.tone === "today" ? "text-today-ink" : d.tone === "holiday" ? "text-holiday" : "";
         return (
           <section key={d.date} aria-label={`${formatDateKo(d.date)}${d.date === today ? ", 오늘" : ""}`}>
-            {month && (
-              <h2 className={`mb-2 text-[13px] font-bold leading-[18px] text-ink-2 ${first && i === 0 ? "" : "mt-6"}`}>{month}</h2>
-            )}
+            {month && <h2 className={`mb-2 text-[13px] font-bold leading-[18px] text-ink-2 ${first && i === 0 ? "" : "mt-6"}`}>{month}</h2>}
             <div className={`flex gap-2 ${month ? "" : "mt-2.5"}`}>
               {/* 왼쪽 48px 날짜 열 */}
               <span aria-hidden="true" className="flex w-12 shrink-0 flex-col pt-2.5">

@@ -2,14 +2,7 @@
 // 여기는 RN 과 위젯 라이브러리를 import 하지 않는다 (jest 대상).
 //   iOS     expo-widgets 타임라인 (App Group `group.day.whenwemeet.app` 의 UserDefaults). 셸에 따로 두지 않는다
 //   Android 앱 문서 폴더의 JSON 파일 하나. 위젯 갱신(30분, 추가, 크기 변경) 때 다시 읽어 그 순간 값으로 그린다
-import {
-  parseWidgetSnapshot,
-  SIGNED_OUT_PROPS,
-  timelineEntries,
-  toNativeProps,
-  type WidgetProps,
-  type WidgetSnapshot,
-} from "./snapshot";
+import { parseWidgetSnapshot, SIGNED_OUT_PROPS, timelineEntries, toNativeProps, type WidgetProps, type WidgetSnapshot } from "./snapshot";
 
 /** Android 저장 파일 이름 (Paths.document 아래) */
 export const SNAPSHOT_FILE_NAME = "widget-snapshot.json";

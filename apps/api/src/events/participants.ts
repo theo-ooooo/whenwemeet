@@ -26,23 +26,30 @@ export interface ParticipantsView {
 export const MAX_PARTICIPANTS = 50;
 
 export const PARTICIPANTS_FIELD = 'participants';
-export const PARTICIPANTS_TYPE_MESSAGE = "participants 는 'ALL' 또는 멤버 id 배열이어야 해요";
+export const PARTICIPANTS_TYPE_MESSAGE =
+  "participants 는 'ALL' 또는 멤버 id 배열이어야 해요";
 export const PARTICIPANTS_EMPTY_MESSAGE = '참여자를 한 명 이상 골라 주세요';
 export const PARTICIPANTS_TOO_MANY_MESSAGE = `참여자는 최대 ${MAX_PARTICIPANTS}명까지 고를 수 있어요`;
-export const PARTICIPANTS_NOT_MEMBER_MESSAGE = '이 팀 멤버만 참여자로 고를 수 있어요';
-export const PARTICIPANTS_THIS_SCOPE_MESSAGE = '이 일정만 수정할 때는 참여자를 바꿀 수 없어요';
+export const PARTICIPANTS_NOT_MEMBER_MESSAGE =
+  '이 팀 멤버만 참여자로 고를 수 있어요';
+export const PARTICIPANTS_THIS_SCOPE_MESSAGE =
+  '이 일정만 수정할 때는 참여자를 바꿀 수 없어요';
 
 export function participantsFailed(message: string): ApiException {
-  return new ApiException('VALIDATION_FAILED', message, [{ field: PARTICIPANTS_FIELD, message }]);
+  return new ApiException('VALIDATION_FAILED', message, [
+    { field: PARTICIPANTS_FIELD, message },
+  ]);
 }
 
 /** 입력 형식 문제를 문구로. 문제가 없으면 null. DTO 검증과 parseParticipants 가 같이 쓴다 (설계 3-2 표) */
 export function participantsProblem(raw: unknown): string | null {
   if (raw === undefined || raw === 'ALL') return null;
   if (!Array.isArray(raw)) return PARTICIPANTS_TYPE_MESSAGE;
-  if (!raw.every((id) => Number.isSafeInteger(id) && (id as number) > 0)) return PARTICIPANTS_TYPE_MESSAGE;
+  if (!raw.every((id) => Number.isSafeInteger(id) && (id as number) > 0))
+    return PARTICIPANTS_TYPE_MESSAGE;
   if (raw.length === 0) return PARTICIPANTS_EMPTY_MESSAGE;
-  if (new Set(raw).size > MAX_PARTICIPANTS) return PARTICIPANTS_TOO_MANY_MESSAGE;
+  if (new Set(raw).size > MAX_PARTICIPANTS)
+    return PARTICIPANTS_TOO_MANY_MESSAGE;
   return null;
 }
 
@@ -70,14 +77,20 @@ export function resolveParticipants(
   isCreate: boolean,
   memberIds: readonly number[],
 ): ParticipantSet {
-  if (input === 'ALL') return { allMembers: false, ids: sortedUnique(memberIds) };
-  if (input !== undefined) return { allMembers: false, ids: sortedUnique(input) };
-  if (isCreate || current === null) return { allMembers: false, ids: [requesterId] };
+  if (input === 'ALL')
+    return { allMembers: false, ids: sortedUnique(memberIds) };
+  if (input !== undefined)
+    return { allMembers: false, ids: sortedUnique(input) };
+  if (isCreate || current === null)
+    return { allMembers: false, ids: [requesterId] };
   return { allMembers: current.allMembers, ids: [...current.ids] };
 }
 
 /** 순서와 무관하게 같은 참여자인지. "모두" 끼리는 행과 무관하게 같다 */
-export function sameParticipants(a: ParticipantSet, b: ParticipantSet): boolean {
+export function sameParticipants(
+  a: ParticipantSet,
+  b: ParticipantSet,
+): boolean {
   if (a.allMembers !== b.allMembers) return false;
   if (a.allMembers) return true;
   const x = sortedUnique(a.ids);
@@ -86,16 +99,30 @@ export function sameParticipants(a: ParticipantSet, b: ParticipantSet): boolean 
 }
 
 /** 응답 모양. 가입순 = 해석기의 멤버 순서. 지금 멤버가 아닌 id 는 싣지 않는다 (나가면 행이 지워져 원래 없다, 설계 6장) */
-export function toParticipantsView(row: { allMembers: boolean; participantIds: number[] }, resolver: MemberResolver): ParticipantsView {
+export function toParticipantsView(
+  row: { allMembers: boolean; participantIds: number[] },
+  resolver: MemberResolver,
+): ParticipantsView {
   const members = resolver.all();
   if (row.allMembers) return { all: true, members };
   const ids = new Set(row.participantIds);
-  return { all: false, members: members.filter((member) => member.userId !== null && ids.has(member.userId)) };
+  return {
+    all: false,
+    members: members.filter(
+      (member) => member.userId !== null && ids.has(member.userId),
+    ),
+  };
 }
 
 /** 로그 스냅샷 (D-136). "모두" 면 participantIds 는 null */
-export function participantsSnapshot(set: ParticipantSet): { participantsAll: boolean; participantIds: number[] | null } {
-  return { participantsAll: set.allMembers, participantIds: set.allMembers ? null : sortedUnique(set.ids) };
+export function participantsSnapshot(set: ParticipantSet): {
+  participantsAll: boolean;
+  participantIds: number[] | null;
+} {
+  return {
+    participantsAll: set.allMembers,
+    participantIds: set.allMembers ? null : sortedUnique(set.ids),
+  };
 }
 
 function sortedUnique(ids: readonly number[]): number[] {

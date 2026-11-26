@@ -49,7 +49,10 @@ export function PollHomeSection({ groupId, enabled, titleId }: { groupId: number
                   {sub}
                 </span>
                 {due && (
-                  <span aria-hidden="true" className={`mt-0.5 truncate text-[12px] font-semibold leading-4 ${p.expired || p.allPast ? "text-ink-2" : "text-acc-ink"}`}>
+                  <span
+                    aria-hidden="true"
+                    className={`mt-0.5 truncate text-[12px] font-semibold leading-4 ${p.expired || p.allPast ? "text-ink-2" : "text-acc-ink"}`}
+                  >
                     {due}
                   </span>
                 )}
@@ -92,11 +95,7 @@ export function PollSideLine({
   const more = polls.length - 1;
   const { sub, due } = lines(first);
   return (
-    <Link
-      href={pollHref(first)}
-      aria-label={`정하는 중: ${first.title}, ${sub}${more > 0 ? `, 외 ${more}개` : ""}`}
-      className={className}
-    >
+    <Link href={pollHref(first)} aria-label={`정하는 중: ${first.title}, ${sub}${more > 0 ? `, 외 ${more}개` : ""}`} className={className}>
       <IconPoll size={18} className="shrink-0 text-acc-ink" />
       <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
         <b className="block truncate text-[14px] font-semibold leading-[18px]">

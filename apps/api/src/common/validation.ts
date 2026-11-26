@@ -1,4 +1,8 @@
-import { applyDecorators, ValidationError, ValidationPipe } from '@nestjs/common';
+import {
+  applyDecorators,
+  ValidationError,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import { IsDateString, Matches } from 'class-validator';
 import { ApiException, FieldViolation } from './errors.js';
@@ -23,16 +27,28 @@ const CONSTRAINT_PRIORITY = [
  * 검증 실패 목록을 필드별 위반 항목으로 편다 (api.md 1장 `error.details`).
  * 필드마다 한 줄, 중첩 필드는 `parent.child` 경로. 순서는 class-validator 가 준 순서 그대로
  */
-export function collectViolations(errors: ValidationError[], parent = ''): FieldViolation[] {
+export function collectViolations(
+  errors: ValidationError[],
+  parent = '',
+): FieldViolation[] {
   const violations: FieldViolation[] = [];
   for (const error of errors) {
     const field = parent ? `${parent}.${error.property}` : error.property;
-    const [first] = Object.entries(error.constraints ?? {}).sort(([a], [b]) => rank(a) - rank(b));
+    const [first] = Object.entries(error.constraints ?? {}).sort(
+      ([a], [b]) => rank(a) - rank(b),
+    );
     if (first) {
       const [key, text] = first;
-      violations.push({ field, message: key === 'whitelistValidation' ? `${error.property} 은(는) 허용되지 않는 항목이에요` : text });
+      violations.push({
+        field,
+        message:
+          key === 'whitelistValidation'
+            ? `${error.property} 은(는) 허용되지 않는 항목이에요`
+            : text,
+      });
     }
-    if (error.children?.length) violations.push(...collectViolations(error.children, field));
+    if (error.children?.length)
+      violations.push(...collectViolations(error.children, field));
   }
   return violations;
 }
@@ -52,11 +68,14 @@ function rank(constraint: string): number {
  * 문자열이 아니면 그대로 두어 IsString 이 형식 오류를 내게 한다
  */
 export function Trim(): PropertyDecorator {
-  return Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value));
+  return Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  );
 }
 
 /** 날짜와 시각, 시간대 오프셋(`Z` 또는 `±HH:mm`) 이 모두 있는 ISO 8601 (결정기록 D-40) */
-export const ISO_DATETIME_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+export const ISO_DATETIME_WITH_OFFSET =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /**
  * 날짜시각 입력 검증 (#61). 형식이 틀리면 ISO 문구, 형식은 맞는데 오프셋이 없으면 시간대 문구.
@@ -66,7 +85,9 @@ export const ISO_DATETIME_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\
 export function IsIsoDateTime(label: string): PropertyDecorator {
   return applyDecorators(
     IsDateString({}, { message: `${label} ISO 8601 날짜시각이어야 해요` }),
-    Matches(ISO_DATETIME_WITH_OFFSET, { message: `${label} 시간대(Z 또는 +09:00)가 붙은 날짜시각이어야 해요` }),
+    Matches(ISO_DATETIME_WITH_OFFSET, {
+      message: `${label} 시간대(Z 또는 +09:00)가 붙은 날짜시각이어야 해요`,
+    }),
   );
 }
 
@@ -79,7 +100,11 @@ export function createValidationPipe(): ValidationPipe {
     transformOptions: { enableImplicitConversion: false },
     exceptionFactory: (errors) => {
       const details = collectViolations(errors);
-      return new ApiException('VALIDATION_FAILED', details[0]?.message, details);
+      return new ApiException(
+        'VALIDATION_FAILED',
+        details[0]?.message,
+        details,
+      );
     },
   });
 }
@@ -88,7 +113,9 @@ export function createValidationPipe(): ValidationPipe {
 export function isCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
 }
 
 /** ISO 문자열을 Date 로. 파싱 불가면 VALIDATION_FAILED */

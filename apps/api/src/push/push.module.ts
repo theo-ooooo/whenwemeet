@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { AnniversaryPlanner } from './anniversary-planner.js';
 import { ExpoPushClient } from './expo-push.client.js';
 import { PushDevicesService } from './push-devices.service.js';
-import { NotificationSettingsController, PushDevicesController } from './push.controller.js';
+import {
+  NotificationSettingsController,
+  PushDevicesController,
+} from './push.controller.js';
 import { PushDispatcher } from './push-dispatcher.js';
 import { PushDeliveryRepository } from './push-delivery.repository.js';
 import { PushDevicesRepository } from './push-devices.repository.js';

@@ -8,9 +8,6 @@ type RotatedInvite = { inviteCode: string; inviteUrl: string; inviteShareUrl: st
 
 /** 초대 코드 재발급 POST /groups/:id/invite-code */
 export function useRotateInviteCode(groupId: number, opts?: MutationOptions) {
-  const fn = useCallback(
-    () => api<RotatedInvite>(`/groups/${groupId}/invite-code`, { method: "POST" }),
-    [groupId],
-  );
+  const fn = useCallback(() => api<RotatedInvite>(`/groups/${groupId}/invite-code`, { method: "POST" }), [groupId]);
   return useMutation<void, RotatedInvite>(fn, opts);
 }

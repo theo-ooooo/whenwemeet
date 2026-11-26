@@ -94,14 +94,36 @@ export interface EventChoiceOption {
 
 export type AssistantCard =
   | { type: 'eventDraft'; draft: EventDraftCard }
-  | { type: 'freeSlots'; query: FreeQuery; slots: { startsAt: string; endsAt: string }[]; total: number; pollTitle: string | null }
+  | {
+      type: 'freeSlots';
+      query: FreeQuery;
+      slots: { startsAt: string; endsAt: string }[];
+      total: number;
+      pollTitle: string | null;
+    }
   | { type: 'pollDraft'; draft: PollDraft; members: Member[] }
   | { type: 'eventEditDraft'; draft: EventEditDraft }
   | { type: 'eventDeleteDraft'; target: EventTarget }
-  | { type: 'eventChoice'; action: 'edit' | 'delete'; options: EventChoiceOption[]; more: number }
-  | { type: 'eventList'; from: string; to: string; events: AssistantEvent[]; more: number; days: AssistantDay[] }
+  | {
+      type: 'eventChoice';
+      action: 'edit' | 'delete';
+      options: EventChoiceOption[];
+      more: number;
+    }
+  | {
+      type: 'eventList';
+      from: string;
+      to: string;
+      events: AssistantEvent[];
+      more: number;
+      days: AssistantDay[];
+    }
   | { type: 'clarify'; field: ClarifyField; choices: Member[] }
-  | { type: 'unsupported'; action: UnsupportedAction; link: { label: string; href: string } | null }
+  | {
+      type: 'unsupported';
+      action: UnsupportedAction;
+      link: { label: string; href: string } | null;
+    }
   | { type: 'refusal' };
 
 export interface AssistantReply {

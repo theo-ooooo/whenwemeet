@@ -36,7 +36,7 @@ export function calendarWindow(now: number): { from: DateKey; to: DateKey } {
 /** [from, to) 를 max 일 이하 조각으로 (일정 목록 API 62일 상한) */
 export function rangeChunks(from: DateKey, to: DateKey, max = EVENTS_RANGE_MAX_DAYS): { from: DateKey; to: DateKey }[] {
   const out: { from: DateKey; to: DateKey }[] = [];
-  for (let a = from; a < to; ) {
+  for (let a = from; a < to;) {
     const b = addDays(a, max) < to ? addDays(a, max) : to;
     out.push({ from: a, to: b });
     a = b;
@@ -317,9 +317,7 @@ function nextId(): string {
   return `c${Date.now().toString(36)}${seq.toString(36)}`;
 }
 
-type CalendarRequest =
-  | { type: "calendarSyncStatus" | "calendarSyncEnable" | "calendarSyncDisable" }
-  | { type: "calendarSync"; snapshot: CalendarSnapshot };
+type CalendarRequest = { type: "calendarSyncStatus" | "calendarSyncEnable" | "calendarSyncDisable" } | { type: "calendarSync"; snapshot: CalendarSnapshot };
 
 /**
  * 셸에 보내고 같은 id 의 calendarStatus 를 기다린다. 보내기 실패, 시간 초과면 null.

@@ -5,7 +5,20 @@
 import Link from "next/link";
 import { CALENDAR_PATH, withTeam } from "@/lib/routes";
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { IconBell, IconCalendar, IconCamera, IconKey, IconChevronLeft, IconChevronRight, IconDevice, IconMegaphone, IconMoon, IconPlus, IconShield, IconSun } from "@/components/icons";
+import {
+  IconBell,
+  IconCalendar,
+  IconCamera,
+  IconKey,
+  IconChevronLeft,
+  IconChevronRight,
+  IconDevice,
+  IconMegaphone,
+  IconMoon,
+  IconPlus,
+  IconShield,
+  IconSun,
+} from "@/components/icons";
 import { BirthdayRow } from "@/components/BirthdayRow";
 import { NameForm } from "@/components/NameSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -319,8 +332,7 @@ export function MeScreen() {
           <h1 className="t-title min-w-0 flex-1 truncate">정말 탈퇴할까요?</h1>
         </div>
         <p className="mt-2 text-[14px] leading-5 text-soft">
-          개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오나 Apple
-          연결도 끊어져요.
+          개인 달력과 그 일정은 삭제되고, 다른 팀에 남긴 일정은 &quot;탈퇴한 멤버&quot; 로 표시돼요. 카카오나 Apple 연결도 끊어져요.
         </p>
         <label htmlFor="confirm-leave" className="mt-6 block text-[13px] font-semibold">
           계속하려면 <span className="text-danger">탈퇴</span> 라고 입력해 주세요
@@ -370,7 +382,11 @@ export function MeScreen() {
             {/* (#305) 내 생일, (#300) 처음 여는 달력 (D-191), (#188) 알림 (푸시-알림.md 8장): 설정 줄 한 묶음 */}
             <RowGroup>
               <BirthdayRow value={me?.birthday} onChange={(next) => setMe((prev) => prev && { ...prev, birthday: next })} />
-              <StartCalendarRow value={me?.startCalendar} groups={groups ?? null} onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })} />
+              <StartCalendarRow
+                value={me?.startCalendar}
+                groups={groups ?? null}
+                onChange={(next) => setMe((prev) => prev && { ...prev, startCalendar: next })}
+              />
               {/* (#562) 달력 칸에 음력 날짜 작게 (기본 끔, 사람마다 서버에 저장해 웹과 앱이 같다) */}
               <LunarDisplayRow value={me?.showLunar} onChange={(next) => setMe((prev) => prev && { ...prev, showLunar: next })} />
               <RowLink href="/me/notifications" label="알림" icon={<IconBell size={18} />} value="" />
@@ -400,7 +416,12 @@ export function MeScreen() {
             <RowGroup title={`내 팀${groups ? ` ${groups.length}개` : ""}`}>
               {groups
                 ? groups.map((g) => (
-                    <RowLink key={g.id} href={withTeam(CALENDAR_PATH, g.publicCode)} label={g.name} value={g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`} />
+                    <RowLink
+                      key={g.id}
+                      href={withTeam(CALENDAR_PATH, g.publicCode)}
+                      label={g.name}
+                      value={g.type === "PERSONAL" ? "개인" : `${g.memberCount}명`}
+                    />
                   ))
                 : [0, 1].map((i) => <Skeleton key={i} className="my-3 h-5 w-full" />)}
               {/* 팀 만들기 입구 (#172). 개인 달력만 있는 사용자도 여기서 시작할 수 있게 */}

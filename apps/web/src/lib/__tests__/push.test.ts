@@ -140,13 +140,26 @@ describe("권한 안내 시트 열림 상태와 계기", () => {
     const store = new Map<string, string>(opts.record ? [[PUSH_PROMPT_KEY, opts.record]] : []);
     const postMessage = vi.fn((raw: string) => {
       const m = JSON.parse(raw) as { id: string };
-      const detail = { v: 1, type: "pushStatus", id: m.id, permission: opts.permission ?? "undetermined", canAskAgain: true, token: null, platform: "IOS", appVersion: version };
+      const detail = {
+        v: 1,
+        type: "pushStatus",
+        id: m.id,
+        permission: opts.permission ?? "undetermined",
+        canAskAgain: true,
+        token: null,
+        platform: "IOS",
+        appVersion: version,
+      };
       queueMicrotask(() => listeners.get("wwm:app")?.({ detail } as unknown as Event));
     });
     vi.stubGlobal("navigator", { userAgent: `Mozilla/5.0 WhenwemeetApp/${version} (ios)` });
     vi.stubGlobal("window", {
       ReactNativeWebView: { postMessage },
-      localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) },
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, v),
+        removeItem: (k: string) => store.delete(k),
+      },
       addEventListener: (n: string, f: (e: Event) => void) => listeners.set(n, f),
       removeEventListener: (n: string) => listeners.delete(n),
     });

@@ -4,5 +4,4 @@ import type { RandomBytes, Sha256 } from "./pkce";
 
 export const randomBytes: RandomBytes = (n) => Crypto.getRandomBytes(n);
 
-export const sha256: Sha256 = async (input) =>
-  new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, input as Uint8Array<ArrayBuffer>));
+export const sha256: Sha256 = async (input) => new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, input as Uint8Array<ArrayBuffer>));

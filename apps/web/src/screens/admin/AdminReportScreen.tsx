@@ -155,7 +155,11 @@ export function AdminReportScreen({ targetType, targetId }: { targetType: Report
       <ConfirmDialog
         open={dialog?.kind === "delete" && dialog.target === "events"}
         title="이 일정을 삭제할까요?"
-        body={dialog?.kind === "delete" && dialog.target === "events" && dialog.repeat ? "반복 일정은 모든 회차가 지워지고 되돌릴 수 없어요" : "삭제하면 되돌릴 수 없어요"}
+        body={
+          dialog?.kind === "delete" && dialog.target === "events" && dialog.repeat
+            ? "반복 일정은 모든 회차가 지워지고 되돌릴 수 없어요"
+            : "삭제하면 되돌릴 수 없어요"
+        }
         confirmLabel="삭제"
         danger
         loading={deletePending}
@@ -255,7 +259,14 @@ function TargetPreview({
             <HiddenBox hidden={g.hidden} />
           </div>
         )}
-        <Actions hidden={Boolean(g.hidden)} unhiding={unhiding} onHide={() => onHide("groups", g.id)} onUnhide={() => onUnhide("groups", g.id)} onDelete={() => onDeleteGroup(g)} deleteLabel="팀 삭제" />
+        <Actions
+          hidden={Boolean(g.hidden)}
+          unhiding={unhiding}
+          onHide={() => onHide("groups", g.id)}
+          onUnhide={() => onUnhide("groups", g.id)}
+          onDelete={() => onDeleteGroup(g)}
+          deleteLabel="팀 삭제"
+        />
       </>
     );
   }
@@ -289,7 +300,14 @@ function TargetPreview({
             <HiddenBox hidden={e.hidden} />
           </div>
         )}
-        <Actions hidden={Boolean(e.hidden)} unhiding={unhiding} onHide={() => onHide("events", e.id)} onUnhide={() => onUnhide("events", e.id)} onDelete={() => onDeleteEvent(e)} deleteLabel="일정 삭제" />
+        <Actions
+          hidden={Boolean(e.hidden)}
+          unhiding={unhiding}
+          onHide={() => onHide("events", e.id)}
+          onUnhide={() => onUnhide("events", e.id)}
+          onDelete={() => onDeleteEvent(e)}
+          deleteLabel="일정 삭제"
+        />
       </>
     );
   }
@@ -333,7 +351,21 @@ function TargetPreview({
   );
 }
 
-function Actions({ hidden, unhiding, onHide, onUnhide, onDelete, deleteLabel }: { hidden: boolean; unhiding: boolean; onHide: () => void; onUnhide: () => void; onDelete: () => void; deleteLabel: string }) {
+function Actions({
+  hidden,
+  unhiding,
+  onHide,
+  onUnhide,
+  onDelete,
+  deleteLabel,
+}: {
+  hidden: boolean;
+  unhiding: boolean;
+  onHide: () => void;
+  onUnhide: () => void;
+  onDelete: () => void;
+  deleteLabel: string;
+}) {
   return (
     <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
       {hidden ? (

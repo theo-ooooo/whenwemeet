@@ -197,9 +197,7 @@ function Calendar({ value, min, max, onPick }: { value: DateKey; min?: DateKey; 
                     className={`anim-pick relative grid size-9 place-items-center rounded-full text-[13px] tabular-nums disabled:cursor-not-allowed disabled:opacity-30 ${tone}`}
                   >
                     {p.d}
-                    {holiday && inMonth && !selected && (
-                      <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-holiday" />
-                    )}
+                    {holiday && inMonth && !selected && <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-holiday" />}
                   </button>
                 </div>
               );

@@ -3,16 +3,7 @@
 // "언제 / 볼까?" 제목, 설명, 버튼(높이 48, 모서리 12, 15/700, 아이콘 20 칸, 간격 8), 약관 안내. 값을 바꾸면 웹도 같이 바꾼다.
 // (#245) 맨 아래 [이메일로 계속하기](테두리 보조 버튼). 누르면 이 화면을 닫고 웹뷰가 웹 이메일 로그인 화면을 연다
 // (이메일-로그인.md 7장, D-116). JS 와 PNG 만 바뀌어 eas update 로 1.1.0 에 간다
-import {
-  ActivityIndicator,
-  Image,
-  type ImageSourcePropType,
-  Pressable,
-  StyleSheet,
-  Text,
-  type TextStyle,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, type ImageSourcePropType, Pressable, StyleSheet, Text, type TextStyle, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { kakaoAvailable } from "../auth/login";
@@ -76,9 +67,7 @@ export function LoginScreen({ next, reason, onSuccess, onEmail }: Props) {
           {"언제\n볼까"}
           <Text style={{ color: c.accInk }}>?</Text>
         </Text>
-        <Text style={[styles.tagline, f(400), { color: c.soft }]}>
-          카톡으로 캡처 주고받기 그만. 달력 하나 같이 보고, 다 되는 시간 바로 찾기.
-        </Text>
+        <Text style={[styles.tagline, f(400), { color: c.soft }]}>카톡으로 캡처 주고받기 그만. 달력 하나 같이 보고, 다 되는 시간 바로 찾기.</Text>
 
         <View style={styles.actions}>
           {error ? (
@@ -202,12 +191,7 @@ function BrandSymbol({ size }: { size: number }) {
     <View accessible={false} style={{ width: size, height: size }}>
       <View style={[styles.abs, { left: 3 * k, top: 3 * k, width: sq, height: sq, borderRadius: 8 * k, backgroundColor: "#FF3D1F" }]} />
       <View style={[styles.abs, { left: 14 * k, top: 14 * k, width: sq, height: sq, borderRadius: 8 * k, backgroundColor: "#1F5BFF" }]} />
-      <View
-        style={[
-          styles.abs,
-          { left: 14 * k, top: 14 * k, width: 12 * k, height: 12 * k, borderBottomRightRadius: 8 * k, backgroundColor: "#9A1DFF" },
-        ]}
-      />
+      <View style={[styles.abs, { left: 14 * k, top: 14 * k, width: 12 * k, height: 12 * k, borderBottomRightRadius: 8 * k, backgroundColor: "#9A1DFF" }]} />
     </View>
   );
 }

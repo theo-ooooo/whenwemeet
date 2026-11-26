@@ -11,7 +11,13 @@ const noop = { mutate: vi.fn(), isPending: false, error: null };
 
 vi.mock("@/components/Toast", () => ({ useToast: () => ({ show: vi.fn() }) }));
 vi.mock("@/components/ReminderPicker", () => ({ ReminderNote: () => null }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/components/AppShell", () => ({
   useGroupContext: () => ({
     groupId: 10,
@@ -33,7 +39,15 @@ const { AnniversariesScreen } = await import("../AnniversariesScreen");
 
 const jiu = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
 const haneul = { userId: 2, displayName: "하늘", color: "#F2994A", profileImageUrl: null };
-const ANN: Anniversary = { id: 5, groupId: 10, name: "처음 만난 날", date: "2026-03-01", kind: "COUNT_UP", creator: jiu, createdAt: "2026-03-01T00:00:00.000Z" };
+const ANN: Anniversary = {
+  id: 5,
+  groupId: 10,
+  name: "처음 만난 날",
+  date: "2026-03-01",
+  kind: "COUNT_UP",
+  creator: jiu,
+  createdAt: "2026-03-01T00:00:00.000Z",
+};
 
 describe("AnniversariesScreen 멤버 생일 (#305)", () => {
   beforeEach(() => {

@@ -42,7 +42,11 @@ export interface ModelResult {
 export interface AssistantModel {
   /** 공급자 이름 (로그용). unavailable 이면 `/me.assistant.available = false` */
   readonly kind: 'openai' | 'fake' | 'unavailable';
-  complete(messages: ModelMessage[], tools: readonly ModelTool[], signal?: AbortSignal): Promise<ModelResult>;
+  complete(
+    messages: ModelMessage[],
+    tools: readonly ModelTool[],
+    signal?: AbortSignal,
+  ): Promise<ModelResult>;
 }
 
 /**
@@ -73,9 +77,14 @@ export class UnavailableAssistantModel implements AssistantModel {
 }
 
 /** 어느 모델을 쓸지 (D-271). 운영은 키가 있을 때만 OpenAI. 그 밖은 `ASSISTANT_FAKE=1` 이면 가짜(키가 있어도), 아니면 키 유무 */
-export function assistantModelChoice(config: ConfigService): { kind: AssistantModel['kind']; apiKey: string | null; model: string } {
+export function assistantModelChoice(config: ConfigService): {
+  kind: AssistantModel['kind'];
+  apiKey: string | null;
+  model: string;
+} {
   const apiKey = config.get<string>('OPENAI_API_KEY')?.trim() || null;
-  const model = config.get<string>('OPENAI_MODEL')?.trim() || DEFAULT_OPENAI_MODEL;
+  const model =
+    config.get<string>('OPENAI_MODEL')?.trim() || DEFAULT_OPENAI_MODEL;
   const production = config.get<string>('NODE_ENV') === 'production';
   const fake = !production && config.get<string>('ASSISTANT_FAKE') === '1';
   if (fake) return { kind: 'fake', apiKey: null, model: 'fake' };

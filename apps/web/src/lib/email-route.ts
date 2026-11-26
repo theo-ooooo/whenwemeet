@@ -34,8 +34,7 @@ export function json(status: number, body: unknown): NextResponse {
 }
 
 export const forbidden = () => json(403, errorBody(403, "FORBIDDEN", "허용되지 않은 요청이에요"));
-export const notConfigured = () =>
-  json(503, errorBody(503, "EMAIL_NOT_CONFIGURED", "지금은 이메일로 로그인할 수 없어요"));
+export const notConfigured = () => json(503, errorBody(503, "EMAIL_NOT_CONFIGURED", "지금은 이메일로 로그인할 수 없어요"));
 export const badRequest = (message = "요청을 다시 확인해 주세요") => json(400, errorBody(400, "VALIDATION_FAILED", message));
 
 /** 앱 셸 UA 면 "app" (lastAppLoginAt, D-97) */

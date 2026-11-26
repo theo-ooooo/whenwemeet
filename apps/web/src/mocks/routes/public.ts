@@ -40,7 +40,15 @@ export function eventShareRoute(req: Req): MockResult | null {
       event: { title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, repeat: null, occurrence: null, color: null },
       expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
       viewer: member
-        ? { member: true, groupId: grp.id, eventId: e.id, groupCode: mockGroupCode(grp.id), eventCode: mockEventCode(e.id), occurrence: null, date: e.startsAt.slice(0, 10) }
+        ? {
+            member: true,
+            groupId: grp.id,
+            eventId: e.id,
+            groupCode: mockGroupCode(grp.id),
+            eventCode: mockEventCode(e.id),
+            occurrence: null,
+            date: e.startsAt.slice(0, 10),
+          }
         : { member: false },
     });
   }

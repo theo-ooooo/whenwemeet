@@ -11,7 +11,9 @@ export interface ReceivedMessage {
   expiration: number;
 }
 
-export type FakeTicket = { status: 'ok'; id: string } | { status: 'error'; message: string; details: { error: string } };
+export type FakeTicket =
+  | { status: 'ok'; id: string }
+  | { status: 'error'; message: string; details: { error: string } };
 
 /**
  * e2e 용 가짜 Expo 푸시 서버 (#188, 설계 11장). 127.0.0.1 임의 포트에서 /send 와 /getReceipts 를 흉내 낸다.
@@ -21,9 +23,15 @@ export class FakeExpo {
   readonly messages: ReceivedMessage[] = [];
   readonly receiptRequests: string[][] = [];
   /** 토큰별 티켓. 기본은 ok + 새 id */
-  ticketFor: (token: string, index: number) => FakeTicket = (_token, index) => ({ status: 'ok', id: `tk-${index}` });
+  ticketFor: (token: string, index: number) => FakeTicket = (
+    _token,
+    index,
+  ) => ({ status: 'ok', id: `tk-${index}` });
   /** 영수증 id → 결과. 없으면 응답에서 뺀다 */
-  receipts = new Map<string, { status: 'ok' } | { status: 'error'; details: { error: string } }>();
+  receipts = new Map<
+    string,
+    { status: 'ok' } | { status: 'error'; details: { error: string } }
+  >();
   private server: Server | null = null;
   private ticketSeq = 0;
 
@@ -38,21 +46,33 @@ export class FakeExpo {
         if (req.url?.endsWith('/send')) {
           const messages = body as ReceivedMessage[];
           this.messages.push(...messages);
-          const data = messages.map((message) => this.ticketFor(message.to, ++this.ticketSeq));
-          res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ data }));
+          const data = messages.map((message) =>
+            this.ticketFor(message.to, ++this.ticketSeq),
+          );
+          res
+            .writeHead(200, { 'Content-Type': 'application/json' })
+            .end(JSON.stringify({ data }));
           return;
         }
         if (req.url?.endsWith('/getReceipts')) {
           const ids = (body as { ids: string[] }).ids;
           this.receiptRequests.push(ids);
-          const data = Object.fromEntries(ids.filter((id) => this.receipts.has(id)).map((id) => [id, this.receipts.get(id)]));
-          res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ data }));
+          const data = Object.fromEntries(
+            ids
+              .filter((id) => this.receipts.has(id))
+              .map((id) => [id, this.receipts.get(id)]),
+          );
+          res
+            .writeHead(200, { 'Content-Type': 'application/json' })
+            .end(JSON.stringify({ data }));
           return;
         }
         res.writeHead(404).end();
       });
     });
-    await new Promise<void>((resolve) => this.server!.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) =>
+      this.server!.listen(0, '127.0.0.1', resolve),
+    );
   }
 
   reset(): void {
@@ -63,7 +83,9 @@ export class FakeExpo {
   }
 
   async stop(): Promise<void> {
-    await new Promise<void>((resolve) => this.server?.close(() => resolve()) ?? resolve());
+    await new Promise<void>(
+      (resolve) => this.server?.close(() => resolve()) ?? resolve(),
+    );
   }
 }
 

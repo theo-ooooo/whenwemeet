@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from '../admin/admin.module.js';
-import { AdminAppReleasesController, AppVersionController } from './app-releases.controller.js';
+import {
+  AdminAppReleasesController,
+  AppVersionController,
+} from './app-releases.controller.js';
 import { AppReleasesRepository } from './app-releases.repository.js';
 import { AppReleasesService } from './app-releases.service.js';
 

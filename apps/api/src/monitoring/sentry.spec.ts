@@ -1,9 +1,18 @@
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { ApiException } from '../common/errors.js';
 import { HttpExceptionFilter } from '../common/http-exception.filter.js';
 import { FILTERED } from './sentry-scrub.js';
-import { initSentry, PRIVATE_DATA_COLLECTION, reportError, sentryOptions, shouldReport } from './sentry.js';
+import {
+  initSentry,
+  PRIVATE_DATA_COLLECTION,
+  reportError,
+  sentryOptions,
+  shouldReport,
+} from './sentry.js';
 
 const DSN = 'https://public@o0.ingest.sentry.io/0';
 
@@ -22,8 +31,20 @@ describe('sentryOptions', () => {
     expect(o?.tracesSampleRate).toBeUndefined();
     expect(o?.tracesSampler).toBeUndefined();
     expect(o?.dataCollection).toBe(PRIVATE_DATA_COLLECTION);
-    expect(PRIVATE_DATA_COLLECTION).toMatchObject({ userInfo: false, cookies: false, httpBodies: [], urlQueryParams: false, stackFrameVariables: false });
-    expect(sentryOptions({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'staging', NODE_ENV: 'production' })?.environment).toBe('staging');
+    expect(PRIVATE_DATA_COLLECTION).toMatchObject({
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      stackFrameVariables: false,
+    });
+    expect(
+      sentryOptions({
+        SENTRY_DSN: DSN,
+        SENTRY_ENVIRONMENT: 'staging',
+        NODE_ENV: 'production',
+      })?.environment,
+    ).toBe('staging');
     expect(sentryOptions({ SENTRY_DSN: DSN })?.environment).toBe('development');
   });
 });
@@ -47,7 +68,10 @@ describe('Sentry 로 실제 나가는 이벤트 (가짜 전송)', () => {
   const sent: unknown[] = [];
 
   beforeAll(() => {
-    const options = sentryOptions({ SENTRY_DSN: DSN, SENTRY_ENVIRONMENT: 'test' });
+    const options = sentryOptions({
+      SENTRY_DSN: DSN,
+      SENTRY_ENVIRONMENT: 'test',
+    });
     Sentry.init({
       ...options,
       transport: (transportOptions) =>
@@ -69,12 +93,20 @@ describe('Sentry 로 실제 나가는 이벤트 (가짜 전송)', () => {
   /** 보낸 봉투들의 본문. 스택 프레임의 소스 줄(이 테스트 파일의 문자열이 그대로 보인다)은 빼고 본다 */
   async function payloads(): Promise<string> {
     await Sentry.flush(2000);
-    const text = sent.map((body) => (typeof body === 'string' ? body : Buffer.from(body as Uint8Array).toString('utf8'))).join('\n');
+    const text = sent
+      .map((body) =>
+        typeof body === 'string'
+          ? body
+          : Buffer.from(body as Uint8Array).toString('utf8'),
+      )
+      .join('\n');
     return text
       .split('\n')
       .map((line) => {
         if (!line.startsWith('{"exception"')) return line;
-        const event = JSON.parse(line) as { exception: { values: Array<{ stacktrace?: unknown }> } };
+        const event = JSON.parse(line) as {
+          exception: { values: Array<{ stacktrace?: unknown }> };
+        };
         for (const v of event.exception.values) delete v.stacktrace;
         return JSON.stringify(event);
       })
@@ -85,7 +117,9 @@ describe('Sentry 로 실제 나가는 이벤트 (가짜 전송)', () => {
     const res = { status: () => res, json: () => res };
     const host = { switchToHttp: () => ({ getResponse: () => res }) };
     const filter = new HttpExceptionFilter();
-    (filter as unknown as { logger: { error: () => void } }).logger = { error: () => undefined };
+    (filter as unknown as { logger: { error: () => void } }).logger = {
+      error: () => undefined,
+    };
 
     filter.catch(new ApiException('FORBIDDEN'), host as never);
     filter.catch(new ApiException('STORAGE_NOT_CONFIGURED'), host as never);
@@ -103,13 +137,27 @@ describe('Sentry 로 실제 나가는 이벤트 (가짜 전송)', () => {
     Sentry.withScope((scope) => {
       scope.setUser({ id: 'u1', email: 'a@b.com', ip_address: '203.0.113.1' });
       scope.setSDKProcessingMetadata({
-        normalizedRequest: { url: 'http://x/v1/auth/email?token=TOKEN185', headers: { cookie: 'wwm_session=SESSION185', 'x-internal-key': 'INTERNALKEY185' }, data: '{"email":"a@b.com"}' },
+        normalizedRequest: {
+          url: 'http://x/v1/auth/email?token=TOKEN185',
+          headers: {
+            cookie: 'wwm_session=SESSION185',
+            'x-internal-key': 'INTERNALKEY185',
+          },
+          data: '{"email":"a@b.com"}',
+        },
       });
       reportError(new Error('tick 실패'), 'push.tick');
     });
     const body = await payloads();
     expect(body).toContain('"where":"push.tick"');
     expect(body).toContain('"id":"u1"');
-    for (const secret of ['a@b.com', '203.0.113.1', 'TOKEN185', 'SESSION185', 'INTERNALKEY185']) expect(body).not.toContain(secret);
+    for (const secret of [
+      'a@b.com',
+      '203.0.113.1',
+      'TOKEN185',
+      'SESSION185',
+      'INTERNALKEY185',
+    ])
+      expect(body).not.toContain(secret);
   });
 });

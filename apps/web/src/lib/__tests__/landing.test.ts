@@ -51,7 +51,20 @@ describe("opensInstalledApp: 앱 intentFilters(pathPrefix) 와 같은 판정", (
   });
   it("앱이 받지 않는 경로", () => {
     // (#311) 새 화면 주소는 어느 앱도 받지 않는다 (로그인 직후 바로 가도 앱으로 빨려 가지 않는다). 옛 /g 는 설치된 1.1.x 가 아직 받는다
-    for (const p of ["/", "/login", "/login/email/nickname", "/me", "/auth/landing", "/auth/landing?next=%2Fg%2F12%2Fcalendar", "/auth/email/link", "/calendar", "/calendar?team=abcd2345", "/events/abcd2345", "/team/import", "/news"]) {
+    for (const p of [
+      "/",
+      "/login",
+      "/login/email/nickname",
+      "/me",
+      "/auth/landing",
+      "/auth/landing?next=%2Fg%2F12%2Fcalendar",
+      "/auth/email/link",
+      "/calendar",
+      "/calendar?team=abcd2345",
+      "/events/abcd2345",
+      "/team/import",
+      "/news",
+    ]) {
       expect(opensInstalledApp(p), p).toBe(false);
     }
   });
@@ -93,9 +106,7 @@ describe("/auth/landing 화면", () => {
     expect(find(el, LandingRedirect)?.props.next).toBe("/");
   });
   it("세션이 없거나 만료면 로그인 화면으로 (next 유지)", async () => {
-    await expect(LandingPage({ searchParams: Promise.resolve({ next: "/g/12/calendar" }) })).rejects.toThrow(
-      "REDIRECT /login?next=%2Fg%2F12%2Fcalendar",
-    );
+    await expect(LandingPage({ searchParams: Promise.resolve({ next: "/g/12/calendar" }) })).rejects.toThrow("REDIRECT /login?next=%2Fg%2F12%2Fcalendar");
     jar.set("wwm_session", jwt(Date.now() / 1000 - 10));
     await expect(LandingPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("REDIRECT /login");
   });

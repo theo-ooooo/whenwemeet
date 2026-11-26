@@ -5,8 +5,7 @@ export function unread(s: Store, groupId: number, userId: number) {
   const ms = s.memberships.find((m) => m.groupId === groupId && m.userId === userId);
   const seen = ms?.lastSeenAt ?? "";
   // (#191) 일정 기록 + 팀 활동 기록
-  const byOthers = (r: { groupId: number; actorId: number | null; createdAt: string }) =>
-    r.groupId === groupId && r.actorId !== userId && r.createdAt > seen;
+  const byOthers = (r: { groupId: number; actorId: number | null; createdAt: string }) => r.groupId === groupId && r.actorId !== userId && r.createdAt > seen;
   // (#189) 투표로 정한 일정 기록은 숨기므로 POLL_CLOSED 수만큼 뺀다 (D-236)
   const closed = (s.activities ?? []).filter((a) => a.type === "POLL_CLOSED" && byOthers(a)).length;
   return s.logs.filter(byOthers).length + (s.activities ?? []).filter(byOthers).length - closed;

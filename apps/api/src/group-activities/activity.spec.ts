@@ -1,6 +1,17 @@
-import { anniversaryChanges, anniversaryUpdatedPayload, isSameAnniversary, pickValues, pollEventLogIds, snapshotName } from './activity.js';
+import {
+  anniversaryChanges,
+  anniversaryUpdatedPayload,
+  isSameAnniversary,
+  pickValues,
+  pollEventLogIds,
+  snapshotName,
+} from './activity.js';
 
-const BASE = { name: '처음 만난 날', date: '2024-03-15', kind: 'COUNT_UP' as const };
+const BASE = {
+  name: '처음 만난 날',
+  date: '2024-03-15',
+  kind: 'COUNT_UP' as const,
+};
 
 describe('(#189) pollEventLogIds', () => {
   it('POLL_CLOSED 의 eventLogId 만 모은다', () => {
@@ -22,8 +33,21 @@ describe('팀 활동 기록 규칙 (#191)', () => {
   });
 
   it('바뀐 필드만, 이전 값은 그 필드만 싣는다', () => {
-    expect(anniversaryUpdatedPayload(BASE, { ...BASE, date: '2024-03-16' })).toEqual({ ...BASE, date: '2024-03-16', changed: ['date'], before: { date: '2024-03-15' } });
-    expect(anniversaryUpdatedPayload(BASE, { name: '첫 만남', date: BASE.date, kind: 'YEARLY' })).toEqual({
+    expect(
+      anniversaryUpdatedPayload(BASE, { ...BASE, date: '2024-03-16' }),
+    ).toEqual({
+      ...BASE,
+      date: '2024-03-16',
+      changed: ['date'],
+      before: { date: '2024-03-15' },
+    });
+    expect(
+      anniversaryUpdatedPayload(BASE, {
+        name: '첫 만남',
+        date: BASE.date,
+        kind: 'YEARLY',
+      }),
+    ).toEqual({
       name: '첫 만남',
       date: BASE.date,
       kind: 'YEARLY',
@@ -52,13 +76,22 @@ describe('(#562) 음력 기념일 새 소식 값', () => {
 
   it('양력 ↔ 음력, 윤달만 바꿔도 날짜가 바뀐 것. 이전 값에 음력 키를 함께 남긴다', () => {
     expect(anniversaryChanges(solar, lunar)).toEqual(['date']);
-    expect(anniversaryUpdatedPayload(lunar, { ...lunar, isLeapMonth: true })).toEqual({
+    expect(
+      anniversaryUpdatedPayload(lunar, { ...lunar, isLeapMonth: true }),
+    ).toEqual({
       ...lunar,
       isLeapMonth: true,
       changed: ['date'],
       before: { date: '2000-03-15', calendar: 'LUNAR' },
     });
-    expect(anniversaryUpdatedPayload(lunar, { ...lunar, name: '기일' })).toEqual({ ...lunar, name: '기일', changed: ['name'], before: { name: '제사' } });
+    expect(
+      anniversaryUpdatedPayload(lunar, { ...lunar, name: '기일' }),
+    ).toEqual({
+      ...lunar,
+      name: '기일',
+      changed: ['name'],
+      before: { name: '제사' },
+    });
   });
 
   it('되돌리기 판정은 달력 종류까지 같아야 한다. 양력 기록은 옛 모양 그대로', () => {

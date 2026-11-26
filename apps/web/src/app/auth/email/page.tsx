@@ -36,11 +36,7 @@ async function inspect(token: string): Promise<{ view: LinkView; emailMasked: st
   return { view, emailMasked };
 }
 
-export default async function EmailLinkPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string; error?: string }>;
-}) {
+export default async function EmailLinkPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string }> }) {
   const sp = await searchParams;
   const token = typeof sp.token === "string" ? sp.token : "";
   let view: LinkView;

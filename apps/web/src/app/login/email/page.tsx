@@ -12,11 +12,7 @@ import { EmailLoginScreen } from "@/screens/EmailLoginScreen";
 export const metadata: Metadata = { title: "이메일로 계속하기", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-export default async function EmailLoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string; error?: string }>;
-}) {
+export default async function EmailLoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
   if (!webEmailEnabled()) redirect(next !== "/" ? `/login?next=${encodeURIComponent(next)}` : "/login");

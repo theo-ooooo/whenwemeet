@@ -17,7 +17,11 @@ import { createMailClient, MAIL_CLIENT } from './mail-client.js';
     EmailLoginGuard,
     EmailLoginChallengesRepository,
     EmailLoginService,
-    { provide: MAIL_CLIENT, inject: [EmailLoginConfig], useFactory: (config: EmailLoginConfig) => createMailClient(config) },
+    {
+      provide: MAIL_CLIENT,
+      inject: [EmailLoginConfig],
+      useFactory: (config: EmailLoginConfig) => createMailClient(config),
+    },
   ],
   // (#198) 이메일 연결 코드 확인 (POST /me/auth-accounts)
   exports: [EmailLoginService],

@@ -89,7 +89,8 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   EMAIL_RATE_LIMITED: '잠시 후 다시 보내 주세요',
   RATE_LIMITED: '잠시 후 다시 시도해 주세요',
   INTERNAL: '잠시 후 다시 시도해 주세요',
-  IMPORT_INCOMPLETE: '일정을 다 넣지 못했어요. 같은 파일을 다시 올리면 나머지만 들어가요',
+  IMPORT_INCOMPLETE:
+    '일정을 다 넣지 못했어요. 같은 파일을 다시 올리면 나머지만 들어가요',
   KAKAO_ERROR: '카카오 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
   KAKAO_NOT_CONFIGURED: '카카오 로그인이 설정되지 않았어요',
   APPLE_ERROR: 'Apple 연결에 실패했어요. 잠시 후 다시 시도해 주세요',
@@ -98,7 +99,8 @@ export const DEFAULT_MESSAGE: Record<ErrorCode, string> = {
   DB_UNAVAILABLE: '서버를 점검하고 있어요. 잠시 후 다시 시도해 주세요',
   EMAIL_NOT_CONFIGURED: '지금은 이메일로 로그인할 수 없어요',
   PLACE_SEARCH_FAILED: '장소를 찾지 못했어요. 잠시 후 다시 시도해 주세요',
-  PLACE_SEARCH_NOT_CONFIGURED: '지금은 장소 검색을 쓸 수 없어요. 장소 이름을 직접 적어 주세요',
+  PLACE_SEARCH_NOT_CONFIGURED:
+    '지금은 장소 검색을 쓸 수 없어요. 장소 이름을 직접 적어 주세요',
   ASSISTANT_CONSENT_REQUIRED: '먼저 안내를 확인해 주세요',
   NOTICE_ALREADY_PUSHED: '이 공지는 이미 푸시로 보냈어요',
   ASSISTANT_DAILY_LIMIT: '오늘은 볼까를 30번 다 썼어요. 내일 다시 불러 주세요',
@@ -134,7 +136,11 @@ export class ApiException extends HttpException {
   /** 이메일 로그인 오류의 이유 객체 (#245). 응답에서는 같은 `error.details` 자리에 실린다 */
   readonly reason?: Record<string, string | number>;
 
-  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGE[code], details?: ErrorDetails) {
+  constructor(
+    code: ErrorCode,
+    message: string = DEFAULT_MESSAGE[code],
+    details?: ErrorDetails,
+  ) {
     super(message, ERROR_STATUS[code]);
     this.code = code;
     if (Array.isArray(details)) this.details = details;
@@ -146,7 +152,12 @@ export class ApiException extends HttpException {
     const error: ErrorBody['error'] = { code: this.code };
     const details = this.details ?? this.reason;
     if (details) error.details = details;
-    return { status: this.getStatus(), data: null, message: this.message, error };
+    return {
+      status: this.getStatus(),
+      data: null,
+      message: this.message,
+      error,
+    };
   }
 }
 

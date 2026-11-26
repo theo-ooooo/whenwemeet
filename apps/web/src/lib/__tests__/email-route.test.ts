@@ -94,9 +94,7 @@ describe("POST /auth/email/request", () => {
 describe("POST /auth/email/code", () => {
   it("SESSION: wwm_session 설정, wwm_group 삭제, redirect = 착지 화면?next=safeNext(next). 토큰은 본문에 없다", async () => {
     upstream.mockResolvedValue(okEnv({ kind: "SESSION", token: "h.p.s", next: "/join/ABC123?auto=1" }));
-    const res = await code(
-      jsonReq("/auth/email/code", { email: "a@b.co", code: "123 456" }, { ua: "Mozilla/5.0 WhenwemeetApp/1.1.0 (ios) EmailLogin/1" }),
-    );
+    const res = await code(jsonReq("/auth/email/code", { email: "a@b.co", code: "123 456" }, { ua: "Mozilla/5.0 WhenwemeetApp/1.1.0 (ios) EmailLogin/1" }));
     expect(JSON.parse(upstream.mock.calls[0][0].body)).toEqual({ email: "a@b.co", code: "123456", client: "app" });
     const body = await res.json();
     expect(body.data).toEqual({ redirect: "/auth/landing?next=%2Fjoin%2FABC123%3Fauto%3D1" });

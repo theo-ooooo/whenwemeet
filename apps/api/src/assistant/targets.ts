@@ -1,5 +1,10 @@
 import type { Member } from '../common/member.js';
-import { addDays, dateToDay, kstDate, kstMidnight } from '../events/recurrence.js';
+import {
+  addDays,
+  dateToDay,
+  kstDate,
+  kstMidnight,
+} from '../events/recurrence.js';
 import type { EventAfter, EventTarget } from './assistant.types.js';
 import {
   type NormalizeContext,
@@ -19,7 +24,13 @@ import {
 } from './normalize.js';
 import { kstTime, kstWeekday } from './prompt.js';
 import { MAX_TARGETS } from './tools.js';
-import { NO_WHEN, resolvePeriod, resolveWhen, weekRange, type WhenArg } from './when.js';
+import {
+  NO_WHEN,
+  resolvePeriod,
+  resolveWhen,
+  weekRange,
+  type WhenArg,
+} from './when.js';
 
 /**
  * (#511) 볼까 일정 고치기, 지우기의 대상 찾기와 바꿀 값 정규화 (설계 AI-비서.md 4-5, D-283). 순수 함수.
@@ -62,8 +73,15 @@ export interface TargetSearch {
   time: string | null;
 }
 
-const problem = (field: 'date' | 'which' | 'time' | 'change', subject?: string) =>
-  new NormalizeProblem({ kind: 'clarify', field, ...(subject ? { subject } : {}) });
+const problem = (
+  field: 'date' | 'which' | 'time' | 'change',
+  subject?: string,
+) =>
+  new NormalizeProblem({
+    kind: 'clarify',
+    field,
+    ...(subject ? { subject } : {}),
+  });
 
 /** 그 자체로 기간인 표현 (주, 주말, 달) */
 const RANGE_KINDS = new Set<WhenArg['kind']>(['week', 'weekend', 'month']);
@@ -80,7 +98,10 @@ export function targetKeyword(raw: string | null): string | null {
  * 찾을 기간과 거를 값. 날짜를 말하지 않았으면 오늘 7일 전 ~ 60일 뒤, 주, 주말, 달이면 그 기간, 하루 표현이면 그날.
  * 이름 첫 글자를 요일로 읽었으면(D-278 ①) 날짜를 말하지 않은 것으로. 제목 말도 날짜도 없으면 clarify(which)
  */
-export function targetSearch(args: TargetArgs, context: NormalizeContext): TargetSearch {
+export function targetSearch(
+  args: TargetArgs,
+  context: NormalizeContext,
+): TargetSearch {
   const today = kstDate(context.now);
   const keyword = targetKeyword(args.title);
   const when = weekdayIsName(args.when, context) ? NO_WHEN : args.when;
@@ -106,7 +127,8 @@ export function targetSearch(args: TargetArgs, context: NormalizeContext): Targe
   return { fromDate, toDate, keyword, time: args.time };
 }
 
-const compact = (text: string): string => text.replace(/\s+/g, '').toLowerCase();
+const compact = (text: string): string =>
+  text.replace(/\s+/g, '').toLowerCase();
 
 /** 제목 말의 낱말들. 끝의 "일정" 은 뗀다 ("회식 일정" → 회식) */
 function keywordTokens(keyword: string): string[] {
@@ -120,11 +142,16 @@ function keywordTokens(keyword: string): string[] {
  * 제목 말로 거른다 (공백, 대소문자 무시). 낱말이 모두 제목에 들어 있으면 맞음 ("강남 회식" → "강남 팀 회식").
  * 하나도 맞지 않으면 제목이 말 안에 들어 있는 것 ("병원 예약" → "병원")
  */
-export function matchesKeyword<T extends { title: string }>(list: readonly T[], keyword: string | null): T[] {
+export function matchesKeyword<T extends { title: string }>(
+  list: readonly T[],
+  keyword: string | null,
+): T[] {
   if (keyword === null) return [...list];
   const tokens = keywordTokens(keyword);
   if (tokens.length === 0) return [...list];
-  const byTokens = list.filter((item) => tokens.every((token) => compact(item.title).includes(token)));
+  const byTokens = list.filter((item) =>
+    tokens.every((token) => compact(item.title).includes(token)),
+  );
   if (byTokens.length > 0) return byTokens;
   const said = compact(keyword);
   return list.filter((item) => {
@@ -144,19 +171,33 @@ export interface TargetCandidate {
  * 기간 안 일정(반복은 회차로 펼친 것) → 기간과 겹치는 것 중 제목 말, 지금 시각으로 거른 뒤 지금과 가까운 순.
  * 시각을 말했으면 그 시각에 시작하는 종일 아닌 일정만
  */
-export function matchTargets<T extends TargetCandidate>(list: readonly T[], search: TargetSearch, now: Date): T[] {
+export function matchTargets<T extends TargetCandidate>(
+  list: readonly T[],
+  search: TargetSearch,
+  now: Date,
+): T[] {
   // 기간과 겹치는 것만 (목록이 이미 기간으로 읽었어도 한 번 더, 실모델 평가의 고정 일정도 같은 규칙)
   const from = kstMidnight(search.fromDate).getTime();
   const to = kstMidnight(addDays(search.toDate, 1)).getTime();
-  const inPeriod = list.filter((item) => item.startsAt.getTime() < to && item.endsAt.getTime() > from);
+  const inPeriod = list.filter(
+    (item) => item.startsAt.getTime() < to && item.endsAt.getTime() > from,
+  );
   let matched = matchesKeyword(inPeriod, search.keyword);
-  if (search.time !== null) matched = matched.filter((item) => !item.allDay && kstTime(item.startsAt) === search.time);
-  const distance = (item: T) => Math.abs(item.startsAt.getTime() - now.getTime());
-  return [...matched].sort((a, b) => distance(a) - distance(b) || a.startsAt.getTime() - b.startsAt.getTime());
+  if (search.time !== null)
+    matched = matched.filter(
+      (item) => !item.allDay && kstTime(item.startsAt) === search.time,
+    );
+  const distance = (item: T) =>
+    Math.abs(item.startsAt.getTime() - now.getTime());
+  return [...matched].sort(
+    (a, b) =>
+      distance(a) - distance(b) || a.startsAt.getTime() - b.startsAt.getTime(),
+  );
 }
 
 /** 고르기 카드에 싣는 앞 5개 */
-export const firstTargets = <T>(list: readonly T[]): T[] => list.slice(0, MAX_TARGETS);
+export const firstTargets = <T>(list: readonly T[]): T[] =>
+  list.slice(0, MAX_TARGETS);
 
 /** 일정 응답 모양(EventView) → 대상 카드 값 */
 export function toTarget(view: {
@@ -171,7 +212,9 @@ export function toTarget(view: {
   place: { text: string | null; query?: string | null } | null;
   participants: { members: Member[] };
 }): EventTarget {
-  const placeText = view.place ? (view.place.text ?? view.place.query ?? '').trim() : '';
+  const placeText = view.place
+    ? (view.place.text ?? view.place.query ?? '').trim()
+    : '';
   return {
     id: view.id,
     publicCode: view.publicCode,
@@ -188,19 +231,35 @@ export function toTarget(view: {
 
 /** 사용자가 무엇이든 바꾸라고 했는가 (모든 값이 비면 되묻는다) */
 export function hasChanges(changes: EditChangesArgs): boolean {
-  const text = (raw: string | null) => raw !== null && cleanText(raw).length > 0;
-  return text(changes.title) || changes.date.kind !== null || changes.startTime !== null || changes.endTime !== null || changes.allDay !== null || text(changes.place);
+  const text = (raw: string | null) =>
+    raw !== null && cleanText(raw).length > 0;
+  return (
+    text(changes.title) ||
+    changes.date.kind !== null ||
+    changes.startTime !== null ||
+    changes.endTime !== null ||
+    changes.allDay !== null ||
+    text(changes.place)
+  );
 }
 
 /**
  * 새 날짜. 말하지 않았으면 지금 날짜. "다음 주로"처럼 주만 말했으면 그 주의 같은 요일.
  * 그 밖은 일정 초안과 같은 규칙(요일만이면 가장 가까운 그 요일, 지난 "이번 주 X요일"은 되묻기)
  */
-function newDate(when: WhenArg, current: string, startTime: string | null, context: NormalizeContext): string {
+function newDate(
+  when: WhenArg,
+  current: string,
+  startTime: string | null,
+  context: NormalizeContext,
+): string {
   if (when.kind === null) return current;
   if (when.kind === 'week') {
     const [sunday] = weekRange(kstDate(context.now), when.which ?? 'this');
-    return checkDate(addDays(sunday, kstWeekday(current)), kstDate(context.now));
+    return checkDate(
+      addDays(sunday, kstWeekday(current)),
+      kstDate(context.now),
+    );
   }
   return draftDate(when, context, startTime);
 }
@@ -211,8 +270,15 @@ function newDate(when: WhenArg, current: string, startTime: string | null, conte
  * - 종일: allDay 를 말하지 않았으면 시각을 말했을 때 시각 일정, 아니면 지금 그대로. 종일은 새 날짜부터 지금 일 수만큼 (시각 일정을 종일로 바꾸면 하루)
  * - 시각: 새 시작 ?? 지금 시작(종일이던 일정이면 되묻기). 새 끝이 있으면 그 시각(시작보다 이르거나 같으면 다음 날), 없으면 지금 길이 그대로(종일이던 일정은 1시간)
  */
-export function normalizeEdit(target: EventTarget, changes: EditChangesArgs, context: NormalizeContext): EventAfter | null {
-  const title = changes.title !== null && cleanText(changes.title).length > 0 ? cardTitle(changes.title) : target.title;
+export function normalizeEdit(
+  target: EventTarget,
+  changes: EditChangesArgs,
+  context: NormalizeContext,
+): EventAfter | null {
+  const title =
+    changes.title !== null && cleanText(changes.title).length > 0
+      ? cardTitle(changes.title)
+      : target.title;
   let place = target.place;
   if (changes.place !== null) {
     const text = cleanText(changes.place);
@@ -223,31 +289,57 @@ export function normalizeEdit(target: EventTarget, changes: EditChangesArgs, con
   const endsAt0 = new Date(target.endsAt);
   const currentDate = kstDate(startsAt0);
   // 시각을 말했으면 종일이 아니다 ("여행 10시로")
-  const allDay = changes.allDay ?? (changes.startTime !== null ? false : target.allDay);
-  const dateWhen = weekdayIsName(changes.date, context) ? NO_WHEN : changes.date;
+  const allDay =
+    changes.allDay ?? (changes.startTime !== null ? false : target.allDay);
+  const dateWhen = weekdayIsName(changes.date, context)
+    ? NO_WHEN
+    : changes.date;
 
   let startsAt: Date;
   let endsAt: Date;
   if (allDay) {
     const date = newDate(dateWhen, currentDate, null, context);
-    const days = target.allDay ? Math.max(1, dateToDay(kstDate(new Date(endsAt0.getTime() - 1))) - dateToDay(currentDate) + 1) : 1;
+    const days = target.allDay
+      ? Math.max(
+          1,
+          dateToDay(kstDate(new Date(endsAt0.getTime() - 1))) -
+            dateToDay(currentDate) +
+            1,
+        )
+      : 1;
     startsAt = kstMidnight(date);
     endsAt = kstMidnight(addDays(date, days));
   } else {
-    const startTime = changes.startTime ?? (target.allDay ? null : kstTime(startsAt0));
+    const startTime =
+      changes.startTime ?? (target.allDay ? null : kstTime(startsAt0));
     if (startTime === null) throw problem('time', title);
     const date = newDate(dateWhen, currentDate, startTime, context);
     startsAt = kstToDate(date, startTime);
     if (changes.endTime !== null) {
-      endsAt = kstToDate(minutesOf(changes.endTime) <= minutesOf(startTime) ? addDays(date, 1) : date, changes.endTime);
+      endsAt = kstToDate(
+        minutesOf(changes.endTime) <= minutesOf(startTime)
+          ? addDays(date, 1)
+          : date,
+        changes.endTime,
+      );
     } else {
-      endsAt = new Date(startsAt.getTime() + (target.allDay ? HOUR_MS : endsAt0.getTime() - startsAt0.getTime()));
+      endsAt = new Date(
+        startsAt.getTime() +
+          (target.allDay ? HOUR_MS : endsAt0.getTime() - startsAt0.getTime()),
+      );
     }
   }
   const length = endsAt.getTime() - startsAt.getTime();
-  if (length <= 0 || length > MAX_EVENT_DAYS * DAY_MS) throw problem('time', title);
+  if (length <= 0 || length > MAX_EVENT_DAYS * DAY_MS)
+    throw problem('time', title);
 
-  const after: EventAfter = { title, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), allDay, place };
+  const after: EventAfter = {
+    title,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    allDay,
+    place,
+  };
   const same =
     after.title === target.title &&
     after.startsAt === target.startsAt &&
@@ -257,15 +349,27 @@ export function normalizeEdit(target: EventTarget, changes: EditChangesArgs, con
   return same ? null : after;
 }
 
-const WHEN_FIELDS = ['kind', 'date', 'days', 'weekday', 'which', 'month', 'day'] as const;
+const WHEN_FIELDS = [
+  'kind',
+  'date',
+  'days',
+  'weekday',
+  'which',
+  'month',
+  'day',
+] as const;
 
 /**
  * (#511) 대상 날짜가 바꿀 날짜와 똑같은 표현이면 대상 날짜는 말하지 않은 것으로 (D-283).
  * 실모델이 "병원 예약 목요일로 옮겨줘"의 목요일을 대상 when 과 changes.date 둘 다에 넣어 옮기기 전 날에서 찾지 못했다.
  * 한 글에 같은 날짜 표현이 두 번 나오는 일은 "목요일 일정 목요일로" 처럼 바꿀 것이 없는 경우뿐이다
  */
-export function dropEchoedWhen<T extends { when: WhenArg }>(args: T, changeDate: WhenArg | null | undefined): T {
-  if (!changeDate || changeDate.kind === null || args.when.kind === null) return args;
+export function dropEchoedWhen<T extends { when: WhenArg }>(
+  args: T,
+  changeDate: WhenArg | null | undefined,
+): T {
+  if (!changeDate || changeDate.kind === null || args.when.kind === null)
+    return args;
   const same = WHEN_FIELDS.every((key) => args.when[key] === changeDate[key]);
   return same ? { ...args, when: NO_WHEN } : args;
 }
@@ -274,11 +378,25 @@ export function dropEchoedWhen<T extends { when: WhenArg }>(args: T, changeDate:
  * (#511) 대상 시각이 바꿀 시작 시각과 같으면 대상 시각은 말하지 않은 것으로 (D-283).
  * 실모델이 "금요일 회식 7시 반으로 바꿔줘"의 19:30 을 대상 time 과 changes.startTime 둘 다에 넣어 찾지 못했다
  */
-export function dropEchoedTime<T extends { time: string | null }>(args: T, changeStart: string | null | undefined): T {
-  return args.time !== null && changeStart && args.time === changeStart ? { ...args, time: null } : args;
+export function dropEchoedTime<T extends { time: string | null }>(
+  args: T,
+  changeStart: string | null | undefined,
+): T {
+  return args.time !== null && changeStart && args.time === changeStart
+    ? { ...args, time: null }
+    : args;
 }
 
 /** (#511) 고치기 대상 인자 정리: 바꿀 날짜, 시각을 대상에도 넣은 것을 지운다. 서비스와 실모델 평가가 같이 쓴다 (D-283) */
-export function editTargetArgs<T extends { when: WhenArg; time: string | null; changes: { date: WhenArg | null; startTime: string | null } }>(raw: T): T {
-  return dropEchoedTime(dropEchoedWhen(raw, raw.changes.date), raw.changes.startTime);
+export function editTargetArgs<
+  T extends {
+    when: WhenArg;
+    time: string | null;
+    changes: { date: WhenArg | null; startTime: string | null };
+  },
+>(raw: T): T {
+  return dropEchoedTime(
+    dropEchoedWhen(raw, raw.changes.date),
+    raw.changes.startTime,
+  );
 }

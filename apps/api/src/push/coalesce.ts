@@ -33,10 +33,15 @@ export type CoalesceResult =
  * 묶기 결과 (설계 5-4 표).
  * `removesEvent` 는 이 변경으로 원본 행이 지워졌는지 (한 번짜리 삭제, "이후 모두" 첫 회차 삭제)
  */
-export function coalesce(pending: PendingChange | null, log: ChangeLog, removesEvent: boolean): CoalesceResult {
+export function coalesce(
+  pending: PendingChange | null,
+  log: ChangeLog,
+  removesEvent: boolean,
+): CoalesceResult {
   if (!pending) return { type: 'create' };
   if (pending.changeAction === 'CREATED') {
-    if (log.action === 'DELETED') return removesEvent ? { type: 'cancel' } : { type: 'keep' };
+    if (log.action === 'DELETED')
+      return removesEvent ? { type: 'cancel' } : { type: 'keep' };
     return { type: 'update', changeAction: 'CREATED', eventLogId: log.id };
   }
   // UPDATED → UPDATED 는 새 로그, UPDATED → DELETED 는 삭제로. 그 밖(표에 없는 순서)도 마지막 로그를 따른다

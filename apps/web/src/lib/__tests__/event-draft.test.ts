@@ -93,7 +93,14 @@ describe("처음 값", () => {
 
   it("수정은 반복 값 그대로, 복제는 반복 안 함 (QA3-L2). 알림, 참여자, 색은 둘 다 원본", () => {
     const ev = loaded({ repeat: "WEEKLY", repeatUntil: "2026-12-31", color: "#FF8A65" });
-    expect(draftFromEvent(ev, false)).toMatchObject({ repeat: "WEEKLY", untilOn: true, untilDate: "2026-12-31", reminder: "MIN_10", pick: [1, 2], color: "#FF8A65" });
+    expect(draftFromEvent(ev, false)).toMatchObject({
+      repeat: "WEEKLY",
+      untilOn: true,
+      untilDate: "2026-12-31",
+      reminder: "MIN_10",
+      pick: [1, 2],
+      color: "#FF8A65",
+    });
     expect(draftFromEvent(ev, true)).toMatchObject({ repeat: null, untilOn: false, untilDate: "", reminder: "MIN_10", pick: [1, 2], color: "#FF8A65" });
   });
 });
@@ -126,7 +133,12 @@ describe("빠른 추가 (span day)", () => {
   });
 
   it("날짜는 바꾸지 않는다 (하루 안)", () => {
-    const d = run(day("22:00", "23:00"), "day", { type: "start", date: "2026-11-21", time: "23:30" }, { type: "end", date: "2026-11-25", time: "10:00", by: "time" });
+    const d = run(
+      day("22:00", "23:00"),
+      "day",
+      { type: "start", date: "2026-11-21", time: "23:30" },
+      { type: "end", date: "2026-11-25", time: "10:00", by: "time" },
+    );
     expect(d).toMatchObject({ startDate: D, endDate: D });
   });
 
@@ -261,7 +273,14 @@ describe("일정 폼 (span range)", () => {
   });
 
   it("색, 반복, 알림은 그대로 바꾼다", () => {
-    const d = run(range(), "range", { type: "color", value: "#FF8A65" }, { type: "repeat", value: "MONTHLY" }, { type: "reminder", value: "DAY_1" }, { type: "untilDate", value: "2027-01-01" });
+    const d = run(
+      range(),
+      "range",
+      { type: "color", value: "#FF8A65" },
+      { type: "repeat", value: "MONTHLY" },
+      { type: "reminder", value: "DAY_1" },
+      { type: "untilDate", value: "2027-01-01" },
+    );
     expect(d).toMatchObject({ color: "#FF8A65", repeat: "MONTHLY", reminder: "DAY_1", untilDate: "2027-01-01" });
   });
 });
@@ -335,7 +354,9 @@ describe("일정 폼 본문", () => {
   it("개인 팀, 참여자 줄 숨김이면 참여자를 싣지 않는다", () => {
     const d = range({ title: "a" });
     expect(eventBody({ ...base, personal: true, draft: d, input: eventInput(d, null)!, scope: null, series: null })).not.toHaveProperty("participants");
-    expect(eventBody({ ...base, showParticipants: false, draft: d, input: eventInput(d, null)!, scope: null, series: null })).not.toHaveProperty("participants");
+    expect(eventBody({ ...base, showParticipants: false, draft: d, input: eventInput(d, null)!, scope: null, series: null })).not.toHaveProperty(
+      "participants",
+    );
   });
 
   it("한 번짜리 수정: 바꾼 참여자, 색만", () => {
@@ -354,7 +375,9 @@ describe("일정 폼 본문", () => {
     const ev = loaded({ repeat: "WEEKLY", occurrence: "2026-11-14" });
     const d = { ...draftFromEvent(ev, false), color: "#FF8A65", title: "x" };
     const input = eventInput(d, ev)!;
-    expect(eventBody({ ...base, editing: true, draft: d, input, scope: "this", series: ev, currentPick: [1], initialPick: [1, 2], initialColor: null })).toEqual(input);
+    expect(
+      eventBody({ ...base, editing: true, draft: d, input, scope: "this", series: ev, currentPick: [1], initialPick: [1, 2], initialColor: null }),
+    ).toEqual(input);
   });
 
   it("(QA3-M3, QA3-L1) 반복 일정 '이후 모두': 시각, 종료 날짜를 그대로 두면 보내지 않는다", () => {
@@ -363,14 +386,34 @@ describe("일정 폼 본문", () => {
     const input = eventInput(d, ev)!;
     expect(timesKeptOf(input, ev)).toBe(true);
     expect(sentUntilOf(d, ev)).toBeUndefined();
-    const body = eventBody({ ...base, editing: true, draft: d, input, scope: "following", series: ev, currentPick: d.pick, initialPick: d.pick, initialColor: null });
+    const body = eventBody({
+      ...base,
+      editing: true,
+      draft: d,
+      input,
+      scope: "following",
+      series: ev,
+      currentPick: d.pick,
+      initialPick: d.pick,
+      initialColor: null,
+    });
     expect(body).not.toHaveProperty("startsAt");
     expect(body).not.toHaveProperty("repeatUntil");
     expect(body).toMatchObject({ repeat: "WEEKLY", title: ev.title });
 
     const moved = run(d, "range", { type: "start", date: "2026-11-14", time: "20:00" }, { type: "untilDate", value: "2027-01-31" });
     const input2 = eventInput(moved, ev)!;
-    const body2 = eventBody({ ...base, editing: true, draft: moved, input: input2, scope: "following", series: ev, currentPick: [1], initialPick: d.pick, initialColor: null });
+    const body2 = eventBody({
+      ...base,
+      editing: true,
+      draft: moved,
+      input: input2,
+      scope: "following",
+      series: ev,
+      currentPick: [1],
+      initialPick: d.pick,
+      initialColor: null,
+    });
     expect(body2).toMatchObject({ startsAt: kstToIso("2026-11-14", "20:00"), repeatUntil: "2027-01-31", participants: [1] });
   });
 
@@ -391,7 +434,16 @@ describe("일정 폼 본문", () => {
 
 describe("(#199) 장소", () => {
   const place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
-  const cand = { provider: "kakao" as const, kakaoPlaceId: "8209184", naverKey: null, name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
+  const cand = {
+    provider: "kakao" as const,
+    kakaoPlaceId: "8209184",
+    naverKey: null,
+    name: "서울숲",
+    address: "서울 성동구 뚝섬로 273",
+    lat: 37.5444,
+    lng: 127.0374,
+    category: "공원",
+  };
 
   it("불러오기, 복제 모두 장소를 채운다. 없으면 빈 값", () => {
     expect(draftFromEvent(loaded({ place }), false).place).toMatchObject({ text: "", picked: { provider: "kakao", id: "8209184", query: "숲" } });
@@ -419,10 +471,21 @@ describe("(#199) 장소", () => {
     expect(draftChanged(run(first, "range", { type: "placeText", value: " " }), first)).toBe(false);
   });
 
-  it("반복 \"이 일정만\" 수정도 장소를 싣는다 (회차 예외)", () => {
+  it('반복 "이 일정만" 수정도 장소를 싣는다 (회차 예외)', () => {
     const d = run(draftFromEvent(loaded({ repeat: "WEEKLY", occurrence: "2026-11-14", place }), false), "range", { type: "placeText", value: "을지로" });
     const input = eventInput(d, { reminder: "NONE" })!;
-    const body = eventBody({ draft: d, input, scope: "this", series: { startsAt: input.startsAt, endsAt: input.endsAt, repeat: "WEEKLY", repeatUntil: null }, editing: true, personal: false, showParticipants: true, currentPick: null, initialPick: null, initialColor: null });
+    const body = eventBody({
+      draft: d,
+      input,
+      scope: "this",
+      series: { startsAt: input.startsAt, endsAt: input.endsAt, repeat: "WEEKLY", repeatUntil: null },
+      editing: true,
+      personal: false,
+      showParticipants: true,
+      currentPick: null,
+      initialPick: null,
+      initialColor: null,
+    });
     expect(body.place).toEqual({ text: "을지로" });
   });
 });
@@ -454,9 +517,19 @@ describe("음력으로 고르기", () => {
   });
 
   it("음력 날짜를 고르면 그 양력으로 시작을 옮기고 길이를 지킨다 (시각 일정, 여러 날 종일)", () => {
-    const timed = run(range({ endTime: "12:30" }), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } });
+    const timed = run(
+      range({ endTime: "12:30" }),
+      "range",
+      { type: "calendar", value: "LUNAR" },
+      { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } },
+    );
     expect(timed).toMatchObject({ startDate: "2026-11-24", startTime: "10:00", endDate: "2026-11-24", endTime: "12:30" });
-    const multi = run(range({ allDay: true, endDate: "2026-11-22" }), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } });
+    const multi = run(
+      range({ allDay: true, endDate: "2026-11-22" }),
+      "range",
+      { type: "calendar", value: "LUNAR" },
+      { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } },
+    );
     expect(multi).toMatchObject({ startDate: "2026-11-24", endDate: "2026-11-26" });
     expect(lunarError(multi)).toBeNull();
   });
@@ -491,6 +564,11 @@ describe("음력으로 고르기", () => {
 
   it("볼까 [고치기] 주소 lunar=1 은 음력으로 연다", () => {
     const q = new URLSearchParams({ lunar: "1" });
-    expect(newDraft({ start: kstToIso("2026-11-24", "10:00"), end: kstToIso("2026-11-24", "11:00"), query: q }).lunar).toEqual({ year: 2026, month: 10, day: 16, leap: false });
+    expect(newDraft({ start: kstToIso("2026-11-24", "10:00"), end: kstToIso("2026-11-24", "11:00"), query: q }).lunar).toEqual({
+      year: 2026,
+      month: 10,
+      day: 16,
+      leap: false,
+    });
   });
 });

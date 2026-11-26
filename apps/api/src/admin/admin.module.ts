@@ -4,7 +4,10 @@ import { UsersModule } from '../users/users.module.js';
 import { AdminAccess, AdminGuard } from './admin-access.js';
 import { AdminActionsRepository } from './admin-actions.repository.js';
 import { AdminLogsController } from './admin-logs.controller.js';
-import { AdminEventsController, AdminGroupsController } from './admin-moderation.controller.js';
+import {
+  AdminEventsController,
+  AdminGroupsController,
+} from './admin-moderation.controller.js';
 import { AdminModerationRepository } from './admin-moderation.repository.js';
 import { AdminModerationService } from './admin-moderation.service.js';
 import { AdminReportsController } from './admin-reports.controller.js';
@@ -22,7 +25,14 @@ import { AdminUsersService } from './admin-users.service.js';
  */
 @Module({
   imports: [UsersModule, NotificationPreferencesModule],
-  controllers: [AdminUsersController, AdminLogsController, AdminGroupsController, AdminEventsController, AdminReportsController, AdminStatsController],
+  controllers: [
+    AdminUsersController,
+    AdminLogsController,
+    AdminGroupsController,
+    AdminEventsController,
+    AdminReportsController,
+    AdminStatsController,
+  ],
   providers: [
     AdminAccess,
     AdminGuard,

@@ -45,7 +45,8 @@ export interface PlatformCounts {
 }
 
 /** COUNT, SUM 은 드라이버에 따라 bigint, 문자열(DECIMAL)로 온다 */
-const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
+const num = (v: unknown): number =>
+  v === null || v === undefined ? 0 : Number(v);
 
 @Injectable()
 export class AdminStatsRepository {
@@ -72,15 +73,23 @@ export class AdminStatsRepository {
 
   /** 날짜별 볼까 메시지 수, 쓴 사람 수. fromDay 는 첫날 'YYYY-MM-DD' (KST) */
   async assistantByDay(fromDay: string): Promise<AssistantDay[]> {
-    const rows = await this.prisma.$queryRaw<{ day: string; messages: unknown; users: unknown }[]>`
+    const rows = await this.prisma.$queryRaw<
+      { day: string; messages: unknown; users: unknown }[]
+    >`
       SELECT DATE_FORMAT(day, '%Y-%m-%d') AS day, SUM(count) AS messages, COUNT(*) AS users
       FROM \`AssistantUsage\` WHERE day >= ${fromDay} AND count > 0 GROUP BY day`;
-    return rows.map((r) => ({ day: r.day, messages: num(r.messages), users: num(r.users) }));
+    return rows.map((r) => ({
+      day: r.day,
+      messages: num(r.messages),
+      users: num(r.users),
+    }));
   }
 
   /** 전체 수와 기간 활동 사용자. from 은 기간 첫날 KST 자정 */
   async totals(from: Date): Promise<StatsTotals> {
-    const [row] = await this.prisma.$queryRaw<Record<keyof StatsTotals, unknown>[]>`
+    const [row] = await this.prisma.$queryRaw<
+      Record<keyof StatsTotals, unknown>[]
+    >`
       SELECT
         (SELECT COUNT(*) FROM \`User\`) AS users,
         (SELECT COUNT(*) FROM \`Group\` WHERE type = 'TEAM') AS teams,
@@ -102,7 +111,9 @@ export class AdminStatsRepository {
 
   /** 쓰는 곳 사람 수 (PlatformCounts 규칙). 사용자 한 바퀴, 기종마다 EXISTS */
   async platforms(): Promise<PlatformCounts> {
-    const [row] = await this.prisma.$queryRaw<Record<keyof PlatformCounts, unknown>[]>`
+    const [row] = await this.prisma.$queryRaw<
+      Record<keyof PlatformCounts, unknown>[]
+    >`
       SELECT
         COALESCE(SUM(EXISTS(SELECT 1 FROM \`UserClient\` c WHERE c.userId = u.id AND c.platform = 'ios')
           OR EXISTS(SELECT 1 FROM \`PushDevice\` d WHERE d.userId = u.id AND d.platform = 'IOS')), 0) AS ios,
@@ -114,6 +125,11 @@ export class AdminStatsRepository {
         COALESCE(SUM(NOT EXISTS(SELECT 1 FROM \`UserClient\` c WHERE c.userId = u.id)
           AND NOT EXISTS(SELECT 1 FROM \`PushDevice\` d WHERE d.userId = u.id) AND u.lastAppLoginAt IS NOT NULL), 0) AS \`unknown\`
       FROM \`User\` u`;
-    return { ios: num(row.ios), android: num(row.android), web: num(row.web), unknown: num(row.unknown) };
+    return {
+      ios: num(row.ios),
+      android: num(row.android),
+      web: num(row.web),
+      unknown: num(row.unknown),
+    };
   }
 }

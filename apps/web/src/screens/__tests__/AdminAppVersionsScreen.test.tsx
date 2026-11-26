@@ -6,7 +6,13 @@ import type { AppRelease } from "@/lib/types";
 
 const update = vi.fn<(input: Record<string, unknown>) => Promise<unknown>>();
 const rows: AppRelease[] = [
-  { platform: "ios", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: "https://apps.apple.com/kr/app/id6832865813", updatedAt: "2026-11-24T00:00:00.000Z" },
+  {
+    platform: "ios",
+    latestVersion: "1.4.0",
+    minVersion: "1.1.0",
+    storeUrl: "https://apps.apple.com/kr/app/id6832865813",
+    updatedAt: "2026-11-24T00:00:00.000Z",
+  },
   { platform: "android", latestVersion: null, minVersion: null, storeUrl: "https://play.google.com/store/apps/details?id=day.whenwemeet.app", updatedAt: null },
 ];
 

@@ -86,7 +86,12 @@ export function SearchScreen() {
               찾을 팀
             </span>
             <div className="w-[200px]">
-              <Segmented labelledBy={scopeLabelId} value={scope} options={SCOPES} onChange={(v) => window.history.replaceState(null, "", searchHref(text.trim(), v === "all"))} />
+              <Segmented
+                labelledBy={scopeLabelId}
+                value={scope}
+                options={SCOPES}
+                onChange={(v) => window.history.replaceState(null, "", searchHref(text.trim(), v === "all"))}
+              />
             </div>
           </div>
         )}
@@ -138,7 +143,21 @@ function UpcomingQuick({ groupId, today }: { groupId: number; today: string }) {
   );
 }
 
-function ResultGroup({ title, items, q, today, showTeam, spaced = false }: { title: string; items: EventSearchItem[]; q: string; today: string; showTeam: boolean; spaced?: boolean }) {
+function ResultGroup({
+  title,
+  items,
+  q,
+  today,
+  showTeam,
+  spaced = false,
+}: {
+  title: string;
+  items: EventSearchItem[];
+  q: string;
+  today: string;
+  showTeam: boolean;
+  spaced?: boolean;
+}) {
   const who = useWho();
   const [now] = useState(Date.now);
   return (

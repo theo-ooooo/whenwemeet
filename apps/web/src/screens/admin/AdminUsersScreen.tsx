@@ -58,7 +58,14 @@ export function AdminUsersScreen() {
         <label className="relative block min-w-0 flex-1">
           <span className="sr-only">이름으로 찾기</span>
           <IconSearch size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-2" />
-          <input type="search" className={`${inputClass} bg-paper pl-10`} placeholder="이름으로 찾기" value={text} maxLength={50} onChange={(e) => setText(e.target.value)} />
+          <input
+            type="search"
+            className={`${inputClass} bg-paper pl-10`}
+            placeholder="이름으로 찾기"
+            value={text}
+            maxLength={50}
+            onChange={(e) => setText(e.target.value)}
+          />
         </label>
       </div>
       {error && <InlineError className="mb-2">{error}</InlineError>}
@@ -100,13 +107,7 @@ export function AdminUsersScreen() {
                 </span>
                 <span className="hidden w-48 shrink-0 truncate text-[13px] text-ink-2 lg:block">{providerText(u.providers)}</span>
                 <span className="hidden w-36 shrink-0 text-[13px] tabular-nums text-ink-2 lg:block">가입 {adminDateTime(u.createdAt)}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={self}
-                  title={self ? "내 역할은 바꿀 수 없어요" : undefined}
-                  onClick={() => setTarget(u)}
-                >
+                <Button size="sm" variant="outline" disabled={self} title={self ? "내 역할은 바꿀 수 없어요" : undefined} onClick={() => setTarget(u)}>
                   {u.role === "admin" ? "사용자로" : "관리자로"}
                 </Button>
               </li>

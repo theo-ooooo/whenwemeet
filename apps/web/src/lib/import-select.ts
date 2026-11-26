@@ -64,7 +64,13 @@ export function itemWhen(item: Pick<ImportItem, "startsAt" | "endsAt" | "allDay"
   return `${formatDateKo(start)} ${timeOf(item.startsAt)} ~ ${formatDateKo(end)} ${timeOf(item.endsAt)}`;
 }
 
-const REPEAT_BADGE: Record<Repeat, string> = { WEEKLY: "매주 반복", BIWEEKLY: "격주 반복", MONTHLY: "매월 반복", YEARLY: "매년 반복", YEARLY_LUNAR: "매년(음력) 반복" };
+const REPEAT_BADGE: Record<Repeat, string> = {
+  WEEKLY: "매주 반복",
+  BIWEEKLY: "격주 반복",
+  MONTHLY: "매월 반복",
+  YEARLY: "매년 반복",
+  YEARLY_LUNAR: "매년(음력) 반복",
+};
 
 export function repeatBadge(repeat: Repeat | null): string | null {
   return repeat ? REPEAT_BADGE[repeat] : null;

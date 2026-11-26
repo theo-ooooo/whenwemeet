@@ -47,7 +47,15 @@ describe("parseWidgetSnapshot", () => {
     ["(#311) 팀 코드 모양 틀림", { groups: [{ id: 1, name: "a", color: 0, code: "TEAM-1" }] }],
     ["팀 이름 21자", { groups: [{ id: 1, name: "가".repeat(21), color: 0, code: "team1xxx" }] }],
     ["8일", { days: Array.from({ length: 8 }, (_, i) => ({ date: addDays("2026-11-12", i), events: [], total: 0 })) }],
-    ["날이 이어지지 않음", { days: [{ date: "2026-11-12", events: [], total: 0 }, { date: "2026-11-14", events: [], total: 0 }] }],
+    [
+      "날이 이어지지 않음",
+      {
+        days: [
+          { date: "2026-11-12", events: [], total: 0 },
+          { date: "2026-11-14", events: [], total: 0 },
+        ],
+      },
+    ],
     ["하루 일정 4개", { days: [{ date: "2026-11-12", events: Array(4).fill({ g: 1, title: "a", time: "1" }), total: 4 }] }],
     ["total 이 보이는 수보다 작음", { days: [{ date: "2026-11-12", events: [{ g: 1, title: "a", time: "1" }], total: 0 }] }],
     ["목록에 없는 팀의 일정", { days: [{ date: "2026-11-12", events: [{ g: 9, title: "a", time: "1" }], total: 1 }] }],
@@ -148,26 +156,34 @@ describe("timeline", () => {
 
 describe("(#350) 8색과 일정 색", () => {
   it("팀 색 7(핑크)을 받는다", () => {
-    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 7, code: "team1xxx" }, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    const s = parseWidgetSnapshot(
+      sample({
+        groups: [
+          { id: 1, name: "우리 둘", color: 7, code: "team1xxx" },
+          { id: 2, name: "가족", color: 3, code: "team2xxx" },
+        ],
+      }),
+    );
     expect(s?.groups[0].color).toBe(7);
   });
 
   it("팀 c 가 있으면 color 보다 c", () => {
-    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 7, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    const s = parseWidgetSnapshot(
+      sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 7, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }),
+    );
     expect(s?.groups[0].color).toBe(7);
   });
 
   it("팀 c 가 틀리면 color 로", () => {
-    const s = parseWidgetSnapshot(sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 99, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }));
+    const s = parseWidgetSnapshot(
+      sample({ groups: [{ id: 1, name: "우리 둘", color: 6, c: 99, code: "team1xxx" } as never, { id: 2, name: "가족", color: 3, code: "team2xxx" }] }),
+    );
     expect(s?.groups[0].color).toBe(6);
   });
 
   it("일정 c 가 있으면 그 색, 틀린 c 는 버리고 팀 색", () => {
     const raw = sample();
-    raw.days[0].events = [
-      { g: 1, title: "핑크 데이트", time: "10:00", c: 7 },
-      { g: 2, title: "이상한 색", time: "11:00", c: "x" } as never,
-    ];
+    raw.days[0].events = [{ g: 1, title: "핑크 데이트", time: "10:00", c: 7 }, { g: 2, title: "이상한 색", time: "11:00", c: "x" } as never];
     raw.days[0].total = 2;
     const s = parseWidgetSnapshot(raw);
     expect(s?.days[0].events).toEqual([

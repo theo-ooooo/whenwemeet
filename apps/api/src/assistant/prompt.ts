@@ -100,7 +100,9 @@ export function buildData(context: PromptContext): string {
     today,
     weekday: WEEKDAYS[kstWeekday(today)],
     now: kstTime(context.now),
-    members: context.members.map((member) => (member.me ? `${member.displayName}(나)` : member.displayName)),
+    members: context.members.map((member) =>
+      member.me ? `${member.displayName}(나)` : member.displayName,
+    ),
     personalTeam: context.personalTeam,
   };
   // `<`, `>` 를 이스케이프해 이름에 "</data>" 를 넣어도 자료 칸을 닫지 못하게
@@ -112,7 +114,11 @@ export function buildSystemPrompt(context: PromptContext): string {
 }
 
 /** 메시지 순서: system → history(받은 그대로) → 이번 user */
-export function buildMessages(context: PromptContext, history: readonly { role: 'user' | 'assistant'; text: string }[], text: string): ModelMessage[] {
+export function buildMessages(
+  context: PromptContext,
+  history: readonly { role: 'user' | 'assistant'; text: string }[],
+  text: string,
+): ModelMessage[] {
   return [
     { role: 'system', content: buildSystemPrompt(context) },
     ...history.map((turn) => ({ role: turn.role, content: turn.text })),

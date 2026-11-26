@@ -12,7 +12,8 @@ export const PUBLIC_CODE_PATTERN = /^[a-z0-9]{8}$/;
 
 export function generatePublicCode(): string {
   let code = '';
-  for (let i = 0; i < PUBLIC_CODE_LENGTH; i += 1) code += PUBLIC_CODE_ALPHABET[randomInt(PUBLIC_CODE_ALPHABET.length)];
+  for (let i = 0; i < PUBLIC_CODE_LENGTH; i += 1)
+    code += PUBLIC_CODE_ALPHABET[randomInt(PUBLIC_CODE_ALPHABET.length)];
   return code;
 }
 

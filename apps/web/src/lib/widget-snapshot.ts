@@ -111,9 +111,7 @@ export function buildWidgetSnapshot(src: WidgetSource, now: number): WidgetSnaps
       // 종일(걸친 일정 포함) 먼저, 그다음 시작 순, 같으면 제목
       .sort(
         (a, b) =>
-          Number(b.time === "종일") - Number(a.time === "종일") ||
-          a.ev.startsAt.localeCompare(b.ev.startsAt) ||
-          a.ev.title.localeCompare(b.ev.title, "ko"),
+          Number(b.time === "종일") - Number(a.time === "종일") || a.ev.startsAt.localeCompare(b.ev.startsAt) || a.ev.title.localeCompare(b.ev.title, "ko"),
       );
     days.push({
       date: day,

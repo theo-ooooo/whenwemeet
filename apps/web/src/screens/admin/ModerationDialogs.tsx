@@ -43,7 +43,12 @@ export function HideDialog({
         <span className="mb-1.5 block text-[12px] font-medium text-ink-2">
           사유 ({reason.trim().length}/{HIDE_REASON_MAX})
         </span>
-        <textarea className={`${inputClass} min-h-[88px] resize-none`} value={reason} maxLength={HIDE_REASON_MAX + 20} onChange={(e) => setReason(e.target.value)} />
+        <textarea
+          className={`${inputClass} min-h-[88px] resize-none`}
+          value={reason}
+          maxLength={HIDE_REASON_MAX + 20}
+          onChange={(e) => setReason(e.target.value)}
+        />
       </label>
       {!ok && <p className="t-sub mt-1">사유를 적어야 숨길 수 있어요</p>}
     </ConfirmDialog>
@@ -51,7 +56,19 @@ export function HideDialog({
 }
 
 /** 팀 삭제: 팀 이름을 그대로 적어야 지운다 (모든 멤버에게서 사라지고 되돌릴 수 없다) */
-export function DeleteTeamDialog({ open, name, loading, onConfirm, onCancel }: { open: boolean; name: string; loading: boolean; onConfirm: () => void; onCancel: () => void }) {
+export function DeleteTeamDialog({
+  open,
+  name,
+  loading,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  name: string;
+  loading: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const [typed, setTyped] = useState("");
   const ok = typed.trim() === name.trim();
   return (
@@ -120,7 +137,12 @@ export function ReportCloseDialog({
         <span className="mb-1.5 block text-[12px] font-medium text-ink-2">
           {kind === "resolve" ? "처리 내용" : "메모 (선택)"} ({text.length}/{REPORT_RESOLUTION_MAX})
         </span>
-        <textarea className={`${inputClass} min-h-[72px] resize-none`} value={note} maxLength={REPORT_RESOLUTION_MAX + 20} onChange={(e) => setNote(e.target.value)} />
+        <textarea
+          className={`${inputClass} min-h-[72px] resize-none`}
+          value={note}
+          maxLength={REPORT_RESOLUTION_MAX + 20}
+          onChange={(e) => setNote(e.target.value)}
+        />
       </label>
       {kind === "resolve" && text.length === 0 && <p className="t-sub mt-1">무엇을 했는지 짧게 적어 주세요 (예: 작성자에게 안내)</p>}
     </ConfirmDialog>

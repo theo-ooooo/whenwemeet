@@ -120,7 +120,11 @@ describe("달력 시작 안내 줄", () => {
   });
 
   it("저장해야 끝나는 단계는 첫 단계 화면이 있는 커플, 스터디의 첫 줄뿐", () => {
-    const saves = PRESET_KEYS.flatMap((k) => presetSteps(k).filter((s) => s.saves).map((s) => `${k}:${s.id}`));
+    const saves = PRESET_KEYS.flatMap((k) =>
+      presetSteps(k)
+        .filter((s) => s.saves)
+        .map((s) => `${k}:${s.id}`),
+    );
     expect(saves).toEqual(["two:first", "study:first"]);
   });
 

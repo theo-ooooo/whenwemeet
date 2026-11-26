@@ -16,7 +16,12 @@ const BROKEN_PERCENT = /%(?![0-9A-Fa-f]{2})/;
 const FORBIDDEN_PERCENT = /%(?:[01][0-9A-Fa-f]|7[Ff]|5[Cc])/;
 
 export function sanitizeNext(raw: unknown): string {
-  if (typeof raw !== 'string' || raw.length === 0 || raw.length > NEXT_MAX_LENGTH) return '/';
+  if (
+    typeof raw !== 'string' ||
+    raw.length === 0 ||
+    raw.length > NEXT_MAX_LENGTH
+  )
+    return '/';
   const hashAt = raw.indexOf('#');
   const target = hashAt < 0 ? raw : raw.slice(0, hashAt);
   const queryAt = target.indexOf('?');
@@ -25,6 +30,11 @@ export function sanitizeNext(raw: unknown): string {
 
   if (!NEXT_PATH.test(path) || path.startsWith('//')) return '/';
   if (!query) return path;
-  if (!NEXT_QUERY.test(query) || BROKEN_PERCENT.test(query) || FORBIDDEN_PERCENT.test(query)) return '/';
+  if (
+    !NEXT_QUERY.test(query) ||
+    BROKEN_PERCENT.test(query) ||
+    FORBIDDEN_PERCENT.test(query)
+  )
+    return '/';
   return `${path}?${query}`;
 }
