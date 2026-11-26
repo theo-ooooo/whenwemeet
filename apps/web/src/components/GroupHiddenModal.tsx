@@ -66,7 +66,12 @@ export function GroupHiddenModal({ team, reason, onOpenOther }: { team: GroupSum
               <h2 id={titleId} className="mt-1 text-[24px] font-bold leading-8 tracking-[-0.03em]">
                 {GROUP_HIDDEN_TITLE}
               </h2>
-              <p className="mt-2 text-balance text-[15px] leading-6 text-soft">운영 정책 위반이 확인돼 이 팀의 달력과 일정을 지금은 볼 수 없어요.</p>
+              <p className="mt-2 text-balance text-[15px] leading-6 text-soft">
+                <Link href="/policy" className="underline underline-offset-2">
+                  운영정책
+                </Link>{" "}
+                위반이 확인돼 이 팀의 달력과 일정을 지금은 볼 수 없어요.
+              </p>
             </div>
             {reason && (
               <div className="mt-6 rounded-lg bg-surface px-5 py-4">
