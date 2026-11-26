@@ -116,6 +116,16 @@ describe("WeekView", () => {
     expect(p.onOpenDay).toHaveBeenCalledWith("2026-11-12");
   });
 
+  it("(#566) 음력 표시를 켜면 날짜 머리에 '10.4' 한 줄과 읽기 이름에 음력, 끄면 없다", () => {
+    view({ showLunar: true });
+    // 2026-11-12 = 음력 10월 4일
+    const head = screen.getByRole("button", { name: "2026년 11월 12일 (목), 음력 10월 4일, 오늘" });
+    expect(head.textContent).toContain("10.4");
+    cleanup();
+    view();
+    expect(screen.getByRole("button", { name: "2026년 11월 12일 (목), 오늘" }).textContent).not.toContain("10.4");
+  });
+
   it("빈 주 안내와 일정 추가, 오류면 다시 시도", () => {
     view({ events: [ev("다른 주", "2026-11-20", "10:00", "2026-11-20", "11:00")] });
     expect(screen.getByText("이번 주 일정이 없어요.")).toBeTruthy();

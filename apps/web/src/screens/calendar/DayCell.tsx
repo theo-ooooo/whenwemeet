@@ -59,7 +59,8 @@ export function WeekBar({ piece, className, onOpen }: { piece: BarPiece<Event>; 
 // 칸 모양은 칸 높이로 고른다 (폴더블.md 4-2): 넓은 화면에서 칸이 [container-type:size] 이고,
 // 높이 ≥74px 이면 tall: 로 2줄, ≥94px 이면 taller: 로 3줄 (#423, globals.css). 줄은 위에서부터 여러 날 막대 레인(WeekBar 가 겹쳐 그림, 칸은 자리만) →
 // 한 날 일정 칩(디자인규칙.md 2-2) → 넘치면 "+N개 더". 그보다 낮으면(아이폰 듀오 가로) 4px 막대 + 점 + 제목 한 줄.
-// 폰(<600)은 칸 높이 104 에 이름 칩 4줄 (#355, 칩은 달력 격자 위 PhoneWeekChips 가 겹쳐 그리고 칸은 숫자, 기념일/공휴일 줄, "+N" 배지만)
+// 폰(<600)은 칸 높이 104 에 이름 칩 4줄 (#355, 칩은 달력 격자 위 PhoneWeekChips 가 겹쳐 그리고 칸은 숫자, 기념일/공휴일 줄, "+N" 배지만).
+// (#566) 음력 표시를 켜면 폰 칸은 숫자 아래 음력 한 줄(12)만큼 높다: 116 (PHONE_LUNAR_ROW, 칩 시작도 같이 내린다)
 export function DayCell({
   dateKey,
   inMonth,
@@ -70,6 +71,7 @@ export function DayCell({
   events,
   anniversaries,
   lunar = null,
+  lunarRow = false,
   week,
   col,
   fit2,
@@ -91,8 +93,10 @@ export function DayCell({
   events: Event[];
   /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
   anniversaries: Occurrence[];
-  /** (#562) 음력 표시를 켰을 때 그날 음력 ("10.6", 초하루 "음 11.1"). 끄면 null */
+  /** (#562) 음력 표시를 켰을 때 그날 음력 ("10.6", 윤달 "윤4.6"). 끄면 null */
   lunar?: ReturnType<typeof lunarCellText>;
+  /** (#566) 음력 표시를 켰는지. 폰 칸 높이를 주마다 같게 (범위 밖 날로 lunar 가 null 이어도) */
+  lunarRow?: boolean;
   /** 이 칸이 든 주의 막대 레인 (#202) */
   week: PackedWeek<Event>;
   /** 주 안 칸 (0=일) */
@@ -132,8 +136,9 @@ export function DayCell({
   // (#201) 오늘은 aria-current="date", 선택은 gridcell aria-selected 로 알린다 (라벨에 ", 오늘" 을 붙이지 않는다)
   const lunarLabel = lunar ? `, ${lunar.label}` : "";
   const label = `${formatDateKo(dateKey, true)}${lunarLabel}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}`;
-  // (#562) 음력 글자 색: 흐린 보조 글자, 초하루는 조금 진하게. 이번 달 밖 칸은 더 흐리게
-  const lunarClass = `${lunar?.first ? "font-semibold text-ink-2" : "font-medium text-faint"} ${inMonth ? "" : "opacity-60"}`;
+  // (#566, D-298) 음력 글자 색: 읽히는 보조 글자 --mute(라이트 흰 칸 5.1:1, 다크 5.4:1), 초하루는 --soft 굵게.
+  // 이번 달 밖 칸은 그 칸 날짜 숫자와 같은 --faint (예전 #562 의 --faint 8px 는 거의 안 보였다)
+  const lunarClass = !inMonth ? "font-medium text-faint" : lunar?.first ? "font-bold text-soft" : "font-medium text-ink-2";
 
   // 점 모양: 여러 날 일정은 칸을 잇는 4px 막대(주 단위 레인, 최대 2줄), 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목.
   // 기념일/공휴일 줄이 있으면 막대는 1줄. 레인이 모자란 막대 일정은 그날 점으로 (QA3-M2). 일정 하나에 점 하나 + 넘치면 "+N" (#139)
@@ -154,7 +159,7 @@ export function DayCell({
   const moreVar = { "--more2": rowTop(1), "--more3": rowTop(2) } as React.CSSProperties;
 
   return (
-    <div role="gridcell" aria-selected={isSelected} data-date={dateKey} className="relative h-[104px] border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]">
+    <div role="gridcell" aria-selected={isSelected} data-date={dateKey} className={`relative ${lunarRow ? "h-[116px]" : "h-[104px]"} border-t border-line fold:h-auto fold:min-h-0 fold:[container-type:size]`}>
       {/* (#201) 포커스 링은 칸 안쪽 2px(아래 span). 바깥으로 그리면 옆 칸 테두리, 겹쳐 그리는 칩, 달력 카드 가장자리에 잘린다.
           아래 탭(폰 독)에 가리지 않게 스크롤 여백을 둔다 */}
       <button
@@ -180,16 +185,18 @@ export function DayCell({
           +{phoneMore}
         </b>
       )}
-      {/* (#562) 음력 (낮은 칸): 칸 왼쪽 위 모서리 8px. 폰은 초하루와 보름만("11.1", "11.15"),
-          낮은 넓은 칸은 "10.6". 높은 칸(tall)은 숫자 줄 오른쪽 끝 */}
+      {/* (#566) 음력 (넓은 화면의 낮은 칸, 아이폰 듀오 가로 등): 칸 왼쪽 위 모서리 10px "10.6".
+          폰은 숫자 아래 한 줄, 높은 칸(tall)은 숫자 줄 오른쪽 끝 (아래) */}
       {lunar && (
-        <span aria-hidden="true" className={`pointer-events-none absolute top-[3px] left-[2px] z-[1] text-[8px] leading-[10px] tracking-[-0.04em] whitespace-nowrap tabular-nums tall:hidden ${lunarClass}`}>
-          {lunar.compact && <span className="fold:hidden">{lunar.compact}</span>}
-          <span className="hidden fold:inline">{lunar.short}</span>
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute top-[3px] left-[3px] z-[1] hidden text-[10px] leading-3 tracking-[-0.02em] whitespace-nowrap tabular-nums fold:block tall:hidden ${lunarClass}`}
+        >
+          {lunar.text}
         </span>
       )}
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
-        <span className="relative flex max-w-full min-w-0 items-center tall:gap-1">
+        <span className="relative flex max-w-full min-w-0 items-center tall:gap-1 @max-[84px]:tall:gap-0">
           <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none max-fold:size-[22px] max-fold:text-[12px] tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
           {holidayText && (
             <span aria-hidden="true" className={`hidden truncate text-[11px] font-medium tall:inline ${inMonth ? "text-holiday" : "text-holiday-faint"}`}>
@@ -206,12 +213,20 @@ export function DayCell({
               <span className="truncate">{annText}</span>
             </span>
           )}
+          {/* (#566) 높은 칸이 좁으면(폭 84 미만, 폴드 600 등) 10px, 자간을 좁히고 오른쪽 여백 없이 "11.24" 다섯 자가 들어가게.
+              공휴일, 기념일 이름이 있는 칸은 폭 128 미만이면 이름이 한두 글자 조각으로 잘리므로 이름을 남기고 음력을 숨긴다 (D-61 우선순위) */}
           {lunar && (
-            <span aria-hidden="true" className={`ml-auto hidden shrink-0 pr-0.5 text-[10px] leading-4 whitespace-nowrap tabular-nums tall:inline ${lunarClass}`}>
+            <span aria-hidden="true" className={`ml-auto hidden shrink-0 pr-1 text-[11px] leading-4 tracking-[-0.01em] whitespace-nowrap tabular-nums tall:inline @max-[84px]:pr-0 @max-[84px]:text-[10px] @max-[84px]:tracking-[-0.05em] ${lined ? "@max-[128px]:tall:hidden" : ""} ${lunarClass}`}>
               {lunar.text}
             </span>
           )}
         </span>
+        {/* (#566, D-298) 폰: 날짜 숫자 바로 아래 가운데 한 줄 10px "10.6" (모든 날). 높이 12 를 칸이 늘려 받는다(116) */}
+        {lunarRow && (
+          <span aria-hidden="true" className={`block h-3 max-w-full shrink-0 truncate text-[10px] leading-3 tracking-[-0.02em] tabular-nums fold:hidden ${lunarClass}`}>
+            {lunar?.text}
+          </span>
+        )}
         {holidayText && (
           <span
             aria-hidden="true"

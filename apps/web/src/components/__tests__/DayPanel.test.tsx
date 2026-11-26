@@ -138,6 +138,23 @@ describe("날짜 단계", () => {
     fireEvent.click(screen.getByRole("button", { name: /14일 토요일/ }));
     expect(p.onBack).toHaveBeenCalledTimes(1);
   });
+
+  it("(#566) 일정 상세 날짜 옆 음력: 음력으로 넣은 일정이면 늘, 아니면 음력 표시를 켰을 때만", () => {
+    // 2026-11-14 = 음력 10월 6일
+    panel({ step: "event", event: ev({ lunarInput: true }) });
+    expect(screen.getByText("11월 14일 (토) · 음력 10월 6일")).toBeTruthy();
+    cleanup();
+    panel({ step: "event", event: ev() });
+    expect(screen.queryByText(/음력 10월 6일/)).toBeNull();
+    cleanup();
+    panel({ step: "event", event: ev(), showLunar: true });
+    expect(screen.getByText("11월 14일 (토) · 음력 10월 6일")).toBeTruthy();
+  });
+
+  it("(#566) 음력 표시를 켜면 날짜 머리 아래 '음력 10월 6일'", () => {
+    panel({ showLunar: true });
+    expect(screen.getByText("음력 10월 6일")).toBeTruthy();
+  });
 });
 
 describe("(#378 B) 하루 막대", () => {

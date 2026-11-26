@@ -9,6 +9,7 @@ import {
   applyParticipants,
   colorErr,
   colorIn,
+  lunarIn,
   eventOut,
   mergedReminder,
   occurrenceOf,
@@ -189,6 +190,8 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       if (isResult(cIn)) return cIn;
       const plIn = placeIn((body ?? {}).place);
       if (isResult(plIn)) return plIn;
+      const lIn = lunarIn((body ?? {}).lunarInput);
+      if (isResult(lIn)) return lIn;
       const v =
         reminderFit(reminder, Boolean(input.allDay)) ??
         validateEvent(input, false) ??
@@ -211,6 +214,7 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
         exceptions: [],
         reminder,
         color: cIn ?? null,
+        lunarInput: lIn ?? false,
         place: plIn ?? null,
       };
       applyParticipants(row, pIn);
@@ -247,8 +251,10 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
         if (isResult(cIn)) return cIn;
         const plIn = placeIn((body ?? {}).place);
         if (isResult(plIn)) return plIn;
-        // (#343) 색 말고 바뀐 값이 있는지 (색만 바꾸면 새 소식 없음, D-215)
-        const before = JSON.stringify(eventOut(s, { ...e, color: null }));
+        const lIn = lunarIn((body ?? {}).lunarInput);
+        if (isResult(lIn)) return lIn;
+        // (#343) 색 말고 바뀐 값이 있는지 (색만 바꾸면 새 소식 없음, D-215). (#566) 음력 입력 표시도 같다
+        const before = JSON.stringify(eventOut(s, { ...e, color: null, lunarInput: false }));
         applyInput(e, input);
         if (plIn !== undefined) e.place = plIn;
         if (pIn) applyParticipants(e, pIn);
@@ -259,8 +265,9 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
           e.repeatUntil = until;
         }
         if (cIn !== undefined) e.color = cIn;
+        if (lIn !== undefined) e.lunarInput = lIn;
         e.updatedAt = nowIso();
-        if (JSON.stringify(eventOut(s, { ...e, color: null, updatedAt: JSON.parse(before).updatedAt })) !== before) {
+        if (JSON.stringify(eventOut(s, { ...e, color: null, lunarInput: false, updatedAt: JSON.parse(before).updatedAt })) !== before) {
           log(e, { action: "UPDATED", eventId: e.id, repeat: e.repeat, scope: null, occurrence: null });
         }
         return ok(eventOut(s, e));
@@ -333,6 +340,8 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
         if (body && "participants" in body) return participantErr("이 일정만 수정할 때는 참여자를 바꿀 수 없어요");
         // (#343) 색도 원본 단위 (D-215)
         if (body && "color" in body) return colorErr("반복 일정의 색은 이후 모두로만 바꿀 수 있어요");
+        // (#566) 음력 입력 표시도 원본 단위 (D-298)
+        if (body && "lunarInput" in body) return err(400, "VALIDATION_FAILED", "반복 일정의 음력 입력은 이후 모두로만 바꿀 수 있어요");
         // 예외는 바꾼 최종 값을 통째로 저장 (목은 "원래 값과 다른 필드만" 을 생략한다)
         series.exceptions = series.exceptions.filter((x) => x.occurrence !== date);
         // 원래 회차 값(원본 알림)과 같으면 null (4-1)
@@ -358,6 +367,9 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       const cIn = colorIn((body ?? {}).color);
       if (isResult(cIn)) return cIn;
       const color = cIn === undefined ? (series.color ?? null) : cIn;
+      const lIn = lunarIn((body ?? {}).lunarInput);
+      if (isResult(lIn)) return lIn;
+      const lunarInput = lIn ?? series.lunarInput ?? false;
       // (#343) 색 말고 바뀐 값이 없으면 새 소식을 남기지 않는다 (API 와 같은 기준: 규칙, 참여자, 회차 값이 같고 그날부터 예외 없음)
       const sameMembers = !pIn || (pIn.all ? series.allMembers !== false : series.allMembers === false && JSON.stringify(pIn.ids) === JSON.stringify(series.participantIds ?? []));
       const onlyColor =
@@ -375,7 +387,7 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
       const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY" || repeat === "YEARLY_LUNAR");
       const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
-      const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, place: nextPlace, updatedAt: nowIso() };
+      const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, lunarInput, place: nextPlace, updatedAt: nowIso() };
       let target: EventRow;
       if (date === first) {
         // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)

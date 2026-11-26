@@ -21,6 +21,7 @@ import { panelTitle } from "@/lib/day-panel";
 import { weekStrip } from "@/lib/day-view";
 import { dowOf, formatDateKo, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
+import { lunarLabelOf } from "@/lib/lunar";
 import { lastInputWasKeyboard } from "@/lib/input-modality";
 import type { Event, Member } from "@/lib/types";
 
@@ -50,6 +51,8 @@ type Props = {
   onAdd: () => void;
   /** 하루 막대의 빈 구간을 눌렀을 때: 그 시각(ms)으로 빠른 추가 */
   onAddAt: (start: number) => void;
+  /** (#566) 제목 아래 "음력 10월 6일" (내 정보 "달력에 음력 표시") */
+  showLunar?: boolean;
 };
 
 export function DayView({
@@ -70,6 +73,7 @@ export function DayView({
   onOpenEvent,
   onAdd,
   onAddAt,
+  showLunar = false,
 }: Props) {
   const heading = useRef<HTMLHeadingElement>(null);
   // 열면 맨 위로, 닫으면 달력을 보던 자리로 (본문 흐름 안에 그리므로 스크롤을 직접 맞춘다).
@@ -158,6 +162,8 @@ export function DayView({
           {backLabel}
         </button>
       </div>
+      {/* (#566) 음력 표시를 켰으면 제목 아래 한 줄 13 --mute */}
+      {showLunar && lunarLabelOf(date) && <p className="-mt-1 text-[13px] leading-[18px] font-medium text-ink-2 tabular-nums">{lunarLabelOf(date)}</p>}
 
       {/* 주간 줄 7칸 (높이 70, 모서리 14). 누르면 그날로, 옆으로 넘기면 지난주/다음 주 같은 요일로 */}
       {/* (#201) 격자 한 줄: role=grid > row(display:contents) > gridcell aria-selected > 버튼 (월 달력, DatePicker 와 같은 짜임) */}

@@ -112,6 +112,11 @@ export class EventInputDto {
   @ValidateIf((_object, value) => value !== undefined)
   @Validate(PlaceConstraint)
   place?: PlaceInput;
+
+  /** (#566) 날짜를 음력으로 골라 넣었는지 (D-298). 생성에서 생략하면 false, 수정에서 생략하면 그대로. 반복은 원본 단위("이 일정만" 이면 400) */
+  @IsOptional()
+  @IsBoolean({ message: 'lunarInput 은 true/false 여야 해요' })
+  lunarInput?: boolean;
 }
 
 export class EventPatchDto {
@@ -168,6 +173,11 @@ export class EventPatchDto {
   @ValidateIf((_object, value) => value !== undefined)
   @Validate(PlaceConstraint)
   place?: PlaceInput;
+
+  /** (#566) 날짜를 음력으로 골라 넣었는지 (D-298). 생성에서 생략하면 false, 수정에서 생략하면 그대로. 반복은 원본 단위("이 일정만" 이면 400) */
+  @IsOptional()
+  @IsBoolean({ message: 'lunarInput 은 true/false 여야 해요' })
+  lunarInput?: boolean;
 }
 
 export class EventRangeQueryDto {

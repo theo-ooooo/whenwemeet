@@ -195,7 +195,7 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
           />
 
           {/* 2. 종일, 시작, 종료 */}
-          <DateRangeGroup draft={draft} dispatch={dispatch} touched={touched} rangeError={values.rangeError} />
+          <DateRangeGroup draft={draft} dispatch={dispatch} touched={touched} rangeError={values.rangeError} lunarError={values.lunarError} />
 
           {/* 3. 참여자, 알림, 반복, 색: 줄 넷을 카드 한 장에 (값 ›, 누르면 시트) */}
           <EventOptionRows

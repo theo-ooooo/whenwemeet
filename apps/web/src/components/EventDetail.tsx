@@ -22,6 +22,7 @@ import { ParticipantList, useWho } from "./Participants";
 import { memberColor } from "@/lib/colors";
 import { addDays, clockRangeText, clockText, dateKeyOf, dowOf, parseKey, todayKey, toKst, WEEKDAYS, type DateKey } from "@/lib/date";
 import { isShareEnded } from "@/lib/event-share";
+import { lunarLabelOf } from "@/lib/lunar";
 import { eventCopyHref, eventEditHref } from "@/lib/routes";
 import { eventKey } from "@/lib/recurrence";
 import { recurrenceLines } from "@/lib/recurrence-label";
@@ -41,6 +42,9 @@ const short = (k: DateKey) => {
   return `${p.m}월 ${p.d}일 (${WEEKDAYS[dowOf(k)]})`;
 };
 
+/** (#566, D-298) 날짜 옆 음력. 음력으로 넣은 일정이면 늘, 아니면 음력 표시를 켠 사람에게만 */
+const lunarOf = (k: DateKey, on: boolean) => (on ? lunarLabelOf(k) : null);
+
 export function EventDetail({
   event: ev,
   groupId,
@@ -50,6 +54,7 @@ export function EventDetail({
   onClose,
   onDelete,
   onResponded,
+  showLunar = false,
 }: {
   event: Event;
   groupId: number;
@@ -62,12 +67,17 @@ export function EventDetail({
   onDelete: () => void;
   /** (#190) 참석 여부를 바꾸면 목록을 다시 받게 (다가오는 일정의 "응답" 표시) */
   onResponded?: () => void;
+  /** (#566) 내 정보 "달력에 음력 표시". 켰거나 음력으로 넣은 일정이면 날짜 옆에 음력 */
+  showLunar?: boolean;
 }) {
   const router = useRouter();
   const who = useWho();
   const startKey = dateKeyOf(ev.startsAt);
   const endKey = ev.allDay ? addDays(dateKeyOf(ev.endsAt), -1) : dateKeyOf(ev.endsAt);
   const edited = ev.updatedAt && ev.updatedAt !== ev.createdAt;
+  const lunarOn = ev.lunarInput === true || showLunar;
+  const startLunar = lunarOf(startKey, lunarOn);
+  const endLunar = lunarOf(endKey, lunarOn);
   // 반복 일정이면 시각 아래 "매주 목요일" + (종료가 있으면) "12월 31일까지" (기획 3-5)
   const rec = recurrenceLines(ev, todayKey());
   // 알림 (#188). 없음이면 줄을 두지 않는다
@@ -117,18 +127,23 @@ export function EventDetail({
           여러 날이면 시작, 끝 칸에 날짜를 각각 */}
       {startKey === endKey ? (
         <div className="mt-2 rounded-sm bg-surface px-3.5 py-2.5">
-          <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
+          <small className="block text-[12px] leading-4 text-ink-2">
+            {short(startKey)}
+            {startLunar && ` · ${startLunar}`}
+          </small>
           <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockRangeText(ev.startsAt, ev.endsAt)}</b>
         </div>
       ) : (
         <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-sm bg-surface px-3.5 py-2.5">
           <div>
             <small className="block text-[12px] leading-4 text-ink-2">{short(startKey)}</small>
+            {startLunar && <small className="block text-[12px] leading-4 text-ink-2">{startLunar}</small>}
             <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockText(ev.startsAt)}</b>
           </div>
           <IconArrowRight size={16} className="text-ink-2" />
           <div className="text-right">
             <small className="block text-[12px] leading-4 text-ink-2">{short(endKey)}</small>
+            {endLunar && <small className="block text-[12px] leading-4 text-ink-2">{endLunar}</small>}
             <b className="block text-[15px] font-bold leading-5">{ev.allDay ? "종일" : clockText(ev.endsAt)}</b>
           </div>
         </div>

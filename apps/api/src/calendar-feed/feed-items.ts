@@ -3,7 +3,7 @@
  * 반복은 RRULE 대신 회차마다 VEVENT 하나 (우리 말일 보정, 기준 날짜, "이 일정만" 예외를 그대로 옮기려고)
  */
 import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
-import type { CalendarKind } from '../common/lunar.js';
+import { type CalendarKind, solarToLunar } from '../common/lunar.js';
 import { anniversaryItemsOn, type AnniversaryKind, anniversaryOrigin } from '../push/anniversary-items.js';
 import { addDays, dateToDay, DAY_MS, kstDate, kstMidnight } from '../events/recurrence.js';
 import type { IcsEvent, IcsTime } from './ics.js';
@@ -46,6 +46,8 @@ export interface FeedEventInput {
   participants: { all: boolean; members: { displayName: string }[] };
   /** (#199) 저장된 장소 (사용자 글자와 카카오 ID). 없으면 null (생략 가능: 장소 이전 입력) */
   place?: { text: string | null; query: string | null; kakaoPlaceId: string | null; naverKey?: string | null } | null;
+  /** (#566) 음력으로 넣은 일정이면 설명 첫 줄에 "음력 3월 15일" (D-298). 생략 가능 */
+  lunarInput?: boolean;
 }
 
 export interface FeedOptions {
@@ -78,9 +80,21 @@ export function eventUid(id: number, occurrence: string | null): string {
   return occurrence ? `e${id}-${occurrence.replace(/-/g, '')}@${UID_DOMAIN}` : `e${id}@${UID_DOMAIN}`;
 }
 
-/** 설명: 첫 줄 "참여: 민지, 지훈" (Q5, 이름만. 개인 팀은 없음), 메모는 켰을 때만 빈 줄 하나 띄우고 */
+/** (#566) 음력으로 넣은 일정의 설명 줄 "음력 3월 15일", 윤달 "음력 윤4월 15일" (그 회차 시작 날짜의 음력). 아니면 null */
+export function lunarLine(event: Pick<FeedEventInput, 'lunarInput' | 'startsAt'>): string | null {
+  if (!event.lunarInput) return null;
+  const lunar = solarToLunar(kstDate(event.startsAt));
+  return lunar ? `음력 ${lunar.leap ? '윤' : ''}${lunar.month}월 ${lunar.day}일` : null;
+}
+
+/**
+ * 설명: 첫 줄 "참여: 민지, 지훈" (Q5, 이름만. 개인 팀은 없음), 메모는 켰을 때만 빈 줄 하나 띄우고.
+ * (#566) 음력으로 넣은 일정은 맨 앞에 "음력 3월 15일" 한 줄 (D-298)
+ */
 export function eventDescription(event: FeedEventInput, includeMemo: boolean, includeParticipants = true): string | null {
   const lines: string[] = [];
+  const lunar = lunarLine(event);
+  if (lunar) lines.push(lunar);
   const names = event.participants.all ? '모두' : event.participants.members.map((m) => m.displayName).join(', ');
   if (includeParticipants && names) lines.push(`참여: ${names}`);
   const memo = includeMemo ? event.memo?.trim() : '';

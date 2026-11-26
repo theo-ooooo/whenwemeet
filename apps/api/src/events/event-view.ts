@@ -44,6 +44,8 @@ export interface EventView {
   participants: ParticipantsView;
   /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색. 반복 회차는 원본 값 (D-215) */
   color: string | null;
+  /** (#566) 날짜를 음력으로 골라 넣은 일정 (D-298). 반복 회차는 원본 값 */
+  lunarInput: boolean;
   /** (#199) 장소. 없으면 null. 반복 회차는 예외 반영 (D-242) */
   place: PlaceView | null;
 }
@@ -117,6 +119,7 @@ export function toEventView(row: EventRow, resolver: MemberResolver): EventView 
     reminder: row.reminder,
     participants: toParticipantsView(row, resolver),
     color: row.color,
+    lunarInput: row.lunarInput,
     place: toPlaceView(row.place),
   };
 }

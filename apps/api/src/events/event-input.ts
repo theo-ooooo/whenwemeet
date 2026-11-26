@@ -149,6 +149,9 @@ export function mergeValues(base: EventValues, dto: EventPatchDto): EventValues 
 /** (#343) 색만 이 일정만 범위로 바꾸려 할 때 (참여자와 같은 규칙, D-215) */
 export const COLOR_THIS_SCOPE_MESSAGE = '반복 일정의 색은 이후 모두로만 바꿀 수 있어요';
 
+/** (#566) 음력 입력 표시도 원본 단위 (색과 같은 규칙, D-298) */
+export const LUNAR_THIS_SCOPE_MESSAGE = '반복 일정의 음력 입력은 이후 모두로만 바꿀 수 있어요';
+
 /**
  * (#343) 본문의 색 → 저장할 값. undefined 는 그대로(생략), null 은 자동. DTO 가 팔레트 키만 통과시키므로 대문자로만 맞춘다 (D-215)
  */

@@ -29,6 +29,8 @@ export const EVENT_SELECT = {
   participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
   /** (#343) 일정 색. null 이면 자동 (D-215) */
   color: true,
+  /** (#566) 음력으로 넣은 일정 (D-298) */
+  lunarInput: true,
   /** (#199) 장소 열 세 개: 카카오 ID, 고를 때 검색어, 직접 적은 글자 (D-242) */
   ...PLACE_SELECT,
 } as const;
@@ -78,6 +80,8 @@ export interface EventRow {
   participantIds: number[];
   /** (#343) 일정 색 (팔레트 키). null 이면 자동 = 참여자 색 (D-215) */
   color: string | null;
+  /** (#566) 날짜를 음력으로 골라 넣었는지 (D-298). 저장은 양력, 보일 때 음력을 같이 */
+  lunarInput: boolean;
   /** (#199) 장소. null 이면 없음 (D-242) */
   place: PlaceValue | null;
 }
