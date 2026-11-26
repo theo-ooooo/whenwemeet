@@ -407,8 +407,19 @@ export class AssistantService {
     const plan = normalizeFindAnniversary(args, context);
     const [anniversaries, birthdays] = await Promise.all([this.anniversaries.list(userId, groupId), this.birthdays.list(userId, groupId)]);
     const candidates: { name: string; kind: AssistantDay['kind']; source: AnniversaryLike; userId: number | null }[] = [
-      ...anniversaries.map((a) => ({ name: a.name, kind: 'ANNIVERSARY' as const, source: { date: a.date, kind: a.kind }, userId: null })),
-      ...birthdays.map((b) => ({ name: birthdayTitle(b.member.displayName), kind: 'BIRTHDAY' as const, source: birthdayAnniversary(b.date), userId: b.member.userId })),
+      // (#562) 음력 기념일, 생일도 같은 함수가 해마다 양력으로 바꾼다
+      ...anniversaries.map((a) => ({
+        name: a.name,
+        kind: 'ANNIVERSARY' as const,
+        source: { date: a.date, kind: a.kind, calendar: a.calendar, isLeapMonth: a.isLeapMonth },
+        userId: null,
+      })),
+      ...birthdays.map((b) => ({
+        name: birthdayTitle(b.member.displayName),
+        kind: 'BIRTHDAY' as const,
+        source: birthdayAnniversary({ date: b.date, calendar: b.calendar, isLeapMonth: b.isLeapMonth }),
+        userId: b.member.userId,
+      })),
     ];
     const filtered = filterAnniversaries(candidates, plan.keyword, context);
     const today = kstDate(context.now);

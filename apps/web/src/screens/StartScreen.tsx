@@ -117,7 +117,7 @@ function FirstMeetStep({ groupId, onDone }: { groupId: number; onDone: () => voi
 
 function BirthdayStep({ groupId, onDone }: { groupId: number; onDone: () => void }) {
   const { data: me } = useMe();
-  const mine = formatBirthday(me?.birthday?.date);
+  const mine = formatBirthday(me?.birthday?.date, me?.birthday?.calendar, me?.birthday?.isLeapMonth);
 
   return (
     <div className={formClass}>

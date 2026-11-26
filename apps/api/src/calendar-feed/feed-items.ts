@@ -2,8 +2,9 @@
  * (#193) 팀 일정, 기념일, (#305) 멤버 생일 → ICS VEVENT 매핑 (설계 캘린더-내보내기.md 3장, D-217 ~ D-219). 모두 순수 함수.
  * 반복은 RRULE 대신 회차마다 VEVENT 하나 (우리 말일 보정, 기준 날짜, "이 일정만" 예외를 그대로 옮기려고)
  */
-import { BIRTHDAY_ANCHOR_YEAR, birthdayTitle } from '../anniversaries/birthdays.js';
-import { anniversaryItemsOn, type AnniversaryKind, sameDayInYear } from '../push/anniversary-items.js';
+import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
+import type { CalendarKind } from '../common/lunar.js';
+import { anniversaryItemsOn, type AnniversaryKind, anniversaryOrigin } from '../push/anniversary-items.js';
 import { addDays, dateToDay, DAY_MS, kstDate, kstMidnight } from '../events/recurrence.js';
 import type { IcsEvent, IcsTime } from './ics.js';
 
@@ -148,9 +149,12 @@ export function eventToIcs(event: FeedEventInput, options: FeedOptions, resolved
 export interface FeedAnniversaryInput {
   id: number;
   name: string;
-  /** 'YYYY-MM-DD' */
+  /** 'YYYY-MM-DD'. (#562) 음력이면 음력 연월일 */
   date: string;
   kind: AnniversaryKind;
+  /** (#562) 생략하면 양력 */
+  calendar?: CalendarKind;
+  isLeapMonth?: boolean;
   /** 마지막 개정 시각 */
   updatedAt: Date;
 }
@@ -161,7 +165,10 @@ export interface FeedAnniversaryInput {
  */
 export function anniversaryEvents(anniversary: FeedAnniversaryInput, window: Pick<FeedWindow, 'firstDay' | 'lastDay'>): IcsEvent[] {
   const out: IcsEvent[] = [];
-  const first = Math.max(dateToDay(window.firstDay), dateToDay(anniversary.date));
+  // (#562) 음력은 원래 날짜의 양력부터 (anniversaryItemsOn 이 해마다 양력으로 바꾼다)
+  const origin = anniversaryOrigin(anniversary);
+  if (origin === null) return out;
+  const first = Math.max(dateToDay(window.firstDay), dateToDay(origin));
   const last = dateToDay(window.lastDay);
   for (let day = first; day <= last; day += 1) {
     const date = new Date(day * DAY_MS).toISOString().slice(0, 10);
@@ -186,22 +193,25 @@ export interface FeedBirthdayInput {
   userId: number;
   /** 팀 표시 이름 ?? 닉네임 */
   name: string;
-  /** 'MM-DD' */
+  /** 'MM-DD'. (#562) 음력이면 음력 월일 */
   birthday: string;
+  /** (#562) 생략하면 양력 */
+  birthdayCalendar?: CalendarKind;
+  birthdayLeapMonth?: boolean;
   updatedAt: Date;
 }
 
 /**
  * (#305, D-233) 멤버 생일: 창 안의 그날마다 종일 VEVENT "지민 생일". 2월 29일은 평년에 2월 28일 (기념일 매년과 같음).
+ * (#562) 음력 생일은 해마다 양력으로 바꾼 날 (기념일과 같은 anniversaryItemsOn).
  * UID 는 `b{userId}-{YYYYMMDD}@…` (팀이 달라도 피드가 팀마다라 겹치지 않는다)
  */
 export function birthdayEvents(birthday: FeedBirthdayInput, window: Pick<FeedWindow, 'firstDay' | 'lastDay'>): IcsEvent[] {
   const out: IcsEvent[] = [];
-  const firstYear = Number(window.firstDay.slice(0, 4));
-  const lastYear = Number(window.lastDay.slice(0, 4));
-  for (let year = firstYear; year <= lastYear; year += 1) {
-    const date = sameDayInYear(`${BIRTHDAY_ANCHOR_YEAR}-${birthday.birthday}`, year);
-    if (date < window.firstDay || date > window.lastDay) continue;
+  const source = birthdayAnniversary({ date: birthday.birthday, calendar: birthday.birthdayCalendar ?? 'SOLAR', isLeapMonth: birthday.birthdayLeapMonth ?? false });
+  for (let day = dateToDay(window.firstDay); day <= dateToDay(window.lastDay); day += 1) {
+    const date = new Date(day * DAY_MS).toISOString().slice(0, 10);
+    if (anniversaryItemsOn(source, date).length === 0) continue;
     out.push({
       uid: `b${birthday.userId}-${date.replace(/-/g, '')}@${UID_DOMAIN}`,
       dtstamp: birthday.updatedAt,

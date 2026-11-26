@@ -5,7 +5,7 @@ import { AssistantService } from '../assistant/assistant.service.js';
 import { AuthProviders } from '../auth/providers/auth-providers.js';
 import { AvatarsService } from '../avatars/avatars.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
-import type { UserRole } from '../generated/prisma/enums.js';
+import type { CalendarType, UserRole } from '../generated/prisma/enums.js';
 import { NoticesService } from '../notices/notices.service.js';
 import { AccountCleanupPlan, type BirthdayRow, type StartCalendarRow, UsersRepository } from '../users/users.repository.js';
 import { type AnniversaryReminder, DEFAULT_ANNIVERSARY_REMINDERS, fromReminderFlags, toReminderFlags } from '../anniversaries/anniversary-reminders.js';
@@ -18,6 +18,9 @@ export type StartCalendar = StartCalendarRow;
 /** (#305) GET /me, PATCH /me/birthday 의 내 생일. date 'MM-DD' 또는 null(없음), reminders 는 팀원에게 알리는 시점 */
 export interface BirthdaySettings {
   date: string | null;
+  /** (#562) 달력 종류와 윤달 (D-297). 생일이 없으면 SOLAR, false */
+  calendar: CalendarType;
+  isLeapMonth: boolean;
   reminders: AnniversaryReminder[];
 }
 
@@ -37,9 +40,11 @@ export type MeProfile = AuthUser & {
   role: UserRole;
   isAdmin: boolean;
   hasUnreadNotice: boolean;
+  /** (#562) 달력 칸에 음력 날짜 보이기 (D-297) */
+  showLunar: boolean;
 };
 
-const NO_BIRTHDAY: BirthdaySettings = { date: null, reminders: [...DEFAULT_ANNIVERSARY_REMINDERS] };
+const NO_BIRTHDAY: BirthdaySettings = { date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: [...DEFAULT_ANNIVERSARY_REMINDERS] };
 
 const LAST: StartCalendar = { mode: 'LAST', groupId: null };
 
@@ -51,7 +56,7 @@ function toStartCalendar(row: StartCalendarRow | null): StartCalendar {
 }
 
 function toBirthdaySettings(row: BirthdayRow): BirthdaySettings {
-  return { date: row.birthday, reminders: fromReminderFlags(row) };
+  return { date: row.birthday, calendar: row.birthdayCalendar, isLeapMonth: row.birthdayLeapMonth, reminders: fromReminderFlags(row) };
 }
 
 function invalid(field: string, message: string): ApiException {
@@ -71,12 +76,13 @@ export class MeService {
 
   /** GET /me (#300). 가드가 읽은 사용자 + 처음 여는 달력. (#450) AI 비서 상태. (#515) 역할(DB 값), 새 공지 */
   async getProfile(user: AuthUser): Promise<MeProfile> {
-    const [start, birthday, assistant, role, hasUnreadNotice] = await Promise.all([
+    const [start, birthday, assistant, role, hasUnreadNotice, showLunar] = await Promise.all([
       this.users.findStartCalendar(user.id),
       this.users.findBirthday(user.id),
       this.assistant.status(user.id),
       this.users.findRole(user.id),
       this.notices.hasUnread(user.id),
+      this.users.findShowLunar(user.id),
     ]);
     const myRole: UserRole = role ?? 'user';
     return {
@@ -87,7 +93,13 @@ export class MeService {
       role: myRole,
       isAdmin: myRole === 'admin',
       hasUnreadNotice,
+      showLunar,
     };
+  }
+
+  /** (#562) PATCH /me/lunar-display. 달력 칸 음력 표시 켜기, 끄기 (D-297) */
+  async updateLunarDisplay(userId: number, showLunar: boolean): Promise<{ showLunar: boolean }> {
+    return { showLunar: await this.users.updateShowLunar(userId, showLunar) };
   }
 
   /** (#450) POST /me/assistant-consent. 멱등 (이미 했으면 처음 값 그대로, D-270) */
@@ -100,8 +112,13 @@ export class MeService {
    * 팀마다 보일지는 PATCH /groups/:id/me showBirthday. reminders 생략은 그대로
    */
   async updateBirthday(userId: number, dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
+    // (#562) 지우면 양력, 윤달 아님으로 되돌린다. 윤달은 음력일 때만
+    const calendar = dto.date === null ? 'SOLAR' : (dto.calendar ?? 'SOLAR');
+    if (dto.isLeapMonth === true && calendar !== 'LUNAR') throw invalid('isLeapMonth', '윤달은 음력 생일에만 고를 수 있어요');
     const row = await this.users.updateBirthday(userId, {
       birthday: dto.date,
+      birthdayCalendar: calendar,
+      birthdayLeapMonth: calendar === 'LUNAR' && dto.isLeapMonth === true,
       ...(dto.reminders !== undefined ? { reminders: toReminderFlags(dto.reminders) } : {}),
     });
     return toBirthdaySettings(row);

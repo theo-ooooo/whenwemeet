@@ -90,3 +90,15 @@ describe("반복 기준 날짜 repeatAnchor (QA3-M3, D-71)", () => {
     expect(repeatLabel("WEEKLY", formRuleDate(moved, "WEEKLY", "2026-11-20", false))).toBe("매주 금요일");
   });
 });
+
+describe("(#562) 매년(음력) 설명", () => {
+  it("첫 회차 날짜의 음력 월일", () => {
+    expect(repeatLabel("YEARLY_LUNAR", "2026-09-25")).toBe("매년 음력 8월 15일");
+    expect(repeatLabel("YEARLY_LUNAR", "2025-08-08")).toBe("매년 음력 윤6월 15일");
+    expect(repeatLabel("YEARLY_LUNAR", "2051-01-01")).toBe("매년(음력)");
+  });
+
+  it("기준 날짜(repeatAnchor)를 잇는다", () => {
+    expect(ruleDateKey({ repeat: "YEARLY_LUNAR", seriesStartsAt: "2027-03-06T15:00:00.000Z", startsAt: "2027-03-06T15:00:00.000Z", repeatAnchor: "2026-03-18" })).toBe("2026-03-18");
+  });
+});

@@ -1,6 +1,7 @@
 // API_MOCK=1 일 때 쓰는 메모리 픽스처. 백엔드가 없을 때 화면 확인용.
 // 날짜는 실행 시점의 KST 이번 달 기준으로 만든다.
 import { sameDayInYear } from "@/lib/anniversary";
+import { lunarOccurrence, solarToLunar, type CalendarKind } from "@/lib/lunar";
 import {
   addDays,
   dateKeyOf,
@@ -40,6 +41,11 @@ export type UserRow = {
   birthday?: string | null;
   /** (#305) 팀원에게 알리는 시점. 없으면 당일만 */
   birthdayReminders?: AnniversaryReminder[];
+  /** (#562) 생일 달력 종류, 윤달. 없으면 양력 */
+  birthdayCalendar?: CalendarKind;
+  birthdayLeapMonth?: boolean;
+  /** (#562) 달력 칸 음력 표시. 없으면 끔 */
+  showLunar?: boolean;
   /** (#515) 역할. 없으면 user. 목 기본 사용자(나)는 관리자 화면을 볼 수 있게 admin */
   role?: "user" | "admin";
   /** (#515) 공지 목록을 본 시각. 없으면 아직 */
@@ -154,6 +160,9 @@ export type AnniversaryRow = {
   kind: AnniversaryKind;
   /** (#269) 알림 시점. 없으면 DB 기본값처럼 당일만 */
   reminders?: AnniversaryReminder[];
+  /** (#562) 달력 종류, 윤달. 없으면 양력 */
+  calendar?: CalendarKind;
+  isLeapMonth?: boolean;
   creatorId: number | null;
   createdAt: string;
 };
@@ -337,12 +346,26 @@ export function buildStore(): Store {
   const { y, m } = toKst(Date.now());
   const d = (day: number) => keyOf(y, m, Math.min(day, 28));
 
+  // (#562) 음력 확인용: 오늘 + n 일의 음력 월일을 n 해 전 음력 날짜로 (30일, 윤달은 피해 29일, 평달). [음력 날짜 키, 그 월일]
+  const lunarAgo = (key: string, years: number): [string, string] => {
+    const l = solarToLunar(key)!;
+    const md = `${String(l.month).padStart(2, "0")}-${String(Math.min(l.day, 29)).padStart(2, "0")}`;
+    return [`${l.year - years}-${md}`, md];
+  };
+  // 매년(음력) 반복 일정의 첫 회차: 작년 같은 음력 날 (올해 회차가 열흘 뒤)
+  const [lunarEventKey] = lunarAgo(addDays(today, 10), 1);
+  const lunarEventStart = (() => {
+    const [ly, lm, ld] = lunarEventKey.split("-").map(Number);
+    return lunarOccurrence(ly, lm, ld, false)!;
+  })();
+
   const users: UserRow[] = [
     // (#515) 나는 관리자 (관리자 화면 확인용)
     { id: ME_ID, nickname: "지우", profileImageUrl: null, createdAt: hoursAgo(24 * 40), role: "admin" },
     // (#305) 하늘은 9일 뒤가 생일 (기념일 화면, 달력에 "하늘 생일")
     { id: OTHER_ID, nickname: "하늘", profileImageUrl: null, createdAt: hoursAgo(24 * 38), birthday: addDays(today, 9).slice(5) },
-    { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
+    // (#562) 엄마는 음력 생일 (우리 가족 달력, 기념일 화면 "음력" 표시)
+    { id: MOM_ID, nickname: "엄마", profileImageUrl: null, createdAt: hoursAgo(24 * 30), birthday: lunarAgo(addDays(today, 15), 0)[1], birthdayCalendar: "LUNAR" },
     { id: DAD_ID, nickname: "아빠", profileImageUrl: null, createdAt: hoursAgo(24 * 30) },
   ];
 
@@ -436,6 +459,8 @@ export function buildStore(): Store {
     },
     // 매월 반복, 올해 12월 31일까지
     { ...ev(11, TEAM_ID, "관리비 내기", d(25), "09:00", d(25), "09:30", ME_ID), repeat: "MONTHLY", repeatUntil: keyOf(y, 12, 31) },
+    // (#562) 매년(음력) 반복: 작년 같은 음력 날에 시작, 올해 회차는 열흘 뒤
+    { ...ev(12, TEAM_ID, "할아버지 기일", lunarEventStart, "19:00", lunarEventStart, "21:00", ME_ID), repeat: "YEARLY_LUNAR" },
     // (#248) 우리 가족: 참여자 표시 확인용. 없으면 모두, 배열이면 그 사람들, 빈 배열이면 참여자 없음
     { ...ev(20, FAMILY_ID, "아이 병원", today, "10:00", today, "11:00", MOM_ID), allMembers: false, participantIds: [DAD_ID] },
     ev(21, FAMILY_ID, "가족 저녁", today, "19:00", today, "21:00", ME_ID, false, "외식, 7시 집 앞"),
@@ -482,6 +507,18 @@ export function buildStore(): Store {
       kind: "COUNT_UP",
       creatorId: ME_ID,
       createdAt: hoursAgo(24 * 15),
+    },
+    // (#562) 음력 매년: 30년 전 음력 날짜, 올해는 스무날 뒤 양력 날짜에 보인다
+    {
+      id: 5,
+      groupId: TEAM_ID,
+      name: "할머니 제사",
+      date: lunarAgo(addDays(today, 20), 30)[0],
+      kind: "YEARLY",
+      calendar: "LUNAR",
+      reminders: ["DAY_BEFORE"],
+      creatorId: ME_ID,
+      createdAt: hoursAgo(24 * 12),
     },
     // 그날만
     {

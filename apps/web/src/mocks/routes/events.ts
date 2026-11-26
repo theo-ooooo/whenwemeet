@@ -373,7 +373,7 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
         samePlace(nextPlace, series.place) &&
         reminder === (series.reminder ?? "NONE");
       // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
-      const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY");
+      const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY" || repeat === "YEARLY_LUNAR");
       const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
       const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, place: nextPlace, updatedAt: nowIso() };
       let target: EventRow;

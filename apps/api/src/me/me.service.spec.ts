@@ -137,29 +137,51 @@ describe('MeService', () => {
 
   describe('내 생일 (#305)', () => {
     const user = { id: 1, nickname: '앨리스', profileImageUrl: null, createdAt: new Date('2026-11-01T00:00:00Z') };
-    const stored = { birthday: '02-29', remindDayOf: true, remindDayBefore: true, remindWeekBefore: false };
+    const stored = { birthday: '02-29', birthdayCalendar: 'SOLAR' as const, birthdayLeapMonth: false, remindDayOf: true, remindDayBefore: true, remindWeekBefore: false };
 
     it('GET /me 는 생일과 알림 시점을 붙인다. 없으면 date null 에 기본 당일만', async () => {
       users.findStartCalendar.mockResolvedValue(null);
       users.findBirthday.mockResolvedValueOnce(stored);
-      expect((await service.getProfile(user)).birthday).toEqual({ date: '02-29', reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect((await service.getProfile(user)).birthday).toEqual({ date: '02-29', calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF', 'DAY_BEFORE'] });
       users.findBirthday.mockResolvedValueOnce({ ...stored, birthday: null });
-      expect((await service.getProfile(user)).birthday).toEqual({ date: null, reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect((await service.getProfile(user)).birthday).toEqual({ date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF', 'DAY_BEFORE'] });
       users.findBirthday.mockResolvedValueOnce(null);
-      expect((await service.getProfile(user)).birthday).toEqual({ date: null, reminders: ['DAY_OF'] });
+      expect((await service.getProfile(user)).birthday).toEqual({ date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF'] });
+      // (#562) 음력 윤달 생일
+      users.findBirthday.mockResolvedValueOnce({ ...stored, birthday: '04-15', birthdayCalendar: 'LUNAR', birthdayLeapMonth: true });
+      expect((await service.getProfile(user)).birthday).toEqual({ date: '04-15', calendar: 'LUNAR', isLeapMonth: true, reminders: ['DAY_OF', 'DAY_BEFORE'] });
     });
 
     it('PATCH /me/birthday: 알림을 생략하면 생일만, 보내면 칸 셋을 함께 저장한다', async () => {
-      users.updateBirthday.mockImplementation(async (_id, { birthday, reminders }) => ({ ...stored, birthday, ...reminders }));
-      expect(await service.updateBirthday(1, { date: '03-05' })).toEqual({ date: '03-05', reminders: ['DAY_OF', 'DAY_BEFORE'] });
-      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: '03-05' });
-      expect(await service.updateBirthday(1, { date: '03-05', reminders: ['WEEK_BEFORE'] })).toEqual({ date: '03-05', reminders: ['WEEK_BEFORE'] });
+      users.updateBirthday.mockImplementation(async (_id, { reminders, ...values }) => ({ ...stored, ...values, ...reminders }));
+      const SOLAR = { birthdayCalendar: 'SOLAR', birthdayLeapMonth: false };
+      expect(await service.updateBirthday(1, { date: '03-05' })).toEqual({ date: '03-05', calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: '03-05', ...SOLAR });
+      expect(await service.updateBirthday(1, { date: '03-05', reminders: ['WEEK_BEFORE'] })).toEqual({ date: '03-05', calendar: 'SOLAR', isLeapMonth: false, reminders: ['WEEK_BEFORE'] });
       expect(users.updateBirthday).toHaveBeenLastCalledWith(1, {
         birthday: '03-05',
+        ...SOLAR,
         reminders: { remindDayOf: false, remindDayBefore: false, remindWeekBefore: true },
       });
       expect((await service.updateBirthday(1, { date: null })).date).toBeNull();
-      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: null });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: null, ...SOLAR });
+    });
+
+    it('(#562) 음력 생일: 달력 종류와 윤달을 저장, 지우면 양력으로 되돌리고 양력 윤달은 400', async () => {
+      users.updateBirthday.mockImplementation(async (_id, { reminders, ...values }) => ({ ...stored, ...values, ...reminders }));
+      expect(await service.updateBirthday(1, { date: '04-30', calendar: 'LUNAR', isLeapMonth: true })).toMatchObject({ date: '04-30', calendar: 'LUNAR', isLeapMonth: true });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: '04-30', birthdayCalendar: 'LUNAR', birthdayLeapMonth: true });
+      await service.updateBirthday(1, { date: null, calendar: 'LUNAR', isLeapMonth: false });
+      expect(users.updateBirthday).toHaveBeenLastCalledWith(1, { birthday: null, birthdayCalendar: 'SOLAR', birthdayLeapMonth: false });
+      await expect(service.updateBirthday(1, { date: '04-15', isLeapMonth: true })).rejects.toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'isLeapMonth' }] });
+    });
+
+    it('(#562) PATCH /me/lunar-display 는 저장한 값을 돌려주고 GET /me 에 실린다', async () => {
+      users.updateShowLunar.mockResolvedValue(true);
+      expect(await service.updateLunarDisplay(1, true)).toEqual({ showLunar: true });
+      expect(users.updateShowLunar).toHaveBeenCalledWith(1, true);
+      users.findShowLunar.mockResolvedValueOnce(true);
+      expect((await service.getProfile(user)).showLunar).toBe(true);
     });
   });
 
@@ -172,7 +194,17 @@ describe('MeService', () => {
 
     it('GET /me 는 저장값을 붙인다. 행이 없거나 GROUP 인데 팀이 없으면 LAST, GROUP 이 아니면 groupId 는 null', async () => {
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: 31 });
-      expect(await service.getProfile(user)).toEqual({ ...user, startCalendar: { mode: 'GROUP', groupId: 31 }, birthday: { date: null, reminders: ['DAY_OF'] }, assistant: ASSISTANT, role: 'user', isAdmin: false, hasUnreadNotice: false });
+      users.findShowLunar.mockResolvedValueOnce(false);
+      expect(await service.getProfile(user)).toEqual({
+        ...user,
+        startCalendar: { mode: 'GROUP', groupId: 31 },
+        birthday: { date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF'] },
+        assistant: ASSISTANT,
+        role: 'user',
+        isAdmin: false,
+        hasUnreadNotice: false,
+        showLunar: false,
+      });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'GROUP', groupId: null });
       expect((await service.getProfile(user)).startCalendar).toEqual({ mode: 'LAST', groupId: null });
       users.findStartCalendar.mockResolvedValueOnce({ mode: 'PERSONAL', groupId: 31 });

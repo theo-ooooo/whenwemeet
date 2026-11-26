@@ -197,3 +197,11 @@ describe("(#378) 새 소식 묶음과 종류 아이콘", () => {
     expect(newsKindOf(act("EVENT_RSVP"))).toBe("rsvp");
   });
 });
+
+describe("(#562) 음력 기념일 새 소식 둘째 줄", () => {
+  it("음력이면 '음력 3월 15일', 올해가 아니면 연도, 윤달", () => {
+    const base = { type: "ANNIVERSARY_CREATED" as const, payload: { name: "제사", date: "2026-03-15", kind: "YEARLY" as const, calendar: "LUNAR" as const } };
+    expect(activitySubline(base, "2026-11-26")).toBe("음력 3월 15일, 매년 반복");
+    expect(activitySubline({ ...base, payload: { ...base.payload, date: "2025-06-15", isLeapMonth: true as const } }, "2026-11-26")).toBe("음력 2025년 윤6월 15일, 매년 반복");
+  });
+});

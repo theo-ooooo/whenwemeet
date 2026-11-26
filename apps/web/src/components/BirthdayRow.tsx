@@ -3,6 +3,7 @@
 // 줄 모양은 같은 화면의 "처음 여는 달력", "알림" 줄. 시트는 생일 줄(월, 일 고르기, 연도 없음) + 팀원에게 알리는 시점 줄(기념일 알림과 같은 규칙, #378).
 // 저장하면 내가 속한 모든 팀 달력에 "닉네임 생일" 로 매년 보인다. 팀마다 끄기는 팀 설정
 import { useEffect, useRef, useState } from "react";
+import { CalendarKindRow } from "./CalendarKindRow";
 import { IconCalendar, IconChevronRight, IconHeart } from "./icons";
 import { MonthDayPicker, type MonthDay } from "./pickers/MonthDayPicker";
 import { ReminderChoicesRow } from "./ReminderChoicesRow";
@@ -10,7 +11,10 @@ import { useToast } from "./Toast";
 import { Button, InlineError, RowGroup, Sheet } from "./ui";
 import { messageOf, useUpdateBirthday } from "@/hooks";
 import { DEFAULT_REMINDERS, normalizeReminders, sameReminders } from "@/lib/anniversary-reminder";
-import { formatBirthday, parseBirthday, toBirthday } from "@/lib/birthday";
+import { lunarYearHint } from "@/lib/anniversary";
+import { BIRTHDAY_ANCHOR_YEAR, clampDay, formatBirthday, parseBirthday, toBirthday } from "@/lib/birthday";
+import { todayKey } from "@/lib/date";
+import type { CalendarKind } from "@/lib/lunar";
 import type { AnniversaryReminder, BirthdaySettings } from "@/lib/types";
 
 /** 화면이 /me#birthday 로 열렸는가 (기념일 화면의 "내 생일 넣기") */
@@ -29,13 +33,19 @@ export function BirthdayRow({
   // 고른 월, 일. 아직 없으면 null (줄에 "고르기", 저장은 고른 뒤에)
   const [picked, setPicked] = useState<MonthDay | null>(null);
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
+  // (#562) 양력/음력, 윤달. 음력이면 picked 가 음력 월일 (달마다 30일까지)
+  const [calendar, setCalendar] = useState<CalendarKind>("SOLAR");
+  const [leap, setLeap] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
   const { mutate, isPending } = useUpdateBirthday();
 
   function openSheet() {
     if (!value) return;
-    setPicked(parseBirthday(value.date));
+    const cal = value.calendar ?? "SOLAR";
+    setCalendar(cal);
+    setLeap(value.isLeapMonth ?? false);
+    setPicked(parseBirthday(value.date, cal));
     setReminders(normalizeReminders(value.reminders));
     setError(null);
     setOpen(true);
@@ -57,7 +67,9 @@ export function BirthdayRow({
   async function save(next: string | null) {
     if (!value || isPending) return;
     setError(null);
-    const input: { date: string | null; reminders?: AnniversaryReminder[] } = { date: next };
+    const input: { date: string | null; reminders?: AnniversaryReminder[]; calendar?: CalendarKind; isLeapMonth?: boolean } = { date: next };
+    // (#562) 음력일 때만 달력 종류와 윤달을 싣는다 (생략은 양력)
+    if (next !== null && calendar === "LUNAR") Object.assign(input, { calendar, isLeapMonth: leap });
     if (next !== null && !sameReminders(reminders, value.reminders)) input.reminders = reminders;
     const r = await mutate(input);
     if (!r.ok) {
@@ -69,7 +81,18 @@ export function BirthdayRow({
     toast.show(next === null ? "생일을 지웠어요" : "생일을 저장했어요");
   }
 
-  const label = ready ? (formatBirthday(value.date) ?? "넣지 않음") : "";
+  const label = ready ? (formatBirthday(value.date, value.calendar, value.isLeapMonth) ?? "넣지 않음") : "";
+
+  // (#562) 양력 ↔ 음력: 생일은 연도가 없어 월일은 그대로 두고 그 달에 없는 날만 줄인다 (양력 4월 31일은 없음)
+  function changeCalendar(next: CalendarKind) {
+    if (next === "SOLAR" && picked) setPicked({ m: picked.m, d: clampDay(picked.m, picked.d) });
+    if (next === "SOLAR") setLeap(false);
+    setCalendar(next);
+  }
+  const lunarHint =
+    calendar === "LUNAR" && picked
+      ? lunarYearHint({ date: `${BIRTHDAY_ANCHOR_YEAR}-${toBirthday(picked.m, picked.d)}`, calendar, isLeapMonth: leap, kind: "YEARLY" }, todayKey())
+      : null;
 
   return (
     <>
@@ -99,11 +122,14 @@ export function BirthdayRow({
             className="space-y-2 pb-1"
           >
             <RowGroup hint="내가 속한 팀 달력에 매년 보여요. 연도는 받지 않아요">
-              <MonthDayPicker label="생일" icon={<IconCalendar size={18} />} value={picked} onChange={setPicked} />
+              <MonthDayPicker label="생일" icon={<IconCalendar size={18} />} value={picked} onChange={setPicked} lunar={calendar === "LUNAR"} leap={leap} />
+              {/* (#562) 양력/음력, 음력이면 윤달 */}
+              <CalendarKindRow calendar={calendar} onCalendar={changeCalendar} leap={leap} onLeap={setLeap} />
               {/* 팀원에게 알리는 시점: 기념일 알림과 같은 규칙 (#269). 나에게는 오지 않는다 */}
               <ReminderChoicesRow label="팀원에게 알림" value={reminders} onChange={setReminders} />
             </RowGroup>
-            {picked?.m === 2 && picked.d === 29 && <p className="t-sub px-1">윤년이 아닌 해에는 2월 28일에 보여요</p>}
+            {calendar === "SOLAR" && picked?.m === 2 && picked.d === 29 && <p className="t-sub px-1">윤년이 아닌 해에는 2월 28일에 보여요</p>}
+            {lunarHint && <p className="t-sub px-1">{lunarHint}</p>}
             {error && <InlineError className="px-1">{error}</InlineError>}
             <div className="space-y-2 pt-1">
               <Button type="submit" size="xl" full disabled={!picked} loading={isPending}>

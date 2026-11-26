@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useGroupContext } from "@/components/AppShell";
+import { CalendarKindRow } from "@/components/CalendarKindRow";
+import { MonthDayPicker } from "@/components/pickers/MonthDayPicker";
 import { useToast } from "@/components/Toast";
 import { IconCake, IconCalendar, IconChevronRight, IconHeart, IconPlus } from "@/components/icons";
 import { NameField } from "@/components/NameField";
@@ -9,10 +11,11 @@ import { DatePicker } from "@/components/pickers";
 import { ReminderChoicesRow } from "@/components/ReminderChoicesRow";
 import { Button, EmptyState, ErrorState, RowGroup, Segmented, Sheet, SkeletonList } from "@/components/ui";
 import { messageOf, useAnniversaries, useBirthdays, useCreateAnniversary, useDeleteAnniversary, useUpdateAnniversary } from "@/hooks";
-import { KIND_OPTIONS, kindOf, listValue, sortByNext } from "@/lib/anniversary";
+import { KIND_OPTIONS, kindOf, listValue, lunarYearHint, sortByNext } from "@/lib/anniversary";
 import { DEFAULT_REMINDERS, reminderHint, remindersOf, sameReminders } from "@/lib/anniversary-reminder";
 import { formatBirthday, withBirthdays } from "@/lib/birthday";
-import { formatDateKo, todayKey } from "@/lib/date";
+import { formatDateKo, keyOf, parseKey, todayKey, type DateKey } from "@/lib/date";
+import { type CalendarKind, formatLunar, hasLeapMonth, isLunarDate, lunarOccurrence, lunarToSolar, solarToLunar } from "@/lib/lunar";
 import { ME_BIRTHDAY_PATH, TEAM_PATH } from "@/lib/routes";
 import type { Anniversary, AnniversaryInput, AnniversaryKind, AnniversaryReminder } from "@/lib/types";
 
@@ -34,6 +37,9 @@ export function AnniversariesScreen() {
   const [name, setName] = useState("");
   const [date, setDate] = useState(today);
   const [kind, setKind] = useState<AnniversaryKind>("COUNT_UP");
+  // (#562) 양력/음력, 윤달. 음력이면 date 가 음력 연월일
+  const [calendar, setCalendar] = useState<CalendarKind>("SOLAR");
+  const [leap, setLeap] = useState(false);
   const kindLabelId = useId();
   // (#269) 알림 시점. 기념일에 하나, 팀 공통 (기획 푸시-알림.md 3-7)
   const [reminders, setReminders] = useState<AnniversaryReminder[]>([...DEFAULT_REMINDERS]);
@@ -62,13 +68,47 @@ export function AnniversariesScreen() {
       setDate(next.item.date);
       setKind(kindOf(next.item));
       setReminders(remindersOf(next.item));
+      setCalendar(next.item.calendar ?? "SOLAR");
+      setLeap(next.item.isLeapMonth ?? false);
     } else {
       setName("");
       setDate(today);
       setKind("COUNT_UP");
       setReminders([...DEFAULT_REMINDERS]);
+      setCalendar("SOLAR");
+      setLeap(false);
     }
   }
+
+  // (#562) 양력 ↔ 음력을 바꾸면 같은 날을 가리키게 날짜를 옮긴다 (2026-02-17 ↔ 음력 2026-01-01)
+  function changeCalendar(next: CalendarKind) {
+    if (next === calendar) return;
+    if (next === "LUNAR") {
+      const l = solarToLunar(date);
+      if (l) {
+        setDate(keyOf(l.year, l.month, l.day));
+        setLeap(l.leap);
+      }
+    } else {
+      const { y, m, d } = parseKey(date);
+      const solar = lunarToSolar({ year: y, month: m, day: d, leap }) ?? lunarOccurrence(y, m, d, leap);
+      if (solar) setDate(solar);
+      setLeap(false);
+    }
+    setCalendar(next);
+  }
+
+  // (#562) 음력 날짜 검사: 윤달을 골랐으면 그 해에 그 윤달이 있는지, 그 달에 그날(30일)이 있는지. 틀리면 저장을 막고 이유 한 줄
+  const lunarParts = calendar === "LUNAR" ? parseKey(date) : null;
+  const effectiveLeap = calendar === "LUNAR" && leap;
+  const lunarError = !lunarParts
+    ? null
+    : effectiveLeap && !hasLeapMonth(lunarParts.y, lunarParts.m)
+      ? `음력 ${lunarParts.y}년에는 윤${lunarParts.m}월이 없어요`
+      : !isLunarDate({ year: lunarParts.y, month: lunarParts.m, day: lunarParts.d, leap: effectiveLeap })
+        ? `음력 ${lunarParts.y}년 ${effectiveLeap ? "윤" : ""}${lunarParts.m}월은 29일까지예요`
+        : null;
+  const lunarHint = calendar === "LUNAR" && !lunarError ? lunarYearHint({ date, calendar, isLeapMonth: effectiveLeap, kind }, today) : null;
 
   // + 는 하나만 (#170): 폰 + 가 이 화면에서는 기념일 추가 시트를 연다. 제목 옆 버튼은 + 가 없는 넓은 화면(≥600, 사이드바)에만 (#212)
   const { setFabAction } = useGroupContext();
@@ -81,7 +121,7 @@ export function AnniversariesScreen() {
     return () => setFabAction(null);
   }, [setFabAction]);
 
-  const valid = name.trim().length >= 1 && name.trim().length <= 30 && /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const valid = name.trim().length >= 1 && name.trim().length <= 30 && /^\d{4}-\d{2}-\d{2}$/.test(date) && !lunarError;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -89,6 +129,11 @@ export function AnniversariesScreen() {
     setFormError(null);
     // 알림은 기본값과 다를 때(추가), 바뀌었을 때(수정)만 싣는다. 앱 셸이 옛 API 를 볼 때도 다른 칸 저장이 막히지 않게
     const input: AnniversaryInput = { name: name.trim(), date, kind };
+    // (#562) 달력 종류는 음력이거나 음력에서 양력으로 바꿀 때만 싣는다 (양력 그대로면 지금 본문 그대로)
+    if (calendar === "LUNAR" || (editing.mode === "edit" && editing.item.calendar === "LUNAR")) {
+      input.calendar = calendar;
+      input.isLeapMonth = calendar === "LUNAR" && effectiveLeap;
+    }
     const before = editing.mode === "new" ? DEFAULT_REMINDERS : remindersOf(editing.item);
     if (!sameReminders(reminders, before)) input.reminders = reminders;
     const r = editing.mode === "new" ? await create.mutate(input) : await update.mutate({ id: editing.item.id, input });
@@ -125,6 +170,7 @@ export function AnniversariesScreen() {
           name: item.name,
           date: item.date,
           kind: kindOf(item),
+          ...(item.calendar === "LUNAR" ? { calendar: "LUNAR" as const, isLeapMonth: item.isLeapMonth ?? false } : {}),
           ...(sameReminders(kept, DEFAULT_REMINDERS) ? {} : { reminders: kept }),
         });
         if (!restored.ok) {
@@ -184,8 +230,11 @@ export function AnniversariesScreen() {
                   >
                     <DdayCell value={row.value} tone={row.tone} />
                     <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[15px] font-semibold leading-5">{a.name}</b>
-                      <span className="block truncate text-[12px] leading-4 text-ink-2">{formatDateKo(a.date, true)}</span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <b className="truncate text-[15px] font-semibold leading-5">{a.name}</b>
+                        {a.calendar === "LUNAR" && <LunarMark />}
+                      </span>
+                      <span className="block truncate text-[12px] leading-4 text-ink-2">{anniversaryDateText(a)}</span>
                       {row.sub && <span className="block truncate text-[12px] leading-4 text-ink-2">{row.sub}</span>}
                     </span>
                   </button>
@@ -219,8 +268,27 @@ export function AnniversariesScreen() {
               autoComplete="off"
               error={formError}
             />
-            <DatePicker look="row" rowLabel="날짜" rowIcon={<IconCalendar size={18} />} label="기념일 날짜" value={date} onChange={setDate} withYear />
+            {calendar === "LUNAR" && lunarParts ? (
+              <MonthDayPicker
+                label="날짜"
+                icon={<IconCalendar size={18} />}
+                lunar
+                withYear
+                leap={effectiveLeap}
+                value={{ y: lunarParts.y, m: lunarParts.m, d: lunarParts.d }}
+                onChange={(v) => setDate(keyOf(v.y ?? lunarParts.y, v.m, v.d))}
+              />
+            ) : (
+              <DatePicker look="row" rowLabel="날짜" rowIcon={<IconCalendar size={18} />} label="기념일 날짜" value={date} onChange={setDate} withYear />
+            )}
+            {/* (#562) 양력/음력 세그먼트 + 음력이면 윤달 체크 */}
+            <CalendarKindRow calendar={calendar} onCalendar={changeCalendar} leap={effectiveLeap} onLeap={setLeap} />
           </RowGroup>
+          {(lunarError || lunarHint) && (
+            <p role={lunarError ? "alert" : undefined} className={`t-sub px-1 ${lunarError ? "text-danger!" : ""}`}>
+              {lunarError ?? lunarHint}
+            </p>
+          )}
           {/* 종류 (기획 3-1): 칸 안 세그먼트 3개, 기본 함께한 날 세기. 알림 (#269): 당일 / 하루 전 / 일주일 전 여러 개, 모두 오전 9시 */}
           <RowGroup hint={reminderHint(kind, reminders) ?? KIND_OPTIONS.find((o) => o.value === kind)?.hint}>
             <div className="pb-3 pt-2.5">
@@ -266,7 +334,7 @@ function DdayCell({ value, tone }: { value: string; tone: "today" | "ahead" | "p
  * 날짜는 연도 없이 "매년 3월 5일". (#378) 이름 옆 작은 케이크 선 아이콘으로 기념일과 구분하고, 넣은 사람 점은 뺐다
  */
 function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boolean; value: string; tone: "today" | "ahead" | "past" }) {
-  const date = formatBirthday(item.date.slice(5));
+  const date = formatBirthday(item.date.slice(5), item.calendar, item.isLeapMonth);
   const body = (
     <>
       <DdayCell value={value} tone={tone} />
@@ -274,6 +342,7 @@ function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boo
         <span className="flex min-w-0 items-center gap-1.5">
           <b className="truncate text-[15px] font-semibold leading-5">{item.name}</b>
           <IconCake size={15} className="shrink-0 text-ink-2" />
+          {item.calendar === "LUNAR" && <LunarMark />}
         </span>
         <span className="block truncate text-[12px] leading-4 text-ink-2">{mine ? `매년 ${date}, 내 정보에서 바꿀 수 있어요` : `매년 ${date}`}</span>
       </span>
@@ -287,4 +356,16 @@ function BirthdayRow({ item, mine, value, tone }: { item: Anniversary; mine: boo
   ) : (
     <div className={rowClass}>{body}</div>
   );
+}
+
+/** (#562) 음력 기념일, 생일의 작은 "음력" 표시 (이름 옆, 보조 글자색 테두리 알약) */
+function LunarMark() {
+  return <span className="shrink-0 rounded-[5px] border border-line px-1 text-[10px] font-semibold leading-[15px] text-ink-2">음력</span>;
+}
+
+/** 목록 둘째 줄 날짜: 양력 "2024년 3월 15일 (금)", (#562) 음력은 이름 옆 "음력" 표시가 있어 "1996년 11월 8일" (윤달 "윤4월") */
+function anniversaryDateText(a: Anniversary): string {
+  if (a.calendar !== "LUNAR") return formatDateKo(a.date as DateKey, true);
+  const { y, m, d } = parseKey(a.date);
+  return formatLunar(m, d, a.isLeapMonth ?? false, y).replace(/^음력 /, "");
 }

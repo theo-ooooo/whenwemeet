@@ -6,6 +6,7 @@ import { occurrenceCellText, occurrenceTitle, type Occurrence } from "@/lib/anni
 import { cellDensity } from "@/lib/calendar-cell";
 import { dateKeyOf, dowOf, formatDateKo, formatEventTime, parseKey, timeOf, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
+import type { lunarCellText } from "@/lib/lunar";
 import { phoneDayLanes, type BarPiece, type DayFit, type PackedWeek } from "@/lib/month-lanes";
 import { barColors, chipColor, eventColors, splitBackground, withWho } from "@/lib/participants";
 import { eventKey } from "@/lib/recurrence";
@@ -68,6 +69,7 @@ export function DayCell({
   tabbable,
   events,
   anniversaries,
+  lunar = null,
   week,
   col,
   fit2,
@@ -89,6 +91,8 @@ export function DayCell({
   events: Event[];
   /** 그날 기념일 항목 (우선순위 순). 칸에는 첫 1개만 (#107) */
   anniversaries: Occurrence[];
+  /** (#562) 음력 표시를 켰을 때 그날 음력 ("10.6", 초하루 "음 11.1"). 끄면 null */
+  lunar?: ReturnType<typeof lunarCellText>;
   /** 이 칸이 든 주의 막대 레인 (#202) */
   week: PackedWeek<Event>;
   /** 주 안 칸 (0=일) */
@@ -126,7 +130,10 @@ export function DayCell({
   const holidayText = ann ? null : holiday;
   const annLabel = anniversaries.length ? `, 기념일 ${anniversaries.map(occurrenceTitle).join(", ")}` : "";
   // (#201) 오늘은 aria-current="date", 선택은 gridcell aria-selected 로 알린다 (라벨에 ", 오늘" 을 붙이지 않는다)
-  const label = `${formatDateKo(dateKey, true)}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}`;
+  const lunarLabel = lunar ? `, ${lunar.label}` : "";
+  const label = `${formatDateKo(dateKey, true)}${lunarLabel}${holiday ? `, ${holiday}` : ""}${annLabel}${events.length ? `, 일정 ${events.length}개` : ""}`;
+  // (#562) 음력 글자 색: 흐린 보조 글자, 초하루는 조금 진하게. 이번 달 밖 칸은 더 흐리게
+  const lunarClass = `${lunar?.first ? "font-semibold text-ink-2" : "font-medium text-faint"} ${inMonth ? "" : "opacity-60"}`;
 
   // 점 모양: 여러 날 일정은 칸을 잇는 4px 막대(주 단위 레인, 최대 2줄), 나머지는 멤버 색 점(5px, 최대 3개, 막대가 있는 날도) + 첫 일정 제목.
   // 기념일/공휴일 줄이 있으면 막대는 1줄. 레인이 모자란 막대 일정은 그날 점으로 (QA3-M2). 일정 하나에 점 하나 + 넘치면 "+N" (#139)
@@ -173,6 +180,14 @@ export function DayCell({
           +{phoneMore}
         </b>
       )}
+      {/* (#562) 음력 (낮은 칸): 칸 왼쪽 위 모서리 8px. 폰은 초하루와 보름만("11.1", "11.15"),
+          낮은 넓은 칸은 "10.6". 높은 칸(tall)은 숫자 줄 오른쪽 끝 */}
+      {lunar && (
+        <span aria-hidden="true" className={`pointer-events-none absolute top-[3px] left-[2px] z-[1] text-[8px] leading-[10px] tracking-[-0.04em] whitespace-nowrap tabular-nums tall:hidden ${lunarClass}`}>
+          {lunar.compact && <span className="fold:hidden">{lunar.compact}</span>}
+          <span className="hidden fold:inline">{lunar.short}</span>
+        </span>
+      )}
       <div className="pointer-events-none relative flex h-full flex-col items-center overflow-hidden px-[3px] pt-1 text-center text-[13px] tall:items-stretch tall:px-1 tall:pb-1 tall:text-left tall:text-[12px]">
         <span className="relative flex max-w-full min-w-0 items-center tall:gap-1">
           <span className={`anim-pick grid size-[26px] shrink-0 place-items-center rounded-full leading-none max-fold:size-[22px] max-fold:text-[12px] tall:ml-0.5 tall:size-6 ${numClass}`}>{p.d}</span>
@@ -189,6 +204,11 @@ export function DayCell({
             >
               <IconHeart size={11} className="shrink-0" />
               <span className="truncate">{annText}</span>
+            </span>
+          )}
+          {lunar && (
+            <span aria-hidden="true" className={`ml-auto hidden shrink-0 pr-0.5 text-[10px] leading-4 whitespace-nowrap tabular-nums tall:inline ${lunarClass}`}>
+              {lunar.text}
             </span>
           )}
         </span>

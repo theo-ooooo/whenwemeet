@@ -3,11 +3,12 @@
  * 회차는 저장하지 않고 조회 기간만 계산한다. 일정 목록, 단건, 빈 시간 찾기가 같이 쓰는 순수 함수.
  * 날짜는 KST 달력 기준 (고정 +09:00, 한국은 서머타임이 없다). KST 날짜는 'YYYY-MM-DD' 문자열로 다룬다
  */
+import { LUNAR_MAX_YEAR, lunarOccurrence, solarToLunar } from '../common/lunar.js';
 import type { PlaceValue } from './place.js';
 
-export type Repeat = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY';
+export type Repeat = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'YEARLY' | 'YEARLY_LUNAR';
 
-export const REPEATS: readonly Repeat[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY'];
+export const REPEATS: readonly Repeat[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY', 'YEARLY_LUNAR'];
 
 export const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -18,7 +19,8 @@ export const EXPANSION_MARGIN_DAYS = 31;
 export const EXCEPTION_SHIFT_DAYS = 30;
 
 /** 주기별 일정 길이 상한 (이 값 이상이면 거부, 기획 3-1, 설계 4-1) */
-export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 28, YEARLY: 365 };
+/** (#562) 매년(음력) 은 윤달 기준이 다음 해 평달로 가면 회차 간격이 300일 남짓까지 줄어 300 (일정 길이 상한 30일이라 실제로 막히지 않는다) */
+export const REPEAT_PERIOD_DAYS: Record<Repeat, number> = { WEEKLY: 7, BIWEEKLY: 14, MONTHLY: 28, YEARLY: 365, YEARLY_LUNAR: 300 };
 
 /** 원본 일정의 반복 규칙 */
 export interface SeriesRule {
@@ -30,6 +32,7 @@ export interface SeriesRule {
   repeatUntil: string | null;
   /**
    * (#228, D-71) 반복 기준 날짜 'YYYY-MM-DD' (KST). MONTHLY 는 이 날짜의 일, YEARLY 는 월일로 회차 날짜를 정한다.
+   * (#562) YEARLY_LUNAR 는 이 날짜의 음력 월일(윤달 포함)로 정한다.
    * 생략/null 이면 startsAt 의 KST 날짜. WEEKLY/BIWEEKLY 는 무시한다
    */
   repeatAnchor?: string | null;
@@ -122,10 +125,24 @@ function anchorDay(series: Pick<SeriesRule, 'startsAt' | 'repeatAnchor'>): numbe
 }
 
 /**
- * k 번째 회차의 원래 날짜 번호 (k >= 0). 주간은 첫 회차 날짜 d0 에서 7, 14일씩.
- * 매월/매년은 d0 의 연월(연)에서 k 만큼 간 달(해)의 기준 날짜 일(월일), 없으면 말일 (D-64, D-71)
+ * (#562, D-297) 매년(음력) k 번째 회차: 첫 회차 날짜 d0 의 음력 해 + k 에서 기준 날짜의 음력 월일.
+ * 윤달 기준은 그해에 그 윤달이 없으면 평달, 그 달에 없는 30일은 그 달 마지막 날 (common/lunar.ts lunarOccurrence).
+ * 변환 범위(음력 2050년) 밖이면 null
  */
-function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number = d0): number {
+function lunarNthDay(d0: number, k: number, anchor: number): number | null {
+  const first = solarToLunar(dayToDate(d0));
+  const base = solarToLunar(dayToDate(anchor));
+  if (!first || !base) return null;
+  const date = lunarOccurrence(first.year + k, base.month, base.day, base.leap);
+  return date === null ? null : dateToDay(date);
+}
+
+/**
+ * k 번째 회차의 원래 날짜 번호 (k >= 0). 주간은 첫 회차 날짜 d0 에서 7, 14일씩.
+ * 매월/매년은 d0 의 연월(연)에서 k 만큼 간 달(해)의 기준 날짜 일(월일), 없으면 말일 (D-64, D-71).
+ * (#562) 매년(음력)은 음력 해로 센다. 변환 범위 밖이면 null (그 회차 없음)
+ */
+function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number = d0): number | null {
   switch (repeat) {
     case 'WEEKLY':
       return d0 + 7 * k;
@@ -140,12 +157,14 @@ function nthOccurrenceDay(repeat: Repeat, d0: number, k: number, anchor: number 
       const a = ymd(anchor);
       return clampedDay(ymd(d0).y + k, a.m, a.d);
     }
+    case 'YEARLY_LUNAR':
+      return lunarNthDay(d0, k, anchor);
   }
 }
 
 /**
  * 기준 날짜가 시작 날짜와 맞는지 (D-71). 매월은 시작 달의 기준 일(말일 보정), 매년은 시작 해의 기준 월일(2/29 → 평년 2/28) 이
- * 시작 날짜와 같아야 한다. 주간이나 기준 날짜가 없으면 항상 true
+ * 시작 날짜와 같아야 한다. (#562) 매년(음력)은 시작 음력 해의 기준 음력 월일. 주간이나 기준 날짜가 없으면 항상 true
  */
 export function anchorMatchesStart(repeat: Repeat, startsAt: Date, repeatAnchor: string | null): boolean {
   if (repeatAnchor === null || repeat === 'WEEKLY' || repeat === 'BIWEEKLY') return true;
@@ -155,12 +174,21 @@ export function anchorMatchesStart(repeat: Repeat, startsAt: Date, repeatAnchor:
 
 /**
  * [lo, hi] (날짜 번호, 양끝 포함) 에 들 수 있는 k 범위. 루프 없이 바로 계산한다 (기념일 D-60 방식).
- * MONTHLY/YEARLY 는 말일 보정 때문에 경계 달/해가 범위 밖일 수 있어 호출자가 날짜로 한 번 더 거른다
+ * MONTHLY/YEARLY 는 말일 보정 때문에 경계 달/해가 범위 밖일 수 있어 호출자가 날짜로 한 번 더 거른다.
+ * (#562) YEARLY_LUNAR 는 음력 해 차이 (음력 해 L 의 회차는 언제나 음력 해 L 안의 날짜다)
  */
 function kRange(repeat: Repeat, d0: number, lo: number, hi: number): [number, number] {
   if (repeat === 'WEEKLY' || repeat === 'BIWEEKLY') {
     const step = repeat === 'WEEKLY' ? 7 : 14;
     return [Math.max(0, Math.ceil((lo - d0) / step)), Math.floor((hi - d0) / step)];
+  }
+  if (repeat === 'YEARLY_LUNAR') {
+    const first = solarToLunar(dayToDate(d0));
+    const l = solarToLunar(dayToDate(lo));
+    // 범위 밖(양력 2050년 뒤)은 음력 마지막 해로 본다. 그 뒤 회차는 lunarNthDay 가 null
+    const h = solarToLunar(dayToDate(hi)) ?? { year: LUNAR_MAX_YEAR };
+    if (!first || !l) return [0, -1];
+    return [Math.max(0, l.year - first.year), h.year - first.year];
   }
   const a = ymd(d0);
   const l = ymd(lo);
@@ -250,7 +278,7 @@ export function expand(series: SeriesRule, exceptions: readonly ExceptionRule[],
   const [kMin, kMax] = kRange(series.repeat, d0, lo, hi);
   for (let k = kMin; k <= kMax; k += 1) {
     const day = nthOccurrenceDay(series.repeat, d0, k, anchor);
-    if (day < lo || day > hi) continue;
+    if (day === null || day < lo || day > hi) continue;
     const date = dayToDate(day);
     const occurrence = applyException(originalOccurrence(series, date), byDate.get(date));
     if (occurrence && occurrence.startsAt.getTime() < toMs && occurrence.endsAt.getTime() > fromMs) result.push(occurrence);

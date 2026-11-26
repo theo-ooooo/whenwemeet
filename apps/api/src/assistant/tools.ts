@@ -53,7 +53,7 @@ const when = (description: string): Schema => ({
       type: ['string', 'null'],
       enum: [...WHEN_KINDS, null],
       description:
-        'date=연도까지 말한 날짜나 앞 대화의 날짜, relativeDays=오늘/내일/모레/글피/어제, weekday=요일, weekend=주말, week=주, month=달, monthDay=몇 월 며칠(연도 없음). 말하지 않았으면 null',
+        'date=연도까지 말한 날짜나 앞 대화의 날짜, relativeDays=오늘/내일/모레/글피/어제, weekday=요일, weekend=주말, week=주, month=달, monthDay=몇 월 며칠(연도 없음), lunarMonthDay="음력" 을 붙인 몇 월 며칠. 말하지 않았으면 null',
     },
     date: date(true),
     days: nullableInt('relativeDays: 오늘 0, 내일 1, 모레 2, 글피 3, 어제 -1'),
@@ -63,8 +63,8 @@ const when = (description: string): Schema => ({
       enum: [...WHICH_WORDS, null],
       description: 'weekday, weekend, week, month: "이번" this, "다음" next, "다다음" after_next, 요일만 말함 nearest',
     },
-    month: nullableInt('month, monthDay: 말한 월 1~12. 월을 말하지 않았으면 null'),
-    day: nullableInt('monthDay: 말한 일 1~31'),
+    month: nullableInt('month, monthDay, lunarMonthDay: 말한 월 1~12. 월을 말하지 않았으면 null'),
+    day: nullableInt('monthDay: 말한 일 1~31, lunarMonthDay: 1~30'),
   }),
   description,
 });

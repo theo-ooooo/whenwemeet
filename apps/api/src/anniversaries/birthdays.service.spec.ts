@@ -26,12 +26,13 @@ describe('BirthdaysService (#305)', () => {
   it('팀 표시 이름 ?? 닉네임과 색, MM-DD. joinedAt 은 싣지 않는다', async () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
     birthdays.listShownByGroup.mockResolvedValue([
-      { ...membershipRow(), birthday: '02-29' },
-      { ...membershipRow({ userId: 2, displayName: '별명', color: '#F2994A' }), birthday: '12-24' },
+      { ...membershipRow(), birthday: '02-29', birthdayCalendar: 'SOLAR', birthdayLeapMonth: false },
+      { ...membershipRow({ userId: 2, displayName: '별명', color: '#F2994A' }), birthday: '12-24', birthdayCalendar: 'LUNAR', birthdayLeapMonth: true },
     ]);
     expect(await service.list(1, 10)).toEqual([
-      { member: { userId: 1, displayName: '앨리스', color: '#F26D6D', profileImageUrl: null }, date: '02-29' },
-      { member: { userId: 2, displayName: '별명', color: '#F2994A', profileImageUrl: null }, date: '12-24' },
+      { member: { userId: 1, displayName: '앨리스', color: '#F26D6D', profileImageUrl: null }, date: '02-29', calendar: 'SOLAR', isLeapMonth: false },
+      // (#562) 음력 생일은 달력 종류와 윤달을 그대로 싣는다
+      { member: { userId: 2, displayName: '별명', color: '#F2994A', profileImageUrl: null }, date: '12-24', calendar: 'LUNAR', isLeapMonth: true },
     ]);
     expect(birthdays.listShownByGroup).toHaveBeenCalledWith(10);
   });
