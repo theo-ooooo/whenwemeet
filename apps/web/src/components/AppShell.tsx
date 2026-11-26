@@ -11,7 +11,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { confirmLeave } from "@/lib/leave-guard";
-import { activeTab, afterTeamSwitch, CALENDAR_PATH, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, pollCodeOf, routeInfo } from "@/lib/routes";
+import { activeTab, afterTeamSwitch, CALENDAR_PATH, isTabScreen, navTab, NEWS_PATH, SEARCH_PATH, newEventHref, pollCodeOf, routeInfo } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/types";
 import { GroupGone } from "./GroupGone";
 import { GroupHiddenModal } from "./GroupHiddenModal";
@@ -132,6 +132,8 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
         className={`min-h-dvh fold:grid fold:grid-cols-[var(--side-w)_minmax(0,1fr)] ${animate ? "transition-[grid-template-columns] duration-200 ease-out" : ""}`}
         style={{ "--side-w": `${fold.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_EXPANDED_W}px` } as React.CSSProperties}
         data-sidebar={fold.collapsed ? "collapsed" : "expanded"}
+        // (#552, D-295) 폰에서 본문에 ScreenHeader 가 있으면 아래 data-app-topbar 를 숨긴다 (globals.css)
+        data-app-shell=""
       >
         <Sidebar
           groupId={groupId}
@@ -150,8 +152,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
 
         <div className="flex min-h-dvh w-full flex-col">
           {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
-              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3) */}
-          <header className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
+              글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3).
+              (#552, D-295) ‹ 제목 하위 화면(ScreenHeader)에서는 숨긴다. 그 화면의 머리줄이 안전 영역을 갖는다 (globals.css) */}
+          <header data-app-topbar="" className="flex h-[calc(52px+env(safe-area-inset-top))] items-center pl-5 pr-3 pt-[env(safe-area-inset-top)] fold:hidden">
             <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
               <Symbol size={30} />
             </Link>
@@ -212,8 +215,9 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
             }`}
           >
             {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
-            {/* (#539) 최신 버전보다 낮은 앱: 본문 위 한 줄 (버전마다 한 번 닫을 수 있다) */}
-            {appUpdate.status === "available" && appUpdate.release && <AppUpdateBanner release={appUpdate.release} />}
+            {/* (#539) 최신 버전보다 낮은 앱: 본문 위 한 줄 (버전마다 한 번 닫을 수 있다).
+                (#552, D-295) 위쪽 띠는 탭 화면(달력 등)에서만. 하위 화면은 ‹ 제목이 맨 위다 */}
+            {appUpdate.status === "available" && appUpdate.release && isTabScreen(pathname) && <AppUpdateBanner release={appUpdate.release} />}
             {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
             {hidden ? null : value !== null && !resolvingTeam ? (
               <Fragment key={groupId}>{children}</Fragment>
