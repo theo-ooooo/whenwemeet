@@ -1,5 +1,10 @@
 import { addDays } from '../events/recurrence.js';
-import { lunarOccurrence, solarToLunar } from '../common/lunar.js';
+import {
+  isLunarDate,
+  type LunarDate,
+  lunarOccurrence,
+  solarToLunar,
+} from '../common/lunar.js';
 import { isCalendarDate } from '../common/validation.js';
 import { kstWeekday } from './prompt.js';
 
@@ -50,6 +55,10 @@ export interface WhenArg {
   month: number | null;
   /** kind=monthDay, lunarMonthDay: 며칠 */
   day: number | null;
+  /** (#584) kind=lunarMonthDay: 말한 음력 해. 말하지 않았으면 null */
+  year: number | null;
+  /** (#584) kind=lunarMonthDay: "윤4월", "윤달 4월" 이면 true */
+  leap: boolean | null;
 }
 
 /** 말하지 않음 */
@@ -61,6 +70,8 @@ export const NO_WHEN: WhenArg = {
   which: null,
   month: null,
   day: null,
+  year: null,
+  leap: null,
 };
 
 export interface ResolveOptions {
@@ -123,7 +134,10 @@ export function weekRange(today: string, which: Which): [string, string] {
   return [sunday, addDays(sunday, 6)];
 }
 
-/** 달 [1일, 말일]. month 가 있으면 그 달(이번 달이거나 뒤면 올해, 앞이면 내년), 없으면 이번 달 + which */
+/**
+ * 달 [1일, 말일]. month 가 있으면 그 달(이번 달이거나 뒤면 올해, 앞이면 내년), 없으면 이번 달 + which.
+ * (#584) "다음 달"(which next, after_next)이면 month 를 보지 않는다. 실모델이 "다음 달" 에 이번 달 숫자를 같이 채웠다
+ */
 export function monthRange(
   today: string,
   which: Which,
@@ -132,7 +146,7 @@ export function monthRange(
   const [year, current] = today.split('-').map(Number);
   let y = year;
   let m: number;
-  if (month !== null) {
+  if (month !== null && OFFSET[which] === 0) {
     if (!isInt(month, 1, 12)) return null;
     m = month;
     if (m < current) y += 1;
@@ -202,18 +216,67 @@ function monthDayDate(
   return null;
 }
 
+/** 그 음력 달 다음 달 (윤달이 있는 해는 평달 뒤에 같은 숫자의 윤달) */
+function nextLunarMonth(
+  lunar: Pick<LunarDate, 'year' | 'month' | 'leap'>,
+): Pick<LunarDate, 'year' | 'month' | 'leap'> {
+  if (!lunar.leap && isLunarDate({ ...lunar, day: 1, leap: true }))
+    return { ...lunar, leap: true };
+  return lunar.month === 12
+    ? { year: lunar.year + 1, month: 1, leap: false }
+    : { year: lunar.year, month: lunar.month + 1, leap: false };
+}
+
+/** (#584) 해를 말한 음력 날짜에 그 해 그 윤달이 없으면 그 까닭 (웹 lunarPickError 와 같은 문장). 아니면 null */
+export function missingLunarLeap(when: WhenArg): string | null {
+  if (
+    when.kind !== 'lunarMonthDay' ||
+    when.leap !== true ||
+    !isInt(when.year, 1000, 2050) ||
+    !isInt(when.month, 1, 12)
+  )
+    return null;
+  return isLunarDate({ year: when.year, month: when.month, day: 1, leap: true })
+    ? null
+    : `음력 ${when.year}년에는 윤${when.month}월이 없어요`;
+}
+
 /**
- * (#562, D-297) 음력 월일 → 양력 날짜. 월과 일이 다 있어야 한다. 양력 월일과 같은 기준(오늘 31일 전 또는 notBefore 이후)으로
- * 작년, 올해, 내년 음력 중 가장 이른 해. 그 달에 없는 30일은 그 달 마지막 날(기념일 규칙과 같음). 윤달은 말로 받지 않는다(평달)
+ * (#562, D-297) 음력 월일 → 양력 날짜. 그 달에 없는 30일("그믐")은 그 달 마지막 날(기념일 규칙과 같음).
+ * - 해를 말했으면 (#584) 그 해 그대로. 윤달이면 그 해에 그 윤달이 있어야 한다
+ * - 월만 말했으면 양력 월일과 같은 기준(오늘 31일 전 또는 notBefore 이후)으로 작년, 올해, 내년 음력 중 가장 이른 해.
+ *   윤달은 그 해에 없으면 평달(해마다 규칙 D-297, 윤달 제사를 평달에 지내는 관습과 같다)
+ * - 월을 말하지 않았으면 (#584, "음력 보름", "다음 달 음력 그믐") 오늘(또는 notBefore) 이후 그 날이 있는 가장 가까운 음력 달.
+ *   which next, after_next 면 이번 음력 달에서 그만큼 뒤 달
  */
 function lunarMonthDayDate(
-  month: number | null,
-  day: number | null,
+  when: WhenArg,
   options: ResolveOptions,
 ): string | null {
-  if (!isInt(month, 1, 12) || !isInt(day, 1, 30)) return null;
+  const { month, day, year } = when;
+  const leap = when.leap === true;
+  if (!isInt(day, 1, 30)) return null;
+  if (month !== null && !isInt(month, 1, 12)) return null;
+  if (year !== null) {
+    if (month === null || !isInt(year, 1000, 2050)) return null;
+    if (missingLunarLeap(when) !== null) return null;
+    return lunarOccurrence(year, month, day, leap);
+  }
   const lunarToday = solarToLunar(options.today);
   if (lunarToday === null) return null;
+  if (month === null) {
+    let cursor: Pick<LunarDate, 'year' | 'month' | 'leap'> = lunarToday;
+    const skip = OFFSET[when.which ?? 'nearest'];
+    for (let i = 0; i < skip; i += 1) cursor = nextLunarMonth(cursor);
+    const floor = skip > 0 ? null : (options.notBefore ?? options.today);
+    for (let i = 0; i < 2; i += 1) {
+      const date = lunarOccurrence(cursor.year, cursor.month, day, cursor.leap);
+      if (date === null) return null;
+      if (floor === null || date >= floor) return date;
+      cursor = nextLunarMonth(cursor);
+    }
+    return null;
+  }
   const floor =
     options.notBefore ?? addDays(options.today, -MONTH_DAY_LOOKBACK_DAYS);
   for (const y of [
@@ -222,7 +285,7 @@ function lunarMonthDayDate(
     lunarToday.year + 1,
     lunarToday.year + 2,
   ]) {
-    const date = lunarOccurrence(y, month, day, false);
+    const date = lunarOccurrence(y, month, day, leap);
     if (date && date >= floor) return date;
   }
   return null;
@@ -268,7 +331,7 @@ export function resolveWhen(
         ? null
         : monthDayDate(when.month, when.day, options);
     case 'lunarMonthDay':
-      return lunarMonthDayDate(when.month, when.day, options);
+      return lunarMonthDayDate(when, options);
     default:
       return null;
   }
@@ -322,6 +385,8 @@ const WHEN_KEYS = [
   'which',
   'month',
   'day',
+  'year',
+  'leap',
 ] as const;
 const isWhenArg = (value: unknown): value is WhenArg =>
   typeof value === 'object' &&

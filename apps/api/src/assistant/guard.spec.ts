@@ -56,6 +56,8 @@ describe('decide (서버 가드, 설계 5장)', () => {
       which: null,
       month: null,
       day: null,
+      year: null,
+      leap: null,
     };
     expect(
       decide(
@@ -164,6 +166,8 @@ describe('decide (서버 가드, 설계 5장)', () => {
       which: null,
       month: null,
       day: null,
+      year: null,
+      leap: null,
     };
     const event = (title: string) => ({
       title,
@@ -214,6 +218,8 @@ describe('(#474) kind 만 빠진 날짜 표현 채우기 (D-281)', () => {
     which: null,
     month: null,
     day: null,
+    year: null,
+    leap: null,
   };
   const event = (date: Record<string, unknown>) => ({
     title: '회식',
@@ -316,6 +322,8 @@ describe('도구 스키마 (설계 3-2)', () => {
       which: null,
       month: null,
       day: null,
+      year: null,
+      leap: null,
     };
     const option = {
       date: { ...nowhen, kind: 'weekday', weekday: '토', which: 'this' },
@@ -425,6 +433,8 @@ describe('도구 스키마 (설계 3-2)', () => {
       which: null,
       month: null,
       day: null,
+      year: null,
+      leap: null,
     };
     const friday = {
       ...nowhen,
@@ -501,6 +511,8 @@ describe('도구 스키마 (설계 3-2)', () => {
       which: null,
       month: null,
       day: null,
+      year: null,
+      leap: null,
     };
     const outcome = decide(
       result([

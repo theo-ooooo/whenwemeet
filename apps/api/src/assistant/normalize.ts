@@ -19,6 +19,7 @@ import { kstTime, kstWeekday } from './prompt.js';
 import { MAX_DRAFT_EVENTS } from './tools.js';
 import {
   isPastThisWeekday,
+  missingLunarLeap,
   NO_WHEN,
   resolvePeriod,
   resolveWhen,
@@ -39,6 +40,8 @@ export type Problem =
       name?: string;
       choices?: Member[];
       subject?: string;
+      /** (#584) 되묻는 까닭 한 문장 ("음력 2026년에는 윤10월이 없어요") */
+      note?: string;
     }
   | { kind: 'invalid' }
   | { kind: 'unsupported'; action: 'team_only' };
@@ -52,7 +55,7 @@ export class NormalizeProblem extends Error {
 
 const clarify = (
   field: ClarifyField,
-  extra: { name?: string; choices?: Member[] } = {},
+  extra: { name?: string; choices?: Member[]; note?: string } = {},
 ) => new NormalizeProblem({ kind: 'clarify', field, ...extra });
 const invalid = () => new NormalizeProblem({ kind: 'invalid' });
 
@@ -615,8 +618,10 @@ export function draftDate(
     nowMinutes: nowMinutesOf(context.now),
     startMinutes: startTime === null ? null : minutesOf(startTime),
   });
-  if (date === null || isPastThisWeekday(when, date, today))
-    throw clarify('date');
+  if (date === null || isPastThisWeekday(when, date, today)) {
+    const note = missingLunarLeap(when);
+    throw clarify('date', note === null ? {} : { note });
+  }
   return checkDate(date, today);
 }
 
