@@ -115,7 +115,12 @@ export const subjectPrefix = (title: string): string => {
 
 export function clarifyReply(
   field: ClarifyField,
-  extra: { name?: string; choices?: Member[]; subject?: string } = {},
+  extra: {
+    name?: string;
+    choices?: Member[];
+    subject?: string;
+    note?: string;
+  } = {},
 ): ComposedReply {
   let reply: string;
   if (field === 'participant') {
@@ -127,6 +132,8 @@ export function clarifyReply(
     reply = CLARIFY_TEXT[field];
   }
   if (extra.subject) reply = `${subjectPrefix(extra.subject)}${reply}`;
+  // (#584) 까닭은 맨 앞에 ("음력 2026년에는 윤10월이 없어요. 언제로 할까요?")
+  if (extra.note) reply = `${extra.note}. ${reply}`;
   return compose(
     reply,
     [{ type: 'clarify', field, choices: extra.choices ?? [] }],
