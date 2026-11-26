@@ -21,8 +21,9 @@ const EAS_PROJECT_ID: string | undefined = "d62a24a6-5565-42cc-acfd-7758f42dbd43
 // 1.2.0: 홈 화면 위젯 (#197, iOS 위젯 익스텐션 + App Group, Android AppWidget). 웹은 UA 토큰 Widget/1 로 판정한다 (D-187)
 //        메일 로그인 링크를 앱에서 열기 (#271, intentFilters /auth/email), 기동 때 업데이트 3초 대기 (D-179)
 //        앱 링크에서 `/g` 를 뺐다 (#311, D-199): 웹 주소가 /calendar 식으로 바뀌어 팀 달력 링크를 앱이 가로채지 않는다. 옛 /g 링크는 웹이 308 로 맞춘다
+// 1.3.0: 휴대폰 캘린더에 일정 쓰기 (#549, expo-calendar 네이티브 모듈, 캘린더 권한). 웹은 UA 토큰 DeviceCalendar/1 로 판정한다 (D-294)
 // 빌드 번호는 eas.json appVersionSource=remote + autoIncrement 로 EAS 가 올린다
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const BUNDLE_ID = "day.whenwemeet.app";
 const WEB_HOST = "whenwemeet.day";
 
@@ -37,6 +38,8 @@ const SPLASH_DARK = "#121214";
 const ICON_BG = "#0F0F10";
 /** 알림 아이콘 색 (Android 알림 목록에서 아이콘을 칠한다) */
 const NOTIFICATION_COLOR = "#E0533D";
+/** (#549) 캘린더 권한 문구. iOS 17+ 는 전체 접근(NSCalendarsFullAccessUsageDescription), 16 이하는 NSCalendarsUsageDescription 이 같은 값 */
+const CALENDAR_USAGE = "언제볼까 일정을 휴대폰 캘린더에 보여 주려고 캘린더에 접근해요";
 
 /** Android FCM 설정 파일 (D-96). 커밋하지 않는다(.gitignore). 없으면 undefined */
 function googleServicesFile(): string | undefined {
@@ -107,6 +110,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         mode: process.env.EAS_BUILD_PROFILE === "development" ? "development" : "production",
       },
     ],
+    // (#549) 휴대폰 캘린더 (앱.md 4.9, D-294). iOS 권한 문구(16 이하 NSCalendarsUsageDescription, 17+ NSCalendarsFullAccessUsageDescription),
+    // Android READ_CALENDAR, WRITE_CALENDAR. 미리 알림(Reminders)은 쓰지 않아 문구를 넣지 않는다.
+    // 쓰기 전용(writeOnlyAccess)으로는 캘린더를 만들거나 우리 일정을 고치고 지울 수 없어 전체 접근을 쓴다
+    ["expo-calendar", { calendarPermission: CALENDAR_USAGE, remindersPermission: false }],
     // (#197) 홈 화면 위젯 (앱.md 4.7, D-187 ~ D-190). iOS 는 expo-widgets: 위젯 익스텐션 타깃 ExpoWidgetsTarget,
     // App Group 권한(앱과 익스텐션 둘 다), EAS appExtensions 를 넣는다. Android 는 expo-widgets 에 누름 딥링크, 갱신 주기,
     // 크기 정보가 없어 react-native-android-widget 으로 대신한다 (아래)
@@ -195,6 +202,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // 설명이 없으면 카메라를 고르는 순간 강제 종료된다 (#149)
         NSCameraUsageDescription: "프로필 사진을 찍을 때 카메라를 사용해요",
         NSPhotoLibraryUsageDescription: "프로필 사진을 고를 때 사진 보관함을 사용해요",
+        // (#549) expo-calendar 플러그인도 같은 값을 넣는다. 여기 두어 문구가 한 곳에서 보이게
+        NSCalendarsUsageDescription: CALENDAR_USAGE,
+        NSCalendarsFullAccessUsageDescription: CALENDAR_USAGE,
       },
     },
     android: {

@@ -1,4 +1,4 @@
-// 셸 → 웹 응답 (푸시-알림.md 2-2, D-80, #198 로그인 방법 연결 앱.md 4.8). RN 을 import 하지 않는다.
+// 셸 → 웹 응답 (푸시-알림.md 2-2, D-80, #198 로그인 방법 연결 앱.md 4.8, #549 휴대폰 캘린더 4.9). RN 을 import 하지 않는다.
 // webview.injectJavaScript 로 window.dispatchEvent(new CustomEvent('wwm:app', { detail })) 를 실행한다.
 // 웹뷰 현재 주소가 웹 오리진일 때만 보낸다 (WebScreen 이 판정).
 
@@ -35,7 +35,30 @@ export type LinkAccountReply =
   | ({ v: 1; type: "linkAccount"; id: string; ok: true } & LinkCredentials)
   | { v: 1; type: "linkAccount"; id: string; ok: false; reason: LinkFailureReason };
 
-export type AppEventDetail = PushStatusReply | LinkAccountReply;
+/** (#549) 휴대폰 캘린더 권한. 묻지 않았거나 다시 물을 수 있으면 undetermined */
+export type CalendarPermission = "granted" | "denied" | "undetermined";
+
+/**
+ * (#549) calendarSyncStatus, calendarSyncEnable, calendarSyncDisable, (id 가 있는) calendarSync 의 응답 (앱.md 4.9).
+ * 웹 lib/device-calendar.ts decodeCalendarStatus 와 같은 모양
+ */
+export type CalendarStatusReply = {
+  v: 1;
+  type: "calendarStatus";
+  id: string;
+  permission: CalendarPermission;
+  canAskAgain: boolean;
+  /** 켜져 있고 권한이 있음 */
+  enabled: boolean;
+  /** 마지막으로 끝까지 맞춘 시각 (ISO). 없으면 null */
+  lastSyncedAt: string | null;
+  /** 우리 캘린더에 쓴 일정 수 */
+  count: number;
+  /** 마지막 맞추기가 실패했거나 일부를 못 썼음 */
+  failed: boolean;
+};
+
+export type AppEventDetail = PushStatusReply | LinkAccountReply | CalendarStatusReply;
 
 /**
  * OS 권한 응답(expo-notifications)을 브리지 값으로. iOS 임시(provisional) 허용도 알림이 오므로 granted.

@@ -1,8 +1,9 @@
-// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53, 푸시-알림.md 2-2, 위젯 4.7, 로그인 방법 연결 4.8). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
+// 웹 → 셸 브리지 메시지 (docs/설계/앱.md 4.2, D-53, 푸시-알림.md 2-2, 위젯 4.7, 로그인 방법 연결 4.8, 휴대폰 캘린더 4.9). 웹 apps/web/src/lib/app-bridge.ts 와 같은 계약.
 // 목록에 없는 type, v 불일치, 출처가 웹 오리진이 아닌 메시지는 버린다. RN 을 import 하지 않는다.
 import { isWebOrigin, safeNext } from "../links/urls";
 import type { LinkProvider } from "./reply";
 import { parseWidgetSnapshot, WIDGET_MESSAGE_MAX, type WidgetSnapshot } from "../widget/snapshot";
+import { CALENDAR_MESSAGE_MAX, parseCalendarSnapshot, type CalendarSnapshot } from "../device-calendar/snapshot";
 
 export const BRIDGE_VERSION = 1;
 
@@ -35,7 +36,12 @@ export type BridgeMessage =
   // (#419) 손가락을 댈 때마다 웹이 알린다: 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false (당겨서 새로고침 금지)
   | { v: 1; type: "pullRefresh"; allow: boolean }
   // (#198) 로그인 방법 연결 (앱.md 4.8, D-282). 셸은 네이티브 로그인 결과만 wwm:app 으로 돌려주고 API 는 부르지 않는다
-  | { v: 1; type: "linkAccount"; id: string; provider: LinkProvider };
+  | { v: 1; type: "linkAccount"; id: string; provider: LinkProvider }
+  // (#549) 휴대폰 캘린더 (앱.md 4.9, D-294). 응답은 wwm:app calendarStatus (reply.ts). calendarSync 의 id 는 끝난 뒤 상태를 돌려받을 때만
+  | { v: 1; type: "calendarSync"; snapshot: CalendarSnapshot; id?: string }
+  | { v: 1; type: "calendarSyncEnable"; id: string }
+  | { v: 1; type: "calendarSyncDisable"; id: string }
+  | { v: 1; type: "calendarSyncStatus"; id: string };
 
 /** 위젯 스냅샷 밖 메시지의 최대 길이 */
 const MESSAGE_MAX = 4096;
@@ -129,8 +135,8 @@ export function parseKakaoFeed(v: unknown, webOrigin: string): KakaoFeed | null 
  */
 export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: string): BridgeMessage | null {
   if (!isWebOrigin(sourceUrl, webOrigin)) return null;
-  // 위젯 스냅샷만 16KB 까지 받는다. 그 밖은 type 을 읽은 뒤 4KB 로 다시 자른다
-  if (typeof data !== "string" || data.length > WIDGET_MESSAGE_MAX) return null;
+  // (#549) 캘린더 스냅샷만 1.5MB, 위젯 스냅샷은 16KB 까지 받는다. 그 밖은 type 을 읽은 뒤 4KB 로 다시 자른다
+  if (typeof data !== "string" || data.length > CALENDAR_MESSAGE_MAX) return null;
   let m: unknown;
   try {
     m = JSON.parse(data);
@@ -140,7 +146,7 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
   if (!m || typeof m !== "object" || Array.isArray(m)) return null;
   const o = m as Record<string, unknown>;
   if (o.v !== BRIDGE_VERSION) return null;
-  if (o.type !== "widgetSnapshot" && data.length > MESSAGE_MAX) return null;
+  if (o.type === "widgetSnapshot" ? data.length > WIDGET_MESSAGE_MAX : o.type !== "calendarSync" && data.length > MESSAGE_MAX) return null;
 
   switch (o.type) {
     case "login": {
@@ -195,6 +201,19 @@ export function parseBridgeMessage(data: unknown, sourceUrl: string, webOrigin: 
       const id = requestId(o.id);
       if (id === null || (o.provider !== "KAKAO" && o.provider !== "APPLE")) return null;
       return { v: 1, type: "linkAccount", id, provider: o.provider };
+    }
+    case "calendarSync": {
+      const snapshot = parseCalendarSnapshot(o.snapshot, webOrigin);
+      if (!snapshot) return null;
+      if (o.id === undefined) return { v: 1, type: "calendarSync", snapshot };
+      const id = requestId(o.id);
+      return id === null ? null : { v: 1, type: "calendarSync", snapshot, id };
+    }
+    case "calendarSyncEnable":
+    case "calendarSyncDisable":
+    case "calendarSyncStatus": {
+      const id = requestId(o.id);
+      return id === null ? null : { v: 1, type: o.type, id };
     }
     default:
       return null;
