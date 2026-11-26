@@ -176,7 +176,7 @@ export default function PrivacyPage() {
       <p>로그인에 쓰는 이메일은 바꿀 수 없습니다. 바꾸려면 탈퇴한 뒤 새 이메일로 가입해 주세요.</p>
       <h2>7. 개인정보 보호책임자와 문의</h2>
       <ul>
-        <li>개인정보 보호책임자: 언제볼까 운영팀</li>
+        <li>개인정보 보호책임자: 강경원 (운영자)</li>
         <li>
           연락처:{" "}
           <a href={supportMailto("개인정보 문의")} className="underline underline-offset-2">
