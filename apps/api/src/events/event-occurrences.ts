@@ -18,11 +18,11 @@ export function seriesRule(row: EventRow): SeriesRule {
 }
 
 /**
- * "이후 모두" 로 저장할 반복 기준 날짜 (D-71). 반복 주기가 그대로인 매월/매년이고 날짜를 바꾸지 않았으면 기준을 잇는다.
+ * "이후 모두" 로 저장할 반복 기준 날짜 (D-71). 반복 주기가 그대로인 매월/매년/(#562) 매년(음력)이고 날짜를 바꾸지 않았으면 기준을 잇는다.
  * 첫 회차(원본 수정)는 원본 값 그대로, 그 뒤 회차(새 원본)는 원본 기준 또는 원본 시작 날짜. 날짜나 주기를 바꾸면 null (새 시작이 기준)
  */
 export function followingAnchor(series: EventRow, repeat: Repeat | null, dateChanged: boolean, isFirst: boolean): string | null {
-  if (repeat !== series.repeat || dateChanged || (repeat !== 'MONTHLY' && repeat !== 'YEARLY')) return null;
+  if (repeat !== series.repeat || dateChanged || (repeat !== 'MONTHLY' && repeat !== 'YEARLY' && repeat !== 'YEARLY_LUNAR')) return null;
   return isFirst ? series.repeatAnchor : (series.repeatAnchor ?? kstDate(series.startsAt));
 }
 

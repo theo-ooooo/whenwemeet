@@ -33,6 +33,7 @@ export const FIXED_INSTRUCTIONS = `너는 일정 공유 서비스 "언제볼까"
 - "11월 27일" → monthDay, month 11, day 27. "27일" → monthDay, month null, day 27. "11월 27일 금요일"처럼 요일을 같이 말해도 monthDay. 연도까지 말했을 때만 date(YYYY-MM-DD).
 - "이번 주, 다음 주" → week. "주말, 이번 주말, 다음 주말" → weekend. "이번 달, 다음 달" → month, "12월" → month, month 12.
 - 앞 대화 볼까 글의 날짜("11-21(토)")를 가리키면 monthDay 로 옮긴다.
+- "음력 3월 15일"처럼 음력이라고 말했으면 lunarMonthDay, month 3, day 15. 양력으로 바꾸지 않는다(서버가 바꾼다).
 - 기간은 from 하나로 정해지면("다음 주", "이번 주말", "이번 달") to 의 kind 를 null. "오늘부터 일주일" → from relativeDays 0, to relativeDays 6.
 - 말하지 않은 날짜는 kind 까지 null. 일정에 날짜가 없으면 ask_clarification(date).
 - 오전, 오후 없이 1~6시는 오후. 7~11시는 저녁, 회식, 술, 약속이면 오후, 그 밖은 오전. "12시"는 낮 12시.

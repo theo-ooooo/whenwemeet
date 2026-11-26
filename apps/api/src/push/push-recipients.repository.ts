@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { birthdayOf, type BirthdayValue } from '../anniversaries/birthdays.js';
 import { kstDate, type Repeat } from '../events/recurrence.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VISIBLE_EVENT_WHERE } from '../events/visible-event.js';
@@ -138,10 +139,13 @@ export class PushRecipientsRepository {
     return recipients.filter((recipient) => !out.has(recipient.userId));
   }
 
-  /** (#305) 펼칠 때 다시 본다: 그 팀에 생일을 보이는 멤버면 지금 생일 'MM-DD', 나갔거나 껐거나 지웠으면 null */
-  async findShownBirthday(groupId: number, userId: number): Promise<string | null> {
-    const row = await this.prisma.membership.findFirst({ where: { groupId, userId, showBirthday: true }, select: { user: { select: { birthday: true } } } });
-    return row?.user.birthday ?? null;
+  /** (#305) 펼칠 때 다시 본다: 그 팀에 생일을 보이는 멤버면 지금 생일 (#562 음력 여부, 윤달 포함), 나갔거나 껐거나 지웠으면 null */
+  async findShownBirthday(groupId: number, userId: number): Promise<BirthdayValue | null> {
+    const row = await this.prisma.membership.findFirst({
+      where: { groupId, userId, showBirthday: true },
+      select: { user: { select: { birthday: true, birthdayCalendar: true, birthdayLeapMonth: true } } },
+    });
+    return row ? birthdayOf(row.user) : null;
   }
 
   // ---------- (#528) 공지 (D-287) ----------

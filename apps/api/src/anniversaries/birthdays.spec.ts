@@ -2,7 +2,9 @@ import { birthdayEvents } from '../calendar-feed/feed-items.js';
 import { birthdayDedupeKey, birthdayTargetOf, planBirthdays } from '../push/anniversary-planner.js';
 import type { BirthdayPlanRow } from '../push/push-planning.repository.js';
 import { flagsFromRows, rowsFromFlags } from './anniversary-reminders.js';
-import { birthdayAnniversary, birthdayTitle, isBirthday, isBirthdayOn } from './birthdays.js';
+import { birthdayAnniversary, birthdayTitle, type BirthdayValue, isBirthday, isBirthdayOn } from './birthdays.js';
+
+const solar = (date: string): BirthdayValue => ({ date, calendar: 'SOLAR', isLeapMonth: false });
 
 describe('멤버 생일 (#305)', () => {
   it('isBirthday: MM-DD 이고 실제 월일만. 2월 29일은 받는다', () => {
@@ -11,13 +13,13 @@ describe('멤버 생일 (#305)', () => {
   });
 
   it('매년 그날, 2월 29일은 평년에 2월 28일 (기념일 매년 규칙, D-62)', () => {
-    expect(birthdayAnniversary('03-05')).toEqual({ date: '2000-03-05', kind: 'YEARLY' });
-    expect(isBirthdayOn('03-05', '2026-03-05')).toBe(true);
-    expect(isBirthdayOn('03-05', '2026-03-06')).toBe(false);
-    expect(isBirthdayOn('02-29', '2027-02-28')).toBe(true);
-    expect(isBirthdayOn('02-29', '2028-02-29')).toBe(true);
-    expect(isBirthdayOn('02-29', '2028-02-28')).toBe(false);
-    expect(isBirthdayOn('02-28', '2028-02-28')).toBe(true);
+    expect(birthdayAnniversary(solar('03-05'))).toEqual({ date: '2000-03-05', kind: 'YEARLY', calendar: 'SOLAR', isLeapMonth: false });
+    expect(isBirthdayOn(solar('03-05'), '2026-03-05')).toBe(true);
+    expect(isBirthdayOn(solar('03-05'), '2026-03-06')).toBe(false);
+    expect(isBirthdayOn(solar('02-29'), '2027-02-28')).toBe(true);
+    expect(isBirthdayOn(solar('02-29'), '2028-02-29')).toBe(true);
+    expect(isBirthdayOn(solar('02-29'), '2028-02-28')).toBe(false);
+    expect(isBirthdayOn(solar('02-28'), '2028-02-28')).toBe(true);
   });
 
   it('이름과 알림 칸 변환', () => {
@@ -37,7 +39,7 @@ describe('멤버 생일 (#305)', () => {
       groupName: '우리',
       groupCode: 'teamcode',
       name: '민지',
-      birthday: '11-20',
+      birthday: solar('11-20'),
       remindDayOf: true,
       remindDayBefore: false,
       remindWeekBefore: false,
@@ -67,9 +69,9 @@ describe('멤버 생일 (#305)', () => {
     });
 
     it('2월 29일 생일은 평년 2월 28일에 보낸다', () => {
-      expect(planBirthdays([row({ birthday: '02-29' })], '2027-02-28').map((p) => p.dedupeKey)).toEqual(['B:7:10:2027-02-28']);
-      expect(planBirthdays([row({ birthday: '02-29' })], '2028-02-28')).toEqual([]);
-      expect(planBirthdays([row({ birthday: '02-29' })], '2028-02-29').map((p) => p.dedupeKey)).toEqual(['B:7:10:2028-02-29']);
+      expect(planBirthdays([row({ birthday: solar('02-29') })], '2027-02-28').map((p) => p.dedupeKey)).toEqual(['B:7:10:2027-02-28']);
+      expect(planBirthdays([row({ birthday: solar('02-29') })], '2028-02-28')).toEqual([]);
+      expect(planBirthdays([row({ birthday: solar('02-29') })], '2028-02-29').map((p) => p.dedupeKey)).toEqual(['B:7:10:2028-02-29']);
     });
 
     it('키에서 그날을 다시 읽는다. 생일 키가 아니면 null', () => {

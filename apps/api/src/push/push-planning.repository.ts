@@ -3,10 +3,11 @@ import { type ExceptionRule, type SeriesRule, seriesCandidateWindow, type Repeat
 import { PrismaService } from '../prisma/prisma.service.js';
 import { VISIBLE_EVENT_WHERE } from '../events/visible-event.js';
 import type { AnniversaryKind, AnniversaryLike } from './anniversary-items.js';
+import type { CalendarType } from '../generated/prisma/enums.js';
 import type { EventReminder } from './remind-at.js';
 import { type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT } from '../anniversaries/anniversary-reminders.js';
 import { preferenceOn } from '../notification-preferences/notification-preferences.js';
-import { birthdayAnniversary, birthdayTitle } from '../anniversaries/birthdays.js';
+import { birthdayAnniversary, birthdayOf, birthdayTitle, type BirthdayValue } from '../anniversaries/birthdays.js';
 import { dateToDb, dbToDate, idsOf } from './push-db.js';
 
 export interface OnceReminderRow {
@@ -64,9 +65,12 @@ export interface AnniversaryPlanRow extends AnniversaryReminderFlags {
   /** (#311) 팀 공개 코드 */
   groupCode: string;
   name: string;
-  /** 'YYYY-MM-DD' */
+  /** 'YYYY-MM-DD'. (#562) 음력이면 음력 연월일 */
   date: string;
   kind: AnniversaryKind;
+  /** (#562) 달력 종류와 윤달 (D-297) */
+  calendar: CalendarType;
+  isLeapMonth: boolean;
   updatedAt: Date;
 }
 
@@ -78,8 +82,8 @@ export interface BirthdayPlanRow extends AnniversaryReminderFlags {
   groupCode: string;
   /** 그 팀 표시 이름 ?? 닉네임 */
   name: string;
-  /** 'MM-DD' */
-  birthday: string;
+  /** 'MM-DD', 음력 여부, 윤달 (#562) */
+  birthday: BirthdayValue;
 }
 
 /** (#277) 주간 알림 판정용 팀 */
@@ -235,6 +239,8 @@ export class PushPlanningRepository {
         name: true,
         date: true,
         kind: true,
+        calendar: true,
+        isLeapMonth: true,
         reminders: REMINDER_ROWS_SELECT,
         updatedAt: true,
         group: { select: { name: true, publicCode: true } },
@@ -266,7 +272,7 @@ export class PushPlanningRepository {
         groupId: true,
         displayName: true,
         group: { select: { name: true, publicCode: true } },
-        user: { select: { nickname: true, birthday: true, birthdayReminders: REMINDER_ROWS_SELECT } },
+        user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true, birthdayReminders: REMINDER_ROWS_SELECT } },
       },
       orderBy: { id: 'asc' },
     });
@@ -276,7 +282,7 @@ export class PushPlanningRepository {
       groupName: group.name,
       groupCode: group.publicCode,
       name: row.displayName ?? user.nickname,
-      birthday: user.birthday!,
+      birthday: birthdayOf(user)!,
       ...flagsFromRows(user.birthdayReminders),
     }));
   }
@@ -389,16 +395,16 @@ export class PushPlanningRepository {
   /** 팀의 기념일 (알림 시점 설정과 무관, #277). (#305) 이 팀에 보이는 멤버 생일을 "지민 생일" 매년 기념일로 뒤에 붙인다 */
   async listGroupAnniversaries(groupId: number): Promise<(AnniversaryLike & { name: string })[]> {
     const [rows, birthdays] = await Promise.all([
-      this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true }, orderBy: { id: 'asc' } }),
+      this.prisma.anniversary.findMany({ where: { groupId }, select: { name: true, date: true, kind: true, calendar: true, isLeapMonth: true }, orderBy: { id: 'asc' } }),
       this.prisma.membership.findMany({
         where: { groupId, showBirthday: true, user: { birthday: { not: null } } },
-        select: { displayName: true, user: { select: { nickname: true, birthday: true } } },
+        select: { displayName: true, user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true } } },
         orderBy: { joinedAt: 'asc' },
       }),
     ]);
     return [
       ...rows.map((row) => ({ ...row, date: dbToDate(row.date) })),
-      ...birthdays.map((row) => ({ ...birthdayAnniversary(row.user.birthday!), name: birthdayTitle(row.displayName ?? row.user.nickname) })),
+      ...birthdays.map((row) => ({ ...birthdayAnniversary(birthdayOf(row.user)!), name: birthdayTitle(row.displayName ?? row.user.nickname) })),
     ];
   }
 

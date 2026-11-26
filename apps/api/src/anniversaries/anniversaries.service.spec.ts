@@ -3,7 +3,7 @@ import { MembershipService } from '../groups/membership.service.js';
 import { MembershipsRepository } from '../memberships/memberships.repository.js';
 import { membershipRow, mockRepository, RepositoryMock } from '../testing/repository-mock.js';
 import { AnniversariesRepository } from './anniversaries.repository.js';
-import { AnniversariesService, dateStringToDb, dbToDateString } from './anniversaries.service.js';
+import { AnniversariesService, assertAnniversaryDate, dateStringToDb, dbToDateString } from './anniversaries.service.js';
 import { CreateAnniversaryDto, UpdateAnniversaryDto } from './dto/anniversary.dto.js';
 import { ApiException } from '../common/errors.js';
 import { createValidationPipe } from '../common/validation.js';
@@ -15,6 +15,8 @@ const ROW = {
   name: '기념일',
   date: new Date('2024-03-15T00:00:00.000Z'),
   kind: 'COUNT_UP' as const,
+  calendar: 'SOLAR' as const,
+  isLeapMonth: false,
   remindDayOf: true,
   remindDayBefore: false,
   remindWeekBefore: false,
@@ -22,6 +24,8 @@ const ROW = {
   createdAt: new Date('2026-11-01T00:00:00.000Z'),
   creator: null,
 };
+
+const FOUND = { id: 200, date: ROW.date, calendar: 'SOLAR' as const, isLeapMonth: false };
 
 describe('date 변환', () => {
   it('YYYY-MM-DD ↔ UTC 자정 Date', () => {
@@ -72,6 +76,8 @@ describe('AnniversariesService', () => {
       name: '기념일',
       date: new Date('2024-03-15T00:00:00.000Z'),
       kind: 'COUNT_UP',
+      calendar: 'SOLAR',
+      isLeapMonth: false,
       remindDayOf: true,
       remindDayBefore: false,
       remindWeekBefore: false,
@@ -88,7 +94,7 @@ describe('AnniversariesService', () => {
     expect(anniversaries.createWithActivityTx).toHaveBeenCalledWith(expect.objectContaining({ remindDayOf: false, remindDayBefore: true, remindWeekBefore: true }), ACTOR);
     expect(created.reminders).toEqual(['DAY_BEFORE', 'WEEK_BEFORE']);
 
-    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
+    anniversaries.findIdInGroup.mockResolvedValue(FOUND);
     anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, remindDayOf: false });
     const none = await service.update(1, 10, 200, { reminders: [] });
     expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { remindDayOf: false, remindDayBefore: false, remindWeekBefore: false }, ACTOR);
@@ -103,7 +109,7 @@ describe('AnniversariesService', () => {
   });
 
   it('update: 종류만 바꾸면 kind 만 전달', async () => {
-    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
+    anniversaries.findIdInGroup.mockResolvedValue(FOUND);
     anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, kind: 'ONCE' });
     const updated = await service.update(1, 10, 200, { kind: 'ONCE' });
     expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { kind: 'ONCE' }, ACTOR);
@@ -115,10 +121,11 @@ describe('AnniversariesService', () => {
     await expect(service.update(1, 10, 999, { name: 'x' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(anniversaries.updateWithActivityTx).not.toHaveBeenCalled();
 
-    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
+    anniversaries.findIdInGroup.mockResolvedValue(FOUND);
     anniversaries.updateWithActivityTx.mockResolvedValue({ ...ROW, date: new Date('2024-03-16T00:00:00.000Z') });
     const updated = await service.update(1, 10, 200, { date: '2024-03-16' });
-    expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { date: new Date('2024-03-16T00:00:00.000Z') }, ACTOR);
+    // (#562) 날짜를 바꾸면 달력 종류와 윤달도 합친 값으로 함께 저장한다
+    expect(anniversaries.updateWithActivityTx).toHaveBeenCalledWith(200, { date: new Date('2024-03-16T00:00:00.000Z'), calendar: 'SOLAR', isLeapMonth: false }, ACTOR);
     expect(updated.date).toBe('2024-03-16');
 
     await service.update(1, 10, 200, { name: '새' });
@@ -135,7 +142,7 @@ describe('AnniversariesService', () => {
 
   it('새 소식 기록 이름은 팀 표시 이름이 있으면 그것 (#191, D-152)', async () => {
     membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow({ displayName: '앨리' }));
-    anniversaries.findIdInGroup.mockResolvedValue({ id: 200 });
+    anniversaries.findIdInGroup.mockResolvedValue(FOUND);
     anniversaries.deleteWithActivityTx.mockResolvedValue(undefined);
     await service.remove(1, 10, 200);
     expect(anniversaries.deleteWithActivityTx).toHaveBeenCalledWith(200, { id: 1, name: '앨리' });
@@ -166,5 +173,68 @@ describe('기념일 DTO kind 검증', () => {
       expect(error).toBeInstanceOf(ApiException);
       expect(error).toMatchObject({ code: 'VALIDATION_FAILED' });
     }
+  });
+});
+
+describe('(#562) 음력 기념일 검사 assertAnniversaryDate', () => {
+  const fieldOf = (fn: () => void) => {
+    try {
+      fn();
+      return null;
+    } catch (error) {
+      return (error as ApiException & { details: { field: string }[] }).details[0].field;
+    }
+  };
+
+  it('음력은 그 해에 정말 있는 날짜, 윤달은 그 해에 그 윤달이 있을 때만', () => {
+    expect(fieldOf(() => assertAnniversaryDate('2026-01-30', 'LUNAR', false))).toBeNull();
+    expect(fieldOf(() => assertAnniversaryDate('2025-06-15', 'LUNAR', true))).toBeNull();
+    expect(fieldOf(() => assertAnniversaryDate('2026-02-30', 'LUNAR', false))).toBe('date');
+    expect(fieldOf(() => assertAnniversaryDate('2026-06-15', 'LUNAR', true))).toBe('isLeapMonth');
+    expect(fieldOf(() => assertAnniversaryDate('2051-01-01', 'LUNAR', false))).toBe('date');
+  });
+
+  it('양력은 실제 날짜이고 윤달은 거부', () => {
+    expect(fieldOf(() => assertAnniversaryDate('2026-02-28', 'SOLAR', false))).toBeNull();
+    expect(fieldOf(() => assertAnniversaryDate('2026-02-30', 'SOLAR', false))).toBe('date');
+    expect(fieldOf(() => assertAnniversaryDate('2026-02-28', 'SOLAR', true))).toBe('isLeapMonth');
+  });
+});
+
+describe('(#562) 음력 기념일 서비스', () => {
+  let anniversaries: RepositoryMock<AnniversariesRepository>;
+  let service: AnniversariesService;
+
+  beforeEach(() => {
+    anniversaries = mockRepository(AnniversariesRepository);
+    const membershipsRepo = mockRepository(MembershipsRepository);
+    const memberships = new MembershipService(membershipsRepo as never, mockRepository(GroupsRepository) as never, config);
+    service = new AnniversariesService(anniversaries as never, memberships);
+    membershipsRepo.findByUserAndGroup.mockResolvedValue(membershipRow());
+    membershipsRepo.listByGroup.mockResolvedValue([membershipRow()]);
+  });
+
+  it('create: 음력 윤달을 저장하고 응답에 싣는다. 없는 윤달은 저장 전에 400', async () => {
+    anniversaries.createWithActivityTx.mockResolvedValue({ ...ROW, date: new Date('2025-06-15T00:00:00.000Z'), calendar: 'LUNAR', isLeapMonth: true });
+    const created = await service.create(1, 10, { name: '제사', date: '2025-06-15', kind: 'YEARLY', calendar: 'LUNAR', isLeapMonth: true });
+    expect(anniversaries.createWithActivityTx).toHaveBeenCalledWith(expect.objectContaining({ calendar: 'LUNAR', isLeapMonth: true }), ACTOR);
+    expect(created).toMatchObject({ date: '2025-06-15', calendar: 'LUNAR', isLeapMonth: true });
+    await expect(service.create(1, 10, { name: '제사', date: '2026-06-15', calendar: 'LUNAR', isLeapMonth: true })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(anniversaries.createWithActivityTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('update: 저장된 음력 날짜에 윤달만 켜도 합쳐서 검사, 양력으로 바꾸면 윤달은 끈다', async () => {
+    anniversaries.findIdInGroup.mockResolvedValue({ id: 200, date: new Date('2025-06-15T00:00:00.000Z'), calendar: 'LUNAR', isLeapMonth: false });
+    anniversaries.updateWithActivityTx.mockResolvedValue(ROW);
+    await service.update(1, 10, 200, { isLeapMonth: true });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenLastCalledWith(200, { calendar: 'LUNAR', isLeapMonth: true }, ACTOR);
+
+    anniversaries.findIdInGroup.mockResolvedValue({ id: 200, date: new Date('2025-06-15T00:00:00.000Z'), calendar: 'LUNAR', isLeapMonth: true });
+    await service.update(1, 10, 200, { calendar: 'SOLAR' });
+    expect(anniversaries.updateWithActivityTx).toHaveBeenLastCalledWith(200, { calendar: 'SOLAR', isLeapMonth: false }, ACTOR);
+
+    // 저장된 날짜가 2026 음력이면 윤6월이 없다
+    anniversaries.findIdInGroup.mockResolvedValue({ id: 200, date: new Date('2026-06-15T00:00:00.000Z'), calendar: 'LUNAR', isLeapMonth: false });
+    await expect(service.update(1, 10, 200, { isLeapMonth: true })).rejects.toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'isLeapMonth' }] });
   });
 });

@@ -6,6 +6,8 @@ import { type ClaimedDelivery, type DueNotification, PushDeliveryRepository } fr
 import { PushDevicesRepository } from './push-devices.repository.js';
 import { PushRecipientsRepository } from './push-recipients.repository.js';
 
+/** (#562) 양력 생일 값 */
+const solar = (date: string) => ({ date, calendar: 'SOLAR' as const, isLeapMonth: false });
 const NOW = new Date('2026-11-12T08:00:00.000Z');
 const MIN = 60 * 1000;
 /** 예약을 만든 시각 (CHANGE 묶음의 첫 변경 등) */
@@ -184,10 +186,10 @@ describe('PushDispatcher', () => {
       const row = (id: number, dedupeKey: string) => due({ id, kind: 'ANNIVERSARY', eventId: null, actorId: 7, dedupeKey, payload: birthday });
       push.listDuePending.mockResolvedValue([row(1, 'B:7:10:2026-11-12'), row(2, 'B:7:10:2026-11-19:D7'), row(3, 'B:7:10:2026-11-12'), row(4, 'B:7:10:2027-02-28')]);
       push.findShownBirthday
-        .mockResolvedValueOnce('11-12') // 그대로
-        .mockResolvedValueOnce('11-12') // 일주일 전 예약인데 생일을 바꿨다
+        .mockResolvedValueOnce(solar('11-12')) // 그대로
+        .mockResolvedValueOnce(solar('11-12')) // 일주일 전 예약인데 생일을 바꿨다
         .mockResolvedValueOnce(null) // 나갔거나 이 팀에 안 보이게 했다
-        .mockResolvedValueOnce('02-29'); // 평년 2월 28일
+        .mockResolvedValueOnce(solar('02-29')); // 평년 2월 28일
       push.listRecipients.mockResolvedValue([{ userId: 2, token: 'a', platform: 'IOS' }]);
       const stats = await dispatcher.expandDue(NOW);
       expect(push.findShownBirthday).toHaveBeenCalledWith(10, 7);

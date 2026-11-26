@@ -39,7 +39,7 @@ export interface ExpoMessage {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: '매주', BIWEEKLY: '격주', MONTHLY: '매월', YEARLY: '매년' };
+const REPEAT_NAME: Record<Repeat, string> = { WEEKLY: '매주', BIWEEKLY: '격주', MONTHLY: '매월', YEARLY: '매년', YEARLY_LUNAR: '매년(음력)' };
 const MINUTE_MS = 60 * 1000;
 export const DELETED_MEMBER_NAME = '탈퇴한 멤버';
 

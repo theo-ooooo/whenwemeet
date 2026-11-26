@@ -69,10 +69,10 @@ describe('CalendarFeedService (#193)', () => {
     feeds = mockRepository(CalendarFeedsRepository);
     anniversaries = mockRepository(AnniversariesRepository);
     birthdays = mockRepository(BirthdaysRepository);
-    birthdays.listForFeed.mockResolvedValue([{ userId: 2, name: '민지', birthday: '12-24', updatedAt: new Date('2026-10-02T00:00:00Z') }]);
+    birthdays.listForFeed.mockResolvedValue([{ userId: 2, name: '민지', birthday: '12-24', birthdayCalendar: 'SOLAR', birthdayLeapMonth: false, updatedAt: new Date('2026-10-02T00:00:00Z') }]);
     memberships = { assertMember: vi.fn().mockResolvedValue(membershipRow()), isMember: vi.fn().mockResolvedValue(true) };
     events = { listForFeed: vi.fn().mockResolvedValue([VIEW]) };
-    anniversaries.listForFeed.mockResolvedValue([{ id: 3, name: '만난 날', date: '2026-09-20', kind: 'COUNT_UP', updatedAt: new Date('2026-10-01T00:00:00Z') }]);
+    anniversaries.listForFeed.mockResolvedValue([{ id: 3, name: '만난 날', date: '2026-09-20', kind: 'COUNT_UP', calendar: 'SOLAR', isLeapMonth: false, updatedAt: new Date('2026-10-01T00:00:00Z') }]);
     feeds.touchFetched.mockResolvedValue(undefined);
     build();
   });

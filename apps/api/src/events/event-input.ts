@@ -5,6 +5,7 @@ import { type EventReminder, remindAt, reminderFits, reminderMismatchMessage } f
 import type { EventPatchDto } from './dto/event.dto.js';
 import type { EventUpdateInput } from './event-write-data.js';
 import { parsePlace, samePlace } from './place.js';
+import { solarToLunar } from '../common/lunar.js';
 import { fitsInPeriod, kstDate, type Repeat } from './recurrence.js';
 
 /** 일정 입력 검증과 정규화 (시각, 반복, 알림, 색, 범위 쿼리). EventsService 에서 옮김 (#496) */
@@ -50,6 +51,11 @@ export function assertRepeatRule(repeat: Repeat | null, repeatUntil: string | nu
   }
   if (!fitsInPeriod(repeat, startsAt, endsAt)) {
     throw new ApiException('EVENT_RANGE_INVALID', '반복 간격보다 긴 일정은 반복할 수 없어요');
+  }
+  // (#562) 매년(음력)은 음력으로 바꿀 수 있는 날짜만 (변환표가 2050년까지)
+  if (repeat === 'YEARLY_LUNAR' && solarToLunar(kstDate(startsAt)) === null) {
+    const message = '매년(음력)은 2050년까지의 날짜에만 쓸 수 있어요';
+    throw new ApiException('VALIDATION_FAILED', message, [{ field: 'repeat', message }]);
   }
   if (repeatUntil !== null && repeatUntil < kstDate(startsAt)) {
     throw new ApiException('EVENT_RANGE_INVALID', '종료 날짜는 시작 날짜 뒤여야 해요');

@@ -60,15 +60,17 @@ describe('멤버 생일 (e2e)', () => {
 
   describe('내 정보 PATCH /me/birthday', () => {
     it('처음엔 없음 + 당일만. 월일 저장, 2월 29일 허용, 지우면 null', async () => {
-      expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.birthday).toEqual({ date: null, reminders: ['DAY_OF'] });
-      expect((await setBirthday(alice, { date: '02-29' }).expect(200)).body.data).toEqual({ date: '02-29', reminders: ['DAY_OF'] });
+      expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.birthday).toEqual({ date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF'] });
+      expect((await setBirthday(alice, { date: '02-29' }).expect(200)).body.data).toEqual({ date: '02-29', calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF'] });
       expect((await setBirthday(alice, { date: '02-29', reminders: ['DAY_BEFORE', 'DAY_OF'] }).expect(200)).body.data).toEqual({
         date: '02-29',
+        calendar: 'SOLAR',
+        isLeapMonth: false,
         reminders: ['DAY_OF', 'DAY_BEFORE'],
       });
-      expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.birthday).toEqual({ date: '02-29', reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect((await api(app).get('/v1/me').set(auth(alice)).expect(200)).body.data.birthday).toEqual({ date: '02-29', calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF', 'DAY_BEFORE'] });
       // 지워도 알림 시점은 남아 다시 넣을 때 이어 쓴다
-      expect((await setBirthday(alice, { date: null }).expect(200)).body.data).toEqual({ date: null, reminders: ['DAY_OF', 'DAY_BEFORE'] });
+      expect((await setBirthday(alice, { date: null }).expect(200)).body.data).toEqual({ date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: ['DAY_OF', 'DAY_BEFORE'] });
     });
 
     it('검증: 형식, 없는 날, 키 없음, 연도 포함, 알림 값은 400', async () => {
@@ -87,7 +89,7 @@ describe('멤버 생일 (e2e)', () => {
       await setBirthday(alice, { date: '03-05' }).expect(200);
       await api(app).patch(`/v1/groups/${teamId}/me`).set(auth(alice)).send({ displayName: '앨리' }).expect(200);
       const seen = await birthdaysOf(bob, teamId);
-      expect(seen).toEqual([{ member: { userId: alice.userId, displayName: '앨리', color: expect.any(String), profileImageUrl: null }, date: '03-05' }]);
+      expect(seen).toEqual([{ member: { userId: alice.userId, displayName: '앨리', color: expect.any(String), profileImageUrl: null }, date: '03-05', calendar: 'SOLAR', isLeapMonth: false }]);
       expect((await birthdaysOf(alice, aliceHomeId)).map((b) => [b.member.displayName, b.date])).toEqual([['앨리스', '03-05']]);
       // 다른 사람 개인 달력, 남의 팀은 403
       await api(app).get(`/v1/groups/${aliceHomeId}/birthdays`).set(auth(bob)).expect(403);
@@ -166,7 +168,7 @@ describe('멤버 생일 (e2e)', () => {
       await setBirthday(alice, { date: '03-05' }).expect(200);
       await setBirthday(bob, { date: '12-24' }).expect(200);
       await api(app).patch(`/v1/groups/${teamId}/me`).set(auth(bob)).send({ showBirthday: false }).expect(200);
-      expect(await app.get(PushPlanningRepository).listGroupAnniversaries(teamId)).toEqual([{ name: '앨리스 생일', date: '2000-03-05', kind: 'YEARLY' }]);
+      expect(await app.get(PushPlanningRepository).listGroupAnniversaries(teamId)).toEqual([{ name: '앨리스 생일', date: '2000-03-05', kind: 'YEARLY', calendar: 'SOLAR', isLeapMonth: false }]);
     });
 
     it('예약 뒤 팀을 나가면 펼칠 때 SKIPPED', async () => {

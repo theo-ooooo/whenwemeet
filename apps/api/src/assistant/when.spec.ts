@@ -282,3 +282,26 @@ describe('기간', () => {
     ).toBeNull();
   });
 });
+
+describe('(#562) 음력 월일 lunarMonthDay', () => {
+  const lunar = (month: number | null, day: number | null) => w({ kind: 'lunarMonthDay', month, day });
+
+  it('"음력 10월 15일" (오늘 음력 10월 8일) = 올해 음력 → 2026-11-23', () => {
+    expect(at(lunar(10, 15), MON)).toBe('2026-11-23');
+  });
+
+  it('"음력 3월 15일 제사" = 이미 지났으면 다음 음력 해 → 2027-04-21 (양력 3월 15일이 아님)', () => {
+    expect(at(lunar(3, 15), MON)).toBe('2027-04-21');
+  });
+
+  it('기간 끝(notBefore) 이후로', () => {
+    expect(at(lunar(10, 15), MON, { notBefore: '2026-12-01' })).toBe('2027-11-12');
+  });
+
+  it('월이나 일이 없거나 범위 밖이면 null', () => {
+    expect(at(lunar(null, 15), MON)).toBeNull();
+    expect(at(lunar(3, null), MON)).toBeNull();
+    expect(at(lunar(13, 1), MON)).toBeNull();
+    expect(at(lunar(3, 31), MON)).toBeNull();
+  });
+});
