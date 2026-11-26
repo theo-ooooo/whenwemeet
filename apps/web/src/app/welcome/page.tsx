@@ -16,7 +16,14 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   // (#413) 로그인 안 한 방문자는 맨 / 에서 이 화면을 본다(proxy rewrite). 검색에는 / 로 올린다
   alternates: { canonical: "/" },
-  openGraph: { type: "website", siteName: "언제볼까", url: "/", title: SITE_TITLE, description: "다들 언제 돼? 이 질문, 이제 언제볼까가 대답해요", images: [SITE_OG_IMAGE] },
+  openGraph: {
+    type: "website",
+    siteName: "언제볼까",
+    url: "/",
+    title: SITE_TITLE,
+    description: "다들 언제 돼? 이 질문, 이제 언제볼까가 대답해요",
+    images: [SITE_OG_IMAGE],
+  },
 };
 
 /** (#413) 검색 결과 구조화 데이터: 웹 앱 하나, 무료, 웹과 iOS, Android */
@@ -66,7 +73,8 @@ function Phone({ src, alt, className = "" }: { src: string; alt: string; classNa
   );
 }
 
-const BADGE = "inline-flex h-14 items-center gap-2 rounded-md px-2.5 text-left no-underline max-[600px]:flex-[1_1_calc(50%-5px)] min-[601px]:gap-2.5 min-[601px]:pl-3 min-[601px]:pr-4";
+const BADGE =
+  "inline-flex h-14 items-center gap-2 rounded-md px-2.5 text-left no-underline max-[600px]:flex-[1_1_calc(50%-5px)] min-[601px]:gap-2.5 min-[601px]:pl-3 min-[601px]:pr-4";
 
 /** 웹으로 시작 + 스토어 두 개. 스토어 버튼은 각 스토어 배지처럼 검은 바탕 */
 function StoreBadges({ align, dark = false }: { align: "start" | "center"; dark?: boolean }) {
@@ -77,7 +85,16 @@ function StoreBadges({ align, dark = false }: { align: "start" | "center"; dark?
   return (
     <div className={`mt-9 flex flex-wrap gap-2.5 ${align === "start" ? "justify-center min-[761px]:justify-start" : "justify-center"}`}>
       <Link href="/login" className={`${BADGE} bg-btn text-on-btn max-[600px]:basis-full max-[600px]:justify-center`}>
-        <svg className="size-6 flex-none min-[601px]:size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          className="size-6 flex-none min-[601px]:size-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="9" />
           <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" />
         </svg>
@@ -146,7 +163,9 @@ export default function WelcomePage() {
 
       <main>
         <section className="pt-10 text-center min-[761px]:pb-24 min-[761px]:pt-12">
-          <div className={`${WRAP} grid grid-cols-1 items-center gap-9 min-[761px]:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] min-[761px]:gap-12 min-[761px]:text-left`}>
+          <div
+            className={`${WRAP} grid grid-cols-1 items-center gap-9 min-[761px]:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] min-[761px]:gap-12 min-[761px]:text-left`}
+          >
             <div>
               <h1 className={`${BIG} text-[clamp(48px,6.4vw,84px)]`}>다들 언제 돼?</h1>
               <p className={SUB}>이 질문, 이제 언제볼까가 대답해요</p>
@@ -158,7 +177,13 @@ export default function WelcomePage() {
 
         <section className="relative h-[460px] overflow-hidden min-[761px]:h-[clamp(380px,52vw,640px)]">
           {/* eslint-disable-next-line @next/next/no-img-element -- public 의 고정 사진 */}
-          <img src="/welcome/friends.webp" alt="바다를 바라보는 친구 세 명의 뒷모습" width={1000} height={1500} className="absolute inset-0 size-full object-cover object-[50%_40%]" />
+          <img
+            src="/welcome/friends.webp"
+            alt="바다를 바라보는 친구 세 명의 뒷모습"
+            width={1000}
+            height={1500}
+            className="absolute inset-0 size-full object-cover object-[50%_40%]"
+          />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_60%)]" />
           <div className={`${WRAP} relative flex h-full items-end py-12`}>
             <p className="text-[clamp(28px,4.4vw,52px)] font-extrabold leading-[1.25] tracking-[-0.04em] text-white">
@@ -245,6 +270,9 @@ export default function WelcomePage() {
               </Link>
               <Link href="/privacy" className="font-bold text-ink no-underline">
                 개인정보처리방침
+              </Link>
+              <Link href="/policy" className="no-underline hover:text-ink">
+                운영정책
               </Link>
             </nav>
           </div>

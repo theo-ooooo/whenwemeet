@@ -60,9 +60,7 @@ describe("buildPushStatusReply", () => {
       platform: "IOS",
       appVersion: "1.1.0",
     });
-    expect(buildPushStatusReply({ ...base, os: "android", permission: "granted", token: null }).platform).toBe(
-      "ANDROID",
-    );
+    expect(buildPushStatusReply({ ...base, os: "android", permission: "granted", token: null }).platform).toBe("ANDROID");
   });
 
   it("허용이 아니면 토큰을 싣지 않는다, 모양이 틀린 토큰도 null", () => {
@@ -93,9 +91,7 @@ describe("buildAppEventScript", () => {
         this.detail = init.detail;
       }
     }
-    expect(new Function("window", "CustomEvent", `return ${script.replace(/true;$/, "0")}`)(win, CustomEvent)).toBe(
-      undefined,
-    );
+    expect(new Function("window", "CustomEvent", `return ${script.replace(/true;$/, "0")}`)(win, CustomEvent)).toBe(undefined);
     expect(events).toEqual([{ type: "wwm:app", detail }]);
     expect(script.endsWith("true;")).toBe(true);
   });

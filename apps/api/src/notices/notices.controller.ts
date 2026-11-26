@@ -1,12 +1,30 @@
-import { Body, Controller, Delete, Get, HttpCode, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../admin/admin-access.js';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser, OptionalUser } from '../auth/current-user.decorator.js';
 import { OptionalAuth } from '../auth/jwt-auth.guard.js';
 import { IdParam } from '../common/id-param.js';
 import { parsePageQuery, parseSearchText } from '../common/page-query.js';
-import { CreateNoticeDto, ReadNoticeDto, UpdateNoticeDto } from './dto/notice.dto.js';
-import { NoticeReadsService, parseReadVia, parseUnreadFlag } from './notice-reads.service.js';
+import {
+  CreateNoticeDto,
+  ReadNoticeDto,
+  UpdateNoticeDto,
+} from './dto/notice.dto.js';
+import {
+  NoticeReadsService,
+  parseReadVia,
+  parseUnreadFlag,
+} from './notice-reads.service.js';
 import { NoticesService } from './notices.service.js';
 
 /** (#515) 공지 읽기 (api.md 2.16). 로그인 없이 열리고(선택 인증), 로그인했으면 unread 를 계산한다 */
@@ -19,8 +37,15 @@ export class NoticesController {
 
   @Get()
   @OptionalAuth()
-  list(@OptionalUser() user: AuthUser | null, @Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
-    return this.notices.listPublished(user?.id ?? null, parsePageQuery({ limit, cursor }));
+  list(
+    @OptionalUser() user: AuthUser | null,
+    @Query('limit') limit?: unknown,
+    @Query('cursor') cursor?: unknown,
+  ) {
+    return this.notices.listPublished(
+      user?.id ?? null,
+      parsePageQuery({ limit, cursor }),
+    );
   }
 
   /** 목록을 본 시각 기록. 멱등이라 200. ':id' 보다 먼저 등록 */
@@ -49,7 +74,11 @@ export class NoticesController {
    */
   @Post(':id/read')
   @HttpCode(200)
-  read(@CurrentUser() user: AuthUser, @IdParam('id') id: number, @Body() dto: ReadNoticeDto) {
+  read(
+    @CurrentUser() user: AuthUser,
+    @IdParam('id') id: number,
+    @Body() dto: ReadNoticeDto,
+  ) {
     return this.reads.markRead(user.id, id, dto.via ?? 'detail');
   }
 
@@ -71,8 +100,13 @@ export class AdminNoticesController {
 
   /** (#544) 줄마다 readCount (읽은 사람 수) */
   @Get()
-  async list(@Query('limit') limit?: unknown, @Query('cursor') cursor?: unknown) {
-    return this.reads.withReadCounts(await this.notices.listAll(parsePageQuery({ limit, cursor })));
+  async list(
+    @Query('limit') limit?: unknown,
+    @Query('cursor') cursor?: unknown,
+  ) {
+    return this.reads.withReadCounts(
+      await this.notices.listAll(parsePageQuery({ limit, cursor })),
+    );
   }
 
   /** (#544) 푸시 결과와 읽은 사람 수 (D-293) */
@@ -91,7 +125,12 @@ export class AdminNoticesController {
     @Query('limit') limit?: unknown,
     @Query('cursor') cursor?: unknown,
   ) {
-    return this.reads.readers(id, { q: parseSearchText(q), via: parseReadVia(via), unread: parseUnreadFlag(unread), ...parsePageQuery({ limit, cursor }) });
+    return this.reads.readers(id, {
+      q: parseSearchText(q),
+      via: parseReadVia(via),
+      unread: parseUnreadFlag(unread),
+      ...parsePageQuery({ limit, cursor }),
+    });
   }
 
   @Get(':id')
@@ -105,7 +144,11 @@ export class AdminNoticesController {
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @IdParam('id') id: number, @Body() dto: UpdateNoticeDto) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @IdParam('id') id: number,
+    @Body() dto: UpdateNoticeDto,
+  ) {
     return this.notices.update(user.id, id, dto);
   }
 

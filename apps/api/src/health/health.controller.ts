@@ -22,7 +22,9 @@ export class HealthController {
       await this.prisma.$queryRaw`SELECT 1`;
     } catch (e) {
       // 응답에는 숨기고 로그에만 원인을 남긴다 (#206 때 로그에 원인이 없어 추적이 늦었다)
-      this.logger.warn(`DB 확인 실패: ${e instanceof Error ? e.message : String(e)}`);
+      this.logger.warn(
+        `DB 확인 실패: ${e instanceof Error ? e.message : String(e)}`,
+      );
       throw new ApiException('DB_UNAVAILABLE');
     }
     return { ok: true };

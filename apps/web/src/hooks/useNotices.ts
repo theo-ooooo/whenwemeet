@@ -18,7 +18,15 @@ export function useMarkNoticesSeen(opts?: MutationOptions) {
 }
 
 /** (#515) 공지 작성, 수정 입력. published 는 게시(true)와 초안(false) */
-export type NoticeInput = { title: string; body: string; kind: Notice["kind"]; pinned: boolean; published: boolean; /** (#538) 앱, 웹을 열 때 한 번 창으로 */ popup?: boolean; /** (#528) 게시와 같이 전체 푸시. 게시할 때만, 한 번만 */ push?: boolean };
+export type NoticeInput = {
+  title: string;
+  body: string;
+  kind: Notice["kind"];
+  pinned: boolean;
+  published: boolean;
+  /** (#538) 앱, 웹을 열 때 한 번 창으로 */ popup?: boolean;
+  /** (#528) 게시와 같이 전체 푸시. 게시할 때만, 한 번만 */ push?: boolean;
+};
 
 /** (#538) 팝업 공지와 새 공지 띠 GET /notices/attention (D-291). 로그인했을 때만 */
 export function useNoticeAttention(opts?: QueryOptions<NoticeAttention>) {
@@ -37,7 +45,8 @@ export function useDismissNotice(opts?: MutationOptions) {
  */
 export function useMarkNoticeRead(opts?: MutationOptions) {
   const fn = useCallback(
-    ({ id, via }: { id: number; via: NoticeReadVia }) => api<{ firstReadAt: string; via: NoticeReadVia; first: boolean }>(`/notices/${id}/read`, { method: "POST", body: { via }, authRedirect: false }),
+    ({ id, via }: { id: number; via: NoticeReadVia }) =>
+      api<{ firstReadAt: string; via: NoticeReadVia; first: boolean }>(`/notices/${id}/read`, { method: "POST", body: { via }, authRedirect: false }),
     [],
   );
   return useMutation<{ id: number; via: NoticeReadVia }, { firstReadAt: string; via: NoticeReadVia; first: boolean }>(fn, opts);

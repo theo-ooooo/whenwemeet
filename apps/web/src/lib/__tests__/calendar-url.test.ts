@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {  dateParam, missingEventTarget, monthParam, parseDayStep, stepDepth, withDayStep, withSelection , parseRouteStep, dayStepUrl } from "../calendar-url";
+import { dateParam, missingEventTarget, monthParam, parseDayStep, stepDepth, withDayStep, withSelection, parseRouteStep, dayStepUrl } from "../calendar-url";
 import { eventHref } from "../routes";
 
 const TODAY = "2026-11-10";
@@ -47,7 +47,9 @@ describe("withDayStep", () => {
     expect(withDayStep("?date=2026-11-12", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
   it("한 단계 더: add. 옛 주소의 event, occurrence 는 뗀다 (#311)", () => {
-    expect(withDayStep("?date=2026-11-12&day=1&event=3&occurrence=2026-11-18", { step: "add", date: "2026-11-12" }, TODAY)).toBe("?date=2026-11-12&day=1&add=1");
+    expect(withDayStep("?date=2026-11-12&day=1&event=3&occurrence=2026-11-18", { step: "add", date: "2026-11-12" }, TODAY)).toBe(
+      "?date=2026-11-12&day=1&add=1",
+    );
     expect(withDayStep("?day=1&add=1", { step: "day", date: TODAY }, TODAY)).toBe("?day=1");
   });
   it("닫기: day, add 만 떼고 date, month 는 둔다", () => {
@@ -62,7 +64,13 @@ describe("withDayStep", () => {
 describe("parseRouteStep, dayStepUrl — 일정 상세는 경로 /events/<코드> (#311)", () => {
   const dateOf = (code: string, occurrence: string | null) => (code === "evntcode" ? (occurrence ?? "2026-11-20") : null);
   it("/events/<코드> 는 일정 단계. 날짜는 호출자가 알려 주고 모르면 오늘", () => {
-    expect(parseRouteStep("/events/evntcode", p(""), TODAY, dateOf)).toEqual({ open: true, date: "2026-11-20", step: "event", code: "evntcode", occurrence: null });
+    expect(parseRouteStep("/events/evntcode", p(""), TODAY, dateOf)).toEqual({
+      open: true,
+      date: "2026-11-20",
+      step: "event",
+      code: "evntcode",
+      occurrence: null,
+    });
     expect(parseRouteStep("/events/evntcode", p("occurrence=2026-11-18"), TODAY, dateOf)).toEqual({
       open: true,
       date: "2026-11-18",
@@ -81,7 +89,9 @@ describe("parseRouteStep, dayStepUrl — 일정 상세는 경로 /events/<코드
   });
   it("dayStepUrl: 일정 단계는 /events/<코드>[?occurrence=], 그 밖은 /calendar + 달력 쿼리", () => {
     expect(dayStepUrl("?date=2026-11-12&day=1", { step: "event", date: "2026-11-12", code: "evntcode", occurrence: null }, TODAY)).toBe("/events/evntcode");
-    expect(dayStepUrl("", { step: "event", date: "2026-11-18", code: "evntcode", occurrence: "2026-11-18" }, TODAY)).toBe("/events/evntcode?occurrence=2026-11-18");
+    expect(dayStepUrl("", { step: "event", date: "2026-11-18", code: "evntcode", occurrence: "2026-11-18" }, TODAY)).toBe(
+      "/events/evntcode?occurrence=2026-11-18",
+    );
     expect(dayStepUrl("?month=2026-12", { step: "day", date: "2026-11-12" }, TODAY)).toBe("/calendar?month=2026-12&date=2026-11-12&day=1");
     expect(dayStepUrl("?date=2026-11-12&day=1", { step: "closed" }, TODAY)).toBe("/calendar?date=2026-11-12");
     expect(dayStepUrl("", { step: "closed" }, TODAY)).toBe("/calendar");

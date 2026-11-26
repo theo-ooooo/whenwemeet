@@ -46,7 +46,12 @@ export function parseDayStep(params: Params, today: DateKey): DayStep {
  * 경로까지 보는 날짜 상세 상태. `/events/<코드>` 면 일정 상세 단계 (회차는 `?occurrence=`).
  * 그 일정의 날짜(시트 뒤에 보일 날)는 호출자가 안다: 연 순간 기억한 값, 서버가 넘긴 값, 받아 둔 일정 목록 순. 모르면 오늘
  */
-export function parseRouteStep(pathname: string, params: Params, today: DateKey, dateOf: (code: string, occurrence: DateKey | null) => DateKey | null): DayStep {
+export function parseRouteStep(
+  pathname: string,
+  params: Params,
+  today: DateKey,
+  dateOf: (code: string, occurrence: DateKey | null) => DateKey | null,
+): DayStep {
   const info = routeInfo(pathname);
   if (info.eventDetail && info.eventCode) {
     const occurrence = dateParam(params.get("occurrence"));

@@ -13,11 +13,7 @@ export function ceilToStep(ms: number, stepMinutes: number = SLOT_STEP_MINUTES):
 }
 
 /** 지금(30분 올림) 이후로 자르고, 잘린 뒤 minMinutes 보다 짧아진 구간은 뺀다 */
-export function upcomingSlots(
-  slots: FreeSlots["slots"] | undefined,
-  minMinutes: number,
-  now: number = Date.now(),
-): FreeSlots["slots"] {
+export function upcomingSlots(slots: FreeSlots["slots"] | undefined, minMinutes: number, now: number = Date.now()): FreeSlots["slots"] {
   const from = ceilToStep(now);
   return (slots ?? [])
     .map((s) => (Date.parse(s.startsAt) >= from ? s : { startsAt: new Date(from).toISOString(), endsAt: s.endsAt }))

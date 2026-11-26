@@ -15,9 +15,7 @@ describe("base64url", () => {
 
 describe("verifier / challenge", () => {
   it("RFC 7636 부록 B 예시", async () => {
-    expect(await codeChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", sha256)).toBe(
-      "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-    );
+    expect(await codeChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", sha256)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
   });
   it("verifier 는 32바이트 → 43자 base64url, 매번 다르다", () => {
     const a = createVerifier(rnd);

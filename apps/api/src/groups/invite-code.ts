@@ -3,7 +3,9 @@ import { randomInt } from 'node:crypto';
 /** 혼동 문자(0 O 1 I) 를 뺀 알파벳 (api.md 2.2) */
 export const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const INVITE_CODE_LENGTH = 6;
-export const INVITE_CODE_PATTERN = new RegExp(`^[${INVITE_ALPHABET}]{${INVITE_CODE_LENGTH}}$`);
+export const INVITE_CODE_PATTERN = new RegExp(
+  `^[${INVITE_ALPHABET}]{${INVITE_CODE_LENGTH}}$`,
+);
 
 export function generateInviteCode(): string {
   let code = '';
@@ -20,5 +22,9 @@ export function normalizeInviteCode(input: string): string {
 
 /** Prisma 고유 제약 위반 (초대 코드 충돌, 멤버십 중복) */
 export function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002';
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
 }

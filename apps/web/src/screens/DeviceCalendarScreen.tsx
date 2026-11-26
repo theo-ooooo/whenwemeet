@@ -113,7 +113,11 @@ export function DeviceCalendarScreen() {
 
   let body: React.ReactNode;
   if (!supported) {
-    body = <p className="rounded-xl bg-paper px-3.5 py-3 text-[14px] leading-5 text-soft">휴대폰 캘린더는 언제볼까 앱 1.3.0 이상에서 쓸 수 있어요. 앱을 업데이트해 주세요</p>;
+    body = (
+      <p className="rounded-xl bg-paper px-3.5 py-3 text-[14px] leading-5 text-soft">
+        휴대폰 캘린더는 언제볼까 앱 1.3.0 이상에서 쓸 수 있어요. 앱을 업데이트해 주세요
+      </p>
+    );
   } else if (failure && !me) {
     body = <ErrorState message={messageOf(failure, "내 정보를 불러오지 못했어요")} onRetry={meQ.refetch} />;
   } else {

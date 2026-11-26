@@ -77,7 +77,15 @@ export function EmailLoginScreen({ next, entryError }: { next: string; entryErro
         <form onSubmit={send} noValidate className="mt-8 flex flex-1 flex-col">
           <h1 className="text-[24px] font-bold leading-8 tracking-[-0.03em]">이메일로 계속하기</h1>
           <p className="mt-2 text-[15px] leading-[22px] text-soft">로그인 링크와 6자리 코드를 보내 드려요. 처음이면 바로 가입돼요.</p>
-          <EmailField value={email} onChange={(v) => { setEmail(v); setRequestError(null); }} error={requestError} disabled={request.isPending} />
+          <EmailField
+            value={email}
+            onChange={(v) => {
+              setEmail(v);
+              setRequestError(null);
+            }}
+            error={requestError}
+            disabled={request.isPending}
+          />
           <div className="mt-6">
             <Button type="submit" variant="primary" size="xl" full disabled={!isEmailShape(email)} loading={request.isPending}>
               메일 받기
@@ -201,8 +209,7 @@ function SentStep({
     <div className="mt-8 flex flex-1 flex-col">
       <h1 className="text-[24px] font-bold leading-8 tracking-[-0.03em]">메일을 보냈어요</h1>
       <p className="mt-2 break-keep text-[15px] leading-[22px] text-soft">
-        <b className="break-all font-semibold text-ink">{email}</b> 으로 보낸 메일의 [언제볼까 시작하기]를 누르거나, 코드
-        6자리를 입력하세요.
+        <b className="break-all font-semibold text-ink">{email}</b> 으로 보낸 메일의 [언제볼까 시작하기]를 누르거나, 코드 6자리를 입력하세요.
       </p>
 
       <div className="mt-6 rounded-xl bg-paper px-3.5 py-3.5">

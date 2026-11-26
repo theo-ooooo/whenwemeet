@@ -75,9 +75,7 @@ export function groupsRoute(req: AuthedReq): MockResult | null {
         return err(400, "VALIDATION_FAILED", "팀 이름은 1~30자로 입력해 주세요");
       }
       const id = nextId();
-      const code = Array.from({ length: 6 }, () =>
-        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
-      ).join("");
+      const code = Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
       s.groups.push({ id, type: "TEAM", name, inviteCode: code, createdAt: nowIso() });
       s.memberships.push({
         userId,
@@ -137,9 +135,7 @@ export function inviteCodeRoute(req: GroupReq): MockResult | null {
     if (grp.type === "PERSONAL") {
       return err(400, "GROUP_NOT_INVITABLE", "개인 달력에는 초대 코드를 만들 수 없어요");
     }
-    const code = Array.from({ length: 6 }, () =>
-      "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)],
-    ).join("");
+    const code = Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
     grp.inviteCode = code;
     return ok({ inviteCode: code, inviteUrl: inviteUrlOf(code), inviteShareUrl: `${inviteUrlOf(code)}?by=${inviteMarkerOf(grp.id, userId)}` });
   }

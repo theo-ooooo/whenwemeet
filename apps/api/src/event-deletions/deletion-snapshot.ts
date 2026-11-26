@@ -7,7 +7,8 @@ import type { ChangeRevert } from '../push/push-notifications.repository.js';
 
 /** 보관 기간. 지나면 되돌릴 수 없고 하루 청소가 지운다 */
 export const DELETION_RETENTION_DAYS = 7;
-export const DELETION_RETENTION_MS = DELETION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+export const DELETION_RETENTION_MS =
+  DELETION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 /** 테이블 한 행 (열 이름 → 값) */
 export type Row = Record<string, unknown>;
@@ -42,7 +43,17 @@ export interface DeletionSnapshot {
 }
 
 export function emptySnapshot(): DeletionSnapshot {
-  return { v: 1, event: null, exceptions: [], participants: [], rsvps: [], reactions: [], shares: [], links: { eventLogIds: [], importItems: [], pollId: null }, push: null };
+  return {
+    v: 1,
+    event: null,
+    exceptions: [],
+    participants: [],
+    rsvps: [],
+    reactions: [],
+    shares: [],
+    links: { eventLogIds: [], importItems: [], pollId: null },
+    push: null,
+  };
 }
 
 const DATE_KEY = '$date';
@@ -52,7 +63,9 @@ export function encodeSnapshot(value: unknown): unknown {
   if (value instanceof Date) return { [DATE_KEY]: value.toISOString() };
   if (Array.isArray(value)) return value.map(encodeSnapshot);
   if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, encodeSnapshot(inner)]));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) => [key, encodeSnapshot(inner)]),
+    );
   }
   return value;
 }
@@ -66,8 +79,15 @@ function revive(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(revive);
   if (value !== null && typeof value === 'object') {
     const entries = Object.entries(value);
-    if (entries.length === 1 && entries[0][0] === DATE_KEY && typeof entries[0][1] === 'string') return new Date(entries[0][1]);
-    return Object.fromEntries(entries.map(([key, inner]) => [key, revive(inner)]));
+    if (
+      entries.length === 1 &&
+      entries[0][0] === DATE_KEY &&
+      typeof entries[0][1] === 'string'
+    )
+      return new Date(entries[0][1]);
+    return Object.fromEntries(
+      entries.map(([key, inner]) => [key, revive(inner)]),
+    );
   }
   return value;
 }
@@ -81,7 +101,10 @@ export function deletionExpired(createdAt: Date, now: Date): boolean {
  * 되돌릴 때 지금 멤버만 남긴다 (나간 사람의 참여자, 응답, 반응은 나가기 규칙대로 없어야 한다).
  * userId 열이 있는 행에 쓴다
  */
-export function keepMembers<T extends Row>(rows: T[], memberIds: ReadonlySet<number>): T[] {
+export function keepMembers<T extends Row>(
+  rows: T[],
+  memberIds: ReadonlySet<number>,
+): T[] {
   return rows.filter((row) => memberIds.has(row.userId as number));
 }
 
@@ -89,10 +112,19 @@ export function keepMembers<T extends Row>(rows: T[], memberIds: ReadonlySet<num
  * 공유 링크: 만든 사람이 지금 멤버가 아니면 끊긴 링크로 되살린다 (나가기는 그 사람 링크를 끊는다).
  * 만든 사람 계정이 없어졌으면 createdById 를 비운다 (FK)
  */
-export function reviveShares(rows: Row[], memberIds: ReadonlySet<number>, existingUserIds: ReadonlySet<number>, now: Date): Row[] {
+export function reviveShares(
+  rows: Row[],
+  memberIds: ReadonlySet<number>,
+  existingUserIds: ReadonlySet<number>,
+  now: Date,
+): Row[] {
   return rows.map((row) => {
     const creator = row.createdById as number | null;
     if (creator === null || memberIds.has(creator)) return row;
-    return { ...row, createdById: existingUserIds.has(creator) ? creator : null, revokedAt: row.revokedAt ?? now };
+    return {
+      ...row,
+      createdById: existingUserIds.has(creator) ? creator : null,
+      revokedAt: row.revokedAt ?? now,
+    };
   });
 }

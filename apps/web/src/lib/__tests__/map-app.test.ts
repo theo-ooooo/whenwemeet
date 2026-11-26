@@ -12,7 +12,14 @@ describe("길찾기 지도 선택", () => {
     expect(readMapApp(null)).toBe("naver");
     expect(readMapApp(memoryStore())).toBe("naver");
     expect(readMapApp(memoryStore({ [MAP_APP_KEY]: "google" }))).toBe("naver");
-    const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    const broken = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    };
     expect(readMapApp(broken)).toBe("naver");
     expect(() => writeMapApp(broken, "kakao")).not.toThrow();
   });

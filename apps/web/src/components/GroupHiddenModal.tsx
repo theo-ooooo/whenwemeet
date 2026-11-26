@@ -59,14 +59,22 @@ export function GroupHiddenModal({ team, reason, onOpenOther }: { team: GroupSum
               <CloseButton onClick={onOpenOther} />
             </div>
             <div className="flex flex-col items-center break-keep text-center">
-              <span aria-hidden="true" className="grid size-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger">
+              <span
+                aria-hidden="true"
+                className="grid size-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger"
+              >
                 <IconShield size={30} />
               </span>
               <p className="mt-4 text-[14px] font-bold text-danger">{team.name}</p>
               <h2 id={titleId} className="mt-1 text-[24px] font-bold leading-8 tracking-[-0.03em]">
                 {GROUP_HIDDEN_TITLE}
               </h2>
-              <p className="mt-2 text-balance text-[15px] leading-6 text-soft">운영 정책 위반이 확인돼 이 팀의 달력과 일정을 지금은 볼 수 없어요.</p>
+              <p className="mt-2 text-balance text-[15px] leading-6 text-soft">
+                <Link href="/policy" className="underline underline-offset-2">
+                  운영정책
+                </Link>{" "}
+                위반이 확인돼 이 팀의 달력과 일정을 지금은 볼 수 없어요.
+              </p>
             </div>
             {reason && (
               <div className="mt-6 rounded-lg bg-surface px-5 py-4">

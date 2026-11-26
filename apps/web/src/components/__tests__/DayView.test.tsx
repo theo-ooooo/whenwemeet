@@ -9,7 +9,13 @@ import type { Anniversary, Event, Member } from "@/lib/types";
 import type { Occurrence } from "@/lib/anniversary";
 
 vi.mock("@/hooks", () => ({ usePlaceResolve: () => ({ data: null, error: null }) }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 let groupType = "TEAM";
 vi.mock("../AppShell", () => ({ useGroupContext: () => ({ group: { type: groupType, me: { userId: 1 } } }) }));
 
@@ -42,7 +48,11 @@ const ev = (id: number, title: string, a: string, b: string, over: Partial<Event
   }) as Event;
 
 function view(over: Partial<React.ComponentProps<typeof DayView>> = {}) {
-  const events = [ev(1, "스터디", "08:00", "09:00"), ev(2, "치과", "11:00", "12:00", { participants: { all: false, members: [two[0]] } }), ev(3, "헬스", "18:00", "19:00")];
+  const events = [
+    ev(1, "스터디", "08:00", "09:00"),
+    ev(2, "치과", "11:00", "12:00", { participants: { all: false, members: [two[0]] } }),
+    ev(3, "헬스", "18:00", "19:00"),
+  ];
   const props = {
     date: D,
     today: D,

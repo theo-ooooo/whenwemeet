@@ -1,15 +1,12 @@
 import { AuthApiError, requestHandoff } from "../api";
 
 const H = "h".repeat(43);
-const res = (status: number, body: unknown) =>
-  ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response;
+const res = (status: number, body: unknown) => ({ ok: status >= 200 && status < 300, status, json: async () => body }) as unknown as Response;
 
 describe("requestHandoff", () => {
   it("POST JSON 후 data.handoff 를 돌려준다", async () => {
     const f = jest.fn(async () => res(200, { status: 200, data: { handoff: H, expiresIn: 60 }, message: "OK" }));
-    await expect(
-      requestHandoff("https://api.whenwemeet.day/", "/v1/auth/kakao/native", { accessToken: "t", codeChallenge: "c" }, f),
-    ).resolves.toBe(H);
+    await expect(requestHandoff("https://api.whenwemeet.day/", "/v1/auth/kakao/native", { accessToken: "t", codeChallenge: "c" }, f)).resolves.toBe(H);
     expect(f).toHaveBeenCalledWith("https://api.whenwemeet.day/v1/auth/kakao/native", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -18,8 +15,7 @@ describe("requestHandoff", () => {
   });
 
   it("오류 봉투의 code 와 message 를 그대로", async () => {
-    const f = async () =>
-      res(401, { status: 401, data: null, message: "다시 로그인해 주세요", error: { code: "SOCIAL_TOKEN_INVALID" } });
+    const f = async () => res(401, { status: 401, data: null, message: "다시 로그인해 주세요", error: { code: "SOCIAL_TOKEN_INVALID" } });
     await expect(requestHandoff("https://a", "/v1/auth/kakao/native", {}, f)).rejects.toMatchObject({
       code: "SOCIAL_TOKEN_INVALID",
       message: "다시 로그인해 주세요",

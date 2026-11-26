@@ -6,6 +6,11 @@ import type { BusyParticipants } from '../events/event-busy.repository.js';
  * - 골라 담기면 참여자 중 요청 팀 멤버가 있을 때만
  * - 참여자 없음(allMembers false, 행 0) 이면 아무도 바쁘지 않다
  */
-export function isBusyForAny(event: BusyParticipants, memberIds: ReadonlySet<number>): boolean {
-  return event.allMembers || event.participantIds.some((id) => memberIds.has(id));
+export function isBusyForAny(
+  event: BusyParticipants,
+  memberIds: ReadonlySet<number>,
+): boolean {
+  return (
+    event.allMembers || event.participantIds.some((id) => memberIds.has(id))
+  );
 }

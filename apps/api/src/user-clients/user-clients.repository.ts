@@ -11,7 +11,13 @@ export class UserClientsRepository {
   async touch(userId: number, client: ClientInfo, at: Date): Promise<void> {
     await this.prisma.userClient.upsert({
       where: { userId_platform: { userId, platform: client.platform } },
-      create: { userId, platform: client.platform, appVersion: client.appVersion, firstSeenAt: at, lastSeenAt: at },
+      create: {
+        userId,
+        platform: client.platform,
+        appVersion: client.appVersion,
+        firstSeenAt: at,
+        lastSeenAt: at,
+      },
       update: { appVersion: client.appVersion, lastSeenAt: at },
       select: { id: true },
     });

@@ -50,13 +50,7 @@ function NotificationsSection({ notifications }: { notifications: AdminUserNotif
 
 export function AdminUserScreen({ id }: { id: number }) {
   const q = useAdminUser(id);
-  if (q.error && !q.data)
-    return (
-      <ErrorState
-        message={messageOf(q.error, "사용자를 불러오지 못했어요")}
-        onRetry={q.refetch}
-      />
-    );
+  if (q.error && !q.data) return <ErrorState message={messageOf(q.error, "사용자를 불러오지 못했어요")} onRetry={q.refetch} />;
   if (!q.data) return <Skeleton className="h-[240px] w-full rounded-xl" />;
   const { user, teams, notifications } = q.data;
   return (
@@ -78,11 +72,7 @@ export function AdminUserScreen({ id }: { id: number }) {
         <section className="rounded-xl bg-paper px-4 py-3">
           <dl className="divide-y divide-line">
             <InfoRow label="역할">
-              {user.role === "admin" ? (
-                <StatusBadge tone="warn">관리자</StatusBadge>
-              ) : (
-                <StatusBadge tone="off">사용자</StatusBadge>
-              )}
+              {user.role === "admin" ? <StatusBadge tone="warn">관리자</StatusBadge> : <StatusBadge tone="off">사용자</StatusBadge>}
             </InfoRow>
             <InfoRow label="가입">{adminDateTime(user.createdAt)}</InfoRow>
             <InfoRow label="로그인">{providerText(user.providers)}</InfoRow>
@@ -101,20 +91,13 @@ export function AdminUserScreen({ id }: { id: number }) {
           </dl>
         </section>
         <div>
-          <h2 className="mb-2 mt-4 px-1 text-[13px] font-bold text-ink-2 lg:mt-0">
-            속한 팀 {teams.length}개
-          </h2>
+          <h2 className="mb-2 mt-4 px-1 text-[13px] font-bold text-ink-2 lg:mt-0">속한 팀 {teams.length}개</h2>
           <ul className="divide-y divide-line rounded-xl bg-paper px-4">
             {teams.map((g) => (
               <li key={g.id}>
-                <Link
-                  href={`/admin/teams/${g.id}`}
-                  className="flex min-h-12 items-center gap-2 py-2.5 hover:brightness-95"
-                >
+                <Link href={`/admin/teams/${g.id}`} className="flex min-h-12 items-center gap-2 py-2.5 hover:brightness-95">
                   {/* (#528) 개인 달력은 "개인 달력" (이 사람의 것이라 주인 이름은 빼고) */}
-                  <b className="min-w-0 truncate text-[14px] font-semibold">
-                    {g.type === "PERSONAL" ? "개인 달력" : g.name}
-                  </b>
+                  <b className="min-w-0 truncate text-[14px] font-semibold">{g.type === "PERSONAL" ? "개인 달력" : g.name}</b>
                   {g.type === "TEAM" && <StatusBadge tone="off">팀</StatusBadge>}
                   {g.hidden && <StatusBadge tone="warn">숨김</StatusBadge>}
                   <span className="t-sub ml-auto shrink-0">

@@ -30,7 +30,14 @@ describe("저장 (localStorage wwm_sidebar)", () => {
     expect(parseSidebarPref("expanded")).toBe("expanded");
   });
   it("막힌 저장소(예외)와 없는 저장소는 조용히 넘어간다", () => {
-    const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    const broken = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    };
     expect(readSidebarPref(broken)).toBeNull();
     expect(() => writeSidebarPref(broken, "collapsed")).not.toThrow();
     expect(readSidebarPref(null)).toBeNull();

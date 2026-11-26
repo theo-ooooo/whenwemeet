@@ -10,11 +10,9 @@ export const revalidate = 86400;
 export async function GET() {
   const fonts = await ogFonts();
   return new ImageResponse(
-    (
-      <OgFrame now={new Date()}>
-        <OgCopy lines={[{ text: "다들 언제 돼?" }]} titleSize={96} lead="이 질문, 이제 언제볼까가 대답해요" chip="달력 같이 쓰기" />
-      </OgFrame>
-    ),
+    <OgFrame now={new Date()}>
+      <OgCopy lines={[{ text: "다들 언제 돼?" }]} titleSize={96} lead="이 질문, 이제 언제볼까가 대답해요" chip="달력 같이 쓰기" />
+    </OgFrame>,
     { ...OG_SIZE, fonts },
   );
 }

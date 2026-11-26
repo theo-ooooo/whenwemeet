@@ -82,9 +82,7 @@ export function WebScreen({ url, navKey, onLoginRequested }: Props) {
         <ScrollView
           contentContainerStyle={styles.root}
           nestedScrollEnabled
-          refreshControl={
-            <RefreshControl enabled={pull.enabled} refreshing={pull.refreshing} onRefresh={pull.onRefresh} />
-          }
+          refreshControl={<RefreshControl enabled={pull.enabled} refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         >
           {webview}
         </ScrollView>

@@ -25,11 +25,9 @@ export function ServiceWorkerRegister() {
     if (action === "unregister") {
       unregisterAll().catch(() => {});
     } else if (action === "register") {
-      navigator.serviceWorker
-        .register(serviceWorkerUrl(process.env.NEXT_PUBLIC_SW_VERSION), { scope: "/", updateViaCache: "none" })
-        .catch(() => {
-          // 등록 실패는 화면 동작에 영향이 없다 (오프라인 안내만 빠진다)
-        });
+      navigator.serviceWorker.register(serviceWorkerUrl(process.env.NEXT_PUBLIC_SW_VERSION), { scope: "/", updateViaCache: "none" }).catch(() => {
+        // 등록 실패는 화면 동작에 영향이 없다 (오프라인 안내만 빠진다)
+      });
     }
   }, []);
   return null;

@@ -1,4 +1,9 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { Observable, map } from 'rxjs';
 
@@ -16,8 +21,17 @@ export interface SuccessBody<T = unknown> {
  */
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<SuccessBody> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<SuccessBody> {
     const res = context.switchToHttp().getResponse<Response>();
-    return next.handle().pipe(map((data: unknown) => ({ status: res.statusCode, data, message: 'OK' as const })));
+    return next.handle().pipe(
+      map((data: unknown) => ({
+        status: res.statusCode,
+        data,
+        message: 'OK' as const,
+      })),
+    );
   }
 }

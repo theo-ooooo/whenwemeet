@@ -10,7 +10,11 @@ export class FreeSlotsController {
   constructor(private readonly freeSlots: FreeSlotsService) {}
 
   @Get()
-  find(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Query() query: FreeSlotsQueryDto) {
+  find(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Query() query: FreeSlotsQueryDto,
+  ) {
     return this.freeSlots.find(user.id, groupId, query);
   }
 }

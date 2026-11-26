@@ -82,10 +82,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   }
 
   const plugins: ExpoConfig["plugins"] = [
-    [
-      "expo-build-properties",
-      { android: { extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"] } },
-    ],
+    ["expo-build-properties", { android: { extraMavenRepos: ["https://devrepo.kakao.com/nexus/content/groups/public/"] } }],
     "expo-apple-authentication",
     "expo-web-browser",
     [

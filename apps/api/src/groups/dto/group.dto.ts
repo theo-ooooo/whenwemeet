@@ -1,4 +1,12 @@
-import { Allow, IsBoolean, IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
+import {
+  Allow,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  ValidateIf,
+} from 'class-validator';
 import { Trim } from '../../common/validation.js';
 
 export class CreateGroupDto {

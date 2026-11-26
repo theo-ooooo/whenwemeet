@@ -63,7 +63,10 @@ export function useCreateTodoItem(groupId: number, opts?: MutationOptions) {
 export function useUpdateTodoItem(groupId: number, opts?: MutationOptions) {
   const fn = useCallback(
     ({ itemId, text, done }: { itemId: number; text?: string; done?: boolean }) =>
-      api<TodoItem>(`/groups/${groupId}/todo-items/${itemId}`, { method: "PATCH", body: { ...(text !== undefined ? { text } : {}), ...(done !== undefined ? { done } : {}) } }),
+      api<TodoItem>(`/groups/${groupId}/todo-items/${itemId}`, {
+        method: "PATCH",
+        body: { ...(text !== undefined ? { text } : {}), ...(done !== undefined ? { done } : {}) },
+      }),
     [groupId],
   );
   return useMutation(fn, opts);

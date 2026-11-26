@@ -364,5 +364,11 @@ export function IconShield(p: IconProps) {
  * 부모는 relative. 읽기 이름은 부모 링크의 aria-label 에 넣는다
  */
 export function AvatarDot() {
-  return <span aria-hidden="true" data-notice-dot className="pointer-events-none absolute right-0.5 top-0.5 block size-2.5 rounded-full bg-pri ring-2 ring-[var(--bg)]" />;
+  return (
+    <span
+      aria-hidden="true"
+      data-notice-dot
+      className="pointer-events-none absolute right-0.5 top-0.5 block size-2.5 rounded-full bg-pri ring-2 ring-[var(--bg)]"
+    />
+  );
 }

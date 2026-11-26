@@ -43,7 +43,14 @@ export function noticePublicRoute(req: Req): MockResult | null {
     const rows = notices
       .filter((n) => n.publishedAt !== null)
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.publishedAt!.localeCompare(a.publishedAt!) || b.id - a.id)
-      .map((n) => ({ id: n.id, title: n.title, kind: n.kind, pinned: n.pinned, publishedAt: n.publishedAt!, unread: Boolean(me) && (seen === null || n.publishedAt! > seen) }));
+      .map((n) => ({
+        id: n.id,
+        title: n.title,
+        kind: n.kind,
+        pinned: n.pinned,
+        publishedAt: n.publishedAt!,
+        unread: Boolean(me) && (seen === null || n.publishedAt! > seen),
+      }));
     const p = page(rows, query);
     return isPage(p) ? ok(p) : p;
   }
@@ -56,7 +63,7 @@ export function noticePublicRoute(req: Req): MockResult | null {
   return null;
 }
 
-function readNoticeInput(body: Record<string, unknown> | null, partial: boolean): MockResult | Partial<NoticeRow> & { published?: boolean; push?: boolean } {
+function readNoticeInput(body: Record<string, unknown> | null, partial: boolean): MockResult | (Partial<NoticeRow> & { published?: boolean; push?: boolean }) {
   const out: Partial<NoticeRow> & { published?: boolean; push?: boolean } = {};
   if (!partial || body?.title !== undefined) {
     const title = typeof body?.title === "string" ? body.title.trim() : "";
@@ -107,7 +114,17 @@ export function adminUserOut(s: Store, u: Store["users"][number]) {
   const lastAppLoginAt = u.lastAppLoginAt ?? null;
   const platforms: ("ios" | "android" | "web")[] = platformLastSeen.map((p) => p.platform);
   if (platforms.length === 0 && lastAppLoginAt === null) platforms.push("web");
-  return { id: u.id, nickname: u.nickname, role: u.role ?? "user", profileImageUrl: u.profileImageUrl, createdAt: u.createdAt, providers: u.providers ?? ["KAKAO"], platforms, platformLastSeen, lastAppLoginAt };
+  return {
+    id: u.id,
+    nickname: u.nickname,
+    role: u.role ?? "user",
+    profileImageUrl: u.profileImageUrl,
+    createdAt: u.createdAt,
+    providers: u.providers ?? ["KAKAO"],
+    platforms,
+    platformLastSeen,
+    lastAppLoginAt,
+  };
 }
 
 /** 로그인 뒤: POST /notices/seen, /admin/* (관리자만) */
@@ -239,7 +256,15 @@ export function noticeAuthedRoute(req: AuthedReq): MockResult | null {
       .sort((a, b) => b.id - a.id)
       .map((l) => {
         const admin = s.users.find((u) => u.id === l.adminId);
-        return { id: l.id, action: l.action, targetType: l.targetType, targetId: l.targetId, reason: l.reason, createdAt: l.createdAt, admin: admin ? { id: admin.id, nickname: admin.nickname } : null };
+        return {
+          id: l.id,
+          action: l.action,
+          targetType: l.targetType,
+          targetId: l.targetId,
+          reason: l.reason,
+          createdAt: l.createdAt,
+          admin: admin ? { id: admin.id, nickname: admin.nickname } : null,
+        };
       });
     const p = page(rows, query);
     return isPage(p) ? ok(p) : p;
@@ -269,9 +294,7 @@ function preview(body: string): string {
 export function noticeAttention(s: Store, userId: number) {
   const seen = s.users.find((u) => u.id === userId)?.noticesSeenAt ?? null;
   const dismissed = new Set((s.noticeDismissals ?? []).filter((d) => d.userId === userId).map((d) => d.noticeId));
-  const published = (s.notices ?? [])
-    .filter((n) => n.publishedAt !== null)
-    .sort((a, b) => b.publishedAt!.localeCompare(a.publishedAt!) || b.id - a.id);
+  const published = (s.notices ?? []).filter((n) => n.publishedAt !== null).sort((a, b) => b.publishedAt!.localeCompare(a.publishedAt!) || b.id - a.id);
   const brief = (n: NoticeRow) => ({ id: n.id, title: n.title, kind: n.kind, publishedAt: n.publishedAt! });
   const popup = published.find((n) => n.popup && !dismissed.has(n.id));
   const banner = published.find((n) => seen === null || n.publishedAt! > seen);
@@ -323,7 +346,9 @@ export function noticeStats(s: Store, n: NoticeRow) {
         pending: deliveries.filter((d) => d.status === "QUEUED" || d.status === "SENDING" || (d.status === "SENT" && d.receipt === null)).length,
       }
     : null;
-  const basis = push ? { of: "push" as const, read: reads.filter((r) => targets.has(r.userId)).length, total: targets.size } : { of: "users" as const, read: reads.length, total: s.users.length };
+  const basis = push
+    ? { of: "push" as const, read: reads.filter((r) => targets.has(r.userId)).length, total: targets.size }
+    : { of: "users" as const, read: reads.length, total: s.users.length };
   return {
     noticeId: n.id,
     publishedAt: n.publishedAt,
@@ -339,7 +364,8 @@ export function noticeStats(s: Store, n: NoticeRow) {
 function noticeReaders(s: Store, n: NoticeRow, query: URLSearchParams): MockResult {
   const q = (query.get("q") ?? "").trim();
   const via = query.get("via");
-  if (via && !READ_VIAS.includes(via as NoticeReadRow["via"])) return err(400, "VALIDATION_FAILED", "via 는 list, detail, push, popup, banner 중 하나여야 해요");
+  if (via && !READ_VIAS.includes(via as NoticeReadRow["via"]))
+    return err(400, "VALIDATION_FAILED", "via 는 list, detail, push, popup, banner 중 하나여야 해요");
   const userOf = (id: number) => s.users.find((u) => u.id === id);
   const person = (id: number) => {
     const u = userOf(id)!;

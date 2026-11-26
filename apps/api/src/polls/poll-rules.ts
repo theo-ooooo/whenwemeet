@@ -2,7 +2,10 @@
 import { ApiException } from '../common/errors.js';
 import type { Member, MemberResolver } from '../common/member.js';
 import { KST_OFFSET_MS } from '../events/recurrence.js';
-import { type ParticipantsView, toParticipantsView } from '../events/participants.js';
+import {
+  type ParticipantsView,
+  toParticipantsView,
+} from '../events/participants.js';
 
 /** 후보 수 (Q7) */
 export const MIN_POLL_OPTIONS = 2;
@@ -22,7 +25,8 @@ export interface OptionInput {
   allDay: boolean;
 }
 
-export const validationFailed = (field: string, message: string) => new ApiException('VALIDATION_FAILED', message, [{ field, message }]);
+export const validationFailed = (field: string, message: string) =>
+  new ApiException('VALIDATION_FAILED', message, [{ field, message }]);
 
 /** KST 00:00 인가 */
 export function isKstMidnight(instant: Date): boolean {
@@ -33,41 +37,76 @@ export function isKstMidnight(instant: Date): boolean {
  * 후보 검사와 정렬 (시작 순). 2~5개, 끝 > 시작, 30일 이하, 지금 이후 시작, 같은 구간 중복 없음,
  * 종일 후보는 KST 00:00 경계. 어기면 VALIDATION_FAILED (field options)
  */
-export function checkOptions(options: readonly OptionInput[], now: Date): OptionInput[] {
+export function checkOptions(
+  options: readonly OptionInput[],
+  now: Date,
+): OptionInput[] {
   if (options.length < MIN_POLL_OPTIONS || options.length > MAX_POLL_OPTIONS) {
-    throw validationFailed('options', `후보는 ${MIN_POLL_OPTIONS}~${MAX_POLL_OPTIONS}개 골라 주세요`);
+    throw validationFailed(
+      'options',
+      `후보는 ${MIN_POLL_OPTIONS}~${MAX_POLL_OPTIONS}개 골라 주세요`,
+    );
   }
   const seen = new Set<string>();
   for (const option of options) {
     const length = option.endsAt.getTime() - option.startsAt.getTime();
-    if (length <= 0) throw validationFailed('options', '후보의 끝나는 시각은 시작보다 뒤여야 해요');
-    if (length > MAX_OPTION_DAYS * DAY_MS) throw validationFailed('options', `후보는 최대 ${MAX_OPTION_DAYS}일까지 잡을 수 있어요`);
-    if (option.allDay && !(isKstMidnight(option.startsAt) && isKstMidnight(option.endsAt))) {
+    if (length <= 0)
+      throw validationFailed(
+        'options',
+        '후보의 끝나는 시각은 시작보다 뒤여야 해요',
+      );
+    if (length > MAX_OPTION_DAYS * DAY_MS)
+      throw validationFailed(
+        'options',
+        `후보는 최대 ${MAX_OPTION_DAYS}일까지 잡을 수 있어요`,
+      );
+    if (
+      option.allDay &&
+      !(isKstMidnight(option.startsAt) && isKstMidnight(option.endsAt))
+    ) {
       throw validationFailed('options', '종일 후보는 하루 단위여야 해요');
     }
-    if (option.startsAt.getTime() <= now.getTime()) throw validationFailed('options', '이미 지난 시간은 후보로 고를 수 없어요');
+    if (option.startsAt.getTime() <= now.getTime())
+      throw validationFailed(
+        'options',
+        '이미 지난 시간은 후보로 고를 수 없어요',
+      );
     const key = `${option.startsAt.getTime()}:${option.endsAt.getTime()}`;
-    if (seen.has(key)) throw validationFailed('options', '같은 시간을 두 번 고를 수 없어요');
+    if (seen.has(key))
+      throw validationFailed('options', '같은 시간을 두 번 고를 수 없어요');
     seen.add(key);
   }
-  return [...options].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime() || a.endsAt.getTime() - b.endsAt.getTime());
+  return [...options].sort(
+    (a, b) =>
+      a.startsAt.getTime() - b.startsAt.getTime() ||
+      a.endsAt.getTime() - b.endsAt.getTime(),
+  );
 }
 
 /** 마감은 지금 이후. null 이면 마감 없음 */
 export function checkDeadline(deadline: Date | null, now: Date): void {
-  if (deadline && deadline.getTime() <= now.getTime()) throw validationFailed('deadline', '마감은 지금 이후로 골라 주세요');
+  if (deadline && deadline.getTime() <= now.getTime())
+    throw validationFailed('deadline', '마감은 지금 이후로 골라 주세요');
 }
 
 /** 후보가 지났는가 (시작 시각이 지나면 고를 수도 정할 수도 없다) */
-export const isPastOption = (option: { startsAt: Date }, now: Date): boolean => option.startsAt.getTime() <= now.getTime();
+export const isPastOption = (option: { startsAt: Date }, now: Date): boolean =>
+  option.startsAt.getTime() <= now.getTime();
 
 /** 마감이 지났는가 (진행 중 투표만. 읽을 때 계산, D-235) */
-export const isExpired = (poll: { status: 'OPEN' | 'CLOSED'; deadline: Date | null }, now: Date): boolean =>
-  poll.status === 'OPEN' && poll.deadline !== null && poll.deadline.getTime() <= now.getTime();
+export const isExpired = (
+  poll: { status: 'OPEN' | 'CLOSED'; deadline: Date | null },
+  now: Date,
+): boolean =>
+  poll.status === 'OPEN' &&
+  poll.deadline !== null &&
+  poll.deadline.getTime() <= now.getTime();
 
 /** 투표 대상인가. "모두" 면 지금 멤버 전원 */
-export const isTarget = (poll: { allMembers: boolean; participantIds: readonly number[] }, userId: number): boolean =>
-  poll.allMembers || poll.participantIds.includes(userId);
+export const isTarget = (
+  poll: { allMembers: boolean; participantIds: readonly number[] },
+  userId: number,
+): boolean => poll.allMembers || poll.participantIds.includes(userId);
 
 /**
  * PUT votes 의 결과 표. 지난 후보의 표는 그대로 둔다 (고칠 수 없는 기록).
@@ -86,10 +125,17 @@ export function planVotes(
   const have = new Set(current);
   for (const id of want) {
     const option = byId.get(id);
-    if (!option) throw validationFailed('optionIds', '이 투표의 후보가 아니에요');
-    if (isPastOption(option, now) && !have.has(id)) throw new ApiException('POLL_OPTION_PAST');
+    if (!option)
+      throw validationFailed('optionIds', '이 투표의 후보가 아니에요');
+    if (isPastOption(option, now) && !have.has(id))
+      throw new ApiException('POLL_OPTION_PAST');
   }
-  const remove = [...have].filter((id) => !want.has(id) && byId.has(id) && !isPastOption(byId.get(id)!, now)).sort((a, b) => a - b);
+  const remove = [...have]
+    .filter(
+      (id) =>
+        !want.has(id) && byId.has(id) && !isPastOption(byId.get(id)!, now),
+    )
+    .sort((a, b) => a - b);
   const add = [...want].filter((id) => !have.has(id)).sort((a, b) => a - b);
   return { remove, add };
 }
@@ -114,7 +160,13 @@ export interface PollRow {
   /** allMembers = false 일 때의 대상, 오름차순 */
   participantIds: number[];
   /** 시작 순 */
-  options: { id: number; startsAt: Date; endsAt: Date; allDay: boolean; voterIds: number[] }[];
+  options: {
+    id: number;
+    startsAt: Date;
+    endsAt: Date;
+    allDay: boolean;
+    voterIds: number[];
+  }[];
 }
 
 export interface PollOptionView {
@@ -175,18 +227,30 @@ export interface PollSummaryView {
 }
 
 /** 대상 userId. "모두" 면 지금 멤버 전원 */
-export function targetIds(row: Pick<PollRow, 'allMembers' | 'participantIds'>, resolver: MemberResolver): number[] {
-  const members = resolver.all().flatMap((member) => (member.userId === null ? [] : [member.userId]));
+export function targetIds(
+  row: Pick<PollRow, 'allMembers' | 'participantIds'>,
+  resolver: MemberResolver,
+): number[] {
+  const members = resolver
+    .all()
+    .flatMap((member) => (member.userId === null ? [] : [member.userId]));
   if (row.allMembers) return members;
   const ids = new Set(row.participantIds);
   return members.filter((id) => ids.has(id));
 }
 
-export function toPollView(row: PollRow, resolver: MemberResolver, userId: number, now: Date): PollView {
+export function toPollView(
+  row: PollRow,
+  resolver: MemberResolver,
+  userId: number,
+  now: Date,
+): PollView {
   const order = resolver.all();
   const votersOf = (ids: readonly number[]) => {
     const set = new Set(ids);
-    return order.filter((member) => member.userId !== null && set.has(member.userId));
+    return order.filter(
+      (member) => member.userId !== null && set.has(member.userId),
+    );
   };
   return {
     id: row.id,
@@ -212,14 +276,25 @@ export function toPollView(row: PollRow, resolver: MemberResolver, userId: numbe
       past: isPastOption(option, now),
       voters: votersOf(option.voterIds),
     })),
-    myVotes: row.options.filter((option) => option.voterIds.includes(userId)).map((option) => option.id),
+    myVotes: row.options
+      .filter((option) => option.voterIds.includes(userId))
+      .map((option) => option.id),
     canVote: isTarget(row, userId),
   };
 }
 
-export function toPollSummary(row: PollRow, resolver: MemberResolver, userId: number, now: Date): PollSummaryView {
+export function toPollSummary(
+  row: PollRow,
+  resolver: MemberResolver,
+  userId: number,
+  now: Date,
+): PollSummaryView {
   const targets = new Set(targetIds(row, resolver));
-  const voters = new Set(row.options.flatMap((option) => option.voterIds).filter((id) => targets.has(id)));
+  const voters = new Set(
+    row.options
+      .flatMap((option) => option.voterIds)
+      .filter((id) => targets.has(id)),
+  );
   return {
     id: row.id,
     publicCode: row.publicCode,
@@ -243,7 +318,8 @@ export function toPollSummary(row: PollRow, resolver: MemberResolver, userId: nu
  * 모든 후보가 지난 것("지난 투표")은 맨 뒤
  */
 export function sortOpenSummaries(items: PollSummaryView[]): PollSummaryView[] {
-  const deadlineOf = (item: PollSummaryView) => item.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
+  const deadlineOf = (item: PollSummaryView) =>
+    item.deadline?.getTime() ?? Number.POSITIVE_INFINITY;
   return [...items].sort(
     (a, b) =>
       Number(a.allPast) - Number(b.allPast) ||

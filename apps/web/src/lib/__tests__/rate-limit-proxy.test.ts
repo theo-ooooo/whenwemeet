@@ -62,8 +62,7 @@ describe("화면 문구 (#186)", () => {
 describe("/auth/app handoff 교환 (#186)", () => {
   const H = "A".repeat(43);
   const V = "b".repeat(43);
-  const appReq = () =>
-    new NextRequest(`${ORIGIN}/auth/app?h=${H}&v=${V}`, { headers: { "x-forwarded-for": "198.51.100.4" } });
+  const appReq = () => new NextRequest(`${ORIGIN}/auth/app?h=${H}&v=${V}`, { headers: { "x-forwarded-for": "198.51.100.4" } });
 
   it("앱 사용자 IP 를 넘기고, 429 면 /login?error=RATE_LIMITED", async () => {
     upstream.mockResolvedValue(limited);

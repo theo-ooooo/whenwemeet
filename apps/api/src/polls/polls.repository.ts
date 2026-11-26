@@ -3,7 +3,10 @@ import { Prisma } from '../generated/prisma/client.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT } from '../common/member.js';
 import { generatePublicCode } from '../common/public-code.js';
 import type { EventRow } from '../events/event-rows.js';
-import { assertParticipantsTx, type EventCreateInput } from '../events/event-write-data.js';
+import {
+  assertParticipantsTx,
+  type EventCreateInput,
+} from '../events/event-write-data.js';
 import { EventWritesRepository } from '../events/event-writes.repository.js';
 import type { ParticipantSet } from '../events/participants.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
@@ -32,7 +35,13 @@ const POLL_SELECT = {
   event: { select: { publicCode: true } },
   participants: { select: { userId: true }, orderBy: { userId: 'asc' } },
   options: {
-    select: { id: true, startsAt: true, endsAt: true, allDay: true, votes: { select: { userId: true }, orderBy: { userId: 'asc' } } },
+    select: {
+      id: true,
+      startsAt: true,
+      endsAt: true,
+      allDay: true,
+      votes: { select: { userId: true }, orderBy: { userId: 'asc' } },
+    },
     orderBy: [{ startsAt: 'asc' }, { endsAt: 'asc' }],
   },
 } as const satisfies Prisma.PollSelect;
@@ -76,7 +85,11 @@ export class PollsRepository {
 
   /** 진행 중 투표 전부 (상한 10개라 페이지 없음) */
   async listOpen(groupId: number): Promise<PollRow[]> {
-    const rows = await this.prisma.poll.findMany({ where: { groupId, status: 'OPEN' }, orderBy: { id: 'desc' }, select: POLL_SELECT });
+    const rows = await this.prisma.poll.findMany({
+      where: { groupId, status: 'OPEN' },
+      orderBy: { id: 'desc' },
+      select: POLL_SELECT,
+    });
     return rows.map((row) => this.toRow(row));
   }
 
@@ -91,13 +104,19 @@ export class PollsRepository {
   }
 
   async findByCode(code: string): Promise<PollRow | null> {
-    const row = await this.prisma.poll.findUnique({ where: { publicCode: code }, select: POLL_SELECT });
+    const row = await this.prisma.poll.findUnique({
+      where: { publicCode: code },
+      select: POLL_SELECT,
+    });
     return row && this.toRow(row);
   }
 
   /** 다른 팀 투표를 가리키는 번호는 null (D-31) */
   async findInGroup(groupId: number, pollId: number): Promise<PollRow | null> {
-    const row = await this.prisma.poll.findFirst({ where: { id: pollId, groupId }, select: POLL_SELECT });
+    const row = await this.prisma.poll.findFirst({
+      where: { id: pollId, groupId },
+      select: POLL_SELECT,
+    });
     return row && this.toRow(row);
   }
 
@@ -105,11 +124,21 @@ export class PollsRepository {
    * 만들기. 팀 행을 잠그고(FOR UPDATE) 진행 중 수를 센 뒤 만든다. 이미 limit 개면 null.
    * 대상이 지금 멤버인지(일정 참여자 D-133 규칙), POLL_CREATED 기록, 열림 알림 예약을 같은 트랜잭션에서
    */
-  async createWithinLimitTx(input: PollCreateInput, limit: number, push: (pollCode: string) => PushPayload, now: Date): Promise<PollRow | null> {
+  async createWithinLimitTx(
+    input: PollCreateInput,
+    limit: number,
+    push: (pollCode: string) => PushPayload,
+    now: Date,
+  ): Promise<PollRow | null> {
     try {
       const id = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM \`Group\` WHERE id = ${input.groupId} FOR UPDATE`;
-        if ((await tx.poll.count({ where: { groupId: input.groupId, status: 'OPEN' } })) >= limit) throw new LimitReached();
+        if (
+          (await tx.poll.count({
+            where: { groupId: input.groupId, status: 'OPEN' },
+          })) >= limit
+        )
+          throw new LimitReached();
         await assertParticipantsTx(tx, input.groupId, input.participants);
         const publicCode = generatePublicCode();
         const created = await tx.poll.create({
@@ -120,13 +149,38 @@ export class PollsRepository {
             deadline: input.deadline,
             allMembers: input.participants.allMembers,
             creatorId: input.actor.id,
-            participants: { create: input.participants.allMembers ? [] : input.participants.ids.map((userId) => ({ userId })) },
-            options: { create: input.options.map(({ startsAt, endsAt, allDay }) => ({ startsAt, endsAt, allDay })) },
+            participants: {
+              create: input.participants.allMembers
+                ? []
+                : input.participants.ids.map((userId) => ({ userId })),
+            },
+            options: {
+              create: input.options.map(({ startsAt, endsAt, allDay }) => ({
+                startsAt,
+                endsAt,
+                allDay,
+              })),
+            },
           },
           select: { id: true },
         });
-        await this.activities.recordTx(tx, { groupId: input.groupId, type: 'POLL_CREATED', actor: input.actor, payload: { pollId: created.id, code: publicCode, title: input.title } });
-        await this.push.schedulePollTx(tx, { pollId: created.id, groupId: input.groupId, actorId: input.actor.id, stage: 'OPEN', payload: push(publicCode) }, now);
+        await this.activities.recordTx(tx, {
+          groupId: input.groupId,
+          type: 'POLL_CREATED',
+          actor: input.actor,
+          payload: { pollId: created.id, code: publicCode, title: input.title },
+        });
+        await this.push.schedulePollTx(
+          tx,
+          {
+            pollId: created.id,
+            groupId: input.groupId,
+            actorId: input.actor.id,
+            stage: 'OPEN',
+            payload: push(publicCode),
+          },
+          now,
+        );
         return created.id;
       });
       return (await this.findInGroup(input.groupId, id)) as PollRow;
@@ -137,11 +191,22 @@ export class PollsRepository {
   }
 
   /** 내 표 바꾸기. remove 는 지우고 add 는 넣는다 (지난 후보는 호출자가 걸렀다) */
-  async replaceVotesTx(userId: number, remove: number[], add: number[]): Promise<void> {
+  async replaceVotesTx(
+    userId: number,
+    remove: number[],
+    add: number[],
+  ): Promise<void> {
     if (remove.length === 0 && add.length === 0) return;
     await this.prisma.$transaction(async (tx) => {
-      if (remove.length > 0) await tx.pollVote.deleteMany({ where: { userId, optionId: { in: remove } } });
-      if (add.length > 0) await tx.pollVote.createMany({ data: add.map((optionId) => ({ optionId, userId })), skipDuplicates: true });
+      if (remove.length > 0)
+        await tx.pollVote.deleteMany({
+          where: { userId, optionId: { in: remove } },
+        });
+      if (add.length > 0)
+        await tx.pollVote.createMany({
+          data: add.map((optionId) => ({ optionId, userId })),
+          skipDuplicates: true,
+        });
     });
   }
 
@@ -153,11 +218,23 @@ export class PollsRepository {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.poll.updateMany({
         where: { id: input.poll.id, status: 'OPEN' },
-        data: { status: 'CLOSED', closedAt: input.now, decidedOptionId: input.option.id },
+        data: {
+          status: 'CLOSED',
+          closedAt: input.now,
+          decidedOptionId: input.option.id,
+        },
       });
       if (count !== 1) return null;
-      const { row, logId } = await this.events.createWithLogInTx(tx, input.event, input.actor.id);
-      await tx.poll.update({ where: { id: input.poll.id }, data: { eventId: row.id }, select: { id: true } });
+      const { row, logId } = await this.events.createWithLogInTx(
+        tx,
+        input.event,
+        input.actor.id,
+      );
+      await tx.poll.update({
+        where: { id: input.poll.id },
+        data: { eventId: row.id },
+        select: { id: true },
+      });
       await this.activities.recordTx(tx, {
         groupId: input.poll.groupId,
         type: 'POLL_CLOSED',
@@ -176,7 +253,13 @@ export class PollsRepository {
       });
       await this.push.schedulePollTx(
         tx,
-        { pollId: input.poll.id, groupId: input.poll.groupId, actorId: input.actor.id, stage: 'CLOSED', payload: input.push(row.publicCode) },
+        {
+          pollId: input.poll.id,
+          groupId: input.poll.groupId,
+          actorId: input.actor.id,
+          stage: 'CLOSED',
+          payload: input.push(row.publicCode),
+        },
         input.now,
       );
       return row;
@@ -186,7 +269,9 @@ export class PollsRepository {
   /** 진행 중 투표만 지운다(후보, 표, 대상 Cascade). "투표를 열었어요" 기록도 함께. 이미 닫혔거나 없으면 false */
   async deleteOpenTx(groupId: number, pollId: number): Promise<boolean> {
     return this.prisma.$transaction(async (tx: Db) => {
-      const { count } = await tx.poll.deleteMany({ where: { id: pollId, groupId, status: 'OPEN' } });
+      const { count } = await tx.poll.deleteMany({
+        where: { id: pollId, groupId, status: 'OPEN' },
+      });
       if (count !== 1) return false;
       await this.activities.deletePollCreatedTx(tx, groupId, pollId);
       return true;
@@ -210,7 +295,9 @@ export class PollsRepository {
       decidedOptionId: record.decidedOptionId,
       createdAt: record.createdAt,
       closedAt: record.closedAt,
-      participantIds: record.allMembers ? [] : record.participants.map((row) => row.userId),
+      participantIds: record.allMembers
+        ? []
+        : record.participants.map((row) => row.userId),
       options: record.options.map((option) => ({
         id: option.id,
         startsAt: option.startsAt,

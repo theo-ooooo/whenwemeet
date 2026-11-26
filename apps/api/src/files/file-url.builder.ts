@@ -39,7 +39,10 @@ export class FileUrlBuilder {
 
   constructor(config: ConfigService) {
     this.baseUrls = new Map();
-    for (const [provider, envKey] of Object.entries(PUBLIC_BASE_URL_ENV) as [StorageProvider, string | null][]) {
+    for (const [provider, envKey] of Object.entries(PUBLIC_BASE_URL_ENV) as [
+      StorageProvider,
+      string | null,
+    ][]) {
       const value = envKey ? config.get<string>(envKey)?.trim() : '';
       if (value) this.baseUrls.set(provider, value);
     }

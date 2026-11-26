@@ -1,4 +1,8 @@
-import { FILE_LOCATION_SELECT, type FileLocation, type FileUrlBuilder } from '../files/file-url.builder.js';
+import {
+  FILE_LOCATION_SELECT,
+  type FileLocation,
+  type FileUrlBuilder,
+} from '../files/file-url.builder.js';
 
 /** 멤버 색, 일정 색 팔레트 (api.md 2.2). 화면은 순서대로 블루, 머스터드, 틸, 바이올렛, 그린, 브라운, 슬레이트, 핑크로 그린다 (D-57, D-215) */
 export const MEMBER_COLORS = [
@@ -53,7 +57,9 @@ export interface UserRow {
  * 사람 정보가 필요한 조회의 User select. 사진은 File 의 provider/key 로 읽고 URL 은 FileUrlBuilder 가 만든다 (결정기록 D-38, D-56).
  * Repository 는 이 모양으로 읽고 `toUserRow` 로 `{ nickname, profileImageUrl }` 로 바꿔 돌려준다 (응답 계약 유지)
  */
-export const USER_PUBLIC_SELECT = { select: { nickname: true, avatar: { select: FILE_LOCATION_SELECT } } } as const;
+export const USER_PUBLIC_SELECT = {
+  select: { nickname: true, avatar: { select: FILE_LOCATION_SELECT } },
+} as const;
 
 /** USER_PUBLIC_SELECT 로 읽은 행 */
 export interface UserPublicRecord {
@@ -61,12 +67,21 @@ export interface UserPublicRecord {
   avatar: FileLocation | null;
 }
 
-export function toUserRow(user: UserPublicRecord, urls: FileUrlBuilder): UserRow {
-  return { nickname: user.nickname, profileImageUrl: urls.publicUrlOrNull(user.avatar) };
+export function toUserRow(
+  user: UserPublicRecord,
+  urls: FileUrlBuilder,
+): UserRow {
+  return {
+    nickname: user.nickname,
+    profileImageUrl: urls.publicUrlOrNull(user.avatar),
+  };
 }
 
 /** 탈퇴자(FK SetNull) 를 그대로 null 로 넘기는 판 */
-export function toUserRowOrNull(user: UserPublicRecord | null, urls: FileUrlBuilder): UserRow | null {
+export function toUserRowOrNull(
+  user: UserPublicRecord | null,
+  urls: FileUrlBuilder,
+): UserRow | null {
   return user ? toUserRow(user, urls) : null;
 }
 
@@ -116,7 +131,12 @@ export class MemberResolver {
     if (userId === null || user === null) return DELETED_MEMBER;
     const member = this.byUserId.get(userId);
     if (member) return member;
-    return { userId, displayName: user.nickname, color: LEFT_MEMBER_COLOR, profileImageUrl: user.profileImageUrl };
+    return {
+      userId,
+      displayName: user.nickname,
+      color: LEFT_MEMBER_COLOR,
+      profileImageUrl: user.profileImageUrl,
+    };
   }
 }
 
@@ -135,7 +155,8 @@ export function paletteColorOf(value: unknown): string | null {
  */
 export function pickLeastUsedColor(usedColors: readonly string[]): string {
   const counts = new Map<string, number>();
-  for (const color of usedColors) counts.set(color.toUpperCase(), (counts.get(color.toUpperCase()) ?? 0) + 1);
+  for (const color of usedColors)
+    counts.set(color.toUpperCase(), (counts.get(color.toUpperCase()) ?? 0) + 1);
   let best: string = MEMBER_COLORS[0];
   let bestCount = Number.POSITIVE_INFINITY;
   for (const color of MEMBER_COLORS) {

@@ -24,17 +24,21 @@ export const LUNAR_MIN_YEAR = 1000;
 
 // 패키지 타입 선언이 CJS 로 읽혀(nodenext) default 가 한 겹 더 감싼 것처럼 보인다. 실행은 ESM 빌드의 클래스 그대로라 둘 다 받는다
 type LunarCalendarClass = typeof lunarModule.default;
-const KoreanLunarCalendar = ((lunarModule as unknown as { default?: LunarCalendarClass }).default ?? lunarModule) as LunarCalendarClass;
+const KoreanLunarCalendar = ((
+  lunarModule as unknown as { default?: LunarCalendarClass }
+).default ?? lunarModule) as LunarCalendarClass;
 
 // 상태를 가진 변환기 하나를 돌려 쓴다 (JS 는 한 스레드라 호출 사이에 섞이지 않는다)
 const calendar = new KoreanLunarCalendar();
 
 const pad = (n: number, width = 2): string => String(n).padStart(width, '0');
-const toKey = (y: number, m: number, d: number): string => `${pad(y, 4)}-${pad(m)}-${pad(d)}`;
+const toKey = (y: number, m: number, d: number): string =>
+  `${pad(y, 4)}-${pad(m)}-${pad(d)}`;
 
 /** 정확히 그 음력 날짜의 양력 'YYYY-MM-DD'. 없는 날짜(윤달이 없는 해의 윤달, 29일 달의 30일)나 범위 밖은 null */
 export function lunarToSolar(lunar: LunarDate): string | null {
-  if (!calendar.setLunarDate(lunar.year, lunar.month, lunar.day, lunar.leap)) return null;
+  if (!calendar.setLunarDate(lunar.year, lunar.month, lunar.day, lunar.leap))
+    return null;
   const solar = calendar.getSolarCalendar();
   return toKey(solar.year, solar.month, solar.day);
 }
@@ -43,13 +47,22 @@ export function lunarToSolar(lunar: LunarDate): string | null {
 export function solarToLunar(date: string): LunarDate | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!match) return null;
-  if (!calendar.setSolarDate(Number(match[1]), Number(match[2]), Number(match[3]))) return null;
+  if (
+    !calendar.setSolarDate(Number(match[1]), Number(match[2]), Number(match[3]))
+  )
+    return null;
   const lunar = calendar.getLunarCalendar();
-  return { year: lunar.year, month: lunar.month, day: lunar.day, leap: lunar.intercalation === true };
+  return {
+    year: lunar.year,
+    month: lunar.month,
+    day: lunar.day,
+    leap: lunar.intercalation === true,
+  };
 }
 
 /** 그 음력 날짜가 실제로 있는가 (입력 검증) */
-export const isLunarDate = (lunar: LunarDate): boolean => lunarToSolar(lunar) !== null;
+export const isLunarDate = (lunar: LunarDate): boolean =>
+  lunarToSolar(lunar) !== null;
 
 /**
  * 해마다 돌아오는 음력 월일의 그해 양력 날짜 (D-297).
@@ -57,7 +70,12 @@ export const isLunarDate = (lunar: LunarDate): boolean => lunarToSolar(lunar) !=
  * - 그 달에 그날이 없으면(30일인데 그해 그 달이 29일) 그 달 마지막 날
  * 범위 밖 해는 null
  */
-export function lunarOccurrence(year: number, month: number, day: number, leap: boolean): string | null {
+export function lunarOccurrence(
+  year: number,
+  month: number,
+  day: number,
+  leap: boolean,
+): string | null {
   if (year < LUNAR_MIN_YEAR || year > LUNAR_MAX_YEAR) return null;
   const useLeap = leap && isLunarDate({ year, month, day: 1, leap: true });
   for (let d = day; d >= Math.min(day, 29); d -= 1) {

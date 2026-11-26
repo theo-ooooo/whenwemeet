@@ -6,9 +6,6 @@ import { useMutation, type MutationOptions } from "./_useMutation";
 
 /** 초대 코드로 합류 POST /groups/join */
 export function useJoinGroup(opts?: MutationOptions) {
-  const fn = useCallback(
-    (code: string) => api<GroupDetail>("/groups/join", { method: "POST", body: { code } }),
-    [],
-  );
+  const fn = useCallback((code: string) => api<GroupDetail>("/groups/join", { method: "POST", body: { code } }), []);
   return useMutation(fn, opts);
 }

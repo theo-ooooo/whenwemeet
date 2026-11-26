@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildAppleAppSiteAssociation,
-  buildAssetLinks,
-  emailAppLinkEnabled,
-  parseFingerprints,
-  wellKnownResponse,
-} from "../well-known";
+import { buildAppleAppSiteAssociation, buildAssetLinks, emailAppLinkEnabled, parseFingerprints, wellKnownResponse } from "../well-known";
 
 const FP1 = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, "0").toUpperCase()).join(":");
 const FP2 = Array.from({ length: 32 }, () => "AB").join(":");

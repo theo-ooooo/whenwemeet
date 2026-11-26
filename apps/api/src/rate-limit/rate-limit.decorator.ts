@@ -11,8 +11,12 @@ export interface RateLimitMeta {
 }
 
 /** (#186) 기본 한도에 더해 경로별 한도를 건다 (rate-limit.policies.ts) */
-export const RateLimit = (policy: RateLimitPolicy, options: { redirectToLogin?: boolean } = {}): MethodDecorator & ClassDecorator =>
+export const RateLimit = (
+  policy: RateLimitPolicy,
+  options: { redirectToLogin?: boolean } = {},
+): MethodDecorator & ClassDecorator =>
   SetMetadata(RATE_LIMIT_KEY, { policy, ...options } satisfies RateLimitMeta);
 
 /** (#186) 요청 제한에서 뺀다. 배포 healthcheck 처럼 막히면 운영이 깨지는 경로만 */
-export const SkipRateLimit = (): MethodDecorator & ClassDecorator => SetMetadata(SKIP_RATE_LIMIT_KEY, true);
+export const SkipRateLimit = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(SKIP_RATE_LIMIT_KEY, true);

@@ -1,10 +1,25 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser, OptionalUser } from '../auth/current-user.decorator.js';
 import { OptionalAuth } from '../auth/jwt-auth.guard.js';
 import { IdParam } from '../common/id-param.js';
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
-import { CreateGroupDto, JoinGroupDto, UpdateGroupDto, UpdateMeDto } from './dto/group.dto.js';
+import {
+  CreateGroupDto,
+  JoinGroupDto,
+  UpdateGroupDto,
+  UpdateMeDto,
+} from './dto/group.dto.js';
 import { GroupsService } from './groups.service.js';
 
 @Controller('groups')
@@ -35,18 +50,29 @@ export class GroupsController {
   }
 
   @Patch(':groupId')
-  rename(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: UpdateGroupDto) {
+  rename(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Body() dto: UpdateGroupDto,
+  ) {
     return this.groups.rename(user.id, groupId, dto.name);
   }
 
   @Post(':groupId/invite-code')
   @HttpCode(200)
-  rotateInviteCode(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number) {
+  rotateInviteCode(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+  ) {
     return this.groups.rotateInviteCode(user.id, groupId);
   }
 
   @Patch(':groupId/me')
-  updateMe(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: UpdateMeDto) {
+  updateMe(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Body() dto: UpdateMeDto,
+  ) {
     return this.groups.updateMe(user.id, groupId, dto);
   }
 
@@ -64,7 +90,11 @@ export class InvitesController {
   @OptionalAuth()
   @Get(':code')
   @RateLimit('invitePreview')
-  preview(@Param('code') code: string, @Query('by') by: unknown, @OptionalUser() user: AuthUser | null) {
+  preview(
+    @Param('code') code: string,
+    @Query('by') by: unknown,
+    @OptionalUser() user: AuthUser | null,
+  ) {
     return this.groups.invitePreview(code, by, user?.id ?? null);
   }
 }

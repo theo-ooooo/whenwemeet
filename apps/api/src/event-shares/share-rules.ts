@@ -1,6 +1,14 @@
 // (#274) 일정 공유 링크의 순수 규칙 (D-181 ~ D-184). Prisma, Nest 를 import 하지 않는다 (단위 테스트 대상)
 import { randomBytes } from 'node:crypto';
-import { applyException, DAY_MS, type ExceptionRule, isOccurrenceDate, kstDate, originalOccurrence, type Repeat } from '../events/recurrence.js';
+import {
+  applyException,
+  DAY_MS,
+  type ExceptionRule,
+  isOccurrenceDate,
+  kstDate,
+  originalOccurrence,
+  type Repeat,
+} from '../events/recurrence.js';
 
 /** 16바이트 랜덤 base64url = 22자 (128비트, 추측 불가). 순번 ID(D-35)를 주소에 싣지 않는다 */
 export const SHARE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/;
@@ -14,7 +22,12 @@ export const SHARE_MAX_DAYS = 30;
 
 /** 만료 = 그 회차 끝 + 1일, 단 만든 때 + 30일을 넘지 않음 (D-183) */
 export function shareExpiresAt(occurrenceEndsAt: Date, now: Date): Date {
-  return new Date(Math.min(occurrenceEndsAt.getTime() + DAY_MS, now.getTime() + SHARE_MAX_DAYS * DAY_MS));
+  return new Date(
+    Math.min(
+      occurrenceEndsAt.getTime() + DAY_MS,
+      now.getTime() + SHARE_MAX_DAYS * DAY_MS,
+    ),
+  );
 }
 
 /** 공유 대상 일정 (원본 행에서 필요한 값만) */
@@ -51,7 +64,13 @@ export function resolveSharedOccurrence(
 ): SharedOccurrence | null {
   if (!event.repeat) {
     if (occurrence !== null) return null;
-    return { title: event.title, startsAt: event.startsAt, endsAt: event.endsAt, allDay: event.allDay, occurrence: null };
+    return {
+      title: event.title,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      allDay: event.allDay,
+      occurrence: null,
+    };
   }
   const rule = { ...event, repeat: event.repeat };
   const date = occurrence ?? kstDate(event.startsAt);
@@ -61,7 +80,13 @@ export function resolveSharedOccurrence(
     exceptions.find((exception) => exception.occurrence === date),
   );
   if (!resolved) return null;
-  return { title: resolved.title ?? event.title, startsAt: resolved.startsAt, endsAt: resolved.endsAt, allDay: resolved.allDay, occurrence: date };
+  return {
+    title: resolved.title ?? event.title,
+    startsAt: resolved.startsAt,
+    endsAt: resolved.endsAt,
+    allDay: resolved.allDay,
+    occurrence: date,
+  };
 }
 
 /** 달력 착지 날짜: 그 회차가 지금 시작하는 KST 날짜 ("이 일정만" 으로 옮겼으면 옮긴 날) */

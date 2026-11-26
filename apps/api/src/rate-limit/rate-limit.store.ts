@@ -7,7 +7,8 @@ export interface RateLimitBucket {
   windowSec: number;
 }
 
-export type RateLimitDecision = { allowed: true } | { allowed: false; retryAfterSec: number };
+export type RateLimitDecision =
+  { allowed: true } | { allowed: false; retryAfterSec: number };
 
 interface Counter {
   count: number;
@@ -35,14 +36,23 @@ export class RateLimitStore {
     let retryAfterMs = 0;
     for (const bucket of buckets) {
       const counter = this.live(bucket.key, now);
-      if (counter && counter.count >= bucket.limit) retryAfterMs = Math.max(retryAfterMs, counter.resetAt - now);
+      if (counter && counter.count >= bucket.limit)
+        retryAfterMs = Math.max(retryAfterMs, counter.resetAt - now);
     }
-    if (retryAfterMs > 0) return { allowed: false, retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)) };
+    if (retryAfterMs > 0)
+      return {
+        allowed: false,
+        retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)),
+      };
 
     for (const bucket of buckets) {
       const counter = this.live(bucket.key, now);
       if (counter) counter.count += 1;
-      else this.counters.set(bucket.key, { count: 1, resetAt: now + bucket.windowSec * 1000 });
+      else
+        this.counters.set(bucket.key, {
+          count: 1,
+          resetAt: now + bucket.windowSec * 1000,
+        });
     }
     return { allowed: true };
   }

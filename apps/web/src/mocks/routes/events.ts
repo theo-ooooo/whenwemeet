@@ -68,7 +68,11 @@ function eventSearch(s: Store, userId: number, query: URLSearchParams): MockResu
     if (!fields(series).length) continue;
     const from = Math.max(now, Date.parse(series.startsAt));
     const ahead = expand(series, series.exceptions, from, from + 400 * DAY_MS).find((o) => Date.parse(o.endsAt) > now && !hits.has(o.occurrence));
-    const behind = ahead ? null : expand(series, series.exceptions, now - 400 * DAY_MS, now).filter((o) => Date.parse(o.endsAt) <= now && !hits.has(o.occurrence)).pop();
+    const behind = ahead
+      ? null
+      : expand(series, series.exceptions, now - 400 * DAY_MS, now)
+          .filter((o) => Date.parse(o.endsAt) <= now && !hits.has(o.occurrence))
+          .pop();
     const pick = ahead ?? behind;
     if (pick) items.push({ event: eventOut(s, series, pick), matched: fields(series) });
   }
@@ -108,7 +112,7 @@ export function eventCodeRoute(req: AuthedReq): MockResult | null {
   return null;
 }
 
-  // (#375) 일정 삭제 되돌리기 POST /groups/:id/event-deletions/:deletionId/restore (D-251). 팀원 누구나, 7일 안
+// (#375) 일정 삭제 되돌리기 POST /groups/:id/event-deletions/:deletionId/restore (D-251). 팀원 누구나, 7일 안
 export function eventRestoreRoute(req: GroupReq): MockResult | null {
   const { s, method, groupId, rest } = req;
   if (rest[0] === "event-deletions" && rest.length === 3 && rest[2] === "restore" && method === "POST") {
@@ -117,7 +121,8 @@ export function eventRestoreRoute(req: GroupReq): MockResult | null {
     const d = (s.deletions ?? []).find((x) => x.id === deletionId && x.groupId === groupId);
     if (!d || Date.now() - Date.parse(d.createdAt) > 7 * DAY_MS) return err(404, "NOT_FOUND", "되돌릴 수 있는 기간이 지났어요");
     s.events = [...s.events.filter((x) => x.id !== d.eventId), d.event];
-    const same = (a: { eventId: number; occurrence: string; userId: number }, b: typeof a) => a.eventId === b.eventId && a.occurrence === b.occurrence && a.userId === b.userId;
+    const same = (a: { eventId: number; occurrence: string; userId: number }, b: typeof a) =>
+      a.eventId === b.eventId && a.occurrence === b.occurrence && a.userId === b.userId;
     const members = new Set(s.memberships.filter((m) => m.groupId === groupId).map((m) => m.userId));
     s.rsvps = [...(s.rsvps ?? []), ...d.rsvps.filter((r) => members.has(r.userId) && !(s.rsvps ?? []).some((x) => same(x, r)))];
     s.reactions = [...(s.reactions ?? []), ...d.reactions.filter((r) => members.has(r.userId) && !(s.reactions ?? []).some((x) => same(x, r)))];
@@ -133,7 +138,10 @@ export function eventRestoreRoute(req: GroupReq): MockResult | null {
 export function groupEventRoutes(req: GroupReq): MockResult | null {
   const { s, method, query, body, userId, groupId, rest } = req;
   if (rest[0] === "events") {
-    const log = (e: { title: string; startsAt: string; endsAt: string; allDay: boolean }, extra: Pick<EventLogRow, "action" | "eventId" | "repeat" | "scope" | "occurrence">) => {
+    const log = (
+      e: { title: string; startsAt: string; endsAt: string; allDay: boolean },
+      extra: Pick<EventLogRow, "action" | "eventId" | "repeat" | "scope" | "occurrence">,
+    ) => {
       const id = nextId();
       s.logs.push({ id, groupId, title: e.title, startsAt: e.startsAt, endsAt: e.endsAt, allDay: e.allDay, actorId: userId, createdAt: nowIso(), ...extra });
       return id;
@@ -322,7 +330,8 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       const plIn = placeIn((body ?? {}).place);
       if (isResult(plIn)) return plIn;
       // (#199) 기준 장소: "이 일정만" 은 그 회차 값(예외 반영), "이후 모두" 는 원본
-      const basePlace: MockPlace | null = scope === "this" ? (current.place ? (placeOut(current.place) ? current.place : null) : (series.place ?? null)) : (series.place ?? null);
+      const basePlace: MockPlace | null =
+        scope === "this" ? (current.place ? (placeOut(current.place) ? current.place : null) : (series.place ?? null)) : (series.place ?? null);
       const nextPlace = plIn !== undefined ? plIn : basePlace;
       const next = {
         title: input.title !== undefined ? String(input.title).trim() : base.title,
@@ -371,7 +380,9 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       if (isResult(lIn)) return lIn;
       const lunarInput = lIn ?? series.lunarInput ?? false;
       // (#343) 색 말고 바뀐 값이 없으면 새 소식을 남기지 않는다 (API 와 같은 기준: 규칙, 참여자, 회차 값이 같고 그날부터 예외 없음)
-      const sameMembers = !pIn || (pIn.all ? series.allMembers !== false : series.allMembers === false && JSON.stringify(pIn.ids) === JSON.stringify(series.participantIds ?? []));
+      const sameMembers =
+        !pIn ||
+        (pIn.all ? series.allMembers !== false : series.allMembers === false && JSON.stringify(pIn.ids) === JSON.stringify(series.participantIds ?? []));
       const onlyColor =
         repeat === series.repeat &&
         until === series.repeatUntil &&
@@ -387,7 +398,18 @@ export function groupEventRoutes(req: GroupReq): MockResult | null {
       // 반복 기준 날짜 (API followingAnchor, D-71): 주기 그대로인 매월/매년이고 날짜를 안 바꿨으면 잇는다. 첫 회차는 원본 값 그대로
       const keepsAnchor = repeat === series.repeat && startKey === date && (repeat === "MONTHLY" || repeat === "YEARLY" || repeat === "YEARLY_LUNAR");
       const repeatAnchor = keepsAnchor ? (date === first ? (series.repeatAnchor ?? null) : (series.repeatAnchor ?? first)) : null;
-      const fields = { ...next, memo: next.memo || null, repeat, repeatUntil: repeat ? until : null, repeatAnchor, reminder, color, lunarInput, place: nextPlace, updatedAt: nowIso() };
+      const fields = {
+        ...next,
+        memo: next.memo || null,
+        repeat,
+        repeatUntil: repeat ? until : null,
+        repeatAnchor,
+        reminder,
+        color,
+        lunarInput,
+        place: nextPlace,
+        updatedAt: nowIso(),
+      };
       let target: EventRow;
       if (date === first) {
         // 첫 회차 "이후 모두" = 전체. 예외는 버린다 (D-67)

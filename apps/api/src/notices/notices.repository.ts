@@ -53,7 +53,13 @@ export interface NoticeAttentionRow {
   publishedAt: Date;
 }
 
-const ATTENTION_SELECT = { id: true, title: true, body: true, kind: true, publishedAt: true } as const;
+const ATTENTION_SELECT = {
+  id: true,
+  title: true,
+  body: true,
+  kind: true,
+  publishedAt: true,
+} as const;
 
 /** 페이지 결과. nextCursor 는 이 페이지 마지막 id (다음 요청의 cursor), 더 없으면 null */
 export interface NoticePage {
@@ -75,8 +81,15 @@ export class NoticesRepository {
    * 게시된 공지. 고정 먼저, 게시 시각 내림차순, 같으면 id 내림차순 (D-285).
    * cursor 는 앞 페이지 마지막 id. 정렬 값이 그 행 기준이라 Prisma cursor 로 이어 읽는다
    */
-  listPublished(page: { limit: number; cursor: number | null }): Promise<NoticePage> {
-    return this.page({ publishedAt: { not: null } }, [{ pinned: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }], page);
+  listPublished(page: {
+    limit: number;
+    cursor: number | null;
+  }): Promise<NoticePage> {
+    return this.page(
+      { publishedAt: { not: null } },
+      [{ pinned: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }],
+      page,
+    );
   }
 
   /** 관리자 목록: 초안 포함 전부, 최근 만든 것 먼저 */
@@ -85,7 +98,10 @@ export class NoticesRepository {
   }
 
   findById(id: number): Promise<NoticeRow | null> {
-    return this.prisma.notice.findUnique({ where: { id }, select: NOTICE_SELECT });
+    return this.prisma.notice.findUnique({
+      where: { id },
+      select: NOTICE_SELECT,
+    });
   }
 
   /** after 보다 늦게 게시된 공지가 있는지. after 가 null 이면 게시된 공지가 하나라도 있는지 */
@@ -103,36 +119,60 @@ export class NoticesRepository {
    */
   async findPopupFor(userId: number): Promise<NoticeAttentionRow | null> {
     const row = await this.prisma.notice.findFirst({
-      where: { popup: true, publishedAt: { not: null }, dismissals: { none: { userId } } },
+      where: {
+        popup: true,
+        publishedAt: { not: null },
+        dismissals: { none: { userId } },
+      },
       orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
       select: ATTENTION_SELECT,
     });
-    return row && row.publishedAt ? { ...row, publishedAt: row.publishedAt } : null;
+    return row && row.publishedAt
+      ? { ...row, publishedAt: row.publishedAt }
+      : null;
   }
 
   /** (#538) after 보다 늦게 게시된 공지 중 가장 최근 것 (새 공지 띠). after 가 null 이면 게시된 공지 중 가장 최근 것 */
-  async findLatestPublishedAfter(after: Date | null): Promise<NoticeAttentionRow | null> {
+  async findLatestPublishedAfter(
+    after: Date | null,
+  ): Promise<NoticeAttentionRow | null> {
     const row = await this.prisma.notice.findFirst({
       where: { publishedAt: after ? { gt: after } : { not: null } },
       orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
       select: ATTENTION_SELECT,
     });
-    return row && row.publishedAt ? { ...row, publishedAt: row.publishedAt } : null;
+    return row && row.publishedAt
+      ? { ...row, publishedAt: row.publishedAt }
+      : null;
   }
 
   /** (#538) 게시된 공지면 닫은 기록을 남긴다(이미 있으면 그대로). 없거나 초안이면 false */
   async dismiss(userId: number, noticeId: number): Promise<boolean> {
-    const notice = await this.prisma.notice.findFirst({ where: { id: noticeId, publishedAt: { not: null } }, select: { id: true } });
+    const notice = await this.prisma.notice.findFirst({
+      where: { id: noticeId, publishedAt: { not: null } },
+      select: { id: true },
+    });
     if (!notice) return false;
-    await this.prisma.noticeDismissal.createMany({ data: [{ userId, noticeId }], skipDuplicates: true });
+    await this.prisma.noticeDismissal.createMany({
+      data: [{ userId, noticeId }],
+      skipDuplicates: true,
+    });
     return true;
   }
 
   /** (#528) pushAt 을 주면 같은 트랜잭션에서 pushedAt 을 적고 공지 푸시를 예약한다 (게시된 공지만, 서비스가 확인) */
-  create(data: Required<Pick<NoticeWrite, 'title' | 'body' | 'kind'>> & NoticeWrite & { createdById: number }, pushAt: Date | null = null): Promise<NoticeRow> {
-    if (pushAt === null) return this.prisma.notice.create({ data, select: NOTICE_SELECT });
+  create(
+    data: Required<Pick<NoticeWrite, 'title' | 'body' | 'kind'>> &
+      NoticeWrite & { createdById: number },
+    pushAt: Date | null = null,
+  ): Promise<NoticeRow> {
+    if (pushAt === null)
+      return this.prisma.notice.create({ data, select: NOTICE_SELECT });
     return this.prisma.$transaction(async (tx) => {
-      const row = await tx.notice.create({ data: { ...data, pushedAt: pushAt }, select: NOTICE_SELECT });
+      const row = await tx.notice.create({
+        data: { ...data, pushedAt: pushAt },
+        select: NOTICE_SELECT,
+      });
       await this.push.scheduleNoticeTx(tx, row.id, pushAt);
       return row;
     });
@@ -142,12 +182,19 @@ export class NoticesRepository {
    * 없으면 null. (#528) pushAt 을 주면 같은 트랜잭션에서 "아직 안 보냈고 게시된" 공지일 때만 pushedAt 을 적고 푸시를 예약한다.
    * 그 조건이 깨졌으면(동시에 두 번 누름) NoticeAlreadyPushedError 를 던져 고친 내용까지 되돌린다
    */
-  async update(id: number, data: NoticeWrite, pushAt: Date | null = null): Promise<NoticeRow | null> {
+  async update(
+    id: number,
+    data: NoticeWrite,
+    pushAt: Date | null = null,
+  ): Promise<NoticeRow | null> {
     return this.prisma.$transaction(async (tx) => {
       const { count } = await tx.notice.updateMany({ where: { id }, data });
       if (count === 0) return null;
       if (pushAt !== null) {
-        const marked = await tx.notice.updateMany({ where: { id, pushedAt: null, publishedAt: { not: null } }, data: { pushedAt: pushAt } });
+        const marked = await tx.notice.updateMany({
+          where: { id, pushedAt: null, publishedAt: { not: null } },
+          data: { pushedAt: pushAt },
+        });
         if (marked.count !== 1) throw new NoticeAlreadyPushedError();
         await this.push.scheduleNoticeTx(tx, id, pushAt);
       }
@@ -174,6 +221,9 @@ export class NoticesRepository {
       select: NOTICE_SELECT,
     });
     const items = rows.slice(0, limit);
-    return { items, nextCursor: rows.length > limit ? items[items.length - 1].id : null };
+    return {
+      items,
+      nextCursor: rows.length > limit ? items[items.length - 1].id : null,
+    };
   }
 }

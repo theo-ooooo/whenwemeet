@@ -18,14 +18,20 @@ export interface LoginMail {
   text: string;
 }
 
-const FONT = "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
+const FONT =
+  "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif";
 const BUTTON = '#C8432D';
 const INK = '#1F1A17';
 const SOFT = '#6B625C';
 const MUTE = '#9A918B';
 
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /** (#198) 로그인 방법 연결 메일 제목 (D-257). 링크 없이 코드만 */

@@ -23,9 +23,7 @@ export const dynamic = "force-dynamic";
 
 // 초대 미리보기는 선택 인증 API (#196, D-158). 쿠키가 있으면 토큰을 같이 보내 이미 멤버인지도 받는다.
 // generateMetadata 와 화면이 같은 요청을 한 번만 하게 묶는다
-const loadInvite = cache((code: string, by: string | null) =>
-  serverApi<InvitePreview>(invitePreviewPath(code, by), { from: `/join/${code}` }),
-);
+const loadInvite = cache((code: string, by: string | null) => serverApi<InvitePreview>(invitePreviewPath(code, by), { from: `/join/${code}` }));
 
 const inviterName = (data: InvitePreview) => (data.inviter ? clampTeamName(data.inviter.nickname, INVITER_NAME_MAX) : null);
 
@@ -105,9 +103,7 @@ export default async function JoinPage({
         // (#196) 이미 멤버 (1차 L9). 자동으로 보내지 않고 버튼으로, ?auto=1 자동 합류도 하지 않는다 (D-158)
         <>
           <div className="mt-auto pt-16 fold:mt-0 fold:pt-12">
-            <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
-              멤버 {data.memberCount}명
-            </span>
+            <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">멤버 {data.memberCount}명</span>
           </div>
           <h1 className="mt-3 break-keep text-[28px] font-bold leading-9 tracking-[-0.03em]">
             {data.groupName}
@@ -124,9 +120,7 @@ export default async function JoinPage({
       ) : data ? (
         <>
           <div className="mt-auto pt-16 fold:mt-0 fold:pt-12">
-            <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">
-              멤버 {data.memberCount}명
-            </span>
+            <span className="inline-flex rounded-sm border border-line px-2.5 py-1 text-[12px] font-medium text-soft">멤버 {data.memberCount}명</span>
           </div>
           {inviter && (
             // (#196) 보낸 사람 (D-157). 13/500 --ink-2, 한 줄 말줄임
@@ -142,21 +136,14 @@ export default async function JoinPage({
             {loggedIn ? (
               <JoinButton code={code} auto={autoJoin} />
             ) : (
-              <JoinLoginActions
-                next={joinAutoNext(code, by)}
-                appleEnabled={appleEnabled}
-                appGuess={appGuess}
-                emailEnabled={webEmailEnabled()}
-              />
+              <JoinLoginActions next={joinAutoNext(code, by)} appleEnabled={appleEnabled} appGuess={appGuess} emailEnabled={webEmailEnabled()} />
             )}
             <OpenInApp plan={appOpen} />
           </div>
         </>
       ) : error?.code === "INVITE_NOT_FOUND" ? (
         <>
-          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">
-            초대 링크가 만료됐거나 잘못됐어요
-          </h1>
+          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">초대 링크가 만료됐거나 잘못됐어요</h1>
           <p className="mt-2 text-[15px] leading-[22px] text-soft">초대한 사람에게 새 링크를 받아 주세요</p>
           <Link href="/" className="mt-8 block">
             <Button size="lg" full tabIndex={-1}>
@@ -166,9 +153,7 @@ export default async function JoinPage({
         </>
       ) : (
         <>
-          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">
-            초대 정보를 불러오지 못했어요
-          </h1>
+          <h1 className="mt-auto fold:mt-12 text-[28px] font-bold leading-9 tracking-[-0.03em]">초대 정보를 불러오지 못했어요</h1>
           <p className="mb-10 mt-2 text-[15px] leading-[22px] text-soft">{error?.message || "새로고침해 주세요"}</p>
         </>
       )}

@@ -43,7 +43,7 @@ describe("공지 본문 (#515)", () => {
     const text = 'http://a.example <script>alert(1)</script> javascript:alert(1) <a href="https://x">';
     const segs = noticeSegments(text);
     expect(segs.filter((s) => s.type === "link")).toEqual([{ type: "link", href: "https://x" }]);
-    expect(segs.map((s) => (s.type === "text" ? s.text : s.href)).join("")).toBe(text.replace('https://x"', "https://x\""));
+    expect(segs.map((s) => (s.type === "text" ? s.text : s.href)).join("")).toBe(text.replace('https://x"', 'https://x"'));
   });
 
   it("게시일, 초안", () => {

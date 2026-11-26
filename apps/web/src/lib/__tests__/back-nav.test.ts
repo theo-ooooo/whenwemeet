@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { canGoBackInApp } from "../back-nav";
 
 const O = "https://whenwemeet.day";
-const ctx = (o: Partial<Parameters<typeof canGoBackInApp>[0]>) => ({ historyLength: 3, initialUrl: `${O}/search`, currentUrl: `${O}/search`, referrer: "", ...o });
+const ctx = (o: Partial<Parameters<typeof canGoBackInApp>[0]>) => ({
+  historyLength: 3,
+  initialUrl: `${O}/search`,
+  currentUrl: `${O}/search`,
+  referrer: "",
+  ...o,
+});
 
 describe("canGoBackInApp", () => {
   it("기록이 하나뿐이면(새 탭, 앱 셸 첫 화면) 뒤로 가지 않는다", () => {

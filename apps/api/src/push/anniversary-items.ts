@@ -5,7 +5,11 @@
  * (#562, D-297) 음력 기념일, 생일도 여기 한 곳에서 해마다 양력 날짜로 바꾼다 (anniversaryOrigin, anniversaryYearDate).
  * 알림, 주간 요약, 구독 피드, 볼까가 모두 이 함수를 거친다
  */
-import { type CalendarKind, lunarOccurrence, solarToLunar } from '../common/lunar.js';
+import {
+  type CalendarKind,
+  lunarOccurrence,
+  solarToLunar,
+} from '../common/lunar.js';
 import { addDays, dateToDay } from '../events/recurrence.js';
 
 export type AnniversaryKind = 'COUNT_UP' | 'YEARLY' | 'ONCE';
@@ -39,7 +43,12 @@ export const DAY_MILESTONES: readonly number[] = [
 export const MAX_YEARS = 100;
 
 /** 우선순위: N주년 > N일 > 매년/원래 날짜 (기념일-자동표시.md 3-6) */
-const RANK: Record<AnniversaryItemType, number> = { YEARS: 0, DAYS: 1, YEARLY: 2, ORIGINAL: 2 };
+const RANK: Record<AnniversaryItemType, number> = {
+  YEARS: 0,
+  DAYS: 1,
+  YEARLY: 2,
+  ORIGINAL: 2,
+};
 
 const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
@@ -78,7 +87,10 @@ export function anniversaryOrigin(a: AnniversaryLike): string | null {
  * 음력은 음력 시작 해 + n 의 같은 음력 월일을 양력으로 (윤달은 그해에 없으면 평달, 없는 30일은 그 달 마지막 날, D-297).
  * 음력 12월은 다음 양력 해 1, 2월에 올 수 있다. 범위 밖(음력 2050년 뒤)은 null
  */
-export function anniversaryYearDate(a: AnniversaryLike, n: number): string | null {
+export function anniversaryYearDate(
+  a: AnniversaryLike,
+  n: number,
+): string | null {
   const { y, m, d } = parseKey(a.date);
   if (!isLunar(a)) return sameDayInYear(a.date, y + n);
   return lunarOccurrence(y + n, m, d, a.isLeapMonth === true);
@@ -93,7 +105,10 @@ function yearIndexOn(a: AnniversaryLike, day: string): number | null {
 }
 
 /** 날짜 `day` 의 항목. 우선순위 순 (첫 항목이 알림 문구) */
-export function anniversaryItemsOn(a: AnniversaryLike, day: string): AnniversaryItem[] {
+export function anniversaryItemsOn(
+  a: AnniversaryLike,
+  day: string,
+): AnniversaryItem[] {
   const out: AnniversaryItem[] = [];
   const start = anniversaryOrigin(a);
   if (start === null) return out;
@@ -101,13 +116,23 @@ export function anniversaryItemsOn(a: AnniversaryLike, day: string): Anniversary
 
   if (a.kind === 'COUNT_UP') {
     const n = dayNumber(start, day);
-    if (DAY_MILESTONES.includes(n) && addDays(start, n - 1) === day) out.push({ type: 'DAYS', n, label: `${n}일` });
+    if (DAY_MILESTONES.includes(n) && addDays(start, n - 1) === day)
+      out.push({ type: 'DAYS', n, label: `${n}일` });
   }
 
   if (a.kind === 'COUNT_UP' || a.kind === 'YEARLY') {
     const n = yearIndexOn(a, day);
-    if (n !== null && n >= 1 && !(a.kind === 'COUNT_UP' && n > MAX_YEARS) && anniversaryYearDate(a, n) === day) {
-      out.push(a.kind === 'COUNT_UP' ? { type: 'YEARS', n, label: `${n}주년` } : { type: 'YEARLY', n: null, label: null });
+    if (
+      n !== null &&
+      n >= 1 &&
+      !(a.kind === 'COUNT_UP' && n > MAX_YEARS) &&
+      anniversaryYearDate(a, n) === day
+    ) {
+      out.push(
+        a.kind === 'COUNT_UP'
+          ? { type: 'YEARS', n, label: `${n}주년` }
+          : { type: 'YEARLY', n: null, label: null },
+      );
     }
   }
 

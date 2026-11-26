@@ -3,17 +3,7 @@ import { SwitchTrack } from "./SwitchTrack";
 
 /* ---------- 토글 ---------- */
 
-export function Toggle({
-  checked,
-  onChange,
-  label,
-  description,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  description?: string;
-}) {
+export function Toggle({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
   return (
     <button
       type="button"

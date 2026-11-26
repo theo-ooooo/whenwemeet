@@ -48,7 +48,15 @@ function ev(groupId: number, start: string, end: string, extra: Partial<Event> =
 }
 
 function group(id: number, name: string, color = "#F26D6D"): GroupSummary {
-  return { id, type: "TEAM", name, publicCode: `team${id}`.padEnd(8, "x"), memberCount: 2, me: { color, displayName: "나" }, unreadNewsCount: 0 } as GroupSummary;
+  return {
+    id,
+    type: "TEAM",
+    name,
+    publicCode: `team${id}`.padEnd(8, "x"),
+    memberCount: 2,
+    me: { color, displayName: "나" },
+    unreadNewsCount: 0,
+  } as GroupSummary;
 }
 
 function ann(groupId: number, id: number, name: string, date: string, kind: Anniversary["kind"] = "YEARLY"): Anniversary {
@@ -140,9 +148,7 @@ describe("buildWidgetSnapshot", () => {
   });
 
   it("하루 3개 + 전체 수, 제목 30자 자르기", () => {
-    const many = Array.from({ length: 5 }, (_, i) =>
-      ev(1, at(TODAY, `1${i}:00`), at(TODAY, `1${i}:30`), { title: i === 0 ? "가".repeat(40) : `일${i}` }),
-    );
+    const many = Array.from({ length: 5 }, (_, i) => ev(1, at(TODAY, `1${i}:00`), at(TODAY, `1${i}:30`), { title: i === 0 ? "가".repeat(40) : `일${i}` }));
     const s = buildWidgetSnapshot(source([group(1, "나")], { 1: many }), NOW);
     expect(s.days[0].events).toHaveLength(3);
     expect(s.days[0].total).toBe(5);
@@ -152,10 +158,14 @@ describe("buildWidgetSnapshot", () => {
 
   it("가장 가까운 기념일 3개 (여러 팀, 오늘 포함, 지난 ONCE 제외)", () => {
     const s = buildWidgetSnapshot(
-      source([group(1, "우리 둘"), group(2, "가족")], { 1: [], 2: [] }, {
-        1: [ann(1, 1, "처음 만난 날", "2026-02-07", "COUNT_UP"), ann(1, 2, "지난 일", "2026-01-01", "ONCE")],
-        2: [ann(2, 3, "엄마 생신", "1960-11-12"), ann(2, 4, "결혼기념일", "2020-12-25"), ann(2, 5, "설", "2020-02-01")],
-      }),
+      source(
+        [group(1, "우리 둘"), group(2, "가족")],
+        { 1: [], 2: [] },
+        {
+          1: [ann(1, 1, "처음 만난 날", "2026-02-07", "COUNT_UP"), ann(1, 2, "지난 일", "2026-01-01", "ONCE")],
+          2: [ann(2, 3, "엄마 생신", "1960-11-12"), ann(2, 4, "결혼기념일", "2020-12-25"), ann(2, 5, "설", "2020-02-01")],
+        },
+      ),
       NOW,
     );
     expect(s.anniversaries).toEqual([
@@ -189,7 +199,9 @@ describe("크기 상한 16KB", () => {
     const groups = Array.from({ length: 10 }, (_, i) => group(i + 1, "가".repeat(20)));
     const events: Record<number, Event[]> = {};
     for (const g of groups)
-      events[g.id] = Array.from({ length: 7 }, (_, d) => ev(g.id, at(`2026-11-${12 + d}`, "10:00"), at(`2026-11-${12 + d}`, "11:00"), { title: "가".repeat(40) }));
+      events[g.id] = Array.from({ length: 7 }, (_, d) =>
+        ev(g.id, at(`2026-11-${12 + d}`, "10:00"), at(`2026-11-${12 + d}`, "11:00"), { title: "가".repeat(40) }),
+      );
     const s = buildWidgetSnapshot(source(groups, events), NOW);
     expect(widgetMessageLength(s)).toBeLessThan(WIDGET_MESSAGE_MAX);
     expect(fitWidgetSnapshot(s)?.days).toHaveLength(7);

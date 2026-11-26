@@ -1,4 +1,10 @@
-import { CallHandler, ExecutionContext, HttpException, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  HttpException,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Observable } from 'rxjs';
 import { AVATAR_MAX_BYTES, avatarInvalid } from '../avatars/avatar-image.js';
@@ -13,12 +19,19 @@ const BaseAvatarFileInterceptor = FileInterceptor('file', {
  * 화면에 바로 보여 줄 수 있는 400 VALIDATION_FAILED 로 바꾼다
  */
 @Injectable()
-export class AvatarFileInterceptor extends BaseAvatarFileInterceptor implements NestInterceptor {
-  override async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
+export class AvatarFileInterceptor
+  extends BaseAvatarFileInterceptor
+  implements NestInterceptor
+{
+  override async intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Promise<Observable<unknown>> {
     try {
       return await super.intercept(context, next);
     } catch (error) {
-      if (error instanceof HttpException && error.getStatus() < 500) throw avatarInvalid();
+      if (error instanceof HttpException && error.getStatus() < 500)
+        throw avatarInvalid();
       throw error;
     }
   }

@@ -90,7 +90,14 @@ describe("(#549) 해시", () => {
     const a = timed(1);
     expect(eventHash(a)).toBe(eventHash({ ...a }));
     expect(eventHash(a)).toMatch(/^[0-9a-f]{16}$/);
-    for (const over of [{ title: "x" }, { start: "2026-11-27T10:30:00.000Z" }, { end: "2026-11-27T12:00:00.000Z" }, { location: "a" }, { notes: "n" }, { url: "https://whenwemeet.day/x" }]) {
+    for (const over of [
+      { title: "x" },
+      { start: "2026-11-27T10:30:00.000Z" },
+      { end: "2026-11-27T12:00:00.000Z" },
+      { location: "a" },
+      { notes: "n" },
+      { url: "https://whenwemeet.day/x" },
+    ]) {
       expect(eventHash(timed(1, over))).not.toBe(eventHash(a));
     }
     expect(eventHash(allDay(1, "2026-11-27", "2026-11-28"))).not.toBe(eventHash(timed(1)));

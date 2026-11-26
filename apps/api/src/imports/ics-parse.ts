@@ -4,7 +4,13 @@
  */
 import ICAL from 'ical.js';
 import { ApiException } from '../common/errors.js';
-import { ianaName, isFixedOffset, toInstant, type Wall, type Zone } from './ics-time.js';
+import {
+  ianaName,
+  isFixedOffset,
+  toInstant,
+  type Wall,
+  type Zone,
+} from './ics-time.js';
 
 /** 파일 크기 상한 2MB (기획 3장) */
 export const ICS_MAX_BYTES = 2 * 1024 * 1024;
@@ -14,7 +20,9 @@ export const ICS_MAX_VEVENTS = 3000;
 export const ICS_READ_FAILED_MESSAGE = '캘린더 파일(.ics)을 읽지 못했어요';
 
 /** 시각 하나. 종일이면 `date` ('YYYY-MM-DD'), 아니면 벽시계 + 시간대 */
-export type IcsTime = { allDay: true; date: string; wall: Wall } | { allDay: false; wall: Wall; zone: Zone };
+export type IcsTime =
+  | { allDay: true; date: string; wall: Wall }
+  | { allDay: false; wall: Wall; zone: Zone };
 
 /** RRULE 중 우리가 보는 것 */
 export interface IcsRule {
@@ -57,18 +65,23 @@ export interface ParsedCalendar {
   veventCount: number;
 }
 
-const readFailed = (message = ICS_READ_FAILED_MESSAGE) => new ApiException('VALIDATION_FAILED', message, [{ field: 'file', message }]);
+const readFailed = (message = ICS_READ_FAILED_MESSAGE) =>
+  new ApiException('VALIDATION_FAILED', message, [{ field: 'file', message }]);
 
 /**
  * 접힌 줄(줄바꿈 + 공백 또는 탭)을 바이트 단계에서 잇는다. 75 옥텟마다 접으며 한글(UTF-8 3바이트) 중간을 자르는 내보내기가 있어
  * 글자로 디코딩한 뒤에 이으면 깨진다 (RFC 5545 3.1). latin1 은 바이트와 1:1 이라 정규식을 그대로 쓸 수 있다
  */
 export function unfoldBytes(bytes: Buffer): Buffer {
-  return Buffer.from(bytes.toString('latin1').replace(/\r?\n[ \t]/g, ''), 'latin1');
+  return Buffer.from(
+    bytes.toString('latin1').replace(/\r?\n[ \t]/g, ''),
+    'latin1',
+  );
 }
 
 /** 날짜만 쓰는 시각 속성. RDATE 와 EXDATE 는 쉼표로 여러 개 */
-const BARE_DATE_LINE = /^(DTSTART|DTEND|EXDATE|RDATE|RECURRENCE-ID)((?:;[^\r\n]*)?):(\d{8}(?:,\d{8})*)(\r?)$/gim;
+const BARE_DATE_LINE =
+  /^(DTSTART|DTEND|EXDATE|RDATE|RECURRENCE-ID)((?:;[^\r\n]*)?):(\d{8}(?:,\d{8})*)(\r?)$/gim;
 
 /** 'YYYYMMDD' 가 달력에 있는 날인지 (ical.js 는 13월, 2월 30일을 다음 달로 넘겨 읽는다) */
 function isCalendarDate(value: string): boolean {
@@ -76,7 +89,12 @@ function isCalendarDate(value: string): boolean {
   const mo = Number(value.slice(4, 6));
   const d = Number(value.slice(6, 8));
   const date = new Date(Date.UTC(y, mo - 1, d));
-  return y >= 1 && date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+  return (
+    y >= 1 &&
+    date.getUTCFullYear() === y &&
+    date.getUTCMonth() === mo - 1 &&
+    date.getUTCDate() === d
+  );
 }
 
 /**
@@ -85,23 +103,31 @@ function isCalendarDate(value: string): boolean {
  * `VALUE=` 를 이미 적은 줄(`VALUE=DATE-TIME:20261112` 포함)과 달력에 없는 날(`20261340`)은 건드리지 않아 그대로 못 읽음이 된다
  */
 export function markBareDates(text: string): string {
-  return text.replace(BARE_DATE_LINE, (line, name: string, params: string, value: string, cr: string) =>
-    /;VALUE=/i.test(params) || !value.split(',').every(isCalendarDate) ? line : `${name}${params};VALUE=DATE:${value}${cr}`,
+  return text.replace(
+    BARE_DATE_LINE,
+    (line, name: string, params: string, value: string, cr: string) =>
+      /;VALUE=/i.test(params) || !value.split(',').every(isCalendarDate)
+        ? line
+        : `${name}${params};VALUE=DATE:${value}${cr}`,
   );
 }
 
 /** ICS 파일을 읽는다. 못 읽으면 400 VALIDATION_FAILED(file), VEVENT 가 3,000 개를 넘으면 400 IMPORT_TOO_LARGE */
 export function parseIcs(bytes: Buffer): ParsedCalendar {
   if (bytes.length === 0) throw readFailed();
-  if (bytes.length > ICS_MAX_BYTES) throw readFailed('파일이 너무 커요. 2MB 까지 올릴 수 있어요');
-  const text = markBareDates(unfoldBytes(bytes).toString('utf8').replace(/^﻿/, ''));
+  if (bytes.length > ICS_MAX_BYTES)
+    throw readFailed('파일이 너무 커요. 2MB 까지 올릴 수 있어요');
+  const text = markBareDates(
+    unfoldBytes(bytes).toString('utf8').replace(/^﻿/, ''),
+  );
   if (!/BEGIN:VCALENDAR/i.test(text)) throw readFailed();
 
   let root: ICAL.Component;
   try {
     const parsed: unknown = ICAL.parse(text);
     // 한 파일에 VCALENDAR 가 여럿이면 배열. 첫 것만 (구글, 애플, 네이버 모두 하나)
-    const jcal = Array.isArray(parsed) && Array.isArray(parsed[0]) ? parsed[0] : parsed;
+    const jcal =
+      Array.isArray(parsed) && Array.isArray(parsed[0]) ? parsed[0] : parsed;
     root = new ICAL.Component(jcal as unknown[]);
   } catch {
     throw readFailed();
@@ -110,7 +136,10 @@ export function parseIcs(bytes: Buffer): ParsedCalendar {
 
   const vevents = root.getAllSubcomponents('vevent');
   if (vevents.length > ICS_MAX_VEVENTS) {
-    throw new ApiException('IMPORT_TOO_LARGE', `일정이 너무 많아요. 한 파일에 ${ICS_MAX_VEVENTS.toLocaleString('en-US')}개까지 읽을 수 있어요`);
+    throw new ApiException(
+      'IMPORT_TOO_LARGE',
+      `일정이 너무 많아요. 한 파일에 ${ICS_MAX_VEVENTS.toLocaleString('en-US')}개까지 읽을 수 있어요`,
+    );
   }
   const zones = new ZoneResolver(root);
   const events: IcsEvent[] = [];
@@ -144,7 +173,11 @@ class ZoneResolver {
       const component = this.vtimezones.get(tzid);
       if (component) {
         try {
-          zone = { type: 'VTIMEZONE', tz: new ICAL.Timezone(component), fixed: component.getAllSubcomponents('daylight').length === 0 };
+          zone = {
+            type: 'VTIMEZONE',
+            tz: new ICAL.Timezone(component),
+            fixed: component.getAllSubcomponents('daylight').length === 0,
+          };
         } catch {
           zone = null;
         }
@@ -165,10 +198,28 @@ function pad(n: number, width = 2): string {
 }
 
 /** ical.js Time + 그 속성의 TZID → IcsTime. 모르는 TZID 면 KST 로 보고 unknown 표시 */
-function toIcsTime(time: ICAL.Time, tzid: string | null, zones: ZoneResolver, flags: { unknownTzid: boolean }): IcsTime {
-  const wall: Wall = { y: time.year, mo: time.month, d: time.day, h: time.hour, mi: time.minute, s: time.second };
-  if (time.isDate) return { allDay: true, date: `${pad(wall.y, 4)}-${pad(wall.mo)}-${pad(wall.d)}`, wall };
-  if (time.zone?.tzid === 'UTC') return { allDay: false, wall, zone: { type: 'UTC' } };
+function toIcsTime(
+  time: ICAL.Time,
+  tzid: string | null,
+  zones: ZoneResolver,
+  flags: { unknownTzid: boolean },
+): IcsTime {
+  const wall: Wall = {
+    y: time.year,
+    mo: time.month,
+    d: time.day,
+    h: time.hour,
+    mi: time.minute,
+    s: time.second,
+  };
+  if (time.isDate)
+    return {
+      allDay: true,
+      date: `${pad(wall.y, 4)}-${pad(wall.mo)}-${pad(wall.d)}`,
+      wall,
+    };
+  if (time.zone?.tzid === 'UTC')
+    return { allDay: false, wall, zone: { type: 'UTC' } };
   if (!tzid) return { allDay: false, wall, zone: { type: 'KST' } };
   const zone = zones.resolve(tzid);
   if (!zone) {
@@ -178,12 +229,22 @@ function toIcsTime(time: ICAL.Time, tzid: string | null, zones: ZoneResolver, fl
   return { allDay: false, wall, zone };
 }
 
-function propertyTime(vevent: ICAL.Component, name: string, zones: ZoneResolver, flags: { unknownTzid: boolean }): IcsTime | null {
+function propertyTime(
+  vevent: ICAL.Component,
+  name: string,
+  zones: ZoneResolver,
+  flags: { unknownTzid: boolean },
+): IcsTime | null {
   const property = vevent.getFirstProperty(name);
   if (!property) return null;
   const value = property.getFirstValue();
   if (!(value instanceof ICAL.Time)) return null;
-  return toIcsTime(value, paramString(property.getParameter('tzid')), zones, flags);
+  return toIcsTime(
+    value,
+    paramString(property.getParameter('tzid')),
+    zones,
+    flags,
+  );
 }
 
 function paramString(value: unknown): string | null {
@@ -192,12 +253,18 @@ function paramString(value: unknown): string | null {
   return null;
 }
 
-function propertyTimes(vevent: ICAL.Component, name: string, zones: ZoneResolver, flags: { unknownTzid: boolean }): IcsTime[] {
+function propertyTimes(
+  vevent: ICAL.Component,
+  name: string,
+  zones: ZoneResolver,
+  flags: { unknownTzid: boolean },
+): IcsTime[] {
   const result: IcsTime[] = [];
   for (const property of vevent.getAllProperties(name)) {
     const tzid = paramString(property.getParameter('tzid'));
     for (const value of property.getValues()) {
-      if (value instanceof ICAL.Time) result.push(toIcsTime(value, tzid, zones, flags));
+      if (value instanceof ICAL.Time)
+        result.push(toIcsTime(value, tzid, zones, flags));
     }
   }
   return result;
@@ -214,17 +281,27 @@ export function hasFixedOffset(time: IcsTime): boolean {
   return time.allDay || isFixedOffset(time.zone, time.wall.y);
 }
 
-function readRule(vevent: ICAL.Component, start: IcsTime, zones: ZoneResolver, flags: { unknownTzid: boolean }): { rule: IcsRule | null; unsupported: boolean } {
+function readRule(
+  vevent: ICAL.Component,
+  start: IcsTime,
+  zones: ZoneResolver,
+  flags: { unknownTzid: boolean },
+): { rule: IcsRule | null; unsupported: boolean } {
   const properties = vevent.getAllProperties('rrule');
   if (properties.length === 0) return { rule: null, unsupported: false };
   const value = properties[0].getFirstValue();
-  if (properties.length > 1 || !(value instanceof ICAL.Recur)) return { rule: null, unsupported: true };
+  if (properties.length > 1 || !(value instanceof ICAL.Recur))
+    return { rule: null, unsupported: true };
   let until: Date | null = null;
   if (value.until) {
     const untilTime = toIcsTime(value.until, null, zones, flags);
     // UNTIL 이 날짜면 그날 끝까지 포함. 시간대 없는 UNTIL 은 DTSTART 와 같은 시간대로 본다 (RFC 5545 3.3.10)
-    if (untilTime.allDay) until = new Date(instantOf(untilTime).getTime() + 24 * 60 * 60 * 1000 - 1);
-    else if (untilTime.zone.type === 'KST' && !start.allDay) until = instantOf({ ...untilTime, zone: start.zone });
+    if (untilTime.allDay)
+      until = new Date(
+        instantOf(untilTime).getTime() + 24 * 60 * 60 * 1000 - 1,
+      );
+    else if (untilTime.zone.type === 'KST' && !start.allDay)
+      until = instantOf({ ...untilTime, zone: start.zone });
     else until = instantOf(untilTime);
   }
   const recur = value.clone();
@@ -232,10 +309,18 @@ function readRule(vevent: ICAL.Component, start: IcsTime, zones: ZoneResolver, f
   recur.count = null;
   const parts: Record<string, (string | number)[]> = {};
   for (const [key, list] of Object.entries(value.parts ?? {})) {
-    if (Array.isArray(list) && list.length > 0) parts[key.toUpperCase()] = list as (string | number)[];
+    if (Array.isArray(list) && list.length > 0)
+      parts[key.toUpperCase()] = list as (string | number)[];
   }
   return {
-    rule: { freq: String(value.freq ?? '').toUpperCase(), interval: value.interval || 1, count: value.count ?? null, until, parts, recur },
+    rule: {
+      freq: String(value.freq ?? '').toUpperCase(),
+      interval: value.interval || 1,
+      count: value.count ?? null,
+      until,
+      parts,
+      recur,
+    },
     unsupported: false,
   };
 }
@@ -248,7 +333,10 @@ function durationSeconds(vevent: ICAL.Component): number | null {
 }
 
 /** VEVENT 하나. DTSTART 가 없거나 못 읽으면 null 대신 INVALID 로 세도록 start 없는 표시를 남긴다 */
-function readEvent(vevent: ICAL.Component, zones: ZoneResolver): IcsEvent | null {
+function readEvent(
+  vevent: ICAL.Component,
+  zones: ZoneResolver,
+): IcsEvent | null {
   const flags = { unknownTzid: false };
   try {
     const start = propertyTime(vevent, 'dtstart', zones, flags);
@@ -278,7 +366,11 @@ function readEvent(vevent: ICAL.Component, zones: ZoneResolver): IcsEvent | null
 }
 
 /** 시각을 읽지 못한 VEVENT. 계획 단계에서 INVALID 로 센다 */
-export const INVALID_START: IcsTime = { allDay: true, date: '0000-00-00', wall: { y: 0, mo: 0, d: 0, h: 0, mi: 0, s: 0 } };
+export const INVALID_START: IcsTime = {
+  allDay: true,
+  date: '0000-00-00',
+  wall: { y: 0, mo: 0, d: 0, h: 0, mi: 0, s: 0 },
+};
 
 function invalidEvent(vevent: ICAL.Component): IcsEvent {
   const uid = vevent.getFirstPropertyValue('uid');

@@ -16,7 +16,8 @@ import type { GroupSummary, Me } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const to = (req: NextRequest, path: string) => NextResponse.redirect(new URL(path, req.nextUrl.origin), { status: 307, headers: { "Cache-Control": "no-store" } });
+const to = (req: NextRequest, path: string) =>
+  NextResponse.redirect(new URL(path, req.nextUrl.origin), { status: 307, headers: { "Cache-Control": "no-store" } });
 
 export async function GET(req: NextRequest) {
   const jar = await cookies();

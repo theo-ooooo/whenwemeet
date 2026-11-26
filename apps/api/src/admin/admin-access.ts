@@ -29,7 +29,9 @@ export class AdminGuard implements CanActivate {
   constructor(private readonly access: AdminAccess) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Partial<AuthenticatedRequest>>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Partial<AuthenticatedRequest>>();
     if (await this.access.isAdmin(request.user?.id)) return true;
     throw new ApiException('FORBIDDEN', ADMIN_ONLY_MESSAGE);
   }

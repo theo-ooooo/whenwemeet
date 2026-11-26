@@ -36,7 +36,12 @@ export function useGroupContextValue({ groupId, groupsQ, groupQ, error, setGroup
   const setGroup = useCallback(
     (g: GroupDetail) => {
       setGroupData(g);
-      setGroups((prev) => prev?.map((x) => (x.id === g.id ? { ...x, name: g.name, memberCount: g.members.length, me: { color: g.me.color, displayName: g.me.displayName } } : x)) ?? prev);
+      setGroups(
+        (prev) =>
+          prev?.map((x) =>
+            x.id === g.id ? { ...x, name: g.name, memberCount: g.members.length, me: { color: g.me.color, displayName: g.me.displayName } } : x,
+          ) ?? prev,
+      );
     },
     [setGroupData, setGroups],
   );
@@ -53,7 +58,21 @@ export function useGroupContextValue({ groupId, groupsQ, groupQ, error, setGroup
     () =>
       groupId === null
         ? null
-        : { groupId, groups, group: group && group.id === groupId ? group : null, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction },
+        : {
+            groupId,
+            groups,
+            group: group && group.id === groupId ? group : null,
+            error,
+            refresh,
+            setGroup,
+            clearUnread,
+            openSwitcher,
+            setGroupId,
+            eventsChanged,
+            eventsRestored,
+            restoredVersion,
+            setFabAction,
+          },
     [groupId, groups, group, error, refresh, setGroup, clearUnread, openSwitcher, setGroupId, eventsChanged, eventsRestored, restoredVersion, setFabAction],
   );
 

@@ -31,13 +31,7 @@ export function CalendarKindRow({
       <Segmented labelledBy={labelId} value={calendar} options={OPTIONS} onChange={onCalendar} />
       {calendar === "LUNAR" && (
         <div className="mt-2.5 flex min-h-8 items-center gap-2">
-          <input
-            id={leapId}
-            type="checkbox"
-            checked={leap}
-            onChange={(e) => onLeap(e.target.checked)}
-            className="size-[18px] shrink-0 accent-[var(--pri)]"
-          />
+          <input id={leapId} type="checkbox" checked={leap} onChange={(e) => onLeap(e.target.checked)} className="size-[18px] shrink-0 accent-[var(--pri)]" />
           <label htmlFor={leapId} className="text-[14px] font-semibold">
             윤달
           </label>

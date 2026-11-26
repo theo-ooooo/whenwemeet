@@ -4,10 +4,18 @@
  */
 export const LINK_LANDING_PATH = '/me/link';
 
-export function linkTicketUrl(webOrigin: string, ticket: string, next: string): string {
+export function linkTicketUrl(
+  webOrigin: string,
+  ticket: string,
+  next: string,
+): string {
   return `${webOrigin}${LINK_LANDING_PATH}?${new URLSearchParams({ ticket, next }).toString()}`;
 }
 
-export function linkFailureUrl(webOrigin: string, code: string, next: string): string {
+export function linkFailureUrl(
+  webOrigin: string,
+  code: string,
+  next: string,
+): string {
   return `${webOrigin}${LINK_LANDING_PATH}?${new URLSearchParams({ error: code, next }).toString()}`;
 }

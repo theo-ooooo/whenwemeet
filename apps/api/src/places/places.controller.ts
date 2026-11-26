@@ -16,7 +16,11 @@ export class PlacesController {
   /** (#199) 저장된 장소 다시 찾기 `GET /places/resolve?provider=&id=&q=` (api.md 2.14). id 는 카카오 장소 ID 또는 네이버 키 */
   @Get('resolve')
   @RateLimit('placeResolve')
-  resolve(@Query('id') id: unknown, @Query('q') q: unknown, @Query('provider') provider: unknown) {
+  resolve(
+    @Query('id') id: unknown,
+    @Query('q') q: unknown,
+    @Query('provider') provider: unknown,
+  ) {
     return this.places.resolve(id, q, provider);
   }
 }

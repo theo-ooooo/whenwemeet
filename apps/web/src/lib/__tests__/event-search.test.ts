@@ -6,7 +6,17 @@ import type { EventSearchItem } from "../types";
 // (#199) 일정 검색 화면 순수 함수
 const item = (o: Partial<EventSearchItem["event"]> = {}, matched: EventSearchItem["matched"] = ["title"]): EventSearchItem =>
   ({
-    event: { id: 1, title: "치과", startsAt: kstToIso("2026-11-20", "10:00"), endsAt: kstToIso("2026-11-20", "11:00"), allDay: false, memo: null, place: null, repeat: null, ...o },
+    event: {
+      id: 1,
+      title: "치과",
+      startsAt: kstToIso("2026-11-20", "10:00"),
+      endsAt: kstToIso("2026-11-20", "11:00"),
+      allDay: false,
+      memo: null,
+      place: null,
+      repeat: null,
+      ...o,
+    },
     group: { id: 1, name: "우리 집", publicCode: "grpcode1" },
     matched,
     upcoming: true,

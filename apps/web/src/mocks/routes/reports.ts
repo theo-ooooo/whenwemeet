@@ -96,7 +96,13 @@ function reportOut(s: Store, r: ReportRow) {
 function targetDetail(s: Store, type: ReportRow["targetType"], id: number): MockResult {
   const rows = (s.reports ?? []).filter((r) => r.targetType === type && r.targetId === id).sort((a, b) => b.id - a.id);
   if (rows.length === 0) return err(404, "NOT_FOUND", "신고를 찾을 수 없어요");
-  return ok({ targetType: type, targetId: id, target: preview(s, type, id), openCount: rows.filter((r) => r.status === "open").length, reports: rows.slice(0, 100).map((r) => reportOut(s, r)) });
+  return ok({
+    targetType: type,
+    targetId: id,
+    target: preview(s, type, id),
+    openCount: rows.filter((r) => r.status === "open").length,
+    reports: rows.slice(0, 100).map((r) => reportOut(s, r)),
+  });
 }
 
 function listGroups(s: Store, query: URLSearchParams): MockResult {
@@ -125,7 +131,10 @@ function listGroups(s: Store, query: URLSearchParams): MockResult {
         reasons: [...reasonCount].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)),
         status: openCount > 0 ? "open" : latest.status,
         firstReportedAt: list.map((r) => r.createdAt).sort()[0],
-        lastReportedAt: list.map((r) => r.createdAt).sort().at(-1)!,
+        lastReportedAt: list
+          .map((r) => r.createdAt)
+          .sort()
+          .at(-1)!,
         latestReportId: latest.id,
       };
     })
@@ -144,7 +153,8 @@ export function reportsRoute(req: AuthedReq): MockResult | null {
     if (!isOneOf(TARGET_TYPES, targetType)) return err(400, "VALIDATION_FAILED", "targetType 은 group, event, user 중 하나여야 해요");
     if (typeof targetId !== "number" || !Number.isInteger(targetId) || targetId < 1) return err(400, "VALIDATION_FAILED", "targetId 는 양의 정수여야 해요");
     if (!isOneOf(REASONS, reason)) return err(400, "VALIDATION_FAILED", "신고 사유를 골라 주세요");
-    if (detail !== undefined && (typeof detail !== "string" || detail.length > 500)) return err(400, "VALIDATION_FAILED", "자세한 내용은 500자까지 적을 수 있어요");
+    if (detail !== undefined && (typeof detail !== "string" || detail.length > 500))
+      return err(400, "VALIDATION_FAILED", "자세한 내용은 500자까지 적을 수 있어요");
     const reports = (s.reports ??= []);
     const since = Date.now() - DAY_MS;
     if (reports.filter((r) => r.reporterId === userId && Date.parse(r.createdAt) > since).length >= MOCK_REPORT_DAILY_LIMIT) {
@@ -229,7 +239,8 @@ export function mockStats(s: Store, range: 7 | 30) {
   const clients = s.userClients ?? [];
   const devices = s.pushDevices ?? [];
   const has = (userId: number, platform: "ios" | "android" | "web") =>
-    clients.some((c) => c.userId === userId && c.platform === platform) || (platform !== "web" && devices.some((d) => d.userId === userId && d.platform === platform.toUpperCase()));
+    clients.some((c) => c.userId === userId && c.platform === platform) ||
+    (platform !== "web" && devices.some((d) => d.userId === userId && d.platform === platform.toUpperCase()));
   const none = (userId: number) => !clients.some((c) => c.userId === userId) && !devices.some((d) => d.userId === userId);
   const fromAt = Date.parse(`${days[0]}T00:00:00+09:00`);
   return {

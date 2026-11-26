@@ -4,10 +4,7 @@
 import { withTeam } from "./routes";
 
 /** 번호를 공개 코드로 바꿔야 하는 일정 자리 */
-export type LegacyEventRef =
-  | { as: "detail"; eventId: number; occurrence: string | null }
-  | { as: "edit"; eventId: number }
-  | { as: "copy"; eventId: number };
+export type LegacyEventRef = { as: "detail"; eventId: number; occurrence: string | null } | { as: "edit"; eventId: number } | { as: "copy"; eventId: number };
 
 export type LegacyRoute = {
   /** 새 경로 (쿼리 제외). 일정 상세/수정은 코드를 알아야 해서 페이지가 `eventRef` 로 채운다 */

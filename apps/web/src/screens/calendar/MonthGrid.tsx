@@ -81,11 +81,7 @@ export function MonthGrid({
       {/* 날짜 칸 격자 위에 같은 줄 격자로 주마다 여러 날 일정 막대를 겹쳐 그린다 (#202, 넓은 화면) */}
       <div role="presentation" className="relative fold:flex fold:min-h-0 fold:flex-1 fold:flex-col">
         {/* touch-pan-y: 세로 스크롤은 브라우저가, 가로는 스와이프가 (#162) */}
-        <div
-          ref={swipeRef}
-          role="rowgroup"
-          className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr"
-        >
+        <div ref={swipeRef} role="rowgroup" className="grid touch-pan-y grid-cols-7 fold:min-h-0 fold:flex-1 fold:auto-rows-fr">
           {weeks.map((w, r) => (
             <div key={w.packed.days[0]} role="row" className="contents">
               {grid.slice(r * 7, r * 7 + 7).map((key, col) => (
@@ -123,9 +119,18 @@ export function MonthGrid({
           >
             {weeks.map((w, r) => (
               // 칸(li) 과 같은 높이, 같은 위 1px 테두리라야 tall/taller 가 칸과 똑같이 갈린다
-              <div key={w.packed.days[0]} className="relative border-t border-transparent [container-type:size]" style={{ gridRow: r + 1, gridColumn: "1 / -1" }}>
+              <div
+                key={w.packed.days[0]}
+                className="relative border-t border-transparent [container-type:size]"
+                style={{ gridRow: r + 1, gridColumn: "1 / -1" }}
+              >
                 {w.fit2.pieces.map((p) => (
-                  <WeekBar key={`2@${p.key}@${p.col}`} piece={p} className="hidden tall:flex taller:hidden" onOpen={() => onOpenEvent(w.packed.days[p.col], p.event)} />
+                  <WeekBar
+                    key={`2@${p.key}@${p.col}`}
+                    piece={p}
+                    className="hidden tall:flex taller:hidden"
+                    onOpen={() => onOpenEvent(w.packed.days[p.col], p.event)}
+                  />
                 ))}
                 {w.fit3.pieces.map((p) => (
                   <WeekBar key={`3@${p.key}@${p.col}`} piece={p} className="hidden taller:flex" onOpen={() => onOpenEvent(w.packed.days[p.col], p.event)} />
@@ -136,7 +141,11 @@ export function MonthGrid({
         )}
         {/* (#355) 폰: 주마다 이름 칩을 칸 위에 겹쳐 그린다. 누르기는 아래 칸 버튼이 받는다(칸 = 일 상세) */}
         {events !== null && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid fold:hidden" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 grid fold:hidden"
+            style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+          >
             {phoneWeeks.map((pw, r) => (
               <PhoneWeekChips key={weeks[r].packed.days[0]} chips={pw.chips} lunarRow={showLunar} />
             ))}

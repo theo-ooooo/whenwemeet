@@ -72,32 +72,31 @@ export function SummaryCards({
       </Link>
     );
   const annToday = nearest?.value === "오늘";
-  const annCard =
-    anniversariesLoading ? (
-      <div className={sumCard} aria-busy="true">
-        <span className={sumLabel}>오늘 기념일</span>
-        <Skeleton className="h-6 w-24" />
-      </div>
-    ) : (
-      <Link href={ANNIVERSARIES_PATH} className={`${sumCard} hover:bg-hover`}>
-        <span className={sumLabel}>{annToday ? "오늘 기념일" : "다음 기념일"}</span>
-        {nearest === null ? (
-          <span className={`${sumValue} text-ink-2`}>없어요</span>
-        ) : annToday ? (
-          // 좁은 폭(884)에서 이름만 줄이고 "1000일" 은 남긴다 (QA3-L4)
-          <span className="flex min-w-0 items-baseline gap-1 text-acc-ink">
-            <span className={`${sumValue} min-w-0`}>{nearest.name}</span>
-            {nearest.label && <span className={`${sumValue} shrink-0`}>{nearest.label}</span>}
-          </span>
-        ) : (
-          <span className="flex min-w-0 items-baseline gap-2">
-            <b className={`${sumValue} shrink-0`}>{nearest.value}</b>
-            <span className="min-w-0 truncate text-[13px] font-medium text-soft">{nearest.name}</span>
-            {nearest.label && <span className="-ml-1 shrink-0 text-[13px] font-medium text-soft">{nearest.label}</span>}
-          </span>
-        )}
-      </Link>
-    );
+  const annCard = anniversariesLoading ? (
+    <div className={sumCard} aria-busy="true">
+      <span className={sumLabel}>오늘 기념일</span>
+      <Skeleton className="h-6 w-24" />
+    </div>
+  ) : (
+    <Link href={ANNIVERSARIES_PATH} className={`${sumCard} hover:bg-hover`}>
+      <span className={sumLabel}>{annToday ? "오늘 기념일" : "다음 기념일"}</span>
+      {nearest === null ? (
+        <span className={`${sumValue} text-ink-2`}>없어요</span>
+      ) : annToday ? (
+        // 좁은 폭(884)에서 이름만 줄이고 "1000일" 은 남긴다 (QA3-L4)
+        <span className="flex min-w-0 items-baseline gap-1 text-acc-ink">
+          <span className={`${sumValue} min-w-0`}>{nearest.name}</span>
+          {nearest.label && <span className={`${sumValue} shrink-0`}>{nearest.label}</span>}
+        </span>
+      ) : (
+        <span className="flex min-w-0 items-baseline gap-2">
+          <b className={`${sumValue} shrink-0`}>{nearest.value}</b>
+          <span className="min-w-0 truncate text-[13px] font-medium text-soft">{nearest.name}</span>
+          {nearest.label && <span className="-ml-1 shrink-0 text-[13px] font-medium text-soft">{nearest.label}</span>}
+        </span>
+      )}
+    </Link>
+  );
   const weekCard = (
     <div className={sumCard} aria-busy={weekCount === null && !weekFailed ? true : undefined}>
       <span className={sumLabel}>{weekCardLabel}</span>

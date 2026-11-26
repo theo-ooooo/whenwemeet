@@ -7,11 +7,7 @@ import { EventFormScreen } from "@/screens/EventFormScreen";
 
 export const metadata: Metadata = { title: "새 일정" };
 
-export default async function NewEventPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ start?: string; end?: string; copy?: string; occurrence?: string }>;
-}) {
+export default async function NewEventPage({ searchParams }: { searchParams: Promise<{ start?: string; end?: string; copy?: string; occurrence?: string }> }) {
   const { start, end, copy, occurrence } = await searchParams;
   const valid = (v?: string) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
   // copy=<일정 공개 코드>: 일정 상세의 "복제". 같은 값으로 새 일정 폼을 채운다 (#311). 코드 모양이 아니거나 못 찾으면 빈 폼.

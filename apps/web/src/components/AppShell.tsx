@@ -68,7 +68,17 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
   const { pendingNav, onMenuNavigate } = usePendingNav();
 
   const groups = groupsQ.data;
-  const { gone, resolvingTeam, error, hidden } = useTeamSelection({ initialGroupId, groupId, setGroupId, setGroupIdState, groupsQ, groupQ, goneByEvent, searchParams, router });
+  const { gone, resolvingTeam, error, hidden } = useTeamSelection({
+    initialGroupId,
+    groupId,
+    setGroupId,
+    setGroupIdState,
+    groupsQ,
+    groupQ,
+    goneByEvent,
+    searchParams,
+    router,
+  });
   const group = groupQ.data;
   const { value, eventsVersion, fabAction } = useGroupContextValue({ groupId, groupsQ, groupQ, error, setGroupId, openSwitcher });
   const { wide, fold, animate } = useShellSidebar();
@@ -102,7 +112,11 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
    * 열 팀이 없으면 팀이 하나도 없을 때처럼 새 팀 만들기로
    */
   function openOtherTeam() {
-    const next = pickStartGroupId((groups ?? []).filter((g) => !g.hidden), null, null);
+    const next = pickStartGroupId(
+      (groups ?? []).filter((g) => !g.hidden),
+      null,
+      null,
+    );
     if (next === null) router.replace("/groups/new");
     else switchTo(next);
   }
@@ -127,197 +141,185 @@ export function AppShell({ initialGroupId, initialGroups = null, children }: Pro
     <Ctx.Provider value={value}>
       {/* (#450) AI 비서 대화는 메모리에. 팀이 바뀌면 지운다 (AssistantProvider 안에서 groupId 를 본다) */}
       <AssistantProvider groupId={groupId}>
-      {/* 사이드바 폭 264, 접으면 72 (#315). 열 너비를 200ms 로 옮긴다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
-      <div
-        className={`min-h-dvh fold:grid fold:grid-cols-[var(--side-w)_minmax(0,1fr)] ${animate ? "transition-[grid-template-columns] duration-200 ease-out" : ""}`}
-        style={{ "--side-w": `${fold.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_EXPANDED_W}px` } as React.CSSProperties}
-        data-sidebar={fold.collapsed ? "collapsed" : "expanded"}
-        // (#552, D-295) 폰에서 본문에 ScreenHeader 가 있으면 아래 data-app-topbar 를 숨긴다 (globals.css)
-        data-app-shell=""
-      >
-        <Sidebar
-          groupId={groupId}
-          group={shownGroup}
-          tab={menuTab}
-          onNavigate={onMenuNavigate}
-          unread={unread}
-          noticeDot={noticeDot}
-          hiddenTeam={hiddenSummary}
-          enabled={wide && groupId !== null && !fold.collapsed && hidden === null}
-          refreshKey={`${tab ?? ""}#${eventsVersion}`}
-          onSwitchTeam={() => setSwitcher(true)}
-          collapsed={fold.collapsed}
-          onToggle={fold.toggle}
-        />
+        {/* 사이드바 폭 264, 접으면 72 (#315). 열 너비를 200ms 로 옮긴다 (prefers-reduced-motion 이면 globals.css 가 즉시로) */}
+        <div
+          className={`min-h-dvh fold:grid fold:grid-cols-[var(--side-w)_minmax(0,1fr)] ${animate ? "transition-[grid-template-columns] duration-200 ease-out" : ""}`}
+          style={{ "--side-w": `${fold.collapsed ? SIDEBAR_RAIL_W : SIDEBAR_EXPANDED_W}px` } as React.CSSProperties}
+          data-sidebar={fold.collapsed ? "collapsed" : "expanded"}
+          // (#552, D-295) 폰에서 본문에 ScreenHeader 가 있으면 아래 data-app-topbar 를 숨긴다 (globals.css)
+          data-app-shell=""
+        >
+          <Sidebar
+            groupId={groupId}
+            group={shownGroup}
+            tab={menuTab}
+            onNavigate={onMenuNavigate}
+            unread={unread}
+            noticeDot={noticeDot}
+            hiddenTeam={hiddenSummary}
+            enabled={wide && groupId !== null && !fold.collapsed && hidden === null}
+            refreshKey={`${tab ?? ""}#${eventsVersion}`}
+            onSwitchTeam={() => setSwitcher(true)}
+            collapsed={fold.collapsed}
+            onToggle={fold.toggle}
+          />
 
-        <div className="flex min-h-dvh w-full flex-col">
-          {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
+          <div className="flex min-h-dvh w-full flex-col">
+            {/* 폰 머리줄 52 (디자인규칙.md 2-1): 심볼 30(달력으로) + 팀 이름 20/700 ⌄ / 새 소식 종(새 소식이 있을 때만 코랄 조각) + 아바타 32.
               글자 로고(워드마크)는 쓰지 않는다. 누르는 칸은 44 (#133, 심볼은 hit 로 44 QA3-L3).
               (#552, D-295) ‹ 제목 하위 화면(ScreenHeader)에서는 숨긴다. 그 화면의 머리줄이 안전 영역을 갖는다 (globals.css) */}
-          <header data-app-topbar="" className="flex h-[calc(52px+var(--sat))] items-center pl-5 pr-3 pt-[var(--sat)] fold:hidden">
-            <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
-              <Symbol size={30} />
-            </Link>
-            <button
-              type="button"
-              onClick={() => setSwitcher(true)}
-              aria-haspopup="dialog"
-              className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[20px] font-bold leading-7 tracking-[-0.02em]"
-            >
-              {shownGroup || hiddenSummary ? (
-                <>
-                  <span className="truncate">{shownGroup?.name ?? hiddenSummary?.name}</span>
-                  <IconChevronDown size={18} className="shrink-0 text-ink-2" />
-                  <span className="sr-only">팀 바꾸기</span>
-                </>
-              ) : (
-                <Skeleton className="h-5 w-20" />
-              )}
-            </button>
-            {/* (#199) 일정 검색. 새 소식 종 왼쪽 */}
-            <Link href={SEARCH_PATH} aria-label="일정 검색" className="group grid size-11 place-items-center text-ink">
-              <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
-                <IconSearch size={22} />
-              </span>
-            </Link>
-            <Link
-              href={NEWS_PATH}
-              aria-label={unread > 0 ? `새 소식 ${unread}개` : "새 소식"}
-              className="group grid size-11 place-items-center text-ink"
-            >
-              <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
-                <IconBell size={24} unread={unread > 0} />
-              </span>
-            </Link>
-            <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
-              {noticeDot && <AvatarDot />}
-              {shownGroup ? (
-                <Avatar member={shownGroup.me} color={shownGroup.me.color} size={32} />
-              ) : hiddenSummary ? (
-                <Avatar member={{ displayName: hiddenSummary.me.displayName, profileImageUrl: null }} color={hiddenSummary.me.color} size={32} />
-              ) : (
-                <Skeleton className="size-8 rounded-full" />
-              )}
-            </Link>
-          </header>
+            <header data-app-topbar="" className="flex h-[calc(52px+var(--sat))] items-center pl-5 pr-3 pt-[var(--sat)] fold:hidden">
+              <Link href={CALENDAR_PATH} aria-label="언제볼까 달력" className="hit mr-2 grid size-[30px] shrink-0 place-items-center rounded-sm">
+                <Symbol size={30} />
+              </Link>
+              <button
+                type="button"
+                onClick={() => setSwitcher(true)}
+                aria-haspopup="dialog"
+                className="mr-auto flex h-11 min-w-0 max-w-[60%] items-center gap-1 rounded-sm text-[20px] font-bold leading-7 tracking-[-0.02em]"
+              >
+                {shownGroup || hiddenSummary ? (
+                  <>
+                    <span className="truncate">{shownGroup?.name ?? hiddenSummary?.name}</span>
+                    <IconChevronDown size={18} className="shrink-0 text-ink-2" />
+                    <span className="sr-only">팀 바꾸기</span>
+                  </>
+                ) : (
+                  <Skeleton className="h-5 w-20" />
+                )}
+              </button>
+              {/* (#199) 일정 검색. 새 소식 종 왼쪽 */}
+              <Link href={SEARCH_PATH} aria-label="일정 검색" className="group grid size-11 place-items-center text-ink">
+                <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
+                  <IconSearch size={22} />
+                </span>
+              </Link>
+              <Link href={NEWS_PATH} aria-label={unread > 0 ? `새 소식 ${unread}개` : "새 소식"} className="group grid size-11 place-items-center text-ink">
+                <span className="grid size-9 place-items-center rounded-sm group-hover:bg-hover">
+                  <IconBell size={24} unread={unread > 0} />
+                </span>
+              </Link>
+              <Link href="/me" aria-label={noticeDot ? "내 정보, 새 공지" : "내 정보"} className="relative grid size-11 place-items-center rounded-full">
+                {noticeDot && <AvatarDot />}
+                {shownGroup ? (
+                  <Avatar member={shownGroup.me} color={shownGroup.me.color} size={32} />
+                ) : hiddenSummary ? (
+                  <Avatar member={{ displayName: hiddenSummary.me.displayName, profileImageUrl: null }} color={hiddenSummary.me.color} size={32} />
+                ) : (
+                  <Skeleton className="size-8 rounded-full" />
+                )}
+              </Link>
+            </header>
 
-          <main
-            // 넓은 화면 본문 바깥 여백 28 32 (디자인규칙.md 2-2). 달력은 남은 높이를 채우고, 다른 화면도 본문 폭을 다 쓴다.
-            // 폭 상한(예전 760)은 두지 않고 본문 폭이 넉넉하면 화면마다 2단, 격자로 나눈다 (#244, D-100).
-            // (#323) 그 판단은 뷰포트(lg)가 아니라 이 본문의 폭으로 한다: 컨테이너 main(안쪽 폭 = 본문 폭) + globals.css main-* 변형.
-            // 사이드바를 72 레일로 접든 264 로 펼치든 화면이 실제로 받은 폭으로 1단/2단을 고른다
-            className={`@container/main min-w-0 flex-1 px-5 ${
-              isForm
-                ? "pb-[calc(24px+var(--sab))]"
-                : "pb-dock"
-            } fold:px-8 fold:py-7 ${
-              isCalendar ? "" : "fold:w-full fold:min-w-0"
-            }`}
-          >
-            {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
-            {/* (#539) 최신 버전보다 낮은 앱: 본문 위 한 줄 (버전마다 한 번 닫을 수 있다).
+            <main
+              // 넓은 화면 본문 바깥 여백 28 32 (디자인규칙.md 2-2). 달력은 남은 높이를 채우고, 다른 화면도 본문 폭을 다 쓴다.
+              // 폭 상한(예전 760)은 두지 않고 본문 폭이 넉넉하면 화면마다 2단, 격자로 나눈다 (#244, D-100).
+              // (#323) 그 판단은 뷰포트(lg)가 아니라 이 본문의 폭으로 한다: 컨테이너 main(안쪽 폭 = 본문 폭) + globals.css main-* 변형.
+              // 사이드바를 72 레일로 접든 264 로 펼치든 화면이 실제로 받은 폭으로 1단/2단을 고른다
+              className={`@container/main min-w-0 flex-1 px-5 ${isForm ? "pb-[calc(24px+var(--sab))]" : "pb-dock"} fold:px-8 fold:py-7 ${
+                isCalendar ? "" : "fold:w-full fold:min-w-0"
+              }`}
+            >
+              {/* 팀이 정해진 뒤에만 자식 화면. 팀이 바뀌면 key 로 다시 마운트해 화면 상태(폼 입력, 선택 날짜)를 새 팀 기준으로 시작한다 */}
+              {/* (#539) 최신 버전보다 낮은 앱: 본문 위 한 줄 (버전마다 한 번 닫을 수 있다).
                 (#552, D-295) 위쪽 띠는 탭 화면(달력 등)에서만. 하위 화면은 ‹ 제목이 맨 위다 */}
-            {appUpdate.status === "available" && appUpdate.release && isTabScreen(pathname) && <AppUpdateBanner release={appUpdate.release} />}
-            {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
-            {hidden ? null : value !== null && !resolvingTeam ? (
-              <Fragment key={groupId}>{children}</Fragment>
-            ) : (
-              <div className="space-y-3 pt-1" aria-busy="true" aria-label="불러오는 중">
-                <Skeleton className="h-8 w-40" />
-                <Skeleton className="h-[320px] w-full rounded-xl" />
-              </div>
-            )}
-          </main>
-        </div>
+              {appUpdate.status === "available" && appUpdate.release && isTabScreen(pathname) && <AppUpdateBanner release={appUpdate.release} />}
+              {/* (#515) 숨긴 팀: 본문은 비워 두고 안내는 모달로 (D-286) */}
+              {hidden ? null : value !== null && !resolvingTeam ? (
+                <Fragment key={groupId}>{children}</Fragment>
+              ) : (
+                <div className="space-y-3 pt-1" aria-busy="true" aria-label="불러오는 중">
+                  <Skeleton className="h-8 w-40" />
+                  <Skeleton className="h-[320px] w-full rounded-xl" />
+                </div>
+              )}
+            </main>
+          </div>
 
-        {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원).
+          {/* 모바일 떠 있는 유리 알약 탭 + 코랄 원 추가 버튼 (#126: 사용자 선호로 #111 의 평평한 바 대신 복원).
             (#332, D-212) 독이 5칸이라 + 와 한 줄에 칸 44 다섯 + 이름 칩이 들어가는 폭은 390 부터다(dock 구간).
             그보다 좁으면(360, 320) 독이 줄 폭을 다 쓰고 + 는 독 위 오른쪽에 12 띄워 얹는다. 빈 왼쪽은 아래 본문을 누를 수 있게 둔다 */}
-        <div
-          className={`pointer-events-none fixed inset-x-4 bottom-[calc(16px+var(--sab))] z-30 flex-col-reverse items-end gap-3 dock:flex-row dock:items-center dock:gap-2 fold:hidden ${
-            isForm ? "hidden" : "flex"
-          }`}
-        >
-          {/* 선택된 메뉴만 먹색 칩 + 아이콘 + 이름, 나머지는 아이콘만 (디자인규칙.md 4-1, components/PhoneDock.tsx) */}
-          <DockTabs tab={menuTab} onNavigate={onMenuNavigate} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
-          {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170).
+          <div
+            className={`pointer-events-none fixed inset-x-4 bottom-[calc(16px+var(--sab))] z-30 flex-col-reverse items-end gap-3 dock:flex-row dock:items-center dock:gap-2 fold:hidden ${
+              isForm ? "hidden" : "flex"
+            }`}
+          >
+            {/* 선택된 메뉴만 먹색 칩 + 아이콘 + 이름, 나머지는 아이콘만 (디자인규칙.md 4-1, components/PhoneDock.tsx) */}
+            <DockTabs tab={menuTab} onNavigate={onMenuNavigate} className="pointer-events-auto w-full dock:w-auto dock:flex-1" />
+            {/* 화면이 + 동작을 정했으면(기념일 화면은 기념일 추가) 그것, 아니면 일정 추가 (#170).
               (#450) + 위 오른쪽 끝에 12 띄워 "AI 볼까" 알약을 얹는다 (390 미만에서 + 가 독 위로 올라가면 그 위로 같이) */}
-          <div className="pointer-events-none relative shrink-0">
-            <AssistantPill />
-          {fabAction ? (
-            <button
-              type="button"
-              onClick={fabAction.run}
-              aria-label={fabAction.label}
-              className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
-            >
-              <IconPlus size={26} strokeWidth={2.2} />
-            </button>
-          ) : (
-            <Link
-              href={newHref}
-              aria-label="일정 추가"
-              className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
-            >
-              <IconPlus size={26} strokeWidth={2.2} />
-            </Link>
-          )}
-          </div>
-        </div>
-      </div>
-
-      {/* (#538) 중요 공지 팝업. 이용 제한 팀 안내, 꼭 업데이트 창이 떠 있으면 기다린다 (D-291) */}
-      <NoticePopup blocked={hidden !== null || updateRequired} />
-      {/* (#539) 최소 버전보다 낮은 앱: 닫을 수 없는 창 (D-292) */}
-      {updateRequired && appUpdate.release && <AppUpdateRequired release={appUpdate.release} version={appUpdate.version} />}
-      {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
-      <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
-        <ul className="flex flex-col gap-1">
-          {(groups ?? []).map((g) => {
-            const current = g.id === groupId;
-            return (
-              <li key={g.id}>
+            <div className="pointer-events-none relative shrink-0">
+              <AssistantPill />
+              {fabAction ? (
                 <button
                   type="button"
-                  onClick={() => switchTo(g.id)}
-                  aria-current={current ? "true" : undefined}
-                  className={`flex min-h-11 w-full items-center gap-2.5 rounded-sm px-3 py-1 text-left ${current ? "bg-hover" : "hover:bg-hover"}`}
+                  onClick={fabAction.run}
+                  aria-label={fabAction.label}
+                  className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
                 >
-                  <span aria-hidden="true" className="size-2 shrink-0 rounded-[3px]" style={{ background: dots.get(g.id) }} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold leading-5">{g.name}</span>
-                    <span className="t-sub block">
-                      {g.type === "PERSONAL" ? "나만 보는 달력" : `멤버 ${g.memberCount}명`}
-                      {/* (#515) 운영 숨김 팀 */}
-                      {g.hidden && <span className="font-semibold text-danger">, 이용 제한</span>}
-                    </span>
-                  </span>
-                  {g.unreadNewsCount > 0 && (
-                    <span className="text-[12px] font-bold text-acc-ink">
-                      새 소식 {g.unreadNewsCount}
-                    </span>
-                  )}
+                  <IconPlus size={26} strokeWidth={2.2} />
                 </button>
-              </li>
-            );
-          })}
-        </ul>
-        <Link
-          href="/groups/new"
-          onClick={() => setSwitcher(false)}
-          className="mt-3 flex h-11 items-center justify-center gap-1.5 rounded-md bg-btn text-[13.5px] font-bold text-on-btn"
-        >
-          <IconPlus size={16} strokeWidth={2.2} />새 팀 만들기
-        </Link>
-        {/* 링크 없이 6자리 코드만 받은 경우 (#56) */}
-        <Link
-          href="/join"
-          onClick={() => setSwitcher(false)}
-          className="mt-2 flex h-11 items-center justify-center rounded-md bg-hover text-[13.5px] font-bold text-ink hover:brightness-95"
-        >
-          초대 코드로 합류
-        </Link>
-      </Sheet>
+              ) : (
+                <Link
+                  href={newHref}
+                  aria-label="일정 추가"
+                  className="pointer-events-auto grid size-16 shrink-0 place-items-center rounded-full bg-pri text-on-pri shadow-[var(--fab-shadow)]"
+                >
+                  <IconPlus size={26} strokeWidth={2.2} />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* (#538) 중요 공지 팝업. 이용 제한 팀 안내, 꼭 업데이트 창이 떠 있으면 기다린다 (D-291) */}
+        <NoticePopup blocked={hidden !== null || updateRequired} />
+        {/* (#539) 최소 버전보다 낮은 앱: 닫을 수 없는 창 (D-292) */}
+        {updateRequired && appUpdate.release && <AppUpdateRequired release={appUpdate.release} version={appUpdate.version} />}
+        {hidden && hiddenSummary && <GroupHiddenModal key={hiddenSummary.id} team={hiddenSummary} reason={hidden.reason} onOpenOther={openOtherTeam} />}
+        <Sheet open={switcher} onClose={() => setSwitcher(false)} title="내 팀">
+          <ul className="flex flex-col gap-1">
+            {(groups ?? []).map((g) => {
+              const current = g.id === groupId;
+              return (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    onClick={() => switchTo(g.id)}
+                    aria-current={current ? "true" : undefined}
+                    className={`flex min-h-11 w-full items-center gap-2.5 rounded-sm px-3 py-1 text-left ${current ? "bg-hover" : "hover:bg-hover"}`}
+                  >
+                    <span aria-hidden="true" className="size-2 shrink-0 rounded-[3px]" style={{ background: dots.get(g.id) }} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold leading-5">{g.name}</span>
+                      <span className="t-sub block">
+                        {g.type === "PERSONAL" ? "나만 보는 달력" : `멤버 ${g.memberCount}명`}
+                        {/* (#515) 운영 숨김 팀 */}
+                        {g.hidden && <span className="font-semibold text-danger">, 이용 제한</span>}
+                      </span>
+                    </span>
+                    {g.unreadNewsCount > 0 && <span className="text-[12px] font-bold text-acc-ink">새 소식 {g.unreadNewsCount}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <Link
+            href="/groups/new"
+            onClick={() => setSwitcher(false)}
+            className="mt-3 flex h-11 items-center justify-center gap-1.5 rounded-md bg-btn text-[13.5px] font-bold text-on-btn"
+          >
+            <IconPlus size={16} strokeWidth={2.2} />새 팀 만들기
+          </Link>
+          {/* 링크 없이 6자리 코드만 받은 경우 (#56) */}
+          <Link
+            href="/join"
+            onClick={() => setSwitcher(false)}
+            className="mt-2 flex h-11 items-center justify-center rounded-md bg-hover text-[13.5px] font-bold text-ink hover:brightness-95"
+          >
+            초대 코드로 합류
+          </Link>
+        </Sheet>
       </AssistantProvider>
     </Ctx.Provider>
   );

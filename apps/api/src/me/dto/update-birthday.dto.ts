@@ -1,13 +1,23 @@
-import { Validate, ValidatorConstraint, type ValidatorConstraintInterface } from 'class-validator';
+import {
+  Validate,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
+} from 'class-validator';
 import { isBirthday } from '../../anniversaries/birthdays.js';
 import type { AnniversaryReminder } from '../../anniversaries/anniversary-reminders.js';
-import { CalendarKindField, LeapMonthField, Reminders } from '../../anniversaries/dto/anniversary.dto.js';
+import {
+  CalendarKindField,
+  LeapMonthField,
+  Reminders,
+} from '../../anniversaries/dto/anniversary.dto.js';
 import type { CalendarKind } from '../../common/lunar.js';
 
 @ValidatorConstraint({ name: 'birthday', async: false })
 export class BirthdayConstraint implements ValidatorConstraintInterface {
   validate(value: unknown, args?: { object: object }): boolean {
-    const calendar = (args?.object as { calendar?: CalendarKind } | undefined)?.calendar ?? 'SOLAR';
+    const calendar =
+      (args?.object as { calendar?: CalendarKind } | undefined)?.calendar ??
+      'SOLAR';
     return value === null || isBirthday(value, calendar);
   }
 

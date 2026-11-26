@@ -25,14 +25,7 @@ function calendarFeedView(row: CalendarFeedRow) {
   };
 }
 
-function calendarFeedRoute(
-  s: Store,
-  method: string,
-  rest: string[],
-  body: Record<string, unknown> | null,
-  groupId: number,
-  userId: number,
-): MockResult {
+function calendarFeedRoute(s: Store, method: string, rest: string[], body: Record<string, unknown> | null, groupId: number, userId: number): MockResult {
   const feeds = (s.calendarFeeds ??= []);
   const mine = feeds.find((f) => f.userId === userId && f.groupId === groupId);
   if (rest.length === 0 && method === "GET") return ok(mine ? calendarFeedView(mine) : null);

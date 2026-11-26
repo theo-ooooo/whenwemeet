@@ -71,7 +71,13 @@ export function EventOptionRows({
 
       {/* 알림 (#188, 8장). 종일 여부로 선택지가 갈린다. 못 받는 기기 안내는 알림 시트 안에 */}
       <div>
-        <RowButton label="알림" icon={<IconBell size={18} />} value={REMINDER_LABEL[reminder]} onClick={() => setDialog({ kind: "reminder" })} aria-haspopup="dialog" />
+        <RowButton
+          label="알림"
+          icon={<IconBell size={18} />}
+          value={REMINDER_LABEL[reminder]}
+          onClick={() => setDialog({ kind: "reminder" })}
+          aria-haspopup="dialog"
+        />
         {remindError && <InlineError className="pb-2">{remindError}</InlineError>}
       </div>
 
@@ -101,7 +107,13 @@ export function EventOptionRows({
               </div>
               {untilOn && (
                 <div className="flex justify-end">
-                  <DatePicker look="chip" label="반복 종료 날짜" value={untilDate} min={startDate} onChange={(v) => dispatch({ type: "untilDate", value: v })} />
+                  <DatePicker
+                    look="chip"
+                    label="반복 종료 날짜"
+                    value={untilDate}
+                    min={startDate}
+                    onChange={(v) => dispatch({ type: "untilDate", value: v })}
+                  />
                 </div>
               )}
             </div>
@@ -124,7 +136,11 @@ export function EventOptionRows({
           <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[14px] text-ink-2">
             <span aria-hidden="true" className="inline-flex items-center">
               {colorDots.map((c, i) => (
-                <i key={i} className="block size-3 rounded-full" style={{ background: c, marginLeft: i ? -4 : 0, boxShadow: i ? "0 0 0 1.5px var(--tile)" : undefined }} />
+                <i
+                  key={i}
+                  className="block size-3 rounded-full"
+                  style={{ background: c, marginLeft: i ? -4 : 0, boxShadow: i ? "0 0 0 1.5px var(--tile)" : undefined }}
+                />
               ))}
             </span>
             <span className="truncate">{eventColorName(color)}</span>

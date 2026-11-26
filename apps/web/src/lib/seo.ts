@@ -2,7 +2,7 @@
 import { SITE_URL } from "./site";
 
 /** 검색에 올릴 공개 화면. 맨 / 는 로그인 안 한 방문자에게 소개 페이지를 그린다 (proxy.ts) */
-export const SITEMAP_PATHS = ["/", "/notices", "/support", "/terms", "/privacy"] as const;
+export const SITEMAP_PATHS = ["/", "/notices", "/support", "/terms", "/privacy", "/policy"] as const;
 
 /** 로그인 뒤 화면과 내부 경로. /og 와 /join 은 막지 않는다: 메신저 미리보기 수집기가 robots 를 따르면 카드가 빈다.
  *  초대, 일정 공유 화면은 페이지에서 noindex 로 뺀다 */

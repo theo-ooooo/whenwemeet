@@ -39,7 +39,12 @@ export function AdminDashboardScreen() {
             <span id="admin-stats-range" className="sr-only">
               기간
             </span>
-            <Segmented labelledBy="admin-stats-range" value={String(range) as "7" | "30"} options={RANGE_OPTIONS} onChange={(v) => setRange(v === "30" ? 30 : 7)} />
+            <Segmented
+              labelledBy="admin-stats-range"
+              value={String(range) as "7" | "30"}
+              options={RANGE_OPTIONS}
+              onChange={(v) => setRange(v === "30" ? 30 : 7)}
+            />
           </div>
         }
       />
@@ -93,7 +98,9 @@ function Tile({ label, value, hint, href, warn = false }: { label: string; value
   const body = (
     <>
       <span className="block text-[12px] font-semibold leading-4 text-ink-2">{label}</span>
-      <span className={`mt-1.5 block text-[24px] font-bold leading-7 tracking-[-0.02em] tabular-nums ${warn ? "text-danger" : "text-ink"}`}>{statNumber(value)}</span>
+      <span className={`mt-1.5 block text-[24px] font-bold leading-7 tracking-[-0.02em] tabular-nums ${warn ? "text-danger" : "text-ink"}`}>
+        {statNumber(value)}
+      </span>
       {hint && <span className="mt-0.5 block text-[11px] leading-4 text-ink-2">{hint}</span>}
     </>
   );
@@ -108,7 +115,21 @@ function Tile({ label, value, hint, href, warn = false }: { label: string; value
 }
 
 /** 날짜별 막대 하나 (한 계열). 막대 위 값은 가장 큰 날과 마지막 날만 */
-function DayBars({ title, unit, days, pick, note, sub }: { title: string; unit: string; days: AdminStatsDay[]; pick: (d: AdminStatsDay) => number; note?: string; sub?: (d: AdminStatsDay) => string }) {
+function DayBars({
+  title,
+  unit,
+  days,
+  pick,
+  note,
+  sub,
+}: {
+  title: string;
+  unit: string;
+  days: AdminStatsDay[];
+  pick: (d: AdminStatsDay) => number;
+  note?: string;
+  sub?: (d: AdminStatsDay) => string;
+}) {
   const values = days.map(pick);
   const ratios = barRatios(values);
   const max = Math.max(0, ...values);
@@ -135,10 +156,7 @@ function DayBars({ title, unit, days, pick, note, sub }: { title: string; unit: 
               className="group relative flex h-full min-w-0 flex-1 flex-col items-center justify-end hover:bg-hover"
             >
               {label && <span className="mb-0.5 whitespace-nowrap text-[10px] font-semibold leading-3 tabular-nums text-ink-2">{statNumber(v)}</span>}
-              <span
-                className="block w-full max-w-[28px] rounded-t-[4px] bg-btn"
-                style={{ height: v > 0 ? `max(2px, ${Math.round(ratios[i] * 100)}%)` : 0 }}
-              />
+              <span className="block w-full max-w-[28px] rounded-t-[4px] bg-btn" style={{ height: v > 0 ? `max(2px, ${Math.round(ratios[i] * 100)}%)` : 0 }} />
             </div>
           );
         })}

@@ -4,7 +4,12 @@ import { CreateGroupDto } from './group.dto.js';
 
 /** 전역 ValidationPipe 와 같은 옵션 */
 const fields = async (body: object) =>
-  (await validate(plainToInstance(CreateGroupDto, body), { whitelist: true, forbidNonWhitelisted: true })).map((e) => e.property);
+  (
+    await validate(plainToInstance(CreateGroupDto, body), {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    })
+  ).map((e) => e.property);
 
 describe('팀 만들기 DTO preset (#278, D-250)', () => {
   it.each([

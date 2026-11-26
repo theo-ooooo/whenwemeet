@@ -86,16 +86,39 @@ describe("(#198) 앱 셸 linkAccount 응답 읽기 (앱.md 4.8)", () => {
       outcome: { ok: true, provider: "KAKAO", credentials: { accessToken: "at" } },
     });
     expect(
-      decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l2", ok: true, provider: "APPLE", credentials: { identityToken: "it", authorizationCode: "c", nonce } }),
+      decodeLinkAccountReply({
+        v: 1,
+        type: "linkAccount",
+        id: "l2",
+        ok: true,
+        provider: "APPLE",
+        credentials: { identityToken: "it", authorizationCode: "c", nonce },
+      }),
     ).toEqual({ id: "l2", outcome: { ok: true, provider: "APPLE", credentials: { identityToken: "it", authorizationCode: "c", nonce } } });
   });
   it("실패 이유는 cancelled, unavailable 그대로, 모르는 이유와 틀린 성공은 error", () => {
-    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: false, reason: "cancelled" })?.outcome).toEqual({ ok: false, reason: "cancelled" });
-    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: false, reason: "unavailable" })?.outcome).toEqual({ ok: false, reason: "unavailable" });
+    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: false, reason: "cancelled" })?.outcome).toEqual({
+      ok: false,
+      reason: "cancelled",
+    });
+    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: false, reason: "unavailable" })?.outcome).toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
     expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: false, reason: "weird" })?.outcome).toEqual({ ok: false, reason: "error" });
-    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: true, provider: "KAKAO", credentials: {} })?.outcome).toEqual({ ok: false, reason: "error" });
+    expect(decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: true, provider: "KAKAO", credentials: {} })?.outcome).toEqual({
+      ok: false,
+      reason: "error",
+    });
     expect(
-      decodeLinkAccountReply({ v: 1, type: "linkAccount", id: "l1", ok: true, provider: "APPLE", credentials: { identityToken: "it", authorizationCode: "c", nonce: "n".repeat(129) } })?.outcome,
+      decodeLinkAccountReply({
+        v: 1,
+        type: "linkAccount",
+        id: "l1",
+        ok: true,
+        provider: "APPLE",
+        credentials: { identityToken: "it", authorizationCode: "c", nonce: "n".repeat(129) },
+      })?.outcome,
     ).toEqual({ ok: false, reason: "error" });
   });
   it("다른 type, 버전, id 없음, 배열은 null", () => {

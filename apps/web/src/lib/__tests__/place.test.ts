@@ -1,12 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { candidateKey, directionsUrl, draftPlaceOf, linkify, mapShareUrlOf, NO_PLACE, pickPlace, placeBody, placeHint, placeLabel, placeRef, placeSnapshot, typePlace } from "../place";
+import {
+  candidateKey,
+  directionsUrl,
+  draftPlaceOf,
+  linkify,
+  mapShareUrlOf,
+  NO_PLACE,
+  pickPlace,
+  placeBody,
+  placeHint,
+  placeLabel,
+  placeRef,
+  placeSnapshot,
+  typePlace,
+} from "../place";
 import type { Place, PlaceCandidate } from "../types";
 
 // (#199) 장소 초안, 보낼 본문(카카오 ID + 검색어 또는 글자만, D-242), 길찾기 주소, 메모 링크
-const CAND: PlaceCandidate = { provider: "kakao", kakaoPlaceId: "8209184", naverKey: null, name: "서울숲", address: "서울 성동구 뚝섬로 273", lat: 37.5444, lng: 127.0374, category: "공원" };
+const CAND: PlaceCandidate = {
+  provider: "kakao",
+  kakaoPlaceId: "8209184",
+  naverKey: null,
+  name: "서울숲",
+  address: "서울 성동구 뚝섬로 273",
+  lat: 37.5444,
+  lng: 127.0374,
+  category: "공원",
+};
 // (D-259) 네이버 후보와 저장된 네이버 장소 (식별 키 + 검색어)
-const NCAND: PlaceCandidate = { provider: "naver", kakaoPlaceId: null, naverKey: "0123456789abcdef", name: "서울숲", address: "서울특별시 성동구 뚝섬로 273", lat: 37.5419644, lng: 127.0385663, category: "숲,숲길" };
-const NPICKED: Place = { text: null, query: "숲", kakaoPlaceId: null, naverKey: "0123456789abcdef", provider: "naver", url: "https://map.naver.com/p/search/%EC%88%B2" };
+const NCAND: PlaceCandidate = {
+  provider: "naver",
+  kakaoPlaceId: null,
+  naverKey: "0123456789abcdef",
+  name: "서울숲",
+  address: "서울특별시 성동구 뚝섬로 273",
+  lat: 37.5419644,
+  lng: 127.0385663,
+  category: "숲,숲길",
+};
+const NPICKED: Place = {
+  text: null,
+  query: "숲",
+  kakaoPlaceId: null,
+  naverKey: "0123456789abcdef",
+  provider: "naver",
+  url: "https://map.naver.com/p/search/%EC%88%B2",
+};
 const PICKED: Place = { text: null, query: "숲", kakaoPlaceId: "8209184", url: "https://place.map.kakao.com/8209184" };
 const FREE: Place = { text: "할머니 댁", query: null, kakaoPlaceId: null, url: null };
 
@@ -81,7 +120,9 @@ describe("길찾기, 표시", () => {
     expect(new URL(directionsUrl(PICKED, { ...CAND, name: "  " })).searchParams.get("etext")).toBe("도착");
     // 카카오 ID 는 네이버에서 못 쓰므로 고를 때 검색어로
     expect(directionsUrl(PICKED)).toBe(`https://map.naver.com/p/search/${encodeURIComponent("숲")}`);
-    expect(directionsUrl({ text: "강남역 #2 출구/앞?", query: null, kakaoPlaceId: null })).toBe(`https://map.naver.com/p/search/${encodeURIComponent("강남역 #2 출구/앞?")}`);
+    expect(directionsUrl({ text: "강남역 #2 출구/앞?", query: null, kakaoPlaceId: null })).toBe(
+      `https://map.naver.com/p/search/${encodeURIComponent("강남역 #2 출구/앞?")}`,
+    );
   });
 
   it("지도 공유 링크를 붙여 넣었으면 그 링크를 연다 (https 지도 주소만)", () => {

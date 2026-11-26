@@ -4,8 +4,7 @@ import { mockHandle } from "../handler";
 import { MOCK_EMAIL_CODE, resetMockEmail } from "../email-login";
 
 type Env = { status: number; body: { data: Record<string, unknown> | null; error?: { code: string; details?: Record<string, unknown> } } };
-const post = (path: string, body: Record<string, unknown>) =>
-  mockHandle({ method: "POST", path, query: new URLSearchParams(), body, userId: null }) as Env;
+const post = (path: string, body: Record<string, unknown>) => mockHandle({ method: "POST", path, query: new URLSearchParams(), body, userId: null }) as Env;
 
 beforeEach(() => {
   resetMockEmail();

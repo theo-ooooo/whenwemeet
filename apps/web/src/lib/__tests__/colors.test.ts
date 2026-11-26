@@ -14,7 +14,16 @@ import { MEMBER_COLORS } from "../types";
 
 describe("멤버 색 8색 (#343, D-215)", () => {
   it("팔레트 순번 = 화면 색 순번. 8번째 키(#F279B5)는 핑크 --m8", () => {
-    expect(MEMBER_COLORS.map((c) => memberColor(c))).toEqual(["var(--m1)", "var(--m2)", "var(--m3)", "var(--m4)", "var(--m5)", "var(--m6)", "var(--m7)", "var(--m8)"]);
+    expect(MEMBER_COLORS.map((c) => memberColor(c))).toEqual([
+      "var(--m1)",
+      "var(--m2)",
+      "var(--m3)",
+      "var(--m4)",
+      "var(--m5)",
+      "var(--m6)",
+      "var(--m7)",
+      "var(--m8)",
+    ]);
     expect(memberColor("#f279b5")).toBe("var(--m8)");
     expect(displayIndex(7)).toBe(7);
     // 팔레트 밖(탈퇴한 멤버 회색)은 그대로, 없으면 --mute

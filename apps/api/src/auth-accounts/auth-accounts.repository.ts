@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DEFAULT_ANNIVERSARY_REMINDERS } from '../anniversaries/anniversary-reminders.js';
 import type { LinkCandidate } from '../auth-link-tickets/auth-link-tickets.repository.js';
-import type { AuthProvider, LinkedAccount } from '../auth/providers/auth-provider.js';
+import type {
+  AuthProvider,
+  LinkedAccount,
+} from '../auth/providers/auth-provider.js';
 import type { StoredObjectRef } from '../files/files.repository.js';
 import { type Db, PrismaService } from '../prisma/prisma.service.js';
 
@@ -16,7 +19,13 @@ export interface AuthAccountRow {
   createdAt: Date;
 }
 
-const ACCOUNT_SELECT = { id: true, provider: true, providerUserId: true, email: true, createdAt: true } as const;
+const ACCOUNT_SELECT = {
+  id: true,
+  provider: true,
+  providerUserId: true,
+  email: true,
+  createdAt: true,
+} as const;
 
 /** 해제할 계정 (제공자 unlink 에 넘긴다) */
 export interface OwnedAccount extends LinkedAccount {
@@ -81,7 +90,17 @@ export const ABSORB_CHECKED_USER_RELATIONS = [
  * 흡수 때 데이터로 보지 않고 지우는 User 관계 (로그인 부속물, 받은 알림, 프로필 사진, (#450) AI 비서 하루 횟수, (#532) 접속 기종,
  * (#538) 닫은 팝업 공지, (#544) 공지 읽음은 User 삭제 Cascade)
  */
-export const ABSORB_CLEANED_USER_RELATIONS = ['avatar', 'authHandoffs', 'authLinkTickets', 'pushDevices', 'pushDeliveries', 'assistantUsages', 'clients', 'noticeDismissals', 'noticeReads'] as const;
+export const ABSORB_CLEANED_USER_RELATIONS = [
+  'avatar',
+  'authHandoffs',
+  'authLinkTickets',
+  'pushDevices',
+  'pushDeliveries',
+  'assistantUsages',
+  'clients',
+  'noticeDismissals',
+  'noticeReads',
+] as const;
 
 /** 빈 계정의 개인 팀에서 0 이어야 하는 Group 관계. startUsers 는 개인 팀을 고정할 수 없어(D-191) 판정 밖 */
 export const ABSORB_CHECKED_GROUP_RELATIONS = [
@@ -103,12 +122,24 @@ export const ABSORB_CHECKED_GROUP_RELATIONS = [
 export const ABSORB_IGNORED_GROUP_RELATIONS = ['startUsers'] as const;
 
 /** 카카오, Apple, 이메일 순 (D-116 버튼 순서). 그 밖은 뒤 */
-const PROVIDER_ORDER: Record<AuthProvider, number> = { KAKAO: 0, APPLE: 1, EMAIL: 2, GOOGLE: 3, NAVER: 4, DEV: 5 };
+const PROVIDER_ORDER: Record<AuthProvider, number> = {
+  KAKAO: 0,
+  APPLE: 1,
+  EMAIL: 2,
+  GOOGLE: 3,
+  NAVER: 4,
+  DEV: 5,
+};
 
-function isDefaultBirthdayReminders(rows: readonly { offset: string }[]): boolean {
+function isDefaultBirthdayReminders(
+  rows: readonly { offset: string }[],
+): boolean {
   const offsets = rows.map((row) => row.offset).sort();
   const defaults = [...DEFAULT_ANNIVERSARY_REMINDERS].sort();
-  return offsets.length === defaults.length && offsets.every((offset, index) => offset === defaults[index]);
+  return (
+    offsets.length === defaults.length &&
+    offsets.every((offset, index) => offset === defaults[index])
+  );
 }
 
 /**
@@ -119,29 +150,55 @@ function isDefaultBirthdayReminders(rows: readonly { offset: string }[]): boolea
  *   참석 응답, 반응, 투표(만들기, 표, 대상), 알림 설정 행, 삭제 보관, 사진 밖의 파일이 0
  * - 설정: 생일 없음, 처음 여는 달력 기본(LAST), 생일 알림 시점 기본(당일)
  */
-export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string[]> {
+export async function findAbsorbBlockers(
+  tx: Tx,
+  userId: number,
+): Promise<string[]> {
   const user = await tx.user.findUnique({
     where: { id: userId },
-    select: { birthday: true, startCalendarMode: true, role: true, birthdayReminders: { select: { offset: true } } },
+    select: {
+      birthday: true,
+      startCalendarMode: true,
+      role: true,
+      birthdayReminders: { select: { offset: true } },
+    },
   });
   if (!user) return ['user'];
   const blockers: string[] = [];
   if (user.birthday !== null) blockers.push('birthday');
   if (user.startCalendarMode !== 'LAST') blockers.push('startCalendar');
-  if (!isDefaultBirthdayReminders(user.birthdayReminders)) blockers.push('birthdayReminders');
+  if (!isDefaultBirthdayReminders(user.birthdayReminders))
+    blockers.push('birthdayReminders');
   // (#515) 관리자 계정은 흡수하지 않는다
   if (user.role !== 'user') blockers.push('role');
 
-  const memberships = await tx.membership.findMany({ where: { userId }, select: { groupId: true, group: { select: { type: true } } } });
-  if (memberships.some((m) => m.group.type !== 'PERSONAL')) blockers.push('memberships');
-  const personal = memberships.filter((m) => m.group.type === 'PERSONAL').map((m) => m.groupId);
+  const memberships = await tx.membership.findMany({
+    where: { userId },
+    select: { groupId: true, group: { select: { type: true } } },
+  });
+  if (memberships.some((m) => m.group.type !== 'PERSONAL'))
+    blockers.push('memberships');
+  const personal = memberships
+    .filter((m) => m.group.type === 'PERSONAL')
+    .map((m) => m.groupId);
   if (personal.length !== 1) blockers.push('personalGroup');
   const inGroup = { groupId: { in: personal } };
 
   const counts: [string, Promise<number>][] = [
-    ['authAccounts', tx.authAccount.count({ where: { userId } }).then((n) => (n === 1 ? 0 : n))],
-    ['files', tx.file.count({ where: { ownerId: userId, kind: { not: 'AVATAR' } } })],
-    ['group.memberships', tx.membership.count({ where: { ...inGroup, userId: { not: userId } } })],
+    [
+      'authAccounts',
+      tx.authAccount
+        .count({ where: { userId } })
+        .then((n) => (n === 1 ? 0 : n)),
+    ],
+    [
+      'files',
+      tx.file.count({ where: { ownerId: userId, kind: { not: 'AVATAR' } } }),
+    ],
+    [
+      'group.memberships',
+      tx.membership.count({ where: { ...inGroup, userId: { not: userId } } }),
+    ],
     ['group.events', tx.event.count({ where: inGroup })],
     ['group.anniversaries', tx.anniversary.count({ where: inGroup })],
     ['group.eventLogs', tx.eventLog.count({ where: inGroup })],
@@ -153,7 +210,12 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['group.calendarFeeds', tx.calendarFeed.count({ where: inGroup })],
     ['group.polls', tx.poll.count({ where: inGroup })],
     ['group.eventDeletions', tx.eventDeletion.count({ where: inGroup })],
-    ['group.hiddenBy', tx.group.count({ where: { id: { in: personal }, hiddenAt: { not: null } } })],
+    [
+      'group.hiddenBy',
+      tx.group.count({
+        where: { id: { in: personal }, hiddenAt: { not: null } },
+      }),
+    ],
     ['createdEvents', tx.event.count({ where: { creatorId: userId } })],
     ['anniversaries', tx.anniversary.count({ where: { creatorId: userId } })],
     ['eventLogs', tx.eventLog.count({ where: { actorId: userId } })],
@@ -161,15 +223,28 @@ export async function findAbsorbBlockers(tx: Tx, userId: number): Promise<string
     ['eventImports', tx.eventImport.count({ where: { userId } })],
     ['eventParticipations', tx.eventParticipant.count({ where: { userId } })],
     ['eventShares', tx.eventShare.count({ where: { createdById: userId } })],
-    ['todoLists', tx.todoList.count({ where: { OR: [{ creatorId: userId }, { editorId: userId }] } })],
-    ['todoItems', tx.todoItem.count({ where: { OR: [{ creatorId: userId }, { doneById: userId }] } })],
+    [
+      'todoLists',
+      tx.todoList.count({
+        where: { OR: [{ creatorId: userId }, { editorId: userId }] },
+      }),
+    ],
+    [
+      'todoItems',
+      tx.todoItem.count({
+        where: { OR: [{ creatorId: userId }, { doneById: userId }] },
+      }),
+    ],
     ['calendarFeeds', tx.calendarFeed.count({ where: { userId } })],
     ['eventRsvps', tx.eventRsvp.count({ where: { userId } })],
     ['eventReactions', tx.eventReaction.count({ where: { userId } })],
     ['pollsCreated', tx.poll.count({ where: { creatorId: userId } })],
     ['pollVotes', tx.pollVote.count({ where: { userId } })],
     ['pollParticipations', tx.pollParticipant.count({ where: { userId } })],
-    ['notificationPreferences', tx.notificationPreference.count({ where: { userId } })],
+    [
+      'notificationPreferences',
+      tx.notificationPreference.count({ where: { userId } }),
+    ],
     ['eventDeletions', tx.eventDeletion.count({ where: { actorId: userId } })],
     ['notices', tx.notice.count({ where: { createdById: userId } })],
     ['hiddenGroups', tx.group.count({ where: { hiddenById: userId } })],
@@ -192,14 +267,26 @@ export class AuthAccountsRepository {
 
   /** 내 연결 계정. 카카오, Apple, 이메일 순, 같은 제공자는 오래된 순 */
   async list(userId: number): Promise<AuthAccountRow[]> {
-    const rows = await this.prisma.authAccount.findMany({ where: { userId }, orderBy: { id: 'asc' }, select: ACCOUNT_SELECT });
-    return rows.sort((a, b) => PROVIDER_ORDER[a.provider] - PROVIDER_ORDER[b.provider]);
+    const rows = await this.prisma.authAccount.findMany({
+      where: { userId },
+      orderBy: { id: 'asc' },
+      select: ACCOUNT_SELECT,
+    });
+    return rows.sort(
+      (a, b) => PROVIDER_ORDER[a.provider] - PROVIDER_ORDER[b.provider],
+    );
   }
 
   findOwned(userId: number, id: number): Promise<OwnedAccount | null> {
     return this.prisma.authAccount.findFirst({
       where: { id, userId },
-      select: { id: true, provider: true, providerUserId: true, providerClientId: true, refreshToken: true },
+      select: {
+        id: true,
+        provider: true,
+        providerUserId: true,
+        providerClientId: true,
+        refreshToken: true,
+      },
     });
   }
 
@@ -209,7 +296,9 @@ export class AuthAccountsRepository {
 
   /** 같은 제공자의 연결이 이미 있는지 (연결 시작 전 빠른 확인. 최종 판정은 linkTx 안) */
   async hasProvider(userId: number, provider: AuthProvider): Promise<boolean> {
-    return (await this.prisma.authAccount.count({ where: { userId, provider } })) > 0;
+    return (
+      (await this.prisma.authAccount.count({ where: { userId, provider } })) > 0
+    );
   }
 
   /**
@@ -227,9 +316,20 @@ export class AuthAccountsRepository {
       const [existing] = await tx.$queryRaw<{ id: number; userId: number }[]>`
         SELECT id, userId FROM AuthAccount WHERE provider = ${candidate.provider} AND providerUserId = ${candidate.providerUserId} FOR UPDATE`;
       if (existing && existing.userId === userId) {
-        return { kind: 'ALREADY_MINE', account: await tx.authAccount.findUniqueOrThrow({ where: { id: existing.id }, select: ACCOUNT_SELECT }) };
+        return {
+          kind: 'ALREADY_MINE',
+          account: await tx.authAccount.findUniqueOrThrow({
+            where: { id: existing.id },
+            select: ACCOUNT_SELECT,
+          }),
+        };
       }
-      if ((await tx.authAccount.count({ where: { userId, provider: candidate.provider } })) > 0) return { kind: 'PROVIDER_TAKEN' };
+      if (
+        (await tx.authAccount.count({
+          where: { userId, provider: candidate.provider },
+        })) > 0
+      )
+        return { kind: 'PROVIDER_TAKEN' };
 
       const credentials = candidate.credentials ?? {};
       if (!existing) {
@@ -239,7 +339,9 @@ export class AuthAccountsRepository {
             provider: candidate.provider,
             providerUserId: candidate.providerUserId,
             email: candidate.email,
-            ...(candidate.rawProfile === null ? {} : { rawProfile: candidate.rawProfile }),
+            ...(candidate.rawProfile === null
+              ? {}
+              : { rawProfile: candidate.rawProfile }),
             ...credentials,
           },
           select: ACCOUNT_SELECT,
@@ -252,18 +354,37 @@ export class AuthAccountsRepository {
       const blockers = await findAbsorbBlockers(tx, otherId);
       if (blockers.length > 0) return { kind: 'IN_USE', blockers };
 
-      const files = await tx.file.findMany({ where: { ownerId: otherId }, select: { provider: true, bucket: true, key: true } });
-      const personal = await tx.membership.findMany({ where: { userId: otherId }, select: { groupId: true } });
-      await tx.group.deleteMany({ where: { id: { in: personal.map((m) => m.groupId) }, type: 'PERSONAL' } });
+      const files = await tx.file.findMany({
+        where: { ownerId: otherId },
+        select: { provider: true, bucket: true, key: true },
+      });
+      const personal = await tx.membership.findMany({
+        where: { userId: otherId },
+        select: { groupId: true },
+      });
+      await tx.group.deleteMany({
+        where: { id: { in: personal.map((m) => m.groupId) }, type: 'PERSONAL' },
+      });
       await tx.authHandoff.deleteMany({ where: { userId: otherId } });
       await tx.pushDevice.deleteMany({ where: { userId: otherId } });
-      await tx.emailLoginChallenge.deleteMany({ where: { purpose: 'LINK', userId: otherId } });
+      await tx.emailLoginChallenge.deleteMany({
+        where: { purpose: 'LINK', userId: otherId },
+      });
       const account = await tx.authAccount.update({
         where: { id: existing.id },
-        data: { userId, ...(candidate.rawProfile === null ? {} : { rawProfile: candidate.rawProfile }), ...credentials },
+        data: {
+          userId,
+          ...(candidate.rawProfile === null
+            ? {}
+            : { rawProfile: candidate.rawProfile }),
+          ...credentials,
+        },
         select: ACCOUNT_SELECT,
       });
-      await tx.user.update({ where: { id: otherId }, data: { avatarFileId: null } });
+      await tx.user.update({
+        where: { id: otherId },
+        data: { avatarFileId: null },
+      });
       await tx.file.deleteMany({ where: { ownerId: otherId } });
       await tx.user.delete({ where: { id: otherId } });
       return { kind: 'LINKED', account, absorbed: { userId: otherId, files } };
@@ -277,11 +398,18 @@ export class AuthAccountsRepository {
   unlinkTx(userId: number, accountId: number): Promise<UnlinkOutcome> {
     return this.prisma.$transaction(async (tx): Promise<UnlinkOutcome> => {
       await tx.$queryRaw`SELECT id FROM \`User\` WHERE id = ${userId} FOR UPDATE`;
-      const account = await tx.authAccount.findFirst({ where: { id: accountId, userId }, select: { provider: true, providerUserId: true } });
+      const account = await tx.authAccount.findFirst({
+        where: { id: accountId, userId },
+        select: { provider: true, providerUserId: true },
+      });
       if (!account) return 'NOT_FOUND';
-      if ((await tx.authAccount.count({ where: { userId } })) <= 1) return 'LAST';
+      if ((await tx.authAccount.count({ where: { userId } })) <= 1)
+        return 'LAST';
       await tx.authAccount.delete({ where: { id: accountId } });
-      if (account.provider === 'EMAIL') await tx.emailLoginChallenge.deleteMany({ where: { email: account.providerUserId } });
+      if (account.provider === 'EMAIL')
+        await tx.emailLoginChallenge.deleteMany({
+          where: { email: account.providerUserId },
+        });
       return 'DELETED';
     });
   }

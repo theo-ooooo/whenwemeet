@@ -14,8 +14,7 @@ export const CHANNEL_ID = "default";
 const TOKEN_TIMEOUT_MS = 4000;
 
 const projectId: string | undefined =
-  (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ??
-  Constants.easConfig?.projectId;
+  (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ?? Constants.easConfig?.projectId;
 
 let configured = false;
 

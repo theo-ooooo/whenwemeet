@@ -8,7 +8,10 @@ import { ASSISTANT_MODEL } from '../src/assistant/assistant-model.js';
 import { configureApp } from '../src/app.setup.js';
 import { APPLE_JWKS } from '../src/auth/providers/apple.provider.js';
 import { EmailLoginConfig } from '../src/email-login/email-login.config.js';
-import { MAIL_CLIENT, type MailClient } from '../src/email-login/mail-client.js';
+import {
+  MAIL_CLIENT,
+  type MailClient,
+} from '../src/email-login/mail-client.js';
 import { FileUrlBuilder } from '../src/files/file-url.builder.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { WeeklyPlanner } from '../src/push/weekly-planner.js';
@@ -43,16 +46,35 @@ export interface TestAppOptions {
   weeklyPush?: boolean;
 }
 
-export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
+export async function createTestApp(
+  options: TestAppOptions = {},
+): Promise<TestApp> {
   const builder = Test.createTestingModule({ imports: [AppModule] });
-  if (options.storage) builder.overrideProvider(StorageService).useValue(options.storage);
+  if (options.storage)
+    builder.overrideProvider(StorageService).useValue(options.storage);
   if (options.publicBaseUrl) {
-    builder.overrideProvider(FileUrlBuilder).useValue(new FileUrlBuilder(new ConfigService({ R2_PUBLIC_BASE_URL: options.publicBaseUrl })));
+    builder
+      .overrideProvider(FileUrlBuilder)
+      .useValue(
+        new FileUrlBuilder(
+          new ConfigService({ R2_PUBLIC_BASE_URL: options.publicBaseUrl }),
+        ),
+      );
   }
-  if (options.appleJwks) builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
-  if (options.mail) builder.overrideProvider(MAIL_CLIENT).useValue(options.mail);
-  if (options.assistantModel) builder.overrideProvider(ASSISTANT_MODEL).useValue(options.assistantModel);
-  if (options.emailEnv) builder.overrideProvider(EmailLoginConfig).useValue(new EmailLoginConfig(fakeConfig({ ...process.env, ...options.emailEnv })));
+  if (options.appleJwks)
+    builder.overrideProvider(APPLE_JWKS).useValue(options.appleJwks);
+  if (options.mail)
+    builder.overrideProvider(MAIL_CLIENT).useValue(options.mail);
+  if (options.assistantModel)
+    builder.overrideProvider(ASSISTANT_MODEL).useValue(options.assistantModel);
+  if (options.emailEnv)
+    builder
+      .overrideProvider(EmailLoginConfig)
+      .useValue(
+        new EmailLoginConfig(
+          fakeConfig({ ...process.env, ...options.emailEnv }),
+        ),
+      );
   const settings = new RateLimitSettings();
   settings.enabled = options.rateLimit !== undefined;
   if (options.rateLimit?.now) settings.now = options.rateLimit.now;
@@ -61,7 +83,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
   const app = moduleRef.createNestApplication<TestApp>({ logger: false });
   configureApp(app);
   await app.init();
-  if (!options.weeklyPush) app.get(WeeklyPlanner).plan = () => Promise.resolve(0);
+  if (!options.weeklyPush)
+    app.get(WeeklyPlanner).plan = () => Promise.resolve(0);
   return app;
 }
 
@@ -79,7 +102,9 @@ export async function resetDb(app: TestApp): Promise<void> {
   // (#536) 신고
   await prisma.report.deleteMany();
   await prisma.schedulerLease.deleteMany();
-  await prisma.schedulerLease.create({ data: { name: 'push', leaseUntil: new Date(0) } });
+  await prisma.schedulerLease.create({
+    data: { name: 'push', leaseUntil: new Date(0) },
+  });
   await prisma.groupActivity.deleteMany();
   await prisma.eventDeletion.deleteMany();
   await prisma.calendarFeed.deleteMany();
@@ -113,9 +138,19 @@ export interface Session {
 }
 
 /** 개발 전용 로그인으로 세션 하나 */
-export async function devLogin(app: TestApp, nickname: string): Promise<Session> {
-  const res = await api(app).post('/v1/auth/dev-login').send({ nickname }).expect(200);
-  return { token: res.body.data.token as string, userId: res.body.data.user.id as number, nickname };
+export async function devLogin(
+  app: TestApp,
+  nickname: string,
+): Promise<Session> {
+  const res = await api(app)
+    .post('/v1/auth/dev-login')
+    .send({ nickname })
+    .expect(200);
+  return {
+    token: res.body.data.token as string,
+    userId: res.body.data.user.id as number,
+    nickname,
+  };
 }
 
 export function auth(session: Session): { Authorization: string } {
@@ -140,10 +175,22 @@ export function assertEnvelope(res: Response): void {
   expect(typeof res.body.message).toBe('string');
   expect(res.body.message).not.toBe('');
   expect(typeof res.body.error.code).toBe('string');
-  expect(Object.keys(res.body.error).every((key) => key === 'code' || key === 'details')).toBe(true);
+  expect(
+    Object.keys(res.body.error).every(
+      (key) => key === 'code' || key === 'details',
+    ),
+  ).toBe(true);
 }
 
-const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options']);
+const HTTP_METHODS = new Set([
+  'get',
+  'post',
+  'put',
+  'patch',
+  'delete',
+  'head',
+  'options',
+]);
 
 /** supertest 요청. 모든 응답에 assertEnvelope 를 자동으로 건다 */
 export function api(app: TestApp): ReturnType<typeof request> {
@@ -151,8 +198,15 @@ export function api(app: TestApp): ReturnType<typeof request> {
   return new Proxy(agent, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver) as unknown;
-      if (typeof prop === 'string' && HTTP_METHODS.has(prop) && typeof value === 'function') {
-        return (...args: unknown[]) => (value as (...a: unknown[]) => request.Test).apply(target, args).expect(assertEnvelope);
+      if (
+        typeof prop === 'string' &&
+        HTTP_METHODS.has(prop) &&
+        typeof value === 'function'
+      ) {
+        return (...args: unknown[]) =>
+          (value as (...a: unknown[]) => request.Test)
+            .apply(target, args)
+            .expect(assertEnvelope);
       }
       return value;
     },

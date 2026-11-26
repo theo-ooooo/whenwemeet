@@ -31,7 +31,12 @@ describe("목 free-slots 는 지금을 30분 올림 (#136)", () => {
   it("13:07 이면 13:30 부터", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-10T04:07:00.000Z"));
-    const r = call("GET", "/groups/1/free-slots", null, "from=2026-11-10T00:00:00%2B09:00&to=2026-11-11T00:00:00%2B09:00&dayStart=09:00&dayEnd=23:00&minMinutes=30");
+    const r = call(
+      "GET",
+      "/groups/1/free-slots",
+      null,
+      "from=2026-11-10T00:00:00%2B09:00&to=2026-11-11T00:00:00%2B09:00&dayStart=09:00&dayEnd=23:00&minMinutes=30",
+    );
     const slots = r.body.data.slots as { startsAt: string }[];
     expect(r.status).toBe(200);
     expect(slots.length).toBeGreaterThan(0);
@@ -44,7 +49,7 @@ describe("목 free-slots 는 지금을 30분 올림 (#136)", () => {
 describe("목 반복 일정 (#187)", () => {
   type Ev = { id: number; occurrence: string | null; startsAt: string; title: string; repeat: string | null; repeatUntil: string | null };
   const list = (from: string, to: string) =>
-    (call("GET", "/groups/2/events", null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body.data as unknown as Ev[]);
+    call("GET", "/groups/2/events", null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body.data as unknown as Ev[];
   const mine = (from: string, to: string, title: string) => list(from, to).filter((e) => e.title.startsWith(title));
   const F = "2027-03-01T00:00:00+09:00";
   const T = "2027-04-01T00:00:00+09:00";
@@ -65,7 +70,12 @@ describe("목 반복 일정 (#187)", () => {
     // scope 없으면 400
     expect(call("PATCH", `/groups/2/events/${id}`, { title: "x" }, "occurrence=2027-03-10").status).toBe(400);
     // 이 일정만: 그 회차만 20:00
-    const one = call("PATCH", `/groups/2/events/${id}`, { startsAt: "2027-03-10T20:00:00+09:00", endsAt: "2027-03-10T22:00:00+09:00" }, "occurrence=2027-03-10&scope=this");
+    const one = call(
+      "PATCH",
+      `/groups/2/events/${id}`,
+      { startsAt: "2027-03-10T20:00:00+09:00", endsAt: "2027-03-10T22:00:00+09:00" },
+      "occurrence=2027-03-10&scope=this",
+    );
     expect(one.status).toBe(200);
     const got = call("GET", `/groups/2/events/${id}`, null, "occurrence=2027-03-03").body.data;
     expect(got.hasLaterExceptions).toBe(true);
@@ -185,7 +195,10 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
     const base = { title: "알림테스트", startsAt: "2027-05-03T18:00:00+09:00", endsAt: "2027-05-03T19:00:00+09:00", allDay: false };
     const none = call("POST", "/groups/2/events", base);
     expect((none.body.data as unknown as Ev).reminder).toBe("NONE");
-    const bad = call("POST", "/groups/2/events", { ...base, reminder: "DAY_OF_0900" }) as unknown as { status: number; body: { message: string; error: { details: { field: string }[] } } };
+    const bad = call("POST", "/groups/2/events", { ...base, reminder: "DAY_OF_0900" }) as unknown as {
+      status: number;
+      body: { message: string; error: { details: { field: string }[] } };
+    };
     expect(bad.status).toBe(400);
     expect(bad.body.message).toBe("시간 일정에는 고를 수 없는 알림이에요");
     expect(bad.body.error.details[0].field).toBe("reminder");
@@ -252,8 +265,26 @@ describe("목 푸시 알림 계약 (#188, 푸시-알림.md 7장)", () => {
   });
 
   it("알림 설정: 기본 모두 켬, 바꾼 키만, 불리언 아니면 400", () => {
-    expect(call("GET", "/me/notification-settings").body.data).toEqual({ reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true });
-    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({ reminder: true, change: false, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true });
+    expect(call("GET", "/me/notification-settings").body.data).toEqual({
+      reminder: true,
+      change: true,
+      anniversary: true,
+      join: true,
+      weekly: true,
+      weeklyNudge: false,
+      poll: true,
+      notice: true,
+    });
+    expect(call("PATCH", "/me/notification-settings", { change: false }).body.data).toEqual({
+      reminder: true,
+      change: false,
+      anniversary: true,
+      join: true,
+      weekly: true,
+      weeklyNudge: false,
+      poll: true,
+      notice: true,
+    });
     expect(call("PATCH", "/me/notification-settings", {}).body.data.change).toBe(false);
     expect(call("PATCH", "/me/notification-settings", { join: "no" }).status).toBe(400);
   });
@@ -274,7 +305,10 @@ describe("목 일정 참여자 (#248, 설계 3-2, 4장, 6장)", () => {
   type P = { all: boolean; members: { userId: number }[] };
   const ids = (p: P) => p.members.map((m) => m.userId);
   const as = (userId: number, method: string, path: string, body: Record<string, unknown> | null = null, query = "") =>
-    mockHandle({ method, path, query: new URLSearchParams(query), body, userId }) as { status: number; body: { data: Record<string, unknown>; error?: { details?: { field: string }[] } } };
+    mockHandle({ method, path, query: new URLSearchParams(query), body, userId }) as {
+      status: number;
+      body: { data: Record<string, unknown>; error?: { details?: { field: string }[] } };
+    };
   const base = { title: "참여자테스트", startsAt: "2027-06-01T10:00:00+09:00", endsAt: "2027-06-01T12:00:00+09:00", allDay: false };
 
   it("생성: 생략 = [나], ALL = 지금 멤버 전원, 배열 = 가입순", () => {
@@ -468,7 +502,11 @@ describe("목 참석 여부와 반응 (#190)", () => {
   beforeAll(() => {
     (globalThis as unknown as { __wwmMockStore?: unknown }).__wwmMockStore = undefined;
   });
-  type Detail = { rsvp: { mine: string | null; going: number }; reactions: { mine: string | null }; rsvpMembers: { member: { userId: number }; status: string | null }[] };
+  type Detail = {
+    rsvp: { mine: string | null; going: number };
+    reactions: { mine: string | null };
+    rsvpMembers: { member: { userId: number }; status: string | null }[];
+  };
   const detail = (id: number) => call("GET", `/groups/${FAMILY_ID}/events/${id}`).body.data as unknown as Detail;
 
   it("참여자는 정하고 바꾸고 취소한다. 참여자가 아니면 403 NOT_PARTICIPANT, 형식 오류는 400", () => {
@@ -478,7 +516,13 @@ describe("목 참석 여부와 반응 (#190)", () => {
     expect(detail(21).rsvpMembers.find((x) => x.member.userId === ME_ID)?.status).toBe("GOING");
     expect(call("PUT", `/groups/${FAMILY_ID}/events/21/rsvp`, { status: null }).body.data).toMatchObject({ mine: null });
     // 할머니 댁(27) 은 내가 참여자가 아니다
-    const denied = mockHandle({ method: "PUT", path: `/groups/${FAMILY_ID}/events/27/rsvp`, query: new URLSearchParams(), body: { status: "GOING" }, userId: ME_ID });
+    const denied = mockHandle({
+      method: "PUT",
+      path: `/groups/${FAMILY_ID}/events/27/rsvp`,
+      query: new URLSearchParams(),
+      body: { status: "GOING" },
+      userId: ME_ID,
+    });
     expect(denied.status).toBe(403);
     expect(call("PUT", `/groups/${FAMILY_ID}/events/21/rsvp`, { status: "YES" }).status).toBe(400);
   });
@@ -488,7 +532,8 @@ describe("목 참석 여부와 반응 (#190)", () => {
     expect(call("PUT", `/groups/${FAMILY_ID}/events/27/reaction`, { reaction: null }).body.data).toMatchObject({ ACK: 0, mine: null });
     const from = new Date(Date.now() - 86_400_000).toISOString();
     const to = new Date(Date.now() + 20 * 86_400_000).toISOString();
-    const list = call("GET", `/groups/${FAMILY_ID}/events`, null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body.data as unknown as Record<string, unknown>[];
+    const list = call("GET", `/groups/${FAMILY_ID}/events`, null, `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`).body
+      .data as unknown as Record<string, unknown>[];
     expect(list.every((e) => "rsvp" in e && "reactions" in e && !("rsvpMembers" in e))).toBe(true);
   });
 
@@ -518,7 +563,11 @@ describe("목 멤버 생일 (#305)", () => {
     expect(call("PATCH", "/me/birthday", { date: "03-05", reminders: ["NOW"] }).status).toBe(400);
     // (#562) 응답에 달력 종류와 윤달 (생략하면 양력)
     const SOLAR = { calendar: "SOLAR", isLeapMonth: false };
-    expect(call("PATCH", "/me/birthday", { date: "02-29", reminders: ["DAY_BEFORE", "DAY_OF"] }).body.data).toEqual({ date: "02-29", ...SOLAR, reminders: ["DAY_OF", "DAY_BEFORE"] });
+    expect(call("PATCH", "/me/birthday", { date: "02-29", reminders: ["DAY_BEFORE", "DAY_OF"] }).body.data).toEqual({
+      date: "02-29",
+      ...SOLAR,
+      reminders: ["DAY_OF", "DAY_BEFORE"],
+    });
     expect(call("GET", "/me").body.data.birthday).toEqual({ date: "02-29", ...SOLAR, reminders: ["DAY_OF", "DAY_BEFORE"] });
     expect(list().find((b) => b.member.userId === ME_ID)?.date).toBe("02-29");
     expect(call("GET", `/groups/${PERSONAL_ID}/birthdays`).body.data).toHaveLength(1);
@@ -568,7 +617,10 @@ describe("목 약속 투표 (#189, api.md 2.13)", () => {
   it("개인 팀 400, 후보 1개 400, 취소는 기록도 지운다", () => {
     expect(as(ME_ID, "POST", `/groups/${PERSONAL_ID}/polls`, { title: "x", options: [opt(2, 0), opt(3, 0)] }).status).toBe(400);
     expect(as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "x", options: [opt(2, 0)] }).status).toBe(400);
-    const poll = as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "취소할 투표", options: [opt(2, 0), opt(3, 0)] }).body.data as { id: number; publicCode: string };
+    const poll = as(ME_ID, "POST", `/groups/${FAMILY_ID}/polls`, { title: "취소할 투표", options: [opt(2, 0), opt(3, 0)] }).body.data as {
+      id: number;
+      publicCode: string;
+    };
     expect(as(ME_ID, "DELETE", `/groups/${FAMILY_ID}/polls/${poll.id}`).status).toBe(200);
     expect(as(ME_ID, "GET", `/polls/${poll.publicCode}`).status).toBe(404);
     const news = as(3, "GET", `/groups/${FAMILY_ID}/news`, null, "v=2").body.data.items as { payload?: { title?: string } }[];
@@ -581,7 +633,13 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
   const at = (date: string, h: string) => `${date}T${h}:00+09:00`;
 
   it("장소 저장(ID + 검색어만), 응답 url, 수정 생략은 그대로, null 은 지우기, 형식 오류 400", () => {
-    const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "산책", startsAt: at("2030-03-10", "10:00"), endsAt: at("2030-03-10", "11:00"), allDay: false, place: PICK });
+    const made = call("POST", `/groups/${TEAM_ID}/events`, {
+      title: "산책",
+      startsAt: at("2030-03-10", "10:00"),
+      endsAt: at("2030-03-10", "11:00"),
+      allDay: false,
+      place: PICK,
+    });
     expect(made.status).toBe(201);
     const ev = made.body.data as { id: number; place: Record<string, unknown> };
     expect(ev.place).toEqual({ ...PICK, text: null, naverKey: null, provider: "kakao", url: "https://place.map.kakao.com/8209184" });
@@ -593,19 +651,36 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
     expect(call("PATCH", `/groups/${TEAM_ID}/events/${ev.id}`, { place: { text: "집", lat: 1 } }).status).toBe(400);
   });
 
-  it("반복 \"이 일정만\" 장소는 그 회차만, 지우면 그 회차만 없음", () => {
-    const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "주간 산책", startsAt: at("2030-03-06", "10:00"), endsAt: at("2030-03-06", "11:00"), allDay: false, repeat: "WEEKLY", place: PICK });
+  it('반복 "이 일정만" 장소는 그 회차만, 지우면 그 회차만 없음', () => {
+    const made = call("POST", `/groups/${TEAM_ID}/events`, {
+      title: "주간 산책",
+      startsAt: at("2030-03-06", "10:00"),
+      endsAt: at("2030-03-06", "11:00"),
+      allDay: false,
+      repeat: "WEEKLY",
+      place: PICK,
+    });
     const id = (made.body.data as { id: number }).id;
     call("PATCH", `/groups/${TEAM_ID}/events/${id}`, { place: { text: "한강" } }, "scope=this&occurrence=2030-03-13");
     call("PATCH", `/groups/${TEAM_ID}/events/${id}`, { place: null }, "scope=this&occurrence=2030-03-20");
-    const get = (occurrence: string) => call("GET", `/groups/${TEAM_ID}/events/${id}`, null, `occurrence=${occurrence}`).body.data.place as { text: string | null; kakaoPlaceId: string | null } | null;
+    const get = (occurrence: string) =>
+      call("GET", `/groups/${TEAM_ID}/events/${id}`, null, `occurrence=${occurrence}`).body.data.place as {
+        text: string | null;
+        kakaoPlaceId: string | null;
+      } | null;
     expect(get("2030-03-13")?.text).toBe("한강");
     expect(get("2030-03-20")).toBeNull();
     expect(get("2030-03-27")?.kakaoPlaceId).toBe("8209184");
   });
 
   it("일정 검색: 제목, 메모, 장소(사용자 글자). 반복은 한 줄. 비멤버 팀 403, 빈 검색어 400", () => {
-    call("POST", `/groups/${TEAM_ID}/events`, { title: "검색용 반복", startsAt: at("2030-01-02", "10:00"), endsAt: at("2030-01-02", "11:00"), allDay: false, repeat: "WEEKLY" });
+    call("POST", `/groups/${TEAM_ID}/events`, {
+      title: "검색용 반복",
+      startsAt: at("2030-01-02", "10:00"),
+      endsAt: at("2030-01-02", "11:00"),
+      allDay: false,
+      repeat: "WEEKLY",
+    });
     const r = call("GET", "/events/search", null, `q=${encodeURIComponent("검색용")}&groupId=${TEAM_ID}`);
     expect(r.status).toBe(200);
     const items = r.body.data.items as { event: { title: string; repeat: string | null }; group: { id: number }; matched: string[]; upcoming: boolean }[];
@@ -621,23 +696,52 @@ describe("목 장소, 일정 검색, 장소 검색 (#199)", () => {
     const r = call("GET", "/places/search", null, `q=${encodeURIComponent("카페")}`);
     expect((r.body.data.items as { name: string }[])[0].name).toBe("카페 온화 성수점");
     expect(call("GET", "/places/search", null, "q=").status).toBe(400);
-    expect((call("GET", "/places/resolve", null, `id=27531028&q=${encodeURIComponent("카페")}`).body.data.place as { name: string }).name).toBe("카페 온화 성수점");
+    expect((call("GET", "/places/resolve", null, `id=27531028&q=${encodeURIComponent("카페")}`).body.data.place as { name: string }).name).toBe(
+      "카페 온화 성수점",
+    );
     expect(call("GET", "/places/resolve", null, `id=1&q=${encodeURIComponent("카페")}`).body.data.place).toBeNull();
     expect(call("GET", "/places/resolve", null, "id=x&q=a").status).toBe(400);
   });
 
   it("(D-259) 네이버: provider=naver 후보(키, 5개까지), 키 + 검색어로 저장, 다시 찾기는 키가 같은 것. 둘 다 보내면 400", () => {
-    const items = call("GET", "/places/search", null, `q=${encodeURIComponent("서울숲")}&provider=naver`).body.data.items as { provider: string; naverKey: string; address: string }[];
+    const items = call("GET", "/places/search", null, `q=${encodeURIComponent("서울숲")}&provider=naver`).body.data.items as {
+      provider: string;
+      naverKey: string;
+      address: string;
+    }[];
     expect(items[0]).toMatchObject({ provider: "naver", address: "서울특별시 성동구 뚝섬로 273" });
     expect(items[0].naverKey).toMatch(/^[0-9a-f]{16}$/);
     expect(call("GET", "/places/search", null, "q=a&provider=google").status).toBe(400);
     const key = items[0].naverKey;
-    const made = call("POST", `/groups/${TEAM_ID}/events`, { title: "숲", startsAt: at("2030-03-11", "10:00"), endsAt: at("2030-03-11", "11:00"), allDay: false, place: { naverKey: key, query: "서울숲" } });
+    const made = call("POST", `/groups/${TEAM_ID}/events`, {
+      title: "숲",
+      startsAt: at("2030-03-11", "10:00"),
+      endsAt: at("2030-03-11", "11:00"),
+      allDay: false,
+      place: { naverKey: key, query: "서울숲" },
+    });
     expect(made.status).toBe(201);
-    expect((made.body.data as { place: unknown }).place).toEqual({ text: null, query: "서울숲", kakaoPlaceId: null, naverKey: key, provider: "naver", url: "https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%88%B2" });
-    expect((call("GET", "/places/resolve", null, `provider=naver&id=${key}&q=${encodeURIComponent("서울숲")}`).body.data.place as { name: string }).name).toBe("서울숲");
+    expect((made.body.data as { place: unknown }).place).toEqual({
+      text: null,
+      query: "서울숲",
+      kakaoPlaceId: null,
+      naverKey: key,
+      provider: "naver",
+      url: "https://map.naver.com/p/search/%EC%84%9C%EC%9A%B8%EC%88%B2",
+    });
+    expect((call("GET", "/places/resolve", null, `provider=naver&id=${key}&q=${encodeURIComponent("서울숲")}`).body.data.place as { name: string }).name).toBe(
+      "서울숲",
+    );
     expect(call("GET", "/places/resolve", null, `provider=naver&id=8209184&q=a`).status).toBe(400);
-    expect(call("POST", `/groups/${TEAM_ID}/events`, { title: "숲", startsAt: at("2030-03-11", "10:00"), endsAt: at("2030-03-11", "11:00"), allDay: false, place: { naverKey: key, kakaoPlaceId: "1", query: "a" } }).status).toBe(400);
+    expect(
+      call("POST", `/groups/${TEAM_ID}/events`, {
+        title: "숲",
+        startsAt: at("2030-03-11", "10:00"),
+        endsAt: at("2030-03-11", "11:00"),
+        allDay: false,
+        place: { naverKey: key, kakaoPlaceId: "1", query: "a" },
+      }).status,
+    ).toBe(400);
   });
 });
 
@@ -650,10 +754,16 @@ describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
       .filter((e) => e.title.startsWith(prefix))
       .map((e) => `${e.title}@${e.occurrence ?? "-"}`);
   // 내 변경은 내 새 소식에 안 보이므로 기록(팀원에게 보일 소식)을 직접 본다
-  const news = () => ((globalThis as unknown as { __wwmMockStore: { logs: { action: string; title: string }[] } }).__wwmMockStore.logs).filter((i) => i.title.startsWith("되돌"));
+  const news = () =>
+    (globalThis as unknown as { __wwmMockStore: { logs: { action: string; title: string }[] } }).__wwmMockStore.logs.filter((i) => i.title.startsWith("되돌"));
 
   it("한 번짜리: 지우면 deletionId, 되돌리면 같은 번호로 돌아오고 삭제 소식은 숨긴다. 두 번은 404", () => {
-    const created = call("POST", "/groups/2/events", { title: "되돌A", startsAt: "2027-05-03T10:00:00+09:00", endsAt: "2027-05-03T11:00:00+09:00", allDay: false });
+    const created = call("POST", "/groups/2/events", {
+      title: "되돌A",
+      startsAt: "2027-05-03T10:00:00+09:00",
+      endsAt: "2027-05-03T11:00:00+09:00",
+      allDay: false,
+    });
     const id = created.body.data.id as number;
     const del = call("DELETE", `/groups/2/events/${id}`).body.data;
     expect(del).toEqual({ ok: true, deletionId: expect.any(Number) });
@@ -669,7 +779,13 @@ describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
   });
 
   it("반복: 이 일정만, 이후 모두 를 지웠다가 되돌리면 회차가 그대로", () => {
-    const created = call("POST", "/groups/2/events", { title: "되돌B", startsAt: "2027-05-05T19:00:00+09:00", endsAt: "2027-05-05T20:00:00+09:00", allDay: false, repeat: "WEEKLY" });
+    const created = call("POST", "/groups/2/events", {
+      title: "되돌B",
+      startsAt: "2027-05-05T19:00:00+09:00",
+      endsAt: "2027-05-05T20:00:00+09:00",
+      allDay: false,
+      repeat: "WEEKLY",
+    });
     const id = created.body.data.id as number;
     const all = titles("되돌B");
     expect(all).toHaveLength(4);
@@ -686,7 +802,7 @@ describe("(#375) 목 일정 삭제 되돌리기 (D-251)", () => {
 
 describe("(#198) 목 로그인 방법", () => {
   it("목록, 티켓 연결, 같은 제공자 409, 이메일 연결 코드, 해제와 마지막 하나", () => {
-    const list = () => (call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[]);
+    const list = () => call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[];
     expect(list().map((a) => a.provider)).toEqual(["KAKAO"]);
     expect(call("POST", "/me/auth-accounts/link-start", { provider: "KAKAO" }).status).toBe(409);
     expect(call("POST", "/me/auth-accounts", { ticket: "mock-inuse" }).status).toBe(409);
@@ -703,12 +819,14 @@ describe("(#198) 목 로그인 방법", () => {
 
   it("앱 토큰 연결 (앱.md 4.8): 카카오 accessToken, Apple identityToken + authorizationCode + nonce", () => {
     (globalThis as unknown as { __wwmMockStore?: unknown }).__wwmMockStore = undefined;
-    const list = () => (call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[]);
+    const list = () => call("GET", "/me/auth-accounts").body.data as unknown as { id: number; provider: string }[];
     expect(list().map((a) => a.provider)).toEqual(["KAKAO"]);
     // nonce 가 짧거나 칸이 빠지면 400
     expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", authorizationCode: "c", nonce: "short" }).status).toBe(400);
     expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", nonce: "n".repeat(64) }).status).toBe(400);
-    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "mock-inuse", authorizationCode: "c", nonce: "n".repeat(64) }).status).toBe(409);
+    expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "mock-inuse", authorizationCode: "c", nonce: "n".repeat(64) }).status).toBe(
+      409,
+    );
     expect(call("POST", "/me/auth-accounts", { provider: "APPLE", identityToken: "t", authorizationCode: "c", nonce: "n".repeat(64) }).status).toBe(200);
     // 카카오는 이미 있어 409, 해제 뒤 토큰으로 다시 연결
     expect(call("POST", "/me/auth-accounts", { provider: "KAKAO", accessToken: "at" }).status).toBe(409);
@@ -732,7 +850,11 @@ describe("(#562) 목 음력", () => {
   });
 
   it("음력 생일과 달력 음력 표시", () => {
-    expect(call("PATCH", "/me/birthday", { date: "02-30", calendar: "LUNAR", isLeapMonth: true }).body.data).toMatchObject({ date: "02-30", calendar: "LUNAR", isLeapMonth: true });
+    expect(call("PATCH", "/me/birthday", { date: "02-30", calendar: "LUNAR", isLeapMonth: true }).body.data).toMatchObject({
+      date: "02-30",
+      calendar: "LUNAR",
+      isLeapMonth: true,
+    });
     expect(call("PATCH", "/me/birthday", { date: "03-05", isLeapMonth: true }).status).toBe(400);
     expect(call("GET", "/me").body.data.showLunar).toBe(false);
     expect(call("PATCH", "/me/lunar-display", { showLunar: true }).body.data).toEqual({ showLunar: true });
@@ -750,7 +872,10 @@ describe("(#562) 목 음력", () => {
     });
     expect(made.status).toBe(201);
     const id = made.body.data.id as number;
-    const list = call("GET", `/groups/${TEAM_ID}/events`, null, "from=2027-09-01T00:00:00.000Z&to=2027-10-01T00:00:00.000Z").body.data as unknown as { id: number; occurrence: string }[];
+    const list = call("GET", `/groups/${TEAM_ID}/events`, null, "from=2027-09-01T00:00:00.000Z&to=2027-10-01T00:00:00.000Z").body.data as unknown as {
+      id: number;
+      occurrence: string;
+    }[];
     expect(list.filter((e) => e.id === id).map((e) => e.occurrence)).toEqual(["2027-09-15"]);
   });
 });

@@ -68,7 +68,12 @@ export function DayBar({
   className = "",
 }: Props) {
   const win = dayWindow(date, fromHour, toHour);
-  const freeList = free ?? everyoneFree(members.map((m) => m.busy), win);
+  const freeList =
+    free ??
+    everyoneFree(
+      members.map((m) => m.busy),
+      win,
+    );
   const freeSegs = barSegments(freeList, win).filter((s) => s.kind === "free");
   const freeMin = totalMinutes(freeSegs);
   const ticks = barTicks(fromHour, toHour);
@@ -81,7 +86,11 @@ export function DayBar({
   const summary = freeMin > 0 ? (who ? `${who}빔` : "비는 시간") : `${who}비는 시간 없음`;
 
   return (
-    <div role="group" aria-label={`${title}, ${summary}${freeMin > 0 ? ` ${formatMinutes(freeMin)}` : ""}`} className={`${bare ? "" : "rounded-xl bg-paper px-3.5 pb-2.5 pt-3"} ${className}`}>
+    <div
+      role="group"
+      aria-label={`${title}, ${summary}${freeMin > 0 ? ` ${formatMinutes(freeMin)}` : ""}`}
+      className={`${bare ? "" : "rounded-xl bg-paper px-3.5 pb-2.5 pt-3"} ${className}`}
+    >
       {!hideHead && (
         <div className="flex items-baseline justify-between gap-3 text-[12px] leading-4 text-ink-2">
           <span className="min-w-0 truncate">{title}</span>

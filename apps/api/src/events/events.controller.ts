@@ -1,9 +1,24 @@
-import { Body, Controller, Headers, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { logChangeSource, logCreateSource } from '../common/client-source.js';
 import { IdParam } from '../common/id-param.js';
-import { EventInputDto, EventPatchDto, EventRangeQueryDto } from './dto/event.dto.js';
+import {
+  EventInputDto,
+  EventPatchDto,
+  EventRangeQueryDto,
+} from './dto/event.dto.js';
 import { EventsService } from './events.service.js';
 
 @Controller('groups/:groupId/events')
@@ -11,14 +26,28 @@ export class EventsController {
   constructor(private readonly events: EventsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Query() query: EventRangeQueryDto) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Query() query: EventRangeQueryDto,
+  ) {
     return this.events.list(user.id, groupId, query.from, query.to);
   }
 
   /** (#450) 볼까 카드에서 만들면 `X-Client-Source` 를 로그에만 남긴다 (D-275) */
   @Post()
-  create(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @Body() dto: EventInputDto, @Headers('x-client-source') source?: string) {
-    return logCreateSource('event_create', source, { userId: user.id, groupId }, this.events.create(user.id, groupId, dto));
+  create(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @Body() dto: EventInputDto,
+    @Headers('x-client-source') source?: string,
+  ) {
+    return logCreateSource(
+      'event_create',
+      source,
+      { userId: user.id, groupId },
+      this.events.create(user.id, groupId, dto),
+    );
   }
 
   /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD` 회차. 한 번짜리는 무시 */
@@ -43,7 +72,12 @@ export class EventsController {
     @Query('scope') scope: unknown,
     @Headers('x-client-source') source?: string,
   ) {
-    return logChangeSource('event_update', source, { userId: user.id, groupId, id: eventId }, this.events.update(user.id, groupId, eventId, dto, { occurrence, scope }));
+    return logChangeSource(
+      'event_update',
+      source,
+      { userId: user.id, groupId, id: eventId },
+      this.events.update(user.id, groupId, eventId, dto, { occurrence, scope }),
+    );
   }
 
   /** (#187) 반복 일정은 `?occurrence=YYYY-MM-DD&scope=this|following` 필수. 한 번짜리는 무시. (#511) 볼까 카드면 `X-Client-Source` 로그 */
@@ -56,7 +90,12 @@ export class EventsController {
     @Query('scope') scope: unknown,
     @Headers('x-client-source') source?: string,
   ) {
-    return logChangeSource('event_delete', source, { userId: user.id, groupId, id: eventId }, this.events.remove(user.id, groupId, eventId, { occurrence, scope }));
+    return logChangeSource(
+      'event_delete',
+      source,
+      { userId: user.id, groupId, id: eventId },
+      this.events.remove(user.id, groupId, eventId, { occurrence, scope }),
+    );
   }
 }
 
@@ -67,7 +106,11 @@ export class EventDeletionsController {
 
   @Post(':deletionId/restore')
   @HttpCode(200)
-  restore(@CurrentUser() user: AuthUser, @IdParam('groupId') groupId: number, @IdParam('deletionId') deletionId: number) {
+  restore(
+    @CurrentUser() user: AuthUser,
+    @IdParam('groupId') groupId: number,
+    @IdParam('deletionId') deletionId: number,
+  ) {
     return this.events.restore(user.id, groupId, deletionId);
   }
 }
@@ -79,12 +122,21 @@ export class EventLookupController {
 
   /** (#199) 일정 검색 `GET /events/search?q=&groupId=&limit=` (api.md 2.3). ':code' 보다 먼저 등록한다 */
   @Get('search')
-  search(@CurrentUser() user: AuthUser, @Query('q') q: unknown, @Query('groupId') groupId: unknown, @Query('limit') limit: unknown) {
+  search(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q: unknown,
+    @Query('groupId') groupId: unknown,
+    @Query('limit') limit: unknown,
+  ) {
     return this.events.search(user.id, { q, groupId, limit });
   }
 
   @Get(':code')
-  getByCode(@CurrentUser() user: AuthUser, @Param('code') code: string, @Query('occurrence') occurrence: unknown) {
+  getByCode(
+    @CurrentUser() user: AuthUser,
+    @Param('code') code: string,
+    @Query('occurrence') occurrence: unknown,
+  ) {
     return this.events.getByCode(user.id, code, occurrence);
   }
 }

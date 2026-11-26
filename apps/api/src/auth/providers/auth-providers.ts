@@ -10,8 +10,15 @@ import { KakaoProvider } from './kakao.provider.js';
 export class AuthProviders {
   private readonly byName: ReadonlyMap<AuthProvider, AuthProviderClient>;
 
-  constructor(kakao: KakaoProvider, dev: DevProvider, apple: AppleProvider, email: EmailProvider) {
-    this.byName = new Map<AuthProvider, AuthProviderClient>([kakao, dev, apple, email].map((client) => [client.provider, client]));
+  constructor(
+    kakao: KakaoProvider,
+    dev: DevProvider,
+    apple: AppleProvider,
+    email: EmailProvider,
+  ) {
+    this.byName = new Map<AuthProvider, AuthProviderClient>(
+      [kakao, dev, apple, email].map((client) => [client.provider, client]),
+    );
   }
 
   get(provider: AuthProvider): AuthProviderClient {

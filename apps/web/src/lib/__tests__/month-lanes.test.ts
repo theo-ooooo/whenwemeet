@@ -237,8 +237,7 @@ describe("phoneDayLanes", () => {
 });
 
 describe("phoneWeek (#355)", () => {
-  const briefChips = (w: ReturnType<typeof phoneWeek<Event>>) =>
-    w.chips.map((c) => [c.event.id, c.lane, c.col, c.span, c.multi, c.roundStart, c.roundEnd]);
+  const briefChips = (w: ReturnType<typeof phoneWeek<Event>>) => w.chips.map((c) => [c.event.id, c.lane, c.col, c.span, c.multi, c.roundStart, c.roundEnd]);
 
   it("한 날 일정은 칸마다 4줄까지, 넘치면 +N", () => {
     const d = "2026-11-10";
@@ -250,7 +249,12 @@ describe("phoneWeek (#355)", () => {
 
   it("딱 4개면 +N 없음", () => {
     const d = "2026-11-12";
-    const w = phoneWeek(pack(W1, [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))));
+    const w = phoneWeek(
+      pack(
+        W1,
+        [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`)),
+      ),
+    );
     expect(w.chips).toHaveLength(4);
     expect(w.more.every((n) => n === 0)).toBe(true);
   });
@@ -289,7 +293,14 @@ describe("phoneWeek (#355)", () => {
   it("기념일, 공휴일 칸은 0번 줄을 비우고 3줄만 쓴다. 그 칸을 지나는 막대는 1번 줄로", () => {
     const reserved = [false, false, true, false, false, false, false];
     const d = "2026-11-10";
-    const w = phoneWeek(pack(W1, [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))), 4, reserved);
+    const w = phoneWeek(
+      pack(
+        W1,
+        [1, 2, 3, 4].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`)),
+      ),
+      4,
+      reserved,
+    );
     expect(w.chips.map((c) => c.lane)).toEqual([1, 2, 3]);
     expect(w.more[2]).toBe(1);
     const bar = phoneWeek(pack(W1, [allDay(7, "2026-11-09", "2026-11-11")]), 4, reserved);
@@ -298,7 +309,13 @@ describe("phoneWeek (#355)", () => {
 
   it("maxLanes 를 바꿀 수 있다", () => {
     const d = "2026-11-10";
-    const w = phoneWeek(pack(W1, [1, 2, 3].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`))), 2);
+    const w = phoneWeek(
+      pack(
+        W1,
+        [1, 2, 3].map((id) => timed(id, d, `0${id}:00`, `0${id}:30`)),
+      ),
+      2,
+    );
     expect(w.chips).toHaveLength(2);
     expect(w.more[2]).toBe(1);
   });

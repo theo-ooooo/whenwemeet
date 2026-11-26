@@ -4,9 +4,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 type ToastOptions = { actionLabel?: string; onAction?: () => void; duration?: number };
 type ToastItem = { id: number; message: string } & ToastOptions;
 
-const ToastContext = createContext<{ show: (message: string, opts?: ToastOptions) => void } | null>(
-  null,
-);
+const ToastContext = createContext<{ show: (message: string, opts?: ToastOptions) => void } | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastItem | null>(null);
@@ -40,10 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         className="pointer-events-none fixed inset-x-0 bottom-[calc(168px+var(--sab))] dock:bottom-[calc(134px+var(--sab))] z-50 flex justify-center px-4 fold:bottom-6"
       >
         {toast && (
-          <div
-            key={toast.id}
-            className="anim-sheet pointer-events-auto flex w-full max-w-[440px] items-center gap-3 rounded-md bg-ink px-4 py-3 text-surface"
-          >
+          <div key={toast.id} className="anim-sheet pointer-events-auto flex w-full max-w-[440px] items-center gap-3 rounded-md bg-ink px-4 py-3 text-surface">
             <span className="flex-1 text-[14px] font-medium leading-5">{toast.message}</span>
             {toast.actionLabel && (
               <button

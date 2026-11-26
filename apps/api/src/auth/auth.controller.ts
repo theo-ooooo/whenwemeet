@@ -1,14 +1,31 @@
-import { Body, Controller, Get, Header, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CookieOptions, Request, Response } from 'express';
 import { ApiException } from '../common/errors.js';
 import { AppAuthService, type HandoffIssued } from './app-auth.service.js';
 import { AppleAuthService } from './apple-auth.service.js';
 import { AuthService } from './auth.service.js';
-import { AppleNativeLoginDto, HandoffExchangeDto, KakaoNativeLoginDto } from './dto/app-auth.dto.js';
+import {
+  AppleNativeLoginDto,
+  HandoffExchangeDto,
+  KakaoNativeLoginDto,
+} from './dto/app-auth.dto.js';
 import { DevLoginDto } from './dto/dev-login.dto.js';
 import { Public } from './jwt-auth.guard.js';
-import { LinkTicketsService, type WebLinkProvider } from './link-tickets.service.js';
+import {
+  LinkTicketsService,
+  type WebLinkProvider,
+} from './link-tickets.service.js';
 import { linkFailureUrl, linkTicketUrl } from './link-urls.js';
 import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { DevProvider } from './providers/dev.provider.js';
@@ -59,7 +76,10 @@ export class AuthController {
     const next = this.auth.sanitizeNext(nextRaw);
     const linkIntent = await this.linkIntent('KAKAO', mode, intent, next, res);
     if (linkIntent === false) return;
-    const { nonce, state } = this.auth.createState(next, linkIntent ?? undefined);
+    const { nonce, state } = this.auth.createState(
+      next,
+      linkIntent ?? undefined,
+    );
     const url = this.kakao.authorizeUrl(state);
     res.cookie(STATE_COOKIE, nonce, this.stateCookieOptions());
     res.redirect(302, url);
@@ -86,16 +106,25 @@ export class AuthController {
     }
 
     // (#198) 연결: 로그인하지 않고 시작한 사용자에게 묶인 5분 1회용 티켓만 만든다 (D-257)
-    const linkUserId = state.intent ? await this.linkTickets.verifyIntent(state.intent, 'KAKAO') : null;
+    const linkUserId = state.intent
+      ? await this.linkTickets.verifyIntent(state.intent, 'KAKAO')
+      : null;
     if (state.intent && linkUserId === null) {
-      res.redirect(302, linkFailureUrl(webOrigin, 'LINK_TICKET_INVALID', state.next));
+      res.redirect(
+        302,
+        linkFailureUrl(webOrigin, 'LINK_TICKET_INVALID', state.next),
+      );
       return;
     }
 
     try {
       const profile = await this.kakao.exchangeCode(code);
       if (linkUserId !== null) {
-        const ticket = await this.linkTickets.issue(linkUserId, 'KAKAO', profile);
+        const ticket = await this.linkTickets.issue(
+          linkUserId,
+          'KAKAO',
+          profile,
+        );
         res.setHeader('Referrer-Policy', 'no-referrer');
         res.redirect(302, linkTicketUrl(webOrigin, ticket, state.next));
         return;
@@ -105,8 +134,10 @@ export class AuthController {
       const params = new URLSearchParams({ token, next: state.next });
       res.redirect(302, `${webOrigin}/auth/callback?${params.toString()}`);
     } catch (error) {
-      const codeParam = error instanceof ApiException ? error.code : 'KAKAO_ERROR';
-      if (linkUserId !== null) res.redirect(302, linkFailureUrl(webOrigin, codeParam, state.next));
+      const codeParam =
+        error instanceof ApiException ? error.code : 'KAKAO_ERROR';
+      if (linkUserId !== null)
+        res.redirect(302, linkFailureUrl(webOrigin, codeParam, state.next));
       else res.redirect(302, `${webOrigin}/login?error=${codeParam}`);
     }
   }
@@ -166,10 +197,18 @@ export class AuthController {
   @Public()
   @Post('apple/callback')
   @RateLimit('login', { redirectToLogin: true })
-  async appleCallback(@Body() body: Record<string, unknown>, @Req() req: Request, @Res() res: Response): Promise<void> {
-    const field = (key: string): string | undefined => (typeof body?.[key] === 'string' ? (body[key] as string) : undefined);
+  async appleCallback(
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const field = (key: string): string | undefined =>
+      typeof body?.[key] === 'string' ? (body[key] as string) : undefined;
     const cookieNonce = readCookie(req.headers.cookie, APPLE_STATE_COOKIE);
-    res.clearCookie(APPLE_STATE_COOKIE, { ...APPLE_STATE_COOKIE_OPTIONS, maxAge: undefined });
+    res.clearCookie(APPLE_STATE_COOKIE, {
+      ...APPLE_STATE_COOKIE_OPTIONS,
+      maxAge: undefined,
+    });
     const location = await this.appleAuth.completeWeb({
       code: field('code'),
       state: field('state'),
@@ -186,9 +225,15 @@ export class AuthController {
   @Public()
   @Post('dev-login')
   @HttpCode(200)
-  async devLogin(@Body() dto: DevLoginDto): Promise<{ token: string; user: unknown }> {
-    if (process.env.NODE_ENV === 'production') throw new ApiException('NOT_FOUND');
-    const user = await this.auth.login(this.dev.provider, await this.dev.exchangeCode(dto.nickname));
+  async devLogin(
+    @Body() dto: DevLoginDto,
+  ): Promise<{ token: string; user: unknown }> {
+    if (process.env.NODE_ENV === 'production')
+      throw new ApiException('NOT_FOUND');
+    const user = await this.auth.login(
+      this.dev.provider,
+      await this.dev.exchangeCode(dto.nickname),
+    );
     const token = await this.auth.signToken(user.id);
     return { token, user };
   }
@@ -197,10 +242,27 @@ export class AuthController {
    * (#198) `mode=link` 이면 시작 표식을 검증해 그대로 돌려준다(state 에 싣는다). 로그인이면 null.
    * 표식이 틀리면 웹 /me/link 로 보내고 false (호출한 쪽은 바로 끝낸다)
    */
-  private async linkIntent(provider: WebLinkProvider, mode: string | undefined, intent: string | undefined, next: string, res: Response): Promise<string | null | false> {
+  private async linkIntent(
+    provider: WebLinkProvider,
+    mode: string | undefined,
+    intent: string | undefined,
+    next: string,
+    res: Response,
+  ): Promise<string | null | false> {
     if (mode !== 'link') return null;
-    if (intent && (await this.linkTickets.verifyIntent(intent, provider)) !== null) return intent;
-    res.redirect(302, linkFailureUrl(this.config.getOrThrow<string>('WEB_ORIGIN'), 'LINK_TICKET_INVALID', next));
+    if (
+      intent &&
+      (await this.linkTickets.verifyIntent(intent, provider)) !== null
+    )
+      return intent;
+    res.redirect(
+      302,
+      linkFailureUrl(
+        this.config.getOrThrow<string>('WEB_ORIGIN'),
+        'LINK_TICKET_INVALID',
+        next,
+      ),
+    );
     return false;
   }
 
@@ -216,12 +278,16 @@ export class AuthController {
 }
 
 /** Cookie 헤더에서 이름 하나만 꺼낸다 (cookie-parser 없이) */
-export function readCookie(header: string | undefined, name: string): string | null {
+export function readCookie(
+  header: string | undefined,
+  name: string,
+): string | null {
   if (!header) return null;
   for (const part of header.split(';')) {
     const index = part.indexOf('=');
     if (index < 0) continue;
-    if (part.slice(0, index).trim() === name) return decodeURIComponent(part.slice(index + 1).trim());
+    if (part.slice(0, index).trim() === name)
+      return decodeURIComponent(part.slice(index + 1).trim());
   }
   return null;
 }

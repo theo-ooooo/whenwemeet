@@ -25,7 +25,11 @@ export function AdminAppVersionsScreen() {
       ) : (
         <div className="grid gap-3 fold:grid-cols-2">
           {q.data.map((r) => (
-            <ReleaseForm key={r.platform} release={r} onSaved={(next) => q.setData((rows) => rows?.map((x) => (x.platform === next.platform ? next : x)) ?? null)} />
+            <ReleaseForm
+              key={r.platform}
+              release={r}
+              onSaved={(next) => q.setData((rows) => rows?.map((x) => (x.platform === next.platform ? next : x)) ?? null)}
+            />
           ))}
         </div>
       )}
@@ -49,7 +53,9 @@ function ReleaseForm({ release, onSaved }: { release: AppRelease; onSaved: (next
   const update = useUpdateAppRelease();
   const name = adminPlatformName(release.platform);
   const latestErr = versionError(latest);
-  const minErr = versionError(min) ?? (!versionError(latest) && latest.trim() && min.trim() && compareVersions(min, latest) > 0 ? "최소 버전은 최신 버전보다 높을 수 없어요" : null);
+  const minErr =
+    versionError(min) ??
+    (!versionError(latest) && latest.trim() && min.trim() && compareVersions(min, latest) > 0 ? "최소 버전은 최신 버전보다 높을 수 없어요" : null);
   const storeErr = store.trim() === "" || /^https:\/\/\S+$/.test(store.trim()) ? null : "https 로 시작하는 주소를 넣어 주세요";
   const invalid = Boolean(latestErr || minErr || storeErr);
 
@@ -75,17 +81,43 @@ function ReleaseForm({ release, onSaved }: { release: AppRelease; onSaved: (next
         <p className="t-sub">{release.updatedAt ? `마지막 변경 ${adminDateTime(release.updatedAt)}` : "아직 정하지 않았어요 (안내 없음)"}</p>
       </div>
       <Field label="최신 버전" hint="이보다 낮으면 '새 버전이 나왔어요' (닫을 수 있음)" error={latestErr}>
-        {(fid, describedBy) => <input id={fid} aria-describedby={describedBy} inputMode="decimal" placeholder="예: 1.4.0" className={inputClass} value={latest} onChange={(e) => setLatest(e.target.value)} />}
+        {(fid, describedBy) => (
+          <input
+            id={fid}
+            aria-describedby={describedBy}
+            inputMode="decimal"
+            placeholder="예: 1.4.0"
+            className={inputClass}
+            value={latest}
+            onChange={(e) => setLatest(e.target.value)}
+          />
+        )}
       </Field>
       <Field label="최소 버전" hint="이보다 낮으면 '업데이트가 필요해요' (닫을 수 없음)" error={minErr}>
-        {(fid, describedBy) => <input id={fid} aria-describedby={describedBy} inputMode="decimal" placeholder="예: 1.1.0" className={inputClass} value={min} onChange={(e) => setMin(e.target.value)} />}
+        {(fid, describedBy) => (
+          <input
+            id={fid}
+            aria-describedby={describedBy}
+            inputMode="decimal"
+            placeholder="예: 1.1.0"
+            className={inputClass}
+            value={min}
+            onChange={(e) => setMin(e.target.value)}
+          />
+        )}
       </Field>
       <Field label={`${storeName(release.platform)} 주소`} hint="비우면 기본 주소" error={storeErr}>
-        {(fid, describedBy) => <input id={fid} aria-describedby={describedBy} inputMode="url" className={inputClass} value={store} onChange={(e) => setStore(e.target.value)} />}
+        {(fid, describedBy) => (
+          <input id={fid} aria-describedby={describedBy} inputMode="url" className={inputClass} value={store} onChange={(e) => setStore(e.target.value)} />
+        )}
       </Field>
       {error && <InlineError>{error}</InlineError>}
       <div className="flex items-center gap-3 pt-1">
-        {saved && !update.isPending && <span role="status" className="t-sub">저장했어요</span>}
+        {saved && !update.isPending && (
+          <span role="status" className="t-sub">
+            저장했어요
+          </span>
+        )}
         <Button className="ml-auto" loading={update.isPending} disabled={invalid} onClick={() => void save()}>
           {name} 저장
         </Button>

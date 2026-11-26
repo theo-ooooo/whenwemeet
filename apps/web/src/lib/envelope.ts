@@ -29,12 +29,7 @@ export function okBody<T>(data: T, status = 200): unknown {
 }
 
 /** 실패 본문. details 가 없으면 키 자체를 넣지 않는다 (API 와 같음) */
-export function errorBody(
-  status: number,
-  code: string,
-  message: string,
-  details?: ApiErrorDetail[],
-): unknown {
+export function errorBody(status: number, code: string, message: string, details?: ApiErrorDetail[]): unknown {
   const error: ErrorEnvelope["error"] = details ? { code, details } : { code };
   return { status, data: null, message, error } satisfies ErrorEnvelope;
 }
@@ -47,10 +42,7 @@ function isObject(v: unknown): v is Record<string, unknown> {
  * 상태 코드와 파싱된 본문에서 data / error 를 꺼낸다.
  * ok=false 면 실패. 본문에 error 가 없어도(빈 본문, 게이트웨이 오류) 실패로 본다. 기본 문구는 호출한 쪽이 정한다.
  */
-export function readEnvelope<T>(
-  status: number,
-  body: unknown,
-): { ok: boolean; data: T | undefined; error: ApiErrorInfo | null } {
+export function readEnvelope<T>(status: number, body: unknown): { ok: boolean; data: T | undefined; error: ApiErrorInfo | null } {
   const json = isObject(body) ? body : {};
   const rawError = isObject(json.error) ? json.error : null;
 

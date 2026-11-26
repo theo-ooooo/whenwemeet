@@ -4,9 +4,7 @@
 import { useCallback, useState } from "react";
 import { toFailure, type ApiFailure } from "./_error";
 
-export type MutationOutcome<T> =
-  | { ok: true; data: T; error: null }
-  | { ok: false; data: null; error: ApiFailure };
+export type MutationOutcome<T> = { ok: true; data: T; error: null } | { ok: false; data: null; error: ApiFailure };
 
 export type MutationOptions = {
   /** 성공 뒤 화면 이동이 따라오는 변경(팀 만들기, 합류, 일정 저장, 탈퇴)은 이동 중 재클릭을 막기 위해 isPending 을 유지한다 */
@@ -20,10 +18,7 @@ export type MutationResult<TInput, TOutput> = {
   error: ApiFailure | null;
 };
 
-export function useMutation<TInput, TOutput>(
-  fn: (input: TInput) => Promise<TOutput>,
-  opts: MutationOptions = {},
-): MutationResult<TInput, TOutput> {
+export function useMutation<TInput, TOutput>(fn: (input: TInput) => Promise<TOutput>, opts: MutationOptions = {}): MutationResult<TInput, TOutput> {
   const { keepPendingAfterSuccess = false } = opts;
   const [isPending, setPending] = useState(false);
   const [error, setError] = useState<ApiFailure | null>(null);

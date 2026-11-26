@@ -31,7 +31,11 @@ function subscribe(cb: () => void) {
 
 export function useSidebarFold(): { collapsed: boolean; toggle: () => void } {
   const layout = useLayout();
-  const pref = useSyncExternalStore<SidebarPref | null>(subscribe, () => readSidebarPref(storage()) ?? memory, () => null);
+  const pref = useSyncExternalStore<SidebarPref | null>(
+    subscribe,
+    () => readSidebarPref(storage()) ?? memory,
+    () => null,
+  );
   const collapsed = isCollapsed(pref, layout);
   const toggle = useCallback(() => {
     const next: SidebarPref = collapsed ? "expanded" : "collapsed";

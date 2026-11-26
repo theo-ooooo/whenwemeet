@@ -1,5 +1,15 @@
-import OpenAI, { APIConnectionTimeoutError, APIError, APIUserAbortError } from 'openai';
-import { AssistantModelError, type AssistantModel, type ModelMessage, type ModelResult, type ModelTool } from './assistant-model.js';
+import OpenAI, {
+  APIConnectionTimeoutError,
+  APIError,
+  APIUserAbortError,
+} from 'openai';
+import {
+  AssistantModelError,
+  type AssistantModel,
+  type ModelMessage,
+  type ModelResult,
+  type ModelTool,
+} from './assistant-model.js';
 
 /** (#450) OpenAI 호출 제한 시간. 재시도 없음 (D-265) */
 export const OPENAI_TIMEOUT_MS = 10_000;
@@ -17,12 +27,20 @@ export interface ChatCompletionsClient {
 /** SDK 오류 → AssistantModelError. 응답 본문, 키는 메시지에 싣지 않는다 */
 export function toModelError(error: unknown): AssistantModelError {
   if (error instanceof AssistantModelError) return error;
-  if (error instanceof APIUserAbortError) return new AssistantModelError('aborted');
-  if (error instanceof APIConnectionTimeoutError) return new AssistantModelError('timeout');
+  if (error instanceof APIUserAbortError)
+    return new AssistantModelError('aborted');
+  if (error instanceof APIConnectionTimeoutError)
+    return new AssistantModelError('timeout');
   if (error instanceof APIError && typeof error.status === 'number') {
     const status = error.status;
-    if (status === 401 || status === 403) return new AssistantModelError('unavailable', status, 'auth');
-    if (status === 429) return new AssistantModelError('unavailable', status, error.code === 'insufficient_quota' ? 'quota' : null);
+    if (status === 401 || status === 403)
+      return new AssistantModelError('unavailable', status, 'auth');
+    if (status === 429)
+      return new AssistantModelError(
+        'unavailable',
+        status,
+        error.code === 'insufficient_quota' ? 'quota' : null,
+      );
     return new AssistantModelError('unavailable', status);
   }
   // 연결 실패(APIConnectionError) 와 그 밖
@@ -42,10 +60,17 @@ export class OpenAiAssistantModel implements AssistantModel {
   ) {}
 
   static create(apiKey: string, model: string): OpenAiAssistantModel {
-    return new OpenAiAssistantModel(new OpenAI({ apiKey, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 }), model);
+    return new OpenAiAssistantModel(
+      new OpenAI({ apiKey, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 }),
+      model,
+    );
   }
 
-  async complete(messages: ModelMessage[], tools: readonly ModelTool[], signal?: AbortSignal): Promise<ModelResult> {
+  async complete(
+    messages: ModelMessage[],
+    tools: readonly ModelTool[],
+    signal?: AbortSignal,
+  ): Promise<ModelResult> {
     let completion: OpenAI.Chat.Completions.ChatCompletion;
     try {
       completion = await this.client.chat.completions.create(
@@ -54,7 +79,12 @@ export class OpenAiAssistantModel implements AssistantModel {
           messages,
           tools: tools.map((tool) => ({
             type: 'function' as const,
-            function: { name: tool.name, description: tool.description, parameters: tool.parameters, strict: true },
+            function: {
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.parameters,
+              strict: true,
+            },
           })),
           tool_choice: 'required',
           parallel_tool_calls: false,
@@ -69,7 +99,9 @@ export class OpenAiAssistantModel implements AssistantModel {
     }
     const choice = completion.choices[0];
     const toolCalls = (choice?.message.tool_calls ?? []).flatMap((call) =>
-      call.type === 'function' ? [{ name: call.function.name, arguments: call.function.arguments }] : [],
+      call.type === 'function'
+        ? [{ name: call.function.name, arguments: call.function.arguments }]
+        : [],
     );
     const usage = completion.usage;
     return {

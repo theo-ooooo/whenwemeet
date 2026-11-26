@@ -1,6 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { CODE_KEY_INFO, CODE_PATTERN, deriveKey, IP_KEY_INFO, isAcceptableEmail, normalizeEmail, safeEqualText } from './email-crypto.js';
+import {
+  CODE_KEY_INFO,
+  CODE_PATTERN,
+  deriveKey,
+  IP_KEY_INFO,
+  isAcceptableEmail,
+  normalizeEmail,
+  safeEqualText,
+} from './email-crypto.js';
 
 /** 보내는 주소 기본값 (기획 3-2) */
 export const DEFAULT_EMAIL_FROM = '언제볼까 <noreply@whenwemeet.day>';
@@ -43,20 +51,29 @@ export class EmailLoginConfig {
     this.production = config.get('NODE_ENV') === 'production';
     this.internalApiKey = text(config.get('INTERNAL_API_KEY')) || null;
     this.resendApiKey = text(config.get('RESEND_API_KEY')) || null;
-    this.resendApiUrl = (text(config.get('RESEND_API_URL')) || DEFAULT_RESEND_API_URL).replace(/\/+$/, '');
+    this.resendApiUrl = (
+      text(config.get('RESEND_API_URL')) || DEFAULT_RESEND_API_URL
+    ).replace(/\/+$/, '');
     this.from = text(config.get('EMAIL_FROM')) || DEFAULT_EMAIL_FROM;
     this.webOrigin = text(config.get('WEB_ORIGIN')).replace(/\/+$/, '');
     const secret = config.getOrThrow<string>('JWT_SECRET');
     this.codeKey = deriveKey(secret, CODE_KEY_INFO);
     this.ipKey = deriveKey(secret, IP_KEY_INFO);
-    this.review = parseReview(config.get('REVIEW_EMAIL'), config.get('REVIEW_CODE'));
-    if (this.enabled && !this.review) this.logger.warn('심사 계정 꺼짐 (REVIEW_EMAIL, REVIEW_CODE 가 비었거나 코드가 6자리 숫자가 아님)');
+    this.review = parseReview(
+      config.get('REVIEW_EMAIL'),
+      config.get('REVIEW_CODE'),
+    );
+    if (this.enabled && !this.review)
+      this.logger.warn(
+        '심사 계정 꺼짐 (REVIEW_EMAIL, REVIEW_CODE 가 비었거나 코드가 6자리 숫자가 아님)',
+      );
   }
 
   /** 엔드포인트를 받을 수 있는지. 꺼져 있거나, 운영에서 Resend 키나 내부 키가 없으면 false (503 EMAIL_NOT_CONFIGURED) */
   get available(): boolean {
     if (!this.enabled) return false;
-    if (this.production && (!this.internalApiKey || !this.resendApiKey)) return false;
+    if (this.production && (!this.internalApiKey || !this.resendApiKey))
+      return false;
     return true;
   }
 
@@ -67,7 +84,10 @@ export class EmailLoginConfig {
 }
 
 /** REVIEW_EMAIL 은 정규화 후 이메일 모양, REVIEW_CODE 는 6자리 숫자. 하나라도 어긋나면 null (D-118) */
-export function parseReview(rawEmail: unknown, rawCode: unknown): ReviewAccount | null {
+export function parseReview(
+  rawEmail: unknown,
+  rawCode: unknown,
+): ReviewAccount | null {
   const email = normalizeEmail(text(rawEmail));
   const code = text(rawCode);
   if (!isAcceptableEmail(email) || !CODE_PATTERN.test(code)) return null;

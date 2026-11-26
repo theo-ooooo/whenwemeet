@@ -46,11 +46,7 @@ describe("groupByDay", () => {
 describe("anniversariesOn (#107)", () => {
   it("그날의 항목 전부, 우선순위 순", () => {
     const list = [ann(1, "2026-11-10"), ann(2, "2025-11-10"), ann(3, "2025-11-10", "COUNT_UP"), ann(4, "2026-08-03", "COUNT_UP")];
-    expect(anniversariesOn(list, "2026-11-10").map((o) => `${o.anniversary.id} ${o.label ?? o.type}`)).toEqual([
-      "3 1주년",
-      "4 100일",
-      "1 ORIGINAL",
-    ]);
+    expect(anniversariesOn(list, "2026-11-10").map((o) => `${o.anniversary.id} ${o.label ?? o.type}`)).toEqual(["3 1주년", "4 100일", "1 ORIGINAL"]);
     expect(anniversariesOn(null, "2026-11-10")).toEqual([]);
   });
 });

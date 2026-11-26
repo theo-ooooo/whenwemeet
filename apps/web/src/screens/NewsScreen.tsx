@@ -92,14 +92,13 @@ function NewsRow({ item, today }: { item: NewsEntry; today: string }) {
   const href = isActivity(item) ? activityHref(item) : newsHref(item);
   const unread = item.isNew;
   const kind = newsKindOf(item);
-  const sub = isActivity(item) ? activitySubline(item, today) : `${newsDateLabel(item.startsAt, today)} ${formatEventTime(item.startsAt, item.endsAt, item.allDay)}`;
+  const sub = isActivity(item)
+    ? activitySubline(item, today)
+    : `${newsDateLabel(item.startsAt, today)} ${formatEventTime(item.startsAt, item.endsAt, item.allDay)}`;
   const when = formatRelative(item.createdAt);
   const body = (
     <>
-      <span
-        aria-hidden="true"
-        className={`mt-px grid size-7 shrink-0 place-items-center rounded-[8px] bg-surface ${unread ? "text-ink" : "text-ink-2"}`}
-      >
+      <span aria-hidden="true" className={`mt-px grid size-7 shrink-0 place-items-center rounded-[8px] bg-surface ${unread ? "text-ink" : "text-ink-2"}`}>
         {KIND_ICON[kind]({ size: 16 })}
       </span>
       <span className="min-w-0 flex-1">

@@ -9,7 +9,15 @@ import type { Anniversary, Birthday, GroupSummary, Member } from "../types";
 const jiu: Member = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
 const haneul: Member = { userId: 2, displayName: "하늘", color: "#F2994A", profileImageUrl: null };
 const bday = (member: Member, date: string): Birthday => ({ member, date });
-const ANN: Anniversary = { id: 5, groupId: 10, name: "처음 만난 날", date: "2026-03-01", kind: "COUNT_UP", creator: jiu, createdAt: "2026-03-01T00:00:00.000Z" };
+const ANN: Anniversary = {
+  id: 5,
+  groupId: 10,
+  name: "처음 만난 날",
+  date: "2026-03-01",
+  kind: "COUNT_UP",
+  creator: jiu,
+  createdAt: "2026-03-01T00:00:00.000Z",
+};
 
 describe("생일 값", () => {
   it("parseBirthday: MM-DD 이고 있는 날만. 2월 29일은 받는다", () => {
@@ -67,14 +75,26 @@ describe("생일 → 기념일 항목", () => {
 
   it("달력 칸, 다가오는 일정, D-day, 기념일 화면 정렬에 같이 섞인다", () => {
     const list = withBirthdays([ANN], [bday(haneul, "11-20")], 10)!;
-    expect(occurrencesByDay(list, "2026-11-01", "2026-11-30").get("2026-11-20")?.map((o) => o.anniversary.name)).toEqual(["하늘 생일"]);
+    expect(
+      occurrencesByDay(list, "2026-11-01", "2026-11-30")
+        .get("2026-11-20")
+        ?.map((o) => o.anniversary.name),
+    ).toEqual(["하늘 생일"]);
     expect(upcomingOccurrences(list, "2026-11-13").map((o) => o.anniversary.name)).toEqual(["하늘 생일"]);
     expect(nearestOccurrence(list, "2026-11-13")?.date).toBe("2026-11-20");
     expect(sortByNext(list, "2026-11-13").map((a) => a.name)).toEqual(["하늘 생일", "처음 만난 날"]);
   });
 
   it("위젯 스냅샷 기념일 칸에 '하늘 생일' 이 들어간다", () => {
-    const g = { id: 10, type: "TEAM", name: "우리", publicCode: "team10xx", memberCount: 2, me: { color: "#F26D6D", displayName: "나" }, unreadNewsCount: 0 } as GroupSummary;
+    const g = {
+      id: 10,
+      type: "TEAM",
+      name: "우리",
+      publicCode: "team10xx",
+      memberCount: 2,
+      me: { color: "#F26D6D", displayName: "나" },
+      unreadNewsCount: 0,
+    } as GroupSummary;
     const snap = buildWidgetSnapshot(
       { groups: [g], events: new Map([[10, []]]), anniversaries: new Map([[10, withBirthdays([], [bday(haneul, "11-14")], 10)!]]) },
       Date.parse(kstToIso("2026-11-13", "09:00")),

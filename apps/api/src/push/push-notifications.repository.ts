@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Db, PrismaService } from '../prisma/prisma.service.js';
-import { coalesce, COALESCE_WINDOW_MS, coalesceKey, type ChangeAction } from './coalesce.js';
+import {
+  coalesce,
+  COALESCE_WINDOW_MS,
+  coalesceKey,
+  type ChangeAction,
+} from './coalesce.js';
 import type { PushPayload } from './push-copy.js';
 import { dateToDb, toJson } from './push-db.js';
 import type { DuePollDeadline } from './push-planning.repository.js';
@@ -30,17 +35,25 @@ export interface PlannedWeekly {
 
 /** (#189) 투표 알림 단계. dedupeKey 머리 PO, PC, PD */
 export type PollPushStage = 'OPEN' | 'CLOSED' | 'DEADLINE';
-const POLL_KEY_PREFIX: Record<PollPushStage, string> = { OPEN: 'PO', CLOSED: 'PC', DEADLINE: 'PD' };
+const POLL_KEY_PREFIX: Record<PollPushStage, string> = {
+  OPEN: 'PO',
+  CLOSED: 'PC',
+  DEADLINE: 'PD',
+};
 
 export function pollDedupeKey(stage: PollPushStage, pollId: number): string {
   return `${POLL_KEY_PREFIX[stage]}:${pollId}`;
 }
 
 /** dedupeKey → 단계와 투표 번호. 모양이 틀리면 null */
-export function parsePollDedupeKey(key: string): { stage: PollPushStage; pollId: number } | null {
+export function parsePollDedupeKey(
+  key: string,
+): { stage: PollPushStage; pollId: number } | null {
   const match = /^(PO|PC|PD):([1-9]\d*)$/.exec(key);
   if (!match) return null;
-  const stage = (Object.keys(POLL_KEY_PREFIX) as PollPushStage[]).find((name) => POLL_KEY_PREFIX[name] === match[1]) as PollPushStage;
+  const stage = (Object.keys(POLL_KEY_PREFIX) as PollPushStage[]).find(
+    (name) => POLL_KEY_PREFIX[name] === match[1],
+  ) as PollPushStage;
   return { stage, pollId: Number(match[2]) };
 }
 
@@ -59,7 +72,12 @@ export type ChangeRevert =
   | { type: 'create'; notificationId: number }
   | { type: 'cancel'; notificationId: number }
   /** 앞 묶음의 동작과 보일 로그 */
-  | { type: 'update'; notificationId: number; changeAction: ChangeAction; eventLogId: number };
+  | {
+      type: 'update';
+      notificationId: number;
+      changeAction: ChangeAction;
+      eventLogId: number;
+    };
 
 export interface CreatedLog {
   id: number;
@@ -77,7 +95,9 @@ export class PushNotificationsRepository {
   // ---------- 예약 저장 (설계 5-3, 5-5) ----------
 
   /** dedupeKey 가 이미 있으면 건너뛴다 (D-89). 새로 만든 수 */
-  async createNotifications(rows: (PlannedNotification | PlannedWeekly)[]): Promise<number> {
+  async createNotifications(
+    rows: (PlannedNotification | PlannedWeekly)[],
+  ): Promise<number> {
     if (rows.length === 0) return 0;
     const { count } = await this.prisma.pushNotification.createMany({
       data: rows.map((row) => ({
@@ -106,9 +126,17 @@ export class PushNotificationsRepository {
    * EventLog 를 쓴 트랜잭션 안에서 부른다. 변경한 사람이 없거나(탈퇴) PERSONAL 팀이면 아무것도 하지 않는다.
    * 대기 중인 같은 묶음(변경한 사람, 일정)을 잠그고 coalesce 표대로 합친다
    */
-  async recordChangeTx(tx: Db, log: CreatedLog, removesEvent: boolean, now: Date): Promise<ChangeRevert | null> {
+  async recordChangeTx(
+    tx: Db,
+    log: CreatedLog,
+    removesEvent: boolean,
+    now: Date,
+  ): Promise<ChangeRevert | null> {
     if (log.actorId === null || log.eventId === null) return null;
-    const group = await tx.group.findUnique({ where: { id: log.groupId }, select: { type: true } });
+    const group = await tx.group.findUnique({
+      where: { id: log.groupId },
+      select: { type: true },
+    });
     if (!group || group.type === 'PERSONAL') return null;
 
     const key = coalesceKey(log.actorId, log.eventId);
@@ -117,16 +145,28 @@ export class PushNotificationsRepository {
     const current = locked[0]
       ? await tx.pushNotification.findUnique({
           where: { id: Number(locked[0].id) },
-          select: { id: true, scheduledAt: true, changeAction: true, eventLogId: true },
+          select: {
+            id: true,
+            scheduledAt: true,
+            changeAction: true,
+            eventLogId: true,
+          },
         })
       : null;
     // 첫 변경부터 2분이 지난 묶음은 이미 보낼 차례라 새 묶음을 연다
     const pending =
-      current && current.scheduledAt.getTime() > now.getTime() && current.changeAction && current.eventLogId !== null
+      current &&
+      current.scheduledAt.getTime() > now.getTime() &&
+      current.changeAction &&
+      current.eventLogId !== null
         ? { changeAction: current.changeAction, eventLogId: current.eventLogId }
         : null;
 
-    const result = coalesce(pending, { id: log.id, action: log.action }, removesEvent);
+    const result = coalesce(
+      pending,
+      { id: log.id, action: log.action },
+      removesEvent,
+    );
     if (result.type === 'create') {
       const created = await tx.pushNotification.create({
         data: {
@@ -145,16 +185,28 @@ export class PushNotificationsRepository {
       return { type: 'create', notificationId: created.id };
     }
     if (result.type === 'cancel') {
-      await tx.pushNotification.update({ where: { id: current!.id }, data: { status: 'CANCELLED' }, select: { id: true } });
+      await tx.pushNotification.update({
+        where: { id: current!.id },
+        data: { status: 'CANCELLED' },
+        select: { id: true },
+      });
       return { type: 'cancel', notificationId: current!.id };
     }
     if (result.type === 'update') {
       await tx.pushNotification.update({
         where: { id: current!.id },
-        data: { changeAction: result.changeAction, eventLogId: result.eventLogId },
+        data: {
+          changeAction: result.changeAction,
+          eventLogId: result.eventLogId,
+        },
         select: { id: true },
       });
-      return { type: 'update', notificationId: current!.id, changeAction: pending!.changeAction, eventLogId: pending!.eventLogId };
+      return {
+        type: 'update',
+        notificationId: current!.id,
+        changeAction: pending!.changeAction,
+        eventLogId: pending!.eventLogId,
+      };
     }
     return null;
   }
@@ -164,24 +216,48 @@ export class PushNotificationsRepository {
    * create → 그 알림 취소, update → 앞 동작과 로그로, cancel(추가 후 삭제로 둘 다 취소) → 2분 창 안이면 다시 대기.
    * 삭제 뒤 같은 묶음에 다른 변경이 합쳐졌으면(보일 로그가 삭제 로그가 아님) 그대로 둔다. 이미 보낸 알림은 거둘 수 없다
    */
-  async revertChangeTx(tx: Db, revert: ChangeRevert, deletedLogId: number, now: Date): Promise<void> {
+  async revertChangeTx(
+    tx: Db,
+    revert: ChangeRevert,
+    deletedLogId: number,
+    now: Date,
+  ): Promise<void> {
     const where = { id: revert.notificationId };
     if (revert.type === 'create') {
-      await tx.pushNotification.updateMany({ where: { ...where, status: 'PENDING', eventLogId: deletedLogId }, data: { status: 'CANCELLED' } });
+      await tx.pushNotification.updateMany({
+        where: { ...where, status: 'PENDING', eventLogId: deletedLogId },
+        data: { status: 'CANCELLED' },
+      });
     } else if (revert.type === 'update') {
       await tx.pushNotification.updateMany({
         where: { ...where, status: 'PENDING', eventLogId: deletedLogId },
-        data: { changeAction: revert.changeAction, eventLogId: revert.eventLogId },
+        data: {
+          changeAction: revert.changeAction,
+          eventLogId: revert.eventLogId,
+        },
       });
     } else {
-      await tx.pushNotification.updateMany({ where: { ...where, status: 'CANCELLED', scheduledAt: { gt: now } }, data: { status: 'PENDING' } });
+      await tx.pushNotification.updateMany({
+        where: { ...where, status: 'CANCELLED', scheduledAt: { gt: now } },
+        data: { status: 'PENDING' },
+      });
     }
   }
 
   /** 새 멤버십이 생긴 트랜잭션 안에서. 합류는 한 번만 (dedupeKey J:{membershipId}) */
-  async scheduleJoinTx(tx: Db, membership: { id: number; groupId: number; userId: number }, now: Date): Promise<void> {
+  async scheduleJoinTx(
+    tx: Db,
+    membership: { id: number; groupId: number; userId: number },
+    now: Date,
+  ): Promise<void> {
     await tx.pushNotification.create({
-      data: { kind: 'JOIN', dedupeKey: `J:${membership.id}`, groupId: membership.groupId, scheduledAt: now, actorId: membership.userId },
+      data: {
+        kind: 'JOIN',
+        dedupeKey: `J:${membership.id}`,
+        groupId: membership.groupId,
+        scheduledAt: now,
+        actorId: membership.userId,
+      },
       select: { id: true },
     });
   }
@@ -190,8 +266,20 @@ export class PushNotificationsRepository {
    * (#279) 일정 가져오기를 마친 트랜잭션 안에서. 팀원 변경 알림 1건을 문구를 미리 만든 채로 바로 예약한다 (D-166).
    * PERSONAL 팀이면 받을 사람이 없어 만들지 않는다. dedupeKey I:{importId}
    */
-  async scheduleImportTx(tx: Db, input: { importId: number; groupId: number; actorId: number; payload: PushPayload }, now: Date): Promise<void> {
-    const group = await tx.group.findUnique({ where: { id: input.groupId }, select: { type: true } });
+  async scheduleImportTx(
+    tx: Db,
+    input: {
+      importId: number;
+      groupId: number;
+      actorId: number;
+      payload: PushPayload;
+    },
+    now: Date,
+  ): Promise<void> {
+    const group = await tx.group.findUnique({
+      where: { id: input.groupId },
+      select: { type: true },
+    });
     if (!group || group.type === 'PERSONAL') return;
     await tx.pushNotification.create({
       data: {
@@ -212,7 +300,17 @@ export class PushNotificationsRepository {
    * 투표를 열거나 정한 트랜잭션 안에서. 문구를 미리 만든 채로 바로 예약한다 (가져오기 D-166 과 같은 방식).
    * dedupeKey PO:{pollId} (열림), PC:{pollId} (정함). 받는 사람은 펼칠 때 투표 대상에서 고른다
    */
-  async schedulePollTx(tx: Db, input: { pollId: number; groupId: number; actorId: number; stage: 'OPEN' | 'CLOSED'; payload: PushPayload }, now: Date): Promise<void> {
+  async schedulePollTx(
+    tx: Db,
+    input: {
+      pollId: number;
+      groupId: number;
+      actorId: number;
+      stage: 'OPEN' | 'CLOSED';
+      payload: PushPayload;
+    },
+    now: Date,
+  ): Promise<void> {
     await tx.pushNotification.create({
       data: {
         kind: 'POLL',
@@ -230,12 +328,27 @@ export class PushNotificationsRepository {
    * 마감 표시(deadlineNotifiedAt)를 한 번만 하고 그때만 알림을 예약한다 (dedupeKey PD:{pollId}, 예약 시각 = 마감).
    * 마감에서 10분 넘게 지나 집었으면 펼칠 때 SKIPPED 가 된다 (D-88). 연 사람이 탈퇴했으면 표시만. 예약했으면 true
    */
-  async schedulePollDeadline(poll: DuePollDeadline, payload: PushPayload, now: Date): Promise<boolean> {
+  async schedulePollDeadline(
+    poll: DuePollDeadline,
+    payload: PushPayload,
+    now: Date,
+  ): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.poll.updateMany({ where: { id: poll.id, status: 'OPEN', deadlineNotifiedAt: null }, data: { deadlineNotifiedAt: now } });
+      const { count } = await tx.poll.updateMany({
+        where: { id: poll.id, status: 'OPEN', deadlineNotifiedAt: null },
+        data: { deadlineNotifiedAt: now },
+      });
       if (count !== 1 || poll.creatorId === null) return false;
       const created = await tx.pushNotification.createMany({
-        data: [{ kind: 'POLL', dedupeKey: pollDedupeKey('DEADLINE', poll.id), groupId: poll.groupId, scheduledAt: poll.deadline, payload: toJson(payload) }],
+        data: [
+          {
+            kind: 'POLL',
+            dedupeKey: pollDedupeKey('DEADLINE', poll.id),
+            groupId: poll.groupId,
+            scheduledAt: poll.deadline,
+            payload: toJson(payload),
+          },
+        ],
         skipDuplicates: true,
       });
       return created.count === 1;
@@ -250,7 +363,14 @@ export class PushNotificationsRepository {
    */
   async scheduleNoticeTx(tx: Db, noticeId: number, now: Date): Promise<void> {
     await tx.pushNotification.createMany({
-      data: [{ kind: 'NOTICE', dedupeKey: noticeDedupeKey(noticeId), groupId: null, scheduledAt: now }],
+      data: [
+        {
+          kind: 'NOTICE',
+          dedupeKey: noticeDedupeKey(noticeId),
+          groupId: null,
+          scheduledAt: now,
+        },
+      ],
       skipDuplicates: true,
     });
   }
@@ -259,7 +379,9 @@ export class PushNotificationsRepository {
 
   /** 만든 지 오래된 알림 삭제 (발송 기록은 Cascade) */
   async deleteNotificationsCreatedBefore(before: Date): Promise<number> {
-    const { count } = await this.prisma.pushNotification.deleteMany({ where: { createdAt: { lt: before } } });
+    const { count } = await this.prisma.pushNotification.deleteMany({
+      where: { createdAt: { lt: before } },
+    });
     return count;
   }
 }

@@ -4,11 +4,7 @@ export function Symbol({ size = 40, className = "" }: { size?: number; className
   const k = size / 40;
   const sq = 23 * k;
   return (
-    <span
-      aria-hidden="true"
-      className={`relative inline-block shrink-0 align-middle ${className}`}
-      style={{ width: size, height: size }}
-    >
+    <span aria-hidden="true" className={`relative inline-block shrink-0 align-middle ${className}`} style={{ width: size, height: size }}>
       <i className="absolute block" style={{ left: 3 * k, top: 3 * k, width: sq, height: sq, borderRadius: 8 * k, background: "#FF3D1F" }} />
       <i className="absolute block" style={{ left: 14 * k, top: 14 * k, width: sq, height: sq, borderRadius: 8 * k, background: "#1F5BFF" }} />
       <i

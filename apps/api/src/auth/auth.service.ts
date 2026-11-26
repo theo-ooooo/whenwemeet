@@ -6,7 +6,10 @@ import { MEMBER_COLORS } from '../common/member.js';
 import { generatePublicCode } from '../common/public-code.js';
 import { UsersRepository } from '../users/users.repository.js';
 import { sanitizeNext } from './next-path.js';
-import type { AuthProvider, ProviderProfile } from './providers/auth-provider.js';
+import type {
+  AuthProvider,
+  ProviderProfile,
+} from './providers/auth-provider.js';
 
 export interface OAuthState {
   nonce: string;
@@ -41,18 +44,26 @@ export class AuthService {
   /** nonce 는 32바이트 랜덤 hex. state 는 서명하지 않는다 (결정기록 D-08) */
   createState(next: string, intent?: string): { nonce: string; state: string } {
     const nonce = randomBytes(32).toString('hex');
-    const value: OAuthState = intent ? { nonce, next, intent } : { nonce, next };
-    const state = Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+    const value: OAuthState = intent
+      ? { nonce, next, intent }
+      : { nonce, next };
+    const state = Buffer.from(JSON.stringify(value), 'utf8').toString(
+      'base64url',
+    );
     return { nonce, state };
   }
 
   parseState(state: unknown): OAuthState | null {
     if (typeof state !== 'string' || !state) return null;
     try {
-      const parsed = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as Partial<OAuthState>;
+      const parsed = JSON.parse(
+        Buffer.from(state, 'base64url').toString('utf8'),
+      ) as Partial<OAuthState>;
       if (typeof parsed.nonce !== 'string' || !parsed.nonce) return null;
       const next = this.sanitizeNext(parsed.next);
-      return typeof parsed.intent === 'string' && parsed.intent ? { nonce: parsed.nonce, next, intent: parsed.intent } : { nonce: parsed.nonce, next };
+      return typeof parsed.intent === 'string' && parsed.intent
+        ? { nonce: parsed.nonce, next, intent: parsed.intent }
+        : { nonce: parsed.nonce, next };
     } catch {
       return null;
     }
@@ -64,9 +75,20 @@ export class AuthService {
    * - 없으면 User + AuthAccount + PERSONAL 팀 + 첫 색 멤버십을 한 트랜잭션으로 만들고,
    *   소셜 프로필 사진을 R2 로 복사한다 (D-37). 복사가 실패해도 가입은 그대로 (사진 없음)
    */
-  async login(provider: AuthProvider, profile: ProviderProfile): Promise<AuthUser> {
-    const account = await this.users.findAuthAccount(provider, profile.providerUserId);
-    if (account) return this.users.updateRawProfile(account.id, profile.raw, profile.credentials);
+  async login(
+    provider: AuthProvider,
+    profile: ProviderProfile,
+  ): Promise<AuthUser> {
+    const account = await this.users.findAuthAccount(
+      provider,
+      profile.providerUserId,
+    );
+    if (account)
+      return this.users.updateRawProfile(
+        account.id,
+        profile.raw,
+        profile.credentials,
+      );
     const user = await this.users.createWithAccountTx(
       {
         provider,
@@ -76,9 +98,16 @@ export class AuthService {
         nickname: profile.nickname,
         credentials: profile.credentials,
       },
-      { name: PERSONAL_GROUP_NAME, color: MEMBER_COLORS[0], publicCode: generatePublicCode() },
+      {
+        name: PERSONAL_GROUP_NAME,
+        color: MEMBER_COLORS[0],
+        publicCode: generatePublicCode(),
+      },
     );
-    const profileImageUrl = await this.avatars.importFromUrl(user.id, profile.profileImageUrl);
+    const profileImageUrl = await this.avatars.importFromUrl(
+      user.id,
+      profile.profileImageUrl,
+    );
     return profileImageUrl ? { ...user, profileImageUrl } : user;
   }
 

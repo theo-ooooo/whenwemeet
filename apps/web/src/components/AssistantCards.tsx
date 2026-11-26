@@ -86,7 +86,10 @@ export function AssistantCardView({ card, ...rest }: CardProps & { card: Assista
       return <ClarifyView card={card} tone={rest.tone} />;
     case "unsupported":
       return card.link ? (
-        <Link href={card.link.href} className={`inline-flex h-11 items-center gap-1 rounded-full px-4 text-[14px] font-bold text-ink hover:bg-hover ${pillClass(rest.tone)}`}>
+        <Link
+          href={card.link.href}
+          className={`inline-flex h-11 items-center gap-1 rounded-full px-4 text-[14px] font-bold text-ink hover:bg-hover ${pillClass(rest.tone)}`}
+        >
           {card.link.label}
           <IconChevronRight size={16} />
         </Link>
@@ -280,7 +283,12 @@ function EventEditDraftCardView({ card, resultKey, tone, onShowDate }: CardProps
         )}
         <ChangeLine icon={<IconClock size={16} />} before={draftWhenText(target)} after={draftWhenText(after)} changed={changed.time} />
         {(after.place || target.place) && (
-          <ChangeLine icon={<IconPin size={16} />} before={target.place?.text ?? "장소 없음"} after={after.place?.text ?? "장소 없음"} changed={changed.place} />
+          <ChangeLine
+            icon={<IconPin size={16} />}
+            before={target.place?.text ?? "장소 없음"}
+            after={after.place?.text ?? "장소 없음"}
+            changed={changed.place}
+          />
         )}
         {!personal && <MemberLine members={target.members} meId={meId} />}
         {done?.kind === "edited" ? (
@@ -364,7 +372,14 @@ function EventDeleteDraftCardView({ card, resultKey, tone }: CardProps & { card:
             >
               취소
             </button>
-            <Button size="lg" variant="dangerFill" className="flex-[2]" loading={remove.isPending} onClick={() => void del()} aria-label={`${target.title} 삭제`}>
+            <Button
+              size="lg"
+              variant="dangerFill"
+              className="flex-[2]"
+              loading={remove.isPending}
+              onClick={() => void del()}
+              aria-label={`${target.title} 삭제`}
+            >
               삭제
             </Button>
           </div>

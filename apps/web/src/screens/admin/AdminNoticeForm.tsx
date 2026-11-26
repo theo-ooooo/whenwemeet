@@ -102,10 +102,18 @@ function Form({ notice }: { notice: Notice | null }) {
     <div className={showResults ? "max-w-[1320px]" : "max-w-[960px]"}>
       <AdminTitle
         title={notice ? "공지 수정" : "새 공지"}
-        sub={notice ? `${published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)"}${pushedAt ? `, 푸시 보냄 ${adminDateTime(pushedAt)}` : ""}` : undefined}
+        sub={
+          notice
+            ? `${published ? `게시 ${noticeDate(notice.publishedAt)}` : "초안 (아직 게시하지 않았어요)"}${pushedAt ? `, 푸시 보냄 ${adminDateTime(pushedAt)}` : ""}`
+            : undefined
+        }
         right={
           notice && published ? (
-            <Link href={`/notices/${notice.id}`} target="_blank" className="hit rounded-sm px-2 py-1 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink">
+            <Link
+              href={`/notices/${notice.id}`}
+              target="_blank"
+              className="hit rounded-sm px-2 py-1 text-[13px] font-semibold text-ink-2 underline underline-offset-2 hover:text-ink"
+            >
               공개 화면
             </Link>
           ) : undefined
@@ -116,7 +124,14 @@ function Form({ notice }: { notice: Notice | null }) {
           <div className="space-y-4 rounded-xl bg-paper px-4 py-5">
             <Field label={`제목 (${title.trim().length}/${NOTICE_TITLE_MAX})`}>
               {(fid, describedBy) => (
-                <input id={fid} aria-describedby={describedBy} className={inputClass} value={title} maxLength={NOTICE_TITLE_MAX + 20} onChange={(e) => setTitle(e.target.value)} />
+                <input
+                  id={fid}
+                  aria-describedby={describedBy}
+                  className={inputClass}
+                  value={title}
+                  maxLength={NOTICE_TITLE_MAX + 20}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               )}
             </Field>
             <div>
@@ -145,7 +160,11 @@ function Form({ notice }: { notice: Notice | null }) {
                 <label htmlFor="notice-body" className="text-[12px] font-medium leading-4 text-ink-2">
                   본문
                 </label>
-                <button type="button" onClick={() => setPreview((v) => !v)} className="hit ml-auto rounded-sm px-1 text-[12px] font-semibold text-ink-2 hover:text-ink">
+                <button
+                  type="button"
+                  onClick={() => setPreview((v) => !v)}
+                  className="hit ml-auto rounded-sm px-1 text-[12px] font-semibold text-ink-2 hover:text-ink"
+                >
                   {preview ? "고치기" : "미리 보기"}
                 </button>
               </div>

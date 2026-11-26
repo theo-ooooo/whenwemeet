@@ -46,7 +46,9 @@ export const FAKE_PLACES: readonly PlaceCandidate[] = [
 ];
 
 /** 가짜 네이버 목록 (같은 곳, 네이버처럼 시도 전체 이름) */
-export const FAKE_NAVER_PLACES: readonly PlaceCandidate[] = FAKE_PLACES.map((p) => naver(p.name, p.address!.replace(/^서울 /, "서울특별시 "), p.lat, p.lng, p.category));
+export const FAKE_NAVER_PLACES: readonly PlaceCandidate[] = FAKE_PLACES.map((p) =>
+  naver(p.name, p.address!.replace(/^서울 /, "서울특별시 "), p.lat, p.lng, p.category),
+);
 
 /** 이름이나 분류가 맞는 것, 없으면 "<검색어> 본점" 하나. 네이버는 5개까지 */
 export function fakePlaceSearch(query: string, provider: PlaceProvider = "kakao"): PlaceCandidate[] {
@@ -55,7 +57,11 @@ export function fakePlaceSearch(query: string, provider: PlaceProvider = "kakao"
   const hits = list.filter((p) => p.name.toLowerCase().includes(q) || (p.category ?? "").includes(query));
   const name = `${query.slice(0, 90)} 본점`;
   if (hits.length > 0) return provider === "naver" ? hits.slice(0, 5) : [...hits];
-  return [provider === "naver" ? naver(name, "서울특별시 중구 세종대로 110", 37.5663, 126.9779, null) : kakao("99999999", name, "서울 중구 세종대로 110", 37.5663, 126.9779, null)];
+  return [
+    provider === "naver"
+      ? naver(name, "서울특별시 중구 세종대로 110", 37.5663, 126.9779, null)
+      : kakao("99999999", name, "서울 중구 세종대로 110", 37.5663, 126.9779, null),
+  ];
 }
 
 const KEYS = new Set(["text", "query", "kakaoPlaceId", "naverKey"]);
@@ -109,7 +115,11 @@ export function placeOut(p: MockPlace | null | undefined) {
   const naverKey = p!.naverKey ?? null;
   const provider = p!.kakaoPlaceId ? "kakao" : naverKey ? "naver" : null;
   const url =
-    provider === "kakao" ? `https://place.map.kakao.com/${p!.kakaoPlaceId}` : provider === "naver" && p!.query ? `https://map.naver.com/p/search/${encodeURIComponent(p!.query)}` : null;
+    provider === "kakao"
+      ? `https://place.map.kakao.com/${p!.kakaoPlaceId}`
+      : provider === "naver" && p!.query
+        ? `https://map.naver.com/p/search/${encodeURIComponent(p!.query)}`
+        : null;
   return { text: p!.text, query: p!.query, kakaoPlaceId: p!.kakaoPlaceId, naverKey, provider, url };
 }
 

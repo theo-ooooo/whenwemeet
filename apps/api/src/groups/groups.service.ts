@@ -1,16 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ApiException } from '../common/errors.js';
-import { MemberWithJoin, pickLeastUsedColor, toMember } from '../common/member.js';
+import {
+  MemberWithJoin,
+  pickLeastUsedColor,
+  toMember,
+} from '../common/member.js';
 import { generatePublicCode } from '../common/public-code.js';
 import { EventLogsRepository } from '../event-logs/event-logs.repository.js';
 import { snapshotName } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
-import { type JoinVia, type MembershipMeInput, MembershipsRepository } from '../memberships/memberships.repository.js';
+import {
+  type JoinVia,
+  type MembershipMeInput,
+  MembershipsRepository,
+} from '../memberships/memberships.repository.js';
 import { unseenAfter } from '../news/news.service.js';
 import { PushScheduler } from '../push/push.scheduler.js';
 import type { UpdateMeDto } from './dto/group.dto.js';
 import { GroupsRepository, InviteGroupRow } from './groups.repository.js';
-import { generateInviteCode, isUniqueViolation, normalizeInviteCode } from './invite-code.js';
+import {
+  generateInviteCode,
+  isUniqueViolation,
+  normalizeInviteCode,
+} from './invite-code.js';
 import { GroupDetail, MembershipService } from './membership.service.js';
 
 /** (#196) 초대 미리보기 (api.md 2.2 InvitePreview, D-157, D-158) */
@@ -44,7 +56,10 @@ export type GroupPreset = (typeof GROUP_PRESETS)[number];
 
 /** 아는 쓰임이면 그 값, 아니면(없음, 모르는 값, 문자열 아님) null */
 export function parseGroupPreset(raw: unknown): GroupPreset | null {
-  return typeof raw === 'string' && (GROUP_PRESETS as readonly string[]).includes(raw) ? (raw as GroupPreset) : null;
+  return typeof raw === 'string' &&
+    (GROUP_PRESETS as readonly string[]).includes(raw)
+    ? (raw as GroupPreset)
+    : null;
 }
 
 /** 초대 코드 충돌 시 재생성 횟수 상한 (32^6 공간이라 사실상 1회에 끝난다) */
@@ -69,25 +84,46 @@ export class GroupsService {
    */
   async list(userId: number): Promise<GroupSummary[]> {
     const rows = await this.membershipsRepo.listForUserWithGroup(userId);
-    rows.sort((a, b) => Number(b.group.type === 'PERSONAL') - Number(a.group.type === 'PERSONAL'));
+    rows.sort(
+      (a, b) =>
+        Number(b.group.type === 'PERSONAL') -
+        Number(a.group.type === 'PERSONAL'),
+    );
 
     const summaries: GroupSummary[] = [];
     for (const row of rows) {
-      const hidden = row.group.hiddenAt ? { reason: row.group.hiddenReason ?? '', hiddenAt: row.group.hiddenAt } : null;
+      const hidden = row.group.hiddenAt
+        ? { reason: row.group.hiddenReason ?? '', hiddenAt: row.group.hiddenAt }
+        : null;
       const after = unseenAfter(row.lastSeenAt, row.joinedAt);
       // (#189) 투표로 정한 일정의 CREATED 로그는 새 소식에서 숨기므로(POLL_CLOSED 한 줄로 보인다) 그 수만큼 뺀다 (D-236)
       const unreadNewsCount = hidden
         ? 0
-        : (await this.eventLogs.countUnseenByOthers(row.group.id, after, userId)) +
-        (await this.activities.countUnseenByOthers(row.group.id, after, userId)) -
-        (await this.activities.countUnseenPollClosedByOthers(row.group.id, after, userId));
+        : (await this.eventLogs.countUnseenByOthers(
+            row.group.id,
+            after,
+            userId,
+          )) +
+          (await this.activities.countUnseenByOthers(
+            row.group.id,
+            after,
+            userId,
+          )) -
+          (await this.activities.countUnseenPollClosedByOthers(
+            row.group.id,
+            after,
+            userId,
+          ));
       summaries.push({
         id: row.group.id,
         type: row.group.type,
         name: row.group.name,
         publicCode: row.group.publicCode,
         memberCount: row.group._count.memberships,
-        me: { color: row.color, displayName: row.displayName ?? row.user.nickname },
+        me: {
+          color: row.color,
+          displayName: row.displayName ?? row.user.nickname,
+        },
         unreadNewsCount,
         hidden,
       });
@@ -96,7 +132,11 @@ export class GroupsService {
   }
 
   /** TEAM 팀 생성. 요청자가 첫 멤버, 초대 코드 발급. (#278) preset 은 로그 한 줄만 (저장 안 함) */
-  async create(userId: number, name: string, preset?: unknown): Promise<GroupDetail> {
+  async create(
+    userId: number,
+    name: string,
+    preset?: unknown,
+  ): Promise<GroupDetail> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         const group = await this.groupsRepo.createTeam({
@@ -106,10 +146,12 @@ export class GroupsService {
           firstMember: { userId, color: pickLeastUsedColor([]) },
         });
         const picked = parseGroupPreset(preset);
-        if (picked) this.logger.log(`groups.create groupId=${group.id} preset=${picked}`);
+        if (picked)
+          this.logger.log(`groups.create groupId=${group.id} preset=${picked}`);
         return await this.memberships.groupDetail(group.id, userId);
       } catch (error) {
-        if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES) throw error;
+        if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES)
+          throw error;
       }
     }
   }
@@ -120,9 +162,16 @@ export class GroupsService {
   }
 
   /** 이름 변경. 실제로 바뀌면 새 소식에 남는다 (#191) */
-  async rename(userId: number, groupId: number, name: string): Promise<GroupDetail> {
+  async rename(
+    userId: number,
+    groupId: number,
+    name: string,
+  ): Promise<GroupDetail> {
     const me = await this.memberships.assertMember(userId, groupId);
-    await this.groupsRepo.renameWithActivityTx(groupId, name, { id: userId, name: snapshotName(me.displayName, me.user.nickname) });
+    await this.groupsRepo.renameWithActivityTx(groupId, name, {
+      id: userId,
+      name: snapshotName(me.displayName, me.user.nickname),
+    });
     return this.memberships.groupDetail(groupId, userId);
   }
 
@@ -130,11 +179,16 @@ export class GroupsService {
   async rotateInviteCode(
     userId: number,
     groupId: number,
-  ): Promise<{ inviteCode: string; inviteUrl: string; inviteShareUrl: string }> {
+  ): Promise<{
+    inviteCode: string;
+    inviteUrl: string;
+    inviteShareUrl: string;
+  }> {
     await this.memberships.assertMember(userId, groupId);
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
-    if (group.type === 'PERSONAL') throw new ApiException('GROUP_NOT_INVITABLE');
+    if (group.type === 'PERSONAL')
+      throw new ApiException('GROUP_NOT_INVITABLE');
 
     for (let attempt = 0; ; attempt += 1) {
       const inviteCode = generateInviteCode();
@@ -143,10 +197,15 @@ export class GroupsService {
         return {
           inviteCode,
           inviteUrl: this.memberships.inviteUrl(inviteCode)!,
-          inviteShareUrl: this.memberships.inviteShareUrl(inviteCode, groupId, userId)!,
+          inviteShareUrl: this.memberships.inviteShareUrl(
+            inviteCode,
+            groupId,
+            userId,
+          )!,
         };
       } catch (error) {
-        if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES) throw error;
+        if (!isUniqueViolation(error) || attempt >= INVITE_CODE_RETRIES)
+          throw error;
       }
     }
   }
@@ -156,15 +215,36 @@ export class GroupsService {
    * (#196) by 가 현재 멤버의 표식이면 그 사람의 팀 표시 이름(D-157), 로그인한 사용자가 이미 멤버면 isMember + groupId (D-158).
    * 둘 다 없으면 멤버 목록을 읽지 않는다
    */
-  async invitePreview(codeRaw: string, by?: unknown, viewerId: number | null = null): Promise<InvitePreview> {
+  async invitePreview(
+    codeRaw: string,
+    by?: unknown,
+    viewerId: number | null = null,
+  ): Promise<InvitePreview> {
     const group = await this.findByInviteCode(codeRaw);
-    const preview: InvitePreview = { groupName: group.name, memberCount: group.memberCount, inviter: null, isMember: false, groupId: null, groupCode: null };
+    const preview: InvitePreview = {
+      groupName: group.name,
+      memberCount: group.memberCount,
+      inviter: null,
+      isMember: false,
+      groupId: null,
+      groupCode: null,
+    };
     if (by === undefined && viewerId === null) return preview;
 
     const members = await this.memberships.listMembers(group.id);
-    const inviterId = by === undefined ? null : this.memberships.matchInviter(group.id, members.map((m) => m.userId), by);
+    const inviterId =
+      by === undefined
+        ? null
+        : this.memberships.matchInviter(
+            group.id,
+            members.map((m) => m.userId),
+            by,
+          );
     const inviter = members.find((m) => m.userId === inviterId);
-    if (inviter) preview.inviter = { nickname: inviter.displayName ?? inviter.user.nickname };
+    if (inviter)
+      preview.inviter = {
+        nickname: inviter.displayName ?? inviter.user.nickname,
+      };
     if (viewerId !== null && members.some((m) => m.userId === viewerId)) {
       preview.isMember = true;
       preview.groupId = group.id;
@@ -183,10 +263,19 @@ export class GroupsService {
    * 팀 합류 공통 단계. 초대 코드 합류와 (#274) 일정 링크 합류가 같이 쓴다 (D-185).
    * 멤버 색 배정(D-21), 합류 알림(PushKind.JOIN), 새 소식 기록은 멤버십 트랜잭션 안에서. 이미 멤버면 아무것도 남기지 않는다 (D-19)
    */
-  async joinGroup(userId: number, groupId: number, via?: JoinVia): Promise<GroupDetail> {
+  async joinGroup(
+    userId: number,
+    groupId: number,
+    via?: JoinVia,
+  ): Promise<GroupDetail> {
     let joined = false;
     try {
-      joined = await this.membershipsRepo.addMemberIfAbsentTx(userId, groupId, pickLeastUsedColor, via);
+      joined = await this.membershipsRepo.addMemberIfAbsentTx(
+        userId,
+        groupId,
+        pickLeastUsedColor,
+        via,
+      );
     } catch (error) {
       // 같은 링크를 동시에 두 번 눌러 멤버십이 먼저 생긴 경우도 멱등하게 성공
       if (!isUniqueViolation(error)) throw error;
@@ -200,7 +289,11 @@ export class GroupsService {
    * 내 색/표시 이름, 이 팀 알림 받기(#188), 이 팀 달력에 내 생일 보이기(#305). displayName null 은 닉네임으로 되돌림.
    * 응답에 내 notify, showBirthday 포함
    */
-  async updateMe(userId: number, groupId: number, dto: UpdateMeDto): Promise<MemberWithJoin & { notify: boolean; showBirthday: boolean }> {
+  async updateMe(
+    userId: number,
+    groupId: number,
+    dto: UpdateMeDto,
+  ): Promise<MemberWithJoin & { notify: boolean; showBirthday: boolean }> {
     const membership = await this.memberships.assertMember(userId, groupId);
     const data: MembershipMeInput = {};
     if (dto.color !== undefined) data.color = dto.color.toUpperCase();
@@ -208,17 +301,32 @@ export class GroupsService {
     if (dto.notify !== undefined) data.notify = dto.notify;
     if (dto.showBirthday !== undefined) data.showBirthday = dto.showBirthday;
     const updated = await this.membershipsRepo.updateMe(membership.id, data);
-    return { ...toMember(updated), notify: updated.notify, showBirthday: updated.showBirthday };
+    return {
+      ...toMember(updated),
+      notify: updated.notify,
+      showBirthday: updated.showBirthday,
+    };
   }
 
   /** 팀 나가기 (api.md 2.7). 멤버십 확인 → PERSONAL 거부 → 삭제와 빈 팀 정리는 한 트랜잭션 */
-  async leave(userId: number, groupId: number): Promise<{ groupDeleted: boolean }> {
+  async leave(
+    userId: number,
+    groupId: number,
+  ): Promise<{ groupDeleted: boolean }> {
     // (#515) 숨긴 팀에서도 나갈 수는 있다 (D-286)
-    const membership = await this.memberships.assertMember(userId, groupId, { allowHidden: true });
+    const membership = await this.memberships.assertMember(userId, groupId, {
+      allowHidden: true,
+    });
     const group = await this.groupsRepo.findType(groupId);
     if (!group) throw new ApiException('NOT_FOUND', '팀을 찾을 수 없어요');
-    if (group.type === 'PERSONAL') throw new ApiException('GROUP_PERSONAL_LEAVE');
-    return { groupDeleted: await this.membershipsRepo.leaveGroupTx(membership.id, groupId) };
+    if (group.type === 'PERSONAL')
+      throw new ApiException('GROUP_PERSONAL_LEAVE');
+    return {
+      groupDeleted: await this.membershipsRepo.leaveGroupTx(
+        membership.id,
+        groupId,
+      ),
+    };
   }
 
   private async findByInviteCode(codeRaw: string): Promise<InviteGroupRow> {

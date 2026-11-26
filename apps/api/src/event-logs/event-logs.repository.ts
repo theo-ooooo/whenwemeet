@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserRow } from '../common/member.js';
+import {
+  toUserRowOrNull,
+  USER_PUBLIC_SELECT,
+  type UserRow,
+} from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { dbToDate } from '../events/event-rows.js';
 import type { Repeat } from '../events/recurrence.js';
@@ -9,7 +13,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
  * (#515) 새 소식에서 관리자가 숨긴 일정의 기록을 뺀다 (D-286). 일정이 지워져 eventId 가 null 인 기록은 그대로 둔다.
  * 숨긴 팀의 기록은 멤버십 확인(GROUP_HIDDEN)에서 이미 막힌다
  */
-const NOT_HIDDEN_EVENT = { NOT: { event: { is: { hiddenAt: { not: null } } } } } as const;
+const NOT_HIDDEN_EVENT = {
+  NOT: { event: { is: { hiddenAt: { not: null } } } },
+} as const;
 
 export const EVENT_LOG_SELECT = {
   id: true,
@@ -60,7 +66,11 @@ export class EventLogsRepository {
 
   /** `after` 이후, 내 변경 제외 (actorId null 인 탈퇴자 변경은 포함) */
   /** (#515) 숨긴 일정의 기록은 세지 않는다 (D-286) */
-  countUnseenByOthers(groupId: number, after: Date, userId: number): Promise<number> {
+  countUnseenByOthers(
+    groupId: number,
+    after: Date,
+    userId: number,
+  ): Promise<number> {
     return this.prisma.eventLog.count({
       where: {
         groupId,
@@ -72,7 +82,12 @@ export class EventLogsRepository {
   }
 
   /** `since` 이후, 내 변경 제외, 최신순 `limit` 건. (#515) 숨긴 일정의 기록은 뺀다 (지워진 일정의 기록은 그대로) */
-  async listRecentByOthers(groupId: number, userId: number, since: Date, limit: number): Promise<EventLogRow[]> {
+  async listRecentByOthers(
+    groupId: number,
+    userId: number,
+    since: Date,
+    limit: number,
+  ): Promise<EventLogRow[]> {
     const rows = await this.prisma.eventLog.findMany({
       where: {
         groupId,

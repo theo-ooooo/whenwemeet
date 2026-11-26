@@ -11,14 +11,26 @@ vi.mock("@/hooks", () => ({
   messageOf: () => "",
   usePlaceResolve: () => ({ data: null, error: null }),
 }));
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("../AppShell", () => ({ useGroupContext: () => ({ group: { type: "TEAM", me: { userId: 1 } } }) }));
 
 const { DayPanel } = await import("../DayPanel");
 const { DayDock } = await import("../DayDock");
 
-const member = (userId: number, name: string, color: string) => ({ userId, displayName: name, color, profileImageUrl: null, joinedAt: "2026-11-01T00:00:00.000Z" });
+const member = (userId: number, name: string, color: string) => ({
+  userId,
+  displayName: name,
+  color,
+  profileImageUrl: null,
+  joinedAt: "2026-11-01T00:00:00.000Z",
+});
 const ev = (over: Partial<Event> = {}): Event =>
   ({
     id: 7,

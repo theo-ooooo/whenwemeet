@@ -173,9 +173,7 @@ describe("캐시 이름과 정리", () => {
   });
 
   it("activate 는 우리 접두사의 옛 캐시만 지운다", () => {
-    expect(rules.staleCacheNames(["wwm-static-old", "wwm-static-new", "other-cache", "wwm-other"], "wwm-static-new")).toEqual([
-      "wwm-static-old",
-    ]);
+    expect(rules.staleCacheNames(["wwm-static-old", "wwm-static-new", "other-cache", "wwm-other"], "wwm-static-new")).toEqual(["wwm-static-old"]);
   });
 
   it("미리 넣는 것은 /offline 과 아이콘뿐", () => {
@@ -191,11 +189,7 @@ describe("캐시 이름과 정리", () => {
       '<link rel="stylesheet" href="/_next/static/css/a1.css"/><script src="/_next/static/chunks/b2.js" async></script>' +
       '<script src="/_next/static/chunks/b2.js"></script><script>self.__next_f.push([1,"0:[\\"/_next/static/chunks/c3.js\\"]"])</script>' +
       '<link href="https://cdn.jsdelivr.net/x.css"/>';
-    expect(rules.staticAssetsInHtml(html)).toEqual([
-      "/_next/static/css/a1.css",
-      "/_next/static/chunks/b2.js",
-      "/_next/static/chunks/c3.js",
-    ]);
+    expect(rules.staticAssetsInHtml(html)).toEqual(["/_next/static/css/a1.css", "/_next/static/chunks/b2.js", "/_next/static/chunks/c3.js"]);
   });
 });
 

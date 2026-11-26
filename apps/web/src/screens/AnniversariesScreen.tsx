@@ -145,9 +145,7 @@ export function AnniversariesScreen() {
     if (editing.mode === "new") {
       setItems((prev) => [...(prev ?? []), saved]);
     } else {
-      setItems((prev) =>
-        (prev ?? []).map((a) => (a.id === saved.id ? saved : a)),
-      );
+      setItems((prev) => (prev ?? []).map((a) => (a.id === saved.id ? saved : a)));
     }
     setEditing(null);
   }
@@ -222,12 +220,7 @@ export function AnniversariesScreen() {
               }
               return (
                 <li key={a.id} className={liClass}>
-                  <button
-                    type="button"
-                    onClick={() => open({ mode: "edit", item: a })}
-                    aria-haspopup="dialog"
-                    className={rowClass}
-                  >
+                  <button type="button" onClick={() => open({ mode: "edit", item: a })} aria-haspopup="dialog" className={rowClass}>
                     <DdayCell value={row.value} tone={row.tone} />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1.5">

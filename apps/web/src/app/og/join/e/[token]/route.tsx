@@ -21,16 +21,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   if (!share) {
     return new ImageResponse(
-      (
-        <OgFrame now={now}>
-          <OgCopy
-            lines={[{ text: "일정을" }, { text: "공유받았어요", gap: 6 }]}
-            titleSize={80}
-            lead="링크를 열면 일정을 함께 볼 수 있어요"
-            chip="일정 보기"
-          />
-        </OgFrame>
-      ),
+      <OgFrame now={now}>
+        <OgCopy lines={[{ text: "일정을" }, { text: "공유받았어요", gap: 6 }]} titleSize={80} lead="링크를 열면 일정을 함께 볼 수 있어요" chip="일정 보기" />
+      </OgFrame>,
       { ...OG_SIZE, fonts, headers },
     );
   }
@@ -39,20 +32,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const titleSize = teamNameFontSize(title);
   const repeat = eventShareRepeatLabel(share.event.repeat);
   return new ImageResponse(
-    (
-      <OgFrame now={now} team={clampTeamName(share.groupName, 10)}>
-        <OgCopy
-          kicker={eventShareTimeLabel(share.event)}
-          lines={[
-            { text: title, clamp: 2, wordBreak: teamNameWordBreak(title, titleSize) },
-            { text: `${clampTeamName(share.groupName)} 팀 일정`, size: 44, gap: 14, clamp: 1 },
-          ]}
-          titleSize={titleSize}
-          lead={repeat ? `${repeat}, 합류하면 함께 봐요` : "합류하면 같은 달력을 함께 봐요"}
-          chip="일정 보기"
-        />
-      </OgFrame>
-    ),
+    <OgFrame now={now} team={clampTeamName(share.groupName, 10)}>
+      <OgCopy
+        kicker={eventShareTimeLabel(share.event)}
+        lines={[
+          { text: title, clamp: 2, wordBreak: teamNameWordBreak(title, titleSize) },
+          { text: `${clampTeamName(share.groupName)} 팀 일정`, size: 44, gap: 14, clamp: 1 },
+        ]}
+        titleSize={titleSize}
+        lead={repeat ? `${repeat}, 합류하면 함께 봐요` : "합류하면 같은 달력을 함께 봐요"}
+        chip="일정 보기"
+      />
+    </OgFrame>,
     { ...OG_SIZE, fonts, headers },
   );
 }

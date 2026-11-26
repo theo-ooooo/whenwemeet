@@ -13,12 +13,31 @@ import { err, nextId, nowIso, ok, resetStore, START_LAST, type AuthedReq, type M
 import { hasUnreadNotice } from "./notices";
 
 /** (#305) GET /me, PATCH /me/birthday 의 birthday */
-function birthdayOf(u: { birthday?: string | null; birthdayCalendar?: "SOLAR" | "LUNAR"; birthdayLeapMonth?: boolean; birthdayReminders?: AnniversaryReminder[] }) {
-  return { date: u.birthday ?? null, calendar: u.birthdayCalendar ?? "SOLAR", isLeapMonth: u.birthdayLeapMonth ?? false, reminders: u.birthdayReminders ?? ["DAY_OF"] };
+function birthdayOf(u: {
+  birthday?: string | null;
+  birthdayCalendar?: "SOLAR" | "LUNAR";
+  birthdayLeapMonth?: boolean;
+  birthdayReminders?: AnniversaryReminder[];
+}) {
+  return {
+    date: u.birthday ?? null,
+    calendar: u.birthdayCalendar ?? "SOLAR",
+    isLeapMonth: u.birthdayLeapMonth ?? false,
+    reminders: u.birthdayReminders ?? ["DAY_OF"],
+  };
 }
 
 /** 행이 없을 때 기본값. (#528) 공지 기본 켬. 관리자 사용자 상세 목도 쓴다 */
-export const DEFAULT_NOTIFY: NotificationSettings = { reminder: true, change: true, anniversary: true, join: true, weekly: true, weeklyNudge: false, poll: true, notice: true };
+export const DEFAULT_NOTIFY: NotificationSettings = {
+  reminder: true,
+  change: true,
+  anniversary: true,
+  join: true,
+  weekly: true,
+  weeklyNudge: false,
+  poll: true,
+  notice: true,
+};
 const NOTIFY_KEYS = Object.keys(DEFAULT_NOTIFY) as (keyof NotificationSettings)[];
 
 /** /me 로 시작하는 요청. 맞는 라우트가 없으면 null (다음 라우트로) */
@@ -102,7 +121,8 @@ export function meRoutes(req: AuthedReq): MockResult | null {
     const groupId = body?.groupId ?? null;
     const invalid = (message: string): MockResult => ({ status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "groupId", message }]) });
     if (mode !== "LAST" && mode !== "PERSONAL" && mode !== "GROUP") return err(400, "VALIDATION_FAILED", "처음 여는 달력 값이 올바르지 않아요");
-    if (groupId !== null && (typeof groupId !== "number" || !Number.isInteger(groupId) || groupId < 1)) return err(400, "VALIDATION_FAILED", "팀 ID 는 정수여야 해요");
+    if (groupId !== null && (typeof groupId !== "number" || !Number.isInteger(groupId) || groupId < 1))
+      return err(400, "VALIDATION_FAILED", "팀 ID 는 정수여야 해요");
     if (mode !== "GROUP") {
       if (groupId !== null) return invalid("팀을 고를 때만 팀 ID 를 보내 주세요");
       u.startCalendar = { mode, groupId: null };
@@ -200,13 +220,17 @@ export function meRoutes(req: AuthedReq): MockResult | null {
     const devices = (s.pushDevices ??= []);
     const token = body?.token;
     if (typeof token !== "string" || !PUSH_TOKEN_RE.test(token)) {
-      return { status: 400, body: errorBody(400, "VALIDATION_FAILED", "푸시 토큰 형식이 올바르지 않아요", [{ field: "token", message: "푸시 토큰 형식이 올바르지 않아요" }]) };
+      return {
+        status: 400,
+        body: errorBody(400, "VALIDATION_FAILED", "푸시 토큰 형식이 올바르지 않아요", [{ field: "token", message: "푸시 토큰 형식이 올바르지 않아요" }]),
+      };
     }
     if (method === "PUT") {
       const platform = body?.platform;
       const appVersion = body?.appVersion;
       if (platform !== "IOS" && platform !== "ANDROID") return err(400, "VALIDATION_FAILED", "platform 은 IOS 또는 ANDROID 여야 해요");
-      if (typeof appVersion !== "string" || appVersion.length < 1 || appVersion.length > 20) return err(400, "VALIDATION_FAILED", "appVersion 은 1~20자여야 해요");
+      if (typeof appVersion !== "string" || appVersion.length < 1 || appVersion.length > 20)
+        return err(400, "VALIDATION_FAILED", "appVersion 은 1~20자여야 해요");
       s.pushDevices = devices.filter((d) => d.token !== token);
       s.pushDevices.push({ token, userId, platform, appVersion, lastSeenAt: nowIso() });
       const mine = s.pushDevices.filter((d) => d.userId === userId).sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
@@ -231,7 +255,11 @@ export function meRoutes(req: AuthedReq): MockResult | null {
       const next = { ...current };
       for (const [k, v] of Object.entries(body ?? {})) {
         if (!NOTIFY_KEYS.includes(k as keyof NotificationSettings)) return err(400, "VALIDATION_FAILED", `${k} 은(는) 허용되지 않는 항목이에요`);
-        if (typeof v !== "boolean") return { status: 400, body: errorBody(400, "VALIDATION_FAILED", `${k} 은(는) 참/거짓이어야 해요`, [{ field: k, message: `${k} 은(는) 참/거짓이어야 해요` }]) };
+        if (typeof v !== "boolean")
+          return {
+            status: 400,
+            body: errorBody(400, "VALIDATION_FAILED", `${k} 은(는) 참/거짓이어야 해요`, [{ field: k, message: `${k} 은(는) 참/거짓이어야 해요` }]),
+          };
         next[k as keyof NotificationSettings] = v;
       }
       u.notify = next;

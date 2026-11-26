@@ -203,13 +203,7 @@ export function PollScreen({ code, initial }: { code: string; initial?: Poll | n
               <p className="py-3 text-center text-[13px] text-ink-2">정해서 만든 일정이 지워졌어요</p>
             )
           ) : (
-            <Button
-              size="xl"
-              full
-              disabled={pick === null}
-              loading={confirmM.isPending}
-              onClick={() => (isCreator ? void confirm() : setDialog("confirm"))}
-            >
+            <Button size="xl" full disabled={pick === null} loading={confirmM.isPending} onClick={() => (isCreator ? void confirm() : setDialog("confirm"))}>
               {pick === null ? "정할 시간을 골라 주세요" : "이 시간으로 정하기"}
             </Button>
           )}
@@ -301,9 +295,7 @@ function OptionCard({
     </>
   );
   return (
-    <li
-      className={`flex items-stretch gap-2 rounded-xl bg-paper py-1 pl-1 pr-2 ${selected ? "outline-2 outline-ink" : ""} ${option.past ? "opacity-55" : ""}`}
-    >
+    <li className={`flex items-stretch gap-2 rounded-xl bg-paper py-1 pl-1 pr-2 ${selected ? "outline-2 outline-ink" : ""} ${option.past ? "opacity-55" : ""}`}>
       {selectable ? (
         <button
           type="button"

@@ -22,11 +22,7 @@ export function JoinCodeScreen() {
   // 실패한 코드를 고치기 시작하면 문구를 지운다
   const [failedCode, setFailedCode] = useState<string | null>(null);
   const showError = failure !== null && failedCode === code;
-  const error = showError
-    ? failure.code === "INVITE_NOT_FOUND"
-      ? NOT_FOUND
-      : messageOf(failure, "합류하지 못했어요. 다시 시도해 주세요")
-    : null;
+  const error = showError ? (failure.code === "INVITE_NOT_FOUND" ? NOT_FOUND : messageOf(failure, "합류하지 못했어요. 다시 시도해 주세요")) : null;
   const complete = code.length === CODE_LENGTH;
 
   async function submit(e: React.FormEvent) {
@@ -64,15 +60,7 @@ export function JoinCodeScreen() {
           <label htmlFor={id} className="mb-1.5 block text-[12px] font-medium text-ink-2">
             초대 코드 6자리
           </label>
-          <CodeInput
-            id={id}
-            value={code}
-            onChange={setCode}
-            describedBy={`${id}-msg`}
-            invalid={Boolean(error)}
-            disabled={loading}
-            autoFocus
-          />
+          <CodeInput id={id} value={code} onChange={setCode} describedBy={`${id}-msg`} invalid={Boolean(error)} disabled={loading} autoFocus />
           {error ? (
             <InlineError id={`${id}-msg`} className="mt-2">
               {error}

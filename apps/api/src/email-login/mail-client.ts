@@ -21,7 +21,8 @@ export interface MailMessage {
  * 발송 결과. SENT 는 받는 쪽이 접수함(2xx), SKIPPED 는 실제로 보내지 않음(개발 콘솔).
  * 실패는 MailSendError 를 던진다
  */
-export type MailSendResult = { status: 'SENT'; id: string | null } | { status: 'SKIPPED' };
+export type MailSendResult =
+  { status: 'SENT'; id: string | null } | { status: 'SKIPPED' };
 
 export interface MailClient {
   send(message: MailMessage): Promise<MailSendResult>;
@@ -68,14 +69,25 @@ export class ResendMailClient implements MailClient {
         signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
       });
     } catch (error) {
-      const timeout = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+      const timeout =
+        error instanceof Error &&
+        (error.name === 'TimeoutError' || error.name === 'AbortError');
       throw new MailSendError(null, timeout ? 'TIMEOUT' : 'CONNECTION');
     }
-    const body = (await response.json().catch(() => null)) as { id?: unknown; name?: unknown } | null;
+    const body = (await response.json().catch(() => null)) as {
+      id?: unknown;
+      name?: unknown;
+    } | null;
     if (!response.ok) {
-      throw new MailSendError(response.status, typeof body?.name === 'string' ? body.name.slice(0, 64) : 'unknown');
+      throw new MailSendError(
+        response.status,
+        typeof body?.name === 'string' ? body.name.slice(0, 64) : 'unknown',
+      );
     }
-    return { status: 'SENT', id: typeof body?.id === 'string' ? body.id.slice(0, 64) : null };
+    return {
+      status: 'SENT',
+      id: typeof body?.id === 'string' ? body.id.slice(0, 64) : null,
+    };
   }
 }
 
@@ -89,13 +101,25 @@ export class ConsoleMailClient implements MailClient {
   constructor(private readonly production: boolean) {}
 
   async send(message: MailMessage): Promise<MailSendResult> {
-    if (!this.production) this.logger.log(`[개발 메일, 보내지 않음] ${message.subject}\n${message.text}`);
+    if (!this.production)
+      this.logger.log(
+        `[개발 메일, 보내지 않음] ${message.subject}\n${message.text}`,
+      );
     return { status: 'SKIPPED' };
   }
 }
 
 /** RESEND_API_KEY 가 있으면 Resend, 없으면 콘솔 */
-export function createMailClient(config: EmailLoginConfig, fetchFn?: FetchFn): MailClient {
-  if (config.resendApiKey) return new ResendMailClient(config.resendApiKey, config.from, config.resendApiUrl, fetchFn);
+export function createMailClient(
+  config: EmailLoginConfig,
+  fetchFn?: FetchFn,
+): MailClient {
+  if (config.resendApiKey)
+    return new ResendMailClient(
+      config.resendApiKey,
+      config.from,
+      config.resendApiUrl,
+      fetchFn,
+    );
   return new ConsoleMailClient(config.production);
 }

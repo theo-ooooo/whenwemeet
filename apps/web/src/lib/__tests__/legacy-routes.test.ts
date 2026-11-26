@@ -34,9 +34,9 @@ describe("legacyRoute → legacyTarget", () => {
   });
 
   it("일정 작성, 수정, 복제", () => {
-    expect(go(["events", "new"], "start=2026-11-12T01%3A00%3A00.000Z&end=2026-11-12T02%3A00%3A00.000Z&title=%EC%A0%90%EC%8B%AC&allDay=1&reminder=HOUR_1&junk=1")).toBe(
-      "/events/new?start=2026-11-12T01%3A00%3A00.000Z&end=2026-11-12T02%3A00%3A00.000Z&title=%EC%A0%90%EC%8B%AC&allDay=1&reminder=HOUR_1&team=teamcode",
-    );
+    expect(
+      go(["events", "new"], "start=2026-11-12T01%3A00%3A00.000Z&end=2026-11-12T02%3A00%3A00.000Z&title=%EC%A0%90%EC%8B%AC&allDay=1&reminder=HOUR_1&junk=1"),
+    ).toBe("/events/new?start=2026-11-12T01%3A00%3A00.000Z&end=2026-11-12T02%3A00%3A00.000Z&title=%EC%A0%90%EC%8B%AC&allDay=1&reminder=HOUR_1&team=teamcode");
     const copy = legacyRoute(["events", "new"], q("copy=5&occurrence=2026-11-18"));
     expect(copy?.eventRef).toEqual({ as: "copy", eventId: 5 });
     expect(legacyTarget(copy!, "teamcode", "evntcode")).toBe("/events/new?occurrence=2026-11-18&copy=evntcode&team=teamcode");
@@ -48,6 +48,7 @@ describe("legacyRoute → legacyTarget", () => {
   });
 
   it("모르는 하위 경로는 null (404)", () => {
-    for (const rest of [["events"], ["events", "abc"], ["events", "5", "x"], ["calendar", "x"], ["foo"], ["settings", "x"]]) expect(legacyRoute(rest, q(""))).toBeNull();
+    for (const rest of [["events"], ["events", "abc"], ["events", "5", "x"], ["calendar", "x"], ["foo"], ["settings", "x"]])
+      expect(legacyRoute(rest, q(""))).toBeNull();
   });
 });

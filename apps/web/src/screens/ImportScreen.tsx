@@ -260,7 +260,11 @@ export function ImportScreen() {
               다른 파일 넣기
             </Button>
             {/* (#311) 다른 팀에 넣었으면 `?team=` 으로 그 팀 달력을 연다 (AppShell 이 쿠키를 바꾼다) */}
-            <Button onClick={() => router.push(step.groupId === groupId ? CALENDAR_PATH : withTeam(CALENDAR_PATH, groups?.find((g) => g.id === step.groupId)?.publicCode ?? ""))}>
+            <Button
+              onClick={() =>
+                router.push(step.groupId === groupId ? CALENDAR_PATH : withTeam(CALENDAR_PATH, groups?.find((g) => g.id === step.groupId)?.publicCode ?? ""))
+              }
+            >
               달력 보기
             </Button>
           </div>

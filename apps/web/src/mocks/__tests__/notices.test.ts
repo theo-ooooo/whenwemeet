@@ -55,7 +55,10 @@ describe("목 팀, 일정 숨김 (#515, D-286)", () => {
   it("팀 숨기기: 팀 경로 403 GROUP_HIDDEN, 목록엔 hidden, 나가기는 된다, 해제하면 돌아온다", () => {
     expect(call("POST", "/admin/groups/4/hide", ME_ID, { reason: " " }).status).toBe(400);
     expect(call("POST", "/admin/groups/4/hide", ME_ID, { reason: "광고" }).body.data.hidden).toMatchObject({ reason: "광고" });
-    const blocked = mockHandle({ method: "GET", path: "/groups/4", query: new URLSearchParams(), body: null, userId: ME_ID }) as { status: number; body: { error: { code: string } } };
+    const blocked = mockHandle({ method: "GET", path: "/groups/4", query: new URLSearchParams(), body: null, userId: ME_ID }) as {
+      status: number;
+      body: { error: { code: string } };
+    };
     expect(blocked.status).toBe(403);
     expect(blocked.body.error.code).toBe("GROUP_HIDDEN");
     const groups = call("GET", "/groups").body.data as unknown as { id: number; hidden: { reason: string } | null }[];
@@ -84,7 +87,11 @@ describe("목 공지 푸시, 관리자 사용자 알림 설정 (#528, D-287)", (
     expect(created.status).toBe(201);
     const id = created.body.data.id as number;
     expect(created.body.data.pushedAt).not.toBeNull();
-    expect(call("GET", "/admin/logs").body.data.items.slice(0, 2).map((l) => l.action)).toEqual(["notice_push", "notice_create"]);
+    expect(
+      call("GET", "/admin/logs")
+        .body.data.items.slice(0, 2)
+        .map((l) => l.action),
+    ).toEqual(["notice_push", "notice_create"]);
     const again = call("PATCH", `/admin/notices/${id}`, ME_ID, { title: "바꿈", push: true });
     expect(again.status).toBe(409);
     expect(call("GET", `/admin/notices/${id}`).body.data.title).toBe("새 기능");
@@ -127,7 +134,9 @@ describe("목 관리자 팀 종류 필터와 개인 달력 주인 (#528)", () =>
 
   it("q 는 개인 달력 주인 닉네임도 찾는다. 일정 목록의 팀에 type 과 주인", () => {
     expect(groups("q=수경").map((g) => [g.type, g.owner?.nickname])).toEqual([["PERSONAL", "수경"]]);
-    const events = call("GET", "/admin/events", ME_ID, null, "limit=50").body.data.items as unknown as { group: { type: string; owner: { nickname: string } | null } }[];
+    const events = call("GET", "/admin/events", ME_ID, null, "limit=50").body.data.items as unknown as {
+      group: { type: string; owner: { nickname: string } | null };
+    }[];
     const personal = events.find((e) => e.group.type === "PERSONAL");
     expect(personal?.group.owner?.nickname).toBeTruthy();
     expect(events.filter((e) => e.group.type === "TEAM").every((e) => e.group.owner === null)).toBe(true);
@@ -151,7 +160,11 @@ describe("목 관리자 사용자 쓰는 곳 (#528, #532)", () => {
     expect(byId.get(13)!.platforms).toEqual([]);
     expect(byId.get(ME_ID)!.platforms).toEqual(["web"]);
     expect(byId.get(MOM_ID)!.platforms).toEqual(["android"]);
-    expect(users("platform=android").map((u) => u.id).sort((a, b) => a - b)).toEqual([MOM_ID, 11]);
+    expect(
+      users("platform=android")
+        .map((u) => u.id)
+        .sort((a, b) => a - b),
+    ).toEqual([MOM_ID, 11]);
     expect(users("platform=web").every((u) => u.platforms.includes("web"))).toBe(true);
     expect(call("GET", "/admin/users", ME_ID, null, "platform=IOS").status).toBe(400);
     expect(call("GET", "/admin/users/11").body.data.user).toMatchObject({ platforms: ["ios", "android", "web"] });
@@ -190,7 +203,6 @@ describe("목 관리자 사용자 쓰는 곳 (#528, #532)", () => {
     });
   });
 });
-
 
 describe("목 공지 읽음과 결과 (#544, D-293)", () => {
   beforeEach(() => resetStore());

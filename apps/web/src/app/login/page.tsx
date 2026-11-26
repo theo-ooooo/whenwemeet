@@ -23,11 +23,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 const SILENT_ERRORS = new Set(["APPLE_CANCELLED"]);
 const DEFAULT_ERROR = "로그인하지 못했어요. 잠시 후 다시 시도해 주세요";
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string; error?: string; reason?: string }>;
-}) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; reason?: string }> }) {
   const sp = await searchParams;
   const next = safeNext(sp.next);
 
@@ -61,9 +57,7 @@ export default async function LoginPage({
           <br />
           볼까<span className="text-acc-ink">?</span>
         </h1>
-        <p className="mt-3 text-[15px] leading-[22px] text-soft">
-          카톡으로 캡처 주고받기 그만. 달력 하나 같이 보고, 다 되는 시간 바로 찾기.
-        </p>
+        <p className="mt-3 text-[15px] leading-[22px] text-soft">카톡으로 캡처 주고받기 그만. 달력 하나 같이 보고, 다 되는 시간 바로 찾기.</p>
 
         <div className="mt-8">
           {error && (

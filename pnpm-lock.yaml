@@ -16,6 +16,9 @@ importers:
       knip:
         specifier: ^5
         version: 5.88.1(@types/node@24.19.2)(typescript@6.0.3)
+      prettier:
+        specifier: ^3.4.2
+        version: 3.9.10
 
   apps/api:
     dependencies:

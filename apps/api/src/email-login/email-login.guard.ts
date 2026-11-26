@@ -1,4 +1,9 @@
-import { CanActivate, createParamDecorator, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  createParamDecorator,
+  ExecutionContext,
+  Injectable,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiException } from '../common/errors.js';
 import { safeEqualText } from './email-crypto.js';
@@ -51,6 +56,11 @@ function trustedIp(header: string | string[] | undefined): string {
 }
 
 /** 가드가 정한 클라이언트 IP (해시로만 저장, D-112) */
-export const ClientIp = createParamDecorator((_data: unknown, context: ExecutionContext): string => {
-  return context.switchToHttp().getRequest<EmailLoginRequest>().emailClientIp ?? UNKNOWN_IP;
-});
+export const ClientIp = createParamDecorator(
+  (_data: unknown, context: ExecutionContext): string => {
+    return (
+      context.switchToHttp().getRequest<EmailLoginRequest>().emailClientIp ??
+      UNKNOWN_IP
+    );
+  },
+);

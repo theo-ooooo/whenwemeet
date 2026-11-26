@@ -18,7 +18,19 @@ import { ANNIVERSARIES_PATH, CALENDAR_PATH, eventEditHref, FREE_PATH, NEWS_PATH,
 import type { GroupDetail, GroupSummary } from "@/lib/types";
 import { Symbol } from "./Logo";
 import { PollSideLine } from "./PollHomeSection";
-import { AvatarDot, IconBell, IconCalendar, IconChevronDown, IconChevronLeft, IconChevronRight, IconFree, IconHeart, IconSearch, IconTeam, IconTodo } from "./icons";
+import {
+  AvatarDot,
+  IconBell,
+  IconCalendar,
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+  IconFree,
+  IconHeart,
+  IconSearch,
+  IconTeam,
+  IconTodo,
+} from "./icons";
 import { Avatar, Skeleton } from "./ui";
 
 type Props = {
@@ -59,7 +71,11 @@ function TeamDots({ group, small = false }: { group: GroupDetail | null; small?:
   return (
     <span aria-hidden="true" className="flex shrink-0 items-center">
       {colors.map((c, i) => (
-        <i key={i} className={`block ${small ? "size-2.5" : "size-3.5"} rounded-full ring-2 ring-[var(--bg)] ${i > 0 ? (small ? "-ml-1" : "-ml-1.5") : ""}`} style={{ background: c }} />
+        <i
+          key={i}
+          className={`block ${small ? "size-2.5" : "size-3.5"} rounded-full ring-2 ring-[var(--bg)] ${i > 0 ? (small ? "-ml-1" : "-ml-1.5") : ""}`}
+          style={{ background: c }}
+        />
       ))}
     </span>
   );
@@ -195,7 +211,13 @@ function SidebarRail({ group, tab, unread, noticeDot = false, hiddenTeam = null,
         <RailTip label="내 정보" />
       </div>
       <div className={`${cell} mt-2`}>
-        <button type="button" onClick={onToggle} aria-label="사이드바 펼치기" aria-expanded={false} className="grid size-11 place-items-center rounded-[14px] text-ink-2 hover:bg-hover">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="사이드바 펼치기"
+          aria-expanded={false}
+          className="grid size-11 place-items-center rounded-[14px] text-ink-2 hover:bg-hover"
+        >
           <IconChevronRight size={20} />
         </button>
         <RailTip label="펼치기" />
@@ -362,7 +384,11 @@ function SidebarFull({ groupId, group, tab, unread, noticeDot = false, hiddenTea
                       aria-label={withWho(`${day} ${ev.title}, ${time}`, ev, { meId, personal })}
                       className="flex h-12 items-stretch gap-2.5 rounded-sm px-3 py-1.5 hover:bg-hover"
                     >
-                      <i aria-hidden="true" className="block w-[3px] shrink-0 rounded-[2px]" style={{ background: splitBackground(barColors(ev), "to bottom") }} />
+                      <i
+                        aria-hidden="true"
+                        className="block w-[3px] shrink-0 rounded-[2px]"
+                        style={{ background: splitBackground(barColors(ev), "to bottom") }}
+                      />
                       <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col justify-center">
                         <b className="block truncate text-[14px] font-semibold leading-[18px]">{ev.title}</b>
                         <span className="block truncate text-[12px] leading-4 text-ink-2">
@@ -426,7 +452,11 @@ function SidebarFull({ groupId, group, tab, unread, noticeDot = false, hiddenTea
 
       {/* 맨 아래 내 정보: 아바타 32 + 이름 14/600 + "내 정보" 12 --mute. 오른쪽에 접기 ◀ (#315). 가운데 묶음이 넘쳐도 밀리지 않는다 (#429) */}
       <div data-side-footer className="flex shrink-0 items-center gap-1">
-        <Link href="/me" aria-label={noticeDot ? `${group?.me.displayName ?? ""} 내 정보, 새 공지` : undefined} className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover">
+        <Link
+          href="/me"
+          aria-label={noticeDot ? `${group?.me.displayName ?? ""} 내 정보, 새 공지` : undefined}
+          className="flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 hover:bg-hover"
+        >
           <span className="relative shrink-0">
             {noticeDot && <AvatarDot />}
             {group ? (

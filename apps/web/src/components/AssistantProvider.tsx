@@ -198,10 +198,7 @@ export function AssistantProvider({ groupId, children }: { groupId: number | nul
     [commit, pending, limited, request],
   );
 
-  const addLocal = useCallback(
-    (card: AssistantCard) => commit([...messagesRef.current, { id: ++seq.current, role: "local", card }]),
-    [commit],
-  );
+  const addLocal = useCallback((card: AssistantCard) => commit([...messagesRef.current, { id: ++seq.current, role: "local", card }]), [commit]);
 
   const consentMutate = consentM.mutate;
   const [consentError, setConsentError] = useState<string | null>(null);
@@ -240,7 +237,27 @@ export function AssistantProvider({ groupId, children }: { groupId: number | nul
       results,
       setResult,
     }),
-    [ready, meta, consented, messages, pending, inputError, limited, remaining, limit, send, retry, addLocal, clear, consent, consentM.isPending, consentError, panelOpen, results, setResult],
+    [
+      ready,
+      meta,
+      consented,
+      messages,
+      pending,
+      inputError,
+      limited,
+      remaining,
+      limit,
+      send,
+      retry,
+      addLocal,
+      clear,
+      consent,
+      consentM.isPending,
+      consentError,
+      panelOpen,
+      results,
+      setResult,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

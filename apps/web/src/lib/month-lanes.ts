@@ -173,7 +173,10 @@ export function phoneDayLanes<T extends LaneEvent>(week: PackedWeek<T>, col: num
   const lanes: (WeekSegment<T> | null)[] = [];
   for (let l = 0; l < maxLanes; l++) lanes.push(here.find((s) => s.lane === l) ?? null);
   while (lanes.length && lanes[lanes.length - 1] === null) lanes.pop();
-  const overflow = here.filter((s) => s.lane >= maxLanes).sort((a, b) => a.lane - b.lane).map((s) => s.event);
+  const overflow = here
+    .filter((s) => s.lane >= maxLanes)
+    .sort((a, b) => a.lane - b.lane)
+    .map((s) => s.event);
   return { lanes, overflow };
 }
 

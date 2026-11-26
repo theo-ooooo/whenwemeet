@@ -18,7 +18,13 @@ vi.mock("@/hooks", () => ({
 const { NoticePopup } = await import("../NoticePopup");
 const { setPromptOpen } = await import("@/lib/push");
 
-const popup = { id: 2, title: "11월 30일 새벽 서버 점검 안내", kind: "maintenance" as const, publishedAt: "2026-11-25T00:00:00.000Z", preview: "새벽 2시부터 점검해요." };
+const popup = {
+  id: 2,
+  title: "11월 30일 새벽 서버 점검 안내",
+  kind: "maintenance" as const,
+  publishedAt: "2026-11-25T00:00:00.000Z",
+  preview: "새벽 2시부터 점검해요.",
+};
 
 function renderPopup(blocked = false) {
   const r = render(<NoticePopup blocked={blocked} />);

@@ -1,17 +1,7 @@
 import { eventRowTime } from "../event-row";
 import { describe, expect, it } from "vitest";
 import { kstToIso } from "../date";
-import {
-  dayLabel,
-  groupPast,
-  groupUpcoming,
-  lastDayOf,
-  pastWindow,
-  monthBreak,
-  upcomingDayOf,
-  upcomingWindow,
-  windowRangeText,
-} from "../upcoming";
+import { dayLabel, groupPast, groupUpcoming, lastDayOf, pastWindow, monthBreak, upcomingDayOf, upcomingWindow, windowRangeText } from "../upcoming";
 import type { Anniversary, Event, Member } from "../types";
 
 const who: Member = { userId: 1, displayName: "지우", color: "#5B6CF4", profileImageUrl: null };
@@ -40,8 +30,7 @@ function ev(start: string, end: string, extra: Partial<Event> = {}): Event {
   } as Event;
 }
 const at = (k: string, t: string) => kstToIso(k, t);
-const allDay = (from: string, toExclusive: string, extra: Partial<Event> = {}) =>
-  ev(kstToIso(from), kstToIso(toExclusive), { allDay: true, ...extra });
+const allDay = (from: string, toExclusive: string, extra: Partial<Event> = {}) => ev(kstToIso(from), kstToIso(toExclusive), { allDay: true, ...extra });
 const ann = (id: number, date: string, kind: Anniversary["kind"]): Anniversary => ({
   id,
   groupId: 2,

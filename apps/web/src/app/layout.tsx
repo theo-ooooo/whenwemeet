@@ -9,8 +9,7 @@ import { FAKE_SHELL_SCRIPT } from "@/lib/fake-shell";
 import { IN_APP_SCRIPT } from "@/lib/app-bridge";
 import "./globals.css";
 
-const PRETENDARD_CSS =
-  "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css";
+const PRETENDARD_CSS = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css";
 
 export const metadata: Metadata = {
   // 공유 미리보기(카카오톡, 메신저, SNS) (#154). og:image 는 app/og/route.tsx 가 그린다 (#159, #204). 상대 주소를 절대 주소로. 프리뷰 배포에서도 운영 이미지 주소를 쓴다 (카카오 스크래퍼는 운영 주소만 본다)

@@ -57,7 +57,15 @@ function todoText(v: unknown, field: "name" | "text"): string | MockResult {
   return t.length < 1 || Array.from(t).length > max ? todoTextErr(field, max, label) : t;
 }
 
-function todoRoutes(s: Store, groupId: number, userId: number, rest: string[], method: string, query: URLSearchParams, body: Record<string, unknown> | null): MockResult | null {
+function todoRoutes(
+  s: Store,
+  groupId: number,
+  userId: number,
+  rest: string[],
+  method: string,
+  query: URLSearchParams,
+  body: Record<string, unknown> | null,
+): MockResult | null {
   const lists = (s.todoLists ??= []);
   const items = (s.todoItems ??= []);
   const touch = (l: TodoListRow) => {
@@ -117,7 +125,17 @@ function todoRoutes(s: Store, groupId: number, userId: number, rest: string[], m
       if (items.filter((i) => i.listId === list.id).length >= TODO_ITEM_LIMIT) return err(400, "TODO_LIMIT_REACHED", "항목은 300개까지 넣을 수 있어요");
       const now = nowIso();
       const done = body?.done === true;
-      const row: TodoItemRow = { id: nextId(), listId: list.id, text, done, doneAt: done ? now : null, doneById: done ? userId : null, creatorId: userId, createdAt: now, updatedAt: now };
+      const row: TodoItemRow = {
+        id: nextId(),
+        listId: list.id,
+        text,
+        done,
+        doneAt: done ? now : null,
+        doneById: done ? userId : null,
+        creatorId: userId,
+        createdAt: now,
+        updatedAt: now,
+      };
       items.push(row);
       touch(list);
       return ok(todoItemOut(s, groupId, row), 201);

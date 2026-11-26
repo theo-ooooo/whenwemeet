@@ -14,8 +14,15 @@ describe("목 앱 버전 (#539)", () => {
   it("공개 GET /app/version: 시드는 최신 1.4.0, 최소 1.1.0, 기본 스토어 주소. 기종이 틀리면 400", () => {
     const ios = call("GET", "/app/version", null, null, "platform=ios");
     expect(ios.status).toBe(200);
-    expect(ios.body.data).toMatchObject({ platform: "ios", latestVersion: "1.4.0", minVersion: "1.1.0", storeUrl: "https://apps.apple.com/kr/app/id6832865813" });
-    expect(call("GET", "/app/version", null, null, "platform=android").body.data.storeUrl).toBe("https://play.google.com/store/apps/details?id=day.whenwemeet.app");
+    expect(ios.body.data).toMatchObject({
+      platform: "ios",
+      latestVersion: "1.4.0",
+      minVersion: "1.1.0",
+      storeUrl: "https://apps.apple.com/kr/app/id6832865813",
+    });
+    expect(call("GET", "/app/version", null, null, "platform=android").body.data.storeUrl).toBe(
+      "https://play.google.com/store/apps/details?id=day.whenwemeet.app",
+    );
     expect(call("GET", "/app/version", null, null, "platform=web").status).toBe(400);
   });
 
@@ -28,6 +35,10 @@ describe("목 앱 버전 (#539)", () => {
     const r = call("PUT", "/admin/app-releases/ios", ME_ID, { latestVersion: "1.10.0", minVersion: null, storeUrl: null });
     expect(r.body.data).toMatchObject({ latestVersion: "1.10.0", minVersion: null });
     expect(call("GET", "/app/version", null, null, "platform=ios").body.data).toMatchObject({ latestVersion: "1.10.0", minVersion: null });
-    expect(call("GET", "/admin/logs").body.data.items[0]).toMatchObject({ action: "app_release_update", targetType: "app_release", reason: "ios 최신 1.10.0, 최소 없음" });
+    expect(call("GET", "/admin/logs").body.data.items[0]).toMatchObject({
+      action: "app_release_update",
+      targetType: "app_release",
+      reason: "ios 최신 1.10.0, 최소 없음",
+    });
   });
 });

@@ -59,7 +59,9 @@ export function EventFormScreen({ eventId, initialEvent = null, copyFrom, occurr
   const personal = group?.type === "PERSONAL";
 
   // (#359) 폼 값과 시작/종료 연동, 처음 값 비교는 useEventDraft. 수정, 복제는 불러온 일정을 채운 뒤부터 처음 값이 생긴다
-  const form = useEventDraft("range", () => newDraft({ start: initialStart, end: initialEnd, query: sourceId ? null : query }), { waitForLoad: Boolean(sourceId) });
+  const form = useEventDraft("range", () => newDraft({ start: initialStart, end: initialEnd, query: sourceId ? null : query }), {
+    waitForLoad: Boolean(sourceId),
+  });
   const { draft, touched, dispatch, loaded } = form;
   const { allDay, startDate, memo, repeat, reminder, color } = draft;
   const ui = useEventFormUi();

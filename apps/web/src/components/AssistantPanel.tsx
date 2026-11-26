@@ -53,7 +53,12 @@ export function AssistantPanel({ onClose, onShowDate }: Props) {
       }
     >
       <div className="shrink-0 border-b border-line px-4 pt-1">
-        <AssistantHeader ref={heading} titleId={titleId} teamName={group?.name ?? null} end={<CloseButton onClick={onClose} className="-mr-1 ml-1 shrink-0" />} />
+        <AssistantHeader
+          ref={heading}
+          titleId={titleId}
+          teamName={group?.name ?? null}
+          end={<CloseButton onClick={onClose} className="-mr-1 ml-1 shrink-0" />}
+        />
       </div>
       {a.ready && !a.available ? (
         <div className="p-4">

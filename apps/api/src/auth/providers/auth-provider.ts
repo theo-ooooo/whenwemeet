@@ -3,7 +3,9 @@ import type { AuthProvider } from '../../generated/prisma/enums.js';
 export type { AuthProvider };
 
 /** 제공자 원본 프로필. AuthAccount.rawProfile 에 그대로 저장한다 (JSON 직렬화 가능한 값만) */
-export type RawProfile = { [key: string]: string | number | boolean | null | RawProfile | RawProfile[] };
+export type RawProfile = {
+  [key: string]: string | number | boolean | null | RawProfile | RawProfile[];
+};
 
 /** 제공자가 인가 코드로 돌려주는 공통 프로필 (결정기록 D-34) */
 export interface ProviderProfile {

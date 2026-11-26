@@ -16,7 +16,10 @@ import { paletteColorOf } from '../../common/member.js';
 import { IsIsoDateTime, Trim } from '../../common/validation.js';
 import { CalendarDateConstraint } from '../../anniversaries/dto/anniversary.dto.js';
 import { EVENT_REMINDERS, type EventReminder } from '../../push/remind-at.js';
-import { type ParticipantsInput, participantsProblem } from '../participants.js';
+import {
+  type ParticipantsInput,
+  participantsProblem,
+} from '../participants.js';
 import { type PlaceInput, placeProblem } from '../place.js';
 import { REPEATS, type Repeat } from '../recurrence.js';
 
@@ -89,7 +92,9 @@ export class EventInputDto {
 
   /** (#187) 반복 종료일 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null 이면 계속 */
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요',
+  })
   @Validate(CalendarDateConstraint)
   repeatUntil?: string | null;
 
@@ -150,7 +155,9 @@ export class EventPatchDto {
 
   /** (#187) 반복 종료일 'YYYY-MM-DD' (KST, 그날 시작하는 회차 포함). 생략/null 이면 계속 */
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'repeatUntil 은 YYYY-MM-DD 형식이어야 해요',
+  })
   @Validate(CalendarDateConstraint)
   repeatUntil?: string | null;
 

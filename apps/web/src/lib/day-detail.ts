@@ -7,8 +7,7 @@ import type { Anniversary, Event } from "./types";
 export const isMultiDayAllDay = (ev: Event) => ev.allDay && daysBetween(dateKeyOf(ev.startsAt), dateKeyOf(ev.endsAt)) > 1;
 
 /** 여러 날에 걸친 일정 (종일이든 시간이든). 끝 시각이 자정이면 그 앞날까지로 본다. 넓은 화면 칩 모양에 쓴다 (#174 L13) */
-export const isMultiDay = (ev: Event) =>
-  ev.allDay ? isMultiDayAllDay(ev) : dateKeyOf(ev.startsAt) !== dateKeyOf(Date.parse(ev.endsAt) - 1);
+export const isMultiDay = (ev: Event) => (ev.allDay ? isMultiDayAllDay(ev) : dateKeyOf(ev.startsAt) !== dateKeyOf(Date.parse(ev.endsAt) - 1));
 
 /** 날짜별 일정 (겹치는 모든 날에 넣는다). 여러 날 종일 → 종일 → 시각 순 */
 export function groupByDay(events: Event[]): Map<DateKey, Event[]> {
@@ -48,10 +47,7 @@ export function dayBadge(key: DateKey, today: DateKey): string {
  * 다음 항목이 없으면(지난 '그날만' 뿐) 가장 가까운 기념일의 D+n.
  * 이름(name) 과 N일/N주년(label) 을 나눠 둔다. 좁은 카드에서 이름만 줄이고 숫자는 남기려고 (QA3-L4)
  */
-export function nearestAnniversary(
-  list: Anniversary[] | null | undefined,
-  today: DateKey,
-): { name: string; label: string | null; value: string } | null {
+export function nearestAnniversary(list: Anniversary[] | null | undefined, today: DateKey): { name: string; label: string | null; value: string } | null {
   if (!list || list.length === 0) return null;
   const next = nearestOccurrence(list, today);
   if (next) return { name: next.anniversary.name, label: next.label, value: dayBadge(next.date, today) };

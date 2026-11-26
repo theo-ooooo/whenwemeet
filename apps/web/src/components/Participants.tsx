@@ -49,7 +49,11 @@ export function AvatarStack({ members, size = 20, max = 3, ring = "var(--tile)" 
   return (
     <span aria-hidden="true" className="inline-flex shrink-0 items-center">
       {members.slice(0, max).map((m, i) => (
-        <span key={m.userId ?? `x${i}`} className="inline-flex rounded-full" style={{ marginLeft: i === 0 ? 0 : -Math.round(size * 0.3), boxShadow: `0 0 0 1.5px ${ring}` }}>
+        <span
+          key={m.userId ?? `x${i}`}
+          className="inline-flex rounded-full"
+          style={{ marginLeft: i === 0 ? 0 : -Math.round(size * 0.3), boxShadow: `0 0 0 1.5px ${ring}` }}
+        >
           <Avatar member={m} color={m.color} size={size} />
         </span>
       ))}

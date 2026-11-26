@@ -43,7 +43,11 @@ describe("목 AI 비서 (#450)", () => {
     it("일정 초안: 문구 틀 + eventDraft 카드, 횟수 1", () => {
       const r = say("다음 주 금요일 7시 강남 회식 하늘이랑 잡아줘");
       expect(r.status).toBe(200);
-      const d = r.body.data as { reply: string; cards: { type: string; draft: { title: string; place: { text: string }; members: { displayName: string }[] } }[]; usage: { used: number } };
+      const d = r.body.data as {
+        reply: string;
+        cards: { type: string; draft: { title: string; place: { text: string }; members: { displayName: string }[] } }[];
+        usage: { used: number };
+      };
       expect(d.reply).toBe("이렇게 넣을까요?");
       expect(d.cards[0].type).toBe("eventDraft");
       expect(d.cards[0].draft.title).toBe("강남 회식");
@@ -84,7 +88,11 @@ describe("목 AI 비서 (#450)", () => {
 
     it("(#511) 고치기: 제목 낱말로 찾아 시작 시각만 바꾼 확인 카드(길이 그대로), 시각이 없으면 무엇으로 바꿀지 되묻기", () => {
       const r = say("영화 8시로 바꿔 줘");
-      const d = r.body.data as { reply: string; historyText: string; cards: { type: string; draft: { target: { title: string; startsAt: string; endsAt: string }; after: { startsAt: string; endsAt: string } } }[] };
+      const d = r.body.data as {
+        reply: string;
+        historyText: string;
+        cards: { type: string; draft: { target: { title: string; startsAt: string; endsAt: string }; after: { startsAt: string; endsAt: string } } }[];
+      };
       expect(d.reply).toBe("이렇게 고칠까요?");
       expect(d.cards[0].type).toBe("eventEditDraft");
       const { target, after } = d.cards[0].draft;
@@ -102,7 +110,11 @@ describe("목 AI 비서 (#450)", () => {
       expect((one.body.data as { reply: string }).reply).toBe("이 일정을 지울까요?");
       expect(cardsOf(one)[0]).toMatchObject({ type: "eventDeleteDraft", target: { title: "영화", repeat: false, occurrence: null } });
       const many = say("요리하기 취소해 줘");
-      const card = cardsOf(many)[0] as unknown as { type: string; action: string; options: { target: { repeat: boolean; occurrence: string | null }; after: null }[] };
+      const card = cardsOf(many)[0] as unknown as {
+        type: string;
+        action: string;
+        options: { target: { repeat: boolean; occurrence: string | null }; after: null }[];
+      };
       expect(card).toMatchObject({ type: "eventChoice", action: "delete" });
       expect(card.options.length).toBeGreaterThan(1);
       expect(card.options.length).toBeLessThanOrEqual(5);

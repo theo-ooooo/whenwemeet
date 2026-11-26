@@ -9,9 +9,16 @@ export type Db = Prisma.TransactionClient;
 
 /** Prisma 7 은 드라이버 어댑터가 필수 (결정기록 D-01). MySQL 은 @prisma/adapter-mariadb */
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor(config: ConfigService) {
-    super({ adapter: new PrismaMariaDb(withDriverDefaults(config.getOrThrow<string>('DATABASE_URL'))) });
+    super({
+      adapter: new PrismaMariaDb(
+        withDriverDefaults(config.getOrThrow<string>('DATABASE_URL')),
+      ),
+    });
   }
 
   async onModuleInit(): Promise<void> {

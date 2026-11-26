@@ -88,7 +88,14 @@ function paged<T extends { id: number }>(rows: T[], query: URLSearchParams): Moc
 }
 
 /** (#536) 숨기거나 지운 대상의 접수 중 신고를 처리 완료로 닫고, 닫은 게 있으면 report_resolve 기록 (D-289) */
-export function closeMockReports(s: Store, adminId: number, targetType: "group" | "event" | "user", targetId: number, status: "resolved" | "dismissed", resolution: string | null): number {
+export function closeMockReports(
+  s: Store,
+  adminId: number,
+  targetType: "group" | "event" | "user",
+  targetId: number,
+  status: "resolved" | "dismissed",
+  resolution: string | null,
+): number {
   const open = (s.reports ?? []).filter((r) => r.targetType === targetType && r.targetId === targetId && r.status === "open");
   const at = nowIso();
   for (const r of open) Object.assign(r, { status, resolvedById: adminId, resolvedAt: at, resolution });
@@ -109,7 +116,14 @@ export function adminModerationRoute(req: AuthedReq): MockResult | null {
     const id = parseId(seg[2]);
     const u = id === null ? undefined : s.users.find((x) => x.id === id);
     if (!u) return err(404, "NOT_FOUND", "사용자를 찾을 수 없어요");
-    const teams = s.memberships.filter((m) => m.userId === u.id).map((m) => groupOut(s, s.groups.find((g) => g.id === m.groupId)!));
+    const teams = s.memberships
+      .filter((m) => m.userId === u.id)
+      .map((m) =>
+        groupOut(
+          s,
+          s.groups.find((g) => g.id === m.groupId)!,
+        ),
+      );
     // (#528) 알림 설정(읽기 전용)과 기기 요약. 토큰은 싣지 않는다
     const devices = (s.pushDevices ?? [])
       .filter((d) => d.userId === u.id)
