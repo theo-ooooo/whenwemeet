@@ -148,7 +148,8 @@ API 프로세스 메모리의 고정 창(fixed window) 카운터. API 는 한 �
 | POST | `/me/avatar` | 유저 | `multipart/form-data` 필드 `file` (jpeg/png/webp/heic, 10MB 이하) | `{ data: { profileImageUrl } }`. 서버가 512×512 로 리사이즈해 webp 로 R2 에 저장하고 `File(kind: AVATAR)` 행 생성, `User.avatarFileId` 교체, 이전 File 행과 객체는 삭제. 응답의 `profileImageUrl` 은 `R2_PUBLIC_BASE_URL` + `File.key` (DB 에 도메인을 저장하지 않음, 결정기록 D-56) |
 | DELETE | `/me/avatar` | 유저 | - | `{ data: { profileImageUrl: null } }`. File 행과 R2 객체 삭제 후 기본 아바타(이니셜) |
 | PATCH | `/me/start-calendar` | 유저 | `{ mode: 'LAST'\|'PERSONAL'\|'GROUP', groupId?: number \| null }` | `{ data: StartCalendar }`. (#300, D-191) 짝: GROUP 이면 `groupId` 필수, LAST 와 PERSONAL 은 `groupId` 없음 또는 null. 짝이 틀리거나 `mode` 가 셋 밖이면 400 VALIDATION_FAILED (`field: 'groupId'`). GROUP 인데 내 팀이 아니면(없는 팀 포함) 403 FORBIDDEN. 개인 팀을 GROUP 으로 고르면 400 VALIDATION_FAILED ("내 달력" 은 PERSONAL) |
-| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`) |
+| PATCH | `/me/birthday` | 유저 | `{ date: 'MM-DD' \| null, reminders?, calendar?, isLeapMonth? }` | `{ data: BirthdaySettings }`. (#305, D-230, D-232) `date` 는 필수 키, 월일만(2월 29일 허용), `null` 은 지우기. 형식이 틀리거나 없는 날(02-30), 키 없음은 400 VALIDATION_FAILED (`field: 'date'`). `reminders` 는 기념일과 같은 검사, 생략은 그대로(처음 `['DAY_OF']`). (#562, D-297) `calendar` 생략은 `SOLAR`, `LUNAR` 면 `date` 가 음력 월일(1~30일, 02-30 도 받음). `isLeapMonth: true` 는 음력만(양력이면 400 `field: 'isLeapMonth'`). 지우면 `SOLAR`, `false` 로 돌아간다 |
+| PATCH | `/me/lunar-display` | 유저 | `{ showLunar: boolean }` | `{ data: { showLunar } }`. (#562, D-297) 달력 칸에 음력 날짜 작게 보이기. 기본 끔. `GET /me` 의 `showLunar` 로 읽는다. 불리언이 아니면 400 |
 | DELETE | `/me` | 유저 | - | `{ data: { ok: true } }`. 회원 탈퇴 (2.7). `File(ownerId = me)` 전부 객체 삭제 후 행 삭제. (#198) 내가 요청한 이메일 연결 메일 행도 지운다 |
 
 **로그인 방법 (#198, D-257)** — 카카오, Apple, 이메일을 한 사용자에 연결하고 해제한다. 연결은 **세션(최근 로그인, JWT `iat` 10분 이내) + 두 번째 로그인의 소유 증명** 둘 다로만 한다. 자동 병합(같은 이메일) 없음. POST 응답은 `Cache-Control: no-store`, 요청 제한 `login`
@@ -255,7 +256,7 @@ MEMBER_COLORS = ['#F26D6D','#F2994A','#F2C94C','#6FCF97','#56CCF2','#5B6CF4','#A
 
 ```ts
 EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean, memo?: string(≤500),
-               repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 생략/null = 한 번짜리 (#187)
+               repeat?: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|'YEARLY_LUNAR'|null,   // 생략/null = 한 번짜리 (#187)
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
                reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
                participants?: 'ALL'|number[],                          // (#248) 'ALL' = 지금 멤버 전원(#444 부터 id 목록으로 저장, D-263), 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
@@ -320,7 +321,7 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
 설계 근거는 `반복-일정.md`. 회차는 저장하지 않고 서버가 조회 기간만 펼친다 (`apps/api/src/events/recurrence.ts`).
 
 - 회차의 주소는 `(id, occurrence)`. 화면 키는 `${id}:${occurrence ?? ''}`. 회차 날짜는 원래 날짜라 "이 일정만" 으로 옮겨도 바뀌지 않는다
-- 회차 날짜: 첫 회차 KST 날짜 기준 매주 +7일, 격주 +14일, 매월 같은 날(없는 달은 말일), 매년 같은 월일(2/29 는 평년 2/28). 매월/매년의 "같은 날(월일)" 은 `repeatAnchor` 가 있으면 그 날짜 기준 (D-71). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이
+- 회차 날짜: 첫 회차 KST 날짜 기준 매주 +7일, 격주 +14일, 매월 같은 날(없는 달은 말일), 매년 같은 월일(2/29 는 평년 2/28), (#562) `YEARLY_LUNAR` 매년(음력)은 기준 날짜의 음력 월일을 음력 해마다 양력으로(윤달 없는 해는 평달, 없는 30일은 그 달 마지막 날, 음력 2050년 뒤 회차 없음, 시작이 2050년 뒤면 400 `field: 'repeat'`. `음력.md` 3장). 매월/매년의 "같은 날(월일)" 은 `repeatAnchor` 가 있으면 그 날짜 기준 (D-71). 시각은 원본의 KST 벽시계 시각, 길이는 원본 길이
 - `occurrence`, `scope` 쿼리는 **한 번짜리 일정이면 무시**한다 (값이 틀려도 지금과 같다)
 - 반복 일정의 단건 GET: `occurrence` 가 없거나 빈 값이면 첫 회차. PATCH/DELETE 는 `scope` 가 없거나 `this`/`following` 이 아니면 400 VALIDATION_FAILED (`details[0].field = 'scope'`), `occurrence` 가 없거나 `YYYY-MM-DD` 실제 날짜가 아니면 400 (`field: 'occurrence'`)
 - `occurrence` 가 규칙상 회차 날짜가 아니거나, `repeatUntil` 뒤, 또는 취소된 회차면 404 NOT_FOUND
@@ -412,12 +413,15 @@ SearchResult = {
 | DELETE | `/groups/:groupId/anniversaries/:anniversaryId` | 멤버 | - | `{ data: { ok: true } }` |
 
 ```ts
-Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, reminders: AnniversaryReminder[], creator: Member|탈퇴자, createdAt }
+Anniversary = { id, groupId, name, date: 'YYYY-MM-DD', kind: AnniversaryKind, calendar: CalendarType, isLeapMonth: boolean, reminders: AnniversaryReminder[], creator: Member|탈퇴자, createdAt }
+CalendarType = 'SOLAR' | 'LUNAR'   // (#562, D-297) LUNAR 면 date 가 음력 연월일, isLeapMonth 는 윤달
 AnniversaryKind = 'COUNT_UP' | 'YEARLY' | 'ONCE'   // 함께한 날 세기(기본) / 매년 반복 / 그날만
 AnniversaryReminder = 'DAY_OF' | 'DAY_BEFORE' | 'WEEK_BEFORE'   // (#269) 당일 / 하루 전 / 일주일 전, 모두 오전 9시 KST
 ```
 
 D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
+
+음력 기념일 (#562, D-297, 설계 `음력.md`): POST, PATCH 에 `calendar?`, `isLeapMonth?`. 생성 생략은 `SOLAR`, `false`, 수정 생략은 그대로. 날짜, 달력, 윤달 중 하나라도 오면 합친 값으로 검사한다: 양력은 실제 날짜이고 윤달 없음, 음력은 그 해에 정말 있는 음력 날짜(그 해에 그 윤달이 없으면 400 `field: 'isLeapMonth'`, 29일 달의 30일이나 음력 2050년 뒤는 400 `field: 'date'`). 양력으로 바꾸면서 `isLeapMonth` 를 생략하면 `false`. 해마다 양력 날짜는 `음력.md` 2장 규칙(윤달 없는 해는 평달, 없는 30일은 그 달 마지막 날)
 
 기념일 종류 `kind` (#105, #106, D-62): 서버는 저장만 하고 응답(GET 목록, POST, PATCH)에 그대로 싣는다. 셋 외의 값과 `null` 은 400 VALIDATION_FAILED (`details[0].field = 'kind'`). 종류 도입 전 행은 `COUNT_UP`. 100일 단위, N주년, 매년 항목 계산은 클라이언트 (D-60). 규칙은 `docs/기획/기념일-자동표시.md`
 
@@ -428,8 +432,8 @@ D-day / D+N / 100일 단위 계산은 클라이언트 (화면흐름.md 7번).
 | GET | `/groups/:groupId/birthdays` | 멤버 | - | `{ data: Birthday[] }` 가입순. 생일이 있고 그 팀 `showBirthday` 가 켜진 멤버(나 포함, 개인 팀이면 나만) |
 
 ```ts
-Birthday = { member: Member, date: 'MM-DD' }   // member 는 팀 표시 이름 ?? 닉네임, 색
-BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   // GET /me, PATCH /me/birthday
+Birthday = { member: Member, date: 'MM-DD', calendar: CalendarType, isLeapMonth: boolean }   // member 는 팀 표시 이름 ?? 닉네임, 색. (#562) 음력이면 음력 월일
+BirthdaySettings = { date: 'MM-DD' | null, calendar: CalendarType, isLeapMonth: boolean, reminders: AnniversaryReminder[] }   // GET /me, PATCH /me/birthday
 ```
 
 - 저장은 `User.birthday`(CHAR 5) 하나. Anniversary 행을 팀마다 만들지 않고 화면, 알림, 피드가 계산한다. 쓰기는 `PATCH /me/birthday` 와 `PATCH /groups/:id/me { showBirthday }` 뿐
@@ -490,7 +494,7 @@ BirthdaySettings = { date: 'MM-DD' | null, reminders: AnniversaryReminder[] }   
 NewsItem = { id, action: 'CREATED'|'UPDATED'|'DELETED', eventId: string|null,
              eventCode: string|null,                                  // (#311) 원본의 공개 코드. 삭제됐으면 null
              title, startsAt, endsAt, allDay,
-             repeat: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|null,   // 변경 시점의 반복 주기 (#187)
+             repeat: 'WEEKLY'|'BIWEEKLY'|'MONTHLY'|'YEARLY'|'YEARLY_LUNAR'|null,   // 변경 시점의 반복 주기 (#187)
              scope: 'THIS'|'FOLLOWING'|null,                         // 반복 일정에서 고른 범위. 한 번짜리, 새 반복 추가는 null
              occurrence: 'YYYY-MM-DD'|null,                          // 범위를 고른 회차 날짜 (KST)
              actor: Member|탈퇴자, createdAt, isNew: boolean }
@@ -964,6 +968,7 @@ AdminStats = { range: 7 | 30, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' /* KST, to = 
 | 닉네임/프로필 사진 변경 | `PATCH /me`, `POST /me/avatar`, `DELETE /me/avatar` |
 | 처음 여는 달력 (#300) | `GET /me` 의 `startCalendar`, `PATCH /me/start-calendar` |
 | 멤버 생일 (#305) | `GET /me` 의 `birthday`, `PATCH /me/birthday`, `GET /groups/:id/birthdays`, `PATCH /groups/:id/me { showBirthday }` |
+| 음력 (#562) | 기념일, 생일의 `calendar`, `isLeapMonth`, 일정 `repeat: 'YEARLY_LUNAR'`, `GET /me` 의 `showLunar`, `PATCH /me/lunar-display`, 볼까 `when.kind = 'lunarMonthDay'` |
 | 팀 만들기, personal 자동 생성 | `POST /groups`, 콜백의 User upsert 시 PERSONAL 생성 (인증흐름.md) |
 | 초대 링크 + 6자리 코드, 재발급 | `GroupDetail.inviteCode/inviteUrl`, `POST /groups/:id/invite-code`, `GET /invites/:code`, `POST /groups/join` |
 | 팀 전환 | `GET /groups` |

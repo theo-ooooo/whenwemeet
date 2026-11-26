@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import type { CalendarType } from '../generated/prisma/enums.js';
 import { toUserRow, USER_PUBLIC_SELECT, type MembershipRow } from '../common/member.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
-/** (#305) 팀 달력에 보이는 생일 한 사람. 멤버 표시(팀 표시 이름 ?? 닉네임, 색) + 'MM-DD' */
+/** (#305) 팀 달력에 보이는 생일 한 사람. 멤버 표시(팀 표시 이름 ?? 닉네임, 색) + 'MM-DD'. (#562) 음력 여부와 윤달 */
 export interface BirthdayMemberRow extends MembershipRow {
   birthday: string;
+  birthdayCalendar: CalendarType;
+  birthdayLeapMonth: boolean;
 }
 
 /** (#193, #305) 구독 피드용: 이름과 생일, 마지막 개정 시각 */
@@ -13,6 +16,9 @@ export interface BirthdayFeedRow {
   userId: number;
   name: string;
   birthday: string;
+  /** (#562) 음력 여부와 윤달 */
+  birthdayCalendar: CalendarType;
+  birthdayLeapMonth: boolean;
   updatedAt: Date;
 }
 
@@ -35,9 +41,21 @@ export class BirthdaysRepository {
     const rows = await this.prisma.membership.findMany({
       where: shownIn(groupId),
       orderBy: { joinedAt: 'asc' },
-      select: { userId: true, color: true, displayName: true, joinedAt: true, user: { select: { ...USER_PUBLIC_SELECT.select, birthday: true } } },
+      select: {
+        userId: true,
+        color: true,
+        displayName: true,
+        joinedAt: true,
+        user: { select: { ...USER_PUBLIC_SELECT.select, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true } },
+      },
     });
-    return rows.map(({ user, ...row }) => ({ ...row, user: toUserRow(user, this.urls), birthday: user.birthday! }));
+    return rows.map(({ user: { birthday, birthdayCalendar, birthdayLeapMonth, ...user }, ...row }) => ({
+      ...row,
+      user: toUserRow(user, this.urls),
+      birthday: birthday!,
+      birthdayCalendar,
+      birthdayLeapMonth,
+    }));
   }
 
   /** (#193) 피드: 기념일 포함이 켜져 있을 때 같이 싣는다 */
@@ -45,8 +63,15 @@ export class BirthdaysRepository {
     const rows = await this.prisma.membership.findMany({
       where: shownIn(groupId),
       orderBy: { userId: 'asc' },
-      select: { userId: true, displayName: true, user: { select: { nickname: true, birthday: true, updatedAt: true } } },
+      select: { userId: true, displayName: true, user: { select: { nickname: true, birthday: true, birthdayCalendar: true, birthdayLeapMonth: true, updatedAt: true } } },
     });
-    return rows.map((row) => ({ userId: row.userId, name: row.displayName ?? row.user.nickname, birthday: row.user.birthday!, updatedAt: row.user.updatedAt }));
+    return rows.map((row) => ({
+      userId: row.userId,
+      name: row.displayName ?? row.user.nickname,
+      birthday: row.user.birthday!,
+      birthdayCalendar: row.user.birthdayCalendar,
+      birthdayLeapMonth: row.user.birthdayLeapMonth,
+      updatedAt: row.user.updatedAt,
+    }));
   }
 }

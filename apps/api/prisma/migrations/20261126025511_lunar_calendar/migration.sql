@@ -1,0 +1,14 @@
+-- AlterTable
+ALTER TABLE `Anniversary` ADD COLUMN `calendar` ENUM('SOLAR', 'LUNAR') NOT NULL DEFAULT 'SOLAR',
+    ADD COLUMN `isLeapMonth` BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE `Event` MODIFY `repeat` ENUM('WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY', 'YEARLY_LUNAR') NULL;
+
+-- AlterTable
+ALTER TABLE `EventLog` MODIFY `repeat` ENUM('WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY', 'YEARLY_LUNAR') NULL;
+
+-- AlterTable
+ALTER TABLE `User` ADD COLUMN `birthdayCalendar` ENUM('SOLAR', 'LUNAR') NOT NULL DEFAULT 'SOLAR',
+    ADD COLUMN `birthdayLeapMonth` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `showLunar` BOOLEAN NOT NULL DEFAULT false;

@@ -13,8 +13,8 @@ import { err, nextId, nowIso, ok, resetStore, START_LAST, type AuthedReq, type M
 import { hasUnreadNotice } from "./notices";
 
 /** (#305) GET /me, PATCH /me/birthday 의 birthday */
-function birthdayOf(u: { birthday?: string | null; birthdayReminders?: AnniversaryReminder[] }) {
-  return { date: u.birthday ?? null, reminders: u.birthdayReminders ?? ["DAY_OF"] };
+function birthdayOf(u: { birthday?: string | null; birthdayCalendar?: "SOLAR" | "LUNAR"; birthdayLeapMonth?: boolean; birthdayReminders?: AnniversaryReminder[] }) {
+  return { date: u.birthday ?? null, calendar: u.birthdayCalendar ?? "SOLAR", isLeapMonth: u.birthdayLeapMonth ?? false, reminders: u.birthdayReminders ?? ["DAY_OF"] };
 }
 
 /** 행이 없을 때 기본값. (#528) 공지 기본 켬. 관리자 사용자 상세 목도 쓴다 */
@@ -40,6 +40,8 @@ export function meRoutes(req: AuthedReq): MockResult | null {
         role: u.role ?? "user",
         isAdmin: u.role === "admin",
         hasUnreadNotice: hasUnreadNotice(s, u.id),
+        // (#562) 달력 칸 음력 표시
+        showLunar: u.showLunar ?? false,
       });
     }
     if (method === "PATCH") {
@@ -65,9 +67,15 @@ export function meRoutes(req: AuthedReq): MockResult | null {
     const u = s.users.find((x) => x.id === userId)!;
     const date = body?.date;
     const message = "생일은 MM-DD 형식의 실제 날짜여야 해요";
-    if (date !== null && parseBirthday(typeof date === "string" ? date : null) === null) {
+    // (#562) 음력 생일 (1~30일), 윤달은 음력만. 지우면 양력으로
+    const calendar = body?.calendar ?? "SOLAR";
+    if (calendar !== "SOLAR" && calendar !== "LUNAR") return err(400, "VALIDATION_FAILED", "달력은 SOLAR, LUNAR 중 하나여야 해요");
+    if (date !== null && parseBirthday(typeof date === "string" ? date : null, calendar) === null) {
       return { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "date", message }]) };
     }
+    if (body?.isLeapMonth === true && calendar !== "LUNAR") return err(400, "VALIDATION_FAILED", "윤달은 음력 생일에만 고를 수 있어요");
+    u.birthdayCalendar = date === null ? "SOLAR" : calendar;
+    u.birthdayLeapMonth = date !== null && calendar === "LUNAR" && body?.isLeapMonth === true;
     if (body && "reminders" in body) {
       const list = body.reminders;
       if (!Array.isArray(list) || list.some((r) => !["DAY_OF", "DAY_BEFORE", "WEEK_BEFORE"].includes(r as string)) || new Set(list).size !== list.length) {
@@ -77,6 +85,14 @@ export function meRoutes(req: AuthedReq): MockResult | null {
     }
     u.birthday = date as string | null;
     return ok(birthdayOf(u));
+  }
+
+  // (#562) /me/lunar-display. 달력 칸 음력 표시 켜기, 끄기
+  if (seg[0] === "me" && seg[1] === "lunar-display" && seg.length === 2 && method === "PATCH") {
+    const u = s.users.find((x) => x.id === userId)!;
+    if (typeof body?.showLunar !== "boolean") return err(400, "VALIDATION_FAILED", "showLunar 는 true 나 false 여야 해요");
+    u.showLunar = body.showLunar;
+    return ok({ showLunar: u.showLunar });
   }
 
   // (#300) /me/start-calendar (api.md 2.1, D-191). 짝이 틀리면 400, 내 팀이 아니면 403, 개인 팀은 PERSONAL 로 (400)

@@ -10,3 +10,6 @@ coverage/
 .env.prod
 .env.*.local
 .pnpm-store/
+
+# 스토어 스크린샷 원본과 fontconfig 캐시 (scripts/store-shots)
+scripts/store-shots/out/

@@ -1,4 +1,4 @@
-import { anniversaryChanges, anniversaryUpdatedPayload, isSameAnniversary, pollEventLogIds, snapshotName } from './activity.js';
+import { anniversaryChanges, anniversaryUpdatedPayload, isSameAnniversary, pickValues, pollEventLogIds, snapshotName } from './activity.js';
 
 const BASE = { name: '처음 만난 날', date: '2024-03-15', kind: 'COUNT_UP' as const };
 
@@ -43,5 +43,27 @@ describe('팀 활동 기록 규칙 (#191)', () => {
     expect(snapshotName('별명', '닉')).toBe('별명');
     expect(snapshotName(null, '닉')).toBe('닉');
     expect(Array.from(snapshotName(null, '가'.repeat(60)))).toHaveLength(50);
+  });
+});
+
+describe('(#562) 음력 기념일 새 소식 값', () => {
+  const solar = { name: '제사', date: '2000-03-15', kind: 'YEARLY' as const };
+  const lunar = { ...solar, calendar: 'LUNAR' as const };
+
+  it('양력 ↔ 음력, 윤달만 바꿔도 날짜가 바뀐 것. 이전 값에 음력 키를 함께 남긴다', () => {
+    expect(anniversaryChanges(solar, lunar)).toEqual(['date']);
+    expect(anniversaryUpdatedPayload(lunar, { ...lunar, isLeapMonth: true })).toEqual({
+      ...lunar,
+      isLeapMonth: true,
+      changed: ['date'],
+      before: { date: '2000-03-15', calendar: 'LUNAR' },
+    });
+    expect(anniversaryUpdatedPayload(lunar, { ...lunar, name: '기일' })).toEqual({ ...lunar, name: '기일', changed: ['name'], before: { name: '제사' } });
+  });
+
+  it('되돌리기 판정은 달력 종류까지 같아야 한다. 양력 기록은 옛 모양 그대로', () => {
+    expect(isSameAnniversary(lunar, lunar)).toBe(true);
+    expect(isSameAnniversary(solar, lunar)).toBe(false);
+    expect(pickValues(solar)).toEqual(solar);
   });
 });

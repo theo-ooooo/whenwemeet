@@ -2,6 +2,7 @@
 //   "매주 목요일" "격주 목요일" "매월 31일" "매년 5월 5일", 종료가 있으면 "12월 31일까지"
 // 기준은 반복 기준 날짜(repeatAnchor, D-71), 없으면 첫 회차의 KST 날짜다. 매월 31일은 짧은 달에 말일로 가지만 설명은 기준 날짜 그대로 "매월 31일"
 import { dateKeyOf, dowOf, parseKey, WEEKDAYS, type DateKey } from "./date";
+import { formatLunar, solarToLunar } from "./lunar";
 import type { Repeat } from "./types";
 import { REPEAT_NAME } from "./recurrence";
 
@@ -16,6 +17,11 @@ export function repeatLabel(repeat: Repeat, firstDate: DateKey): string {
       return `매월 ${d}일`;
     case "YEARLY":
       return `매년 ${m}월 ${d}일`;
+    case "YEARLY_LUNAR": {
+      // (#562) "매년 음력 3월 15일" (윤달 기준이면 "음력 윤4월 15일"). 변환 범위 밖이면 이름만
+      const l = solarToLunar(firstDate);
+      return l ? `매년 ${formatLunar(l.month, l.day, l.leap)}` : REPEAT_NAME.YEARLY_LUNAR;
+    }
   }
 }
 
@@ -33,7 +39,7 @@ type SeriesLike = { repeat: Repeat | null; seriesStartsAt: string | null; starts
  * seriesStartsAt 이 없으면 회차 날짜로 대신한다
  */
 export function ruleDateKey(ev: SeriesLike): DateKey {
-  if (ev.repeatAnchor && (ev.repeat === "MONTHLY" || ev.repeat === "YEARLY")) return ev.repeatAnchor;
+  if (ev.repeatAnchor && (ev.repeat === "MONTHLY" || ev.repeat === "YEARLY" || ev.repeat === "YEARLY_LUNAR")) return ev.repeatAnchor;
   return dateKeyOf(ev.seriesStartsAt ?? ev.startsAt);
 }
 

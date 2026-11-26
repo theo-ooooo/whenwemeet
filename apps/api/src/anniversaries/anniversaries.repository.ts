@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { AnniversaryKind } from '../generated/prisma/enums.js';
+import type { AnniversaryKind, CalendarType } from '../generated/prisma/enums.js';
 import { toUserRowOrNull, USER_PUBLIC_SELECT, type UserPublicRecord, type UserRow } from '../common/member.js';
 import { type AnniversaryReminder, type AnniversaryReminderFlags, flagsFromRows, REMINDER_ROWS_SELECT, rowsFromFlags } from './anniversary-reminders.js';
 import { FileUrlBuilder } from '../files/file-url.builder.js';
@@ -9,6 +9,7 @@ import {
   anniversaryUpdatedPayload,
   type AnniversaryValues,
   isSameAnniversary,
+  pickValues,
 } from '../group-activities/activity.js';
 import { GroupActivitiesRepository } from '../group-activities/group-activities.repository.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -19,6 +20,9 @@ export const ANNIVERSARY_SELECT = {
   name: true,
   date: true,
   kind: true,
+  /** (#562) 음력 여부와 윤달 */
+  calendar: true,
+  isLeapMonth: true,
   /** (#369) 켜진 알림 시점 (행 → 칸 모양은 toAnniversaryRow) */
   reminders: REMINDER_ROWS_SELECT,
   creatorId: true,
@@ -32,6 +36,8 @@ export interface AnniversaryRow extends AnniversaryReminderFlags {
   name: string;
   date: Date;
   kind: AnniversaryKind;
+  calendar: CalendarType;
+  isLeapMonth: boolean;
   creatorId: number | null;
   createdAt: Date;
   creator: UserRow | null;
@@ -62,6 +68,8 @@ export interface AnniversaryCreateInput extends AnniversaryReminderFlags {
   name: string;
   date: Date;
   kind: AnniversaryKind;
+  calendar: CalendarType;
+  isLeapMonth: boolean;
   creatorId: number;
 }
 
@@ -69,6 +77,8 @@ export interface AnniversaryUpdateInput extends Partial<AnniversaryReminderFlags
   name?: string;
   date?: Date;
   kind?: AnniversaryKind;
+  calendar?: CalendarType;
+  isLeapMonth?: boolean;
 }
 
 @Injectable()
@@ -90,18 +100,18 @@ export class AnniversariesRepository {
   }
 
   /** (#193) 구독 피드용: 항목 계산에 필요한 값과 마지막 개정 시각만 */
-  async listForFeed(groupId: number): Promise<{ id: number; name: string; date: string; kind: AnniversaryKind; updatedAt: Date }[]> {
+  async listForFeed(groupId: number): Promise<{ id: number; name: string; date: string; kind: AnniversaryKind; calendar: CalendarType; isLeapMonth: boolean; updatedAt: Date }[]> {
     const rows = await this.prisma.anniversary.findMany({
       where: { groupId },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
-      select: { id: true, name: true, date: true, kind: true, updatedAt: true },
+      select: { id: true, name: true, date: true, kind: true, calendar: true, isLeapMonth: true, updatedAt: true },
     });
     return rows.map((row) => ({ ...row, date: row.date.toISOString().slice(0, 10) }));
   }
 
-  /** 다른 팀 자원을 가리키는 ID 는 null */
-  findIdInGroup(groupId: number, anniversaryId: number): Promise<{ id: number } | null> {
-    return this.prisma.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true } });
+  /** 다른 팀 자원을 가리키는 ID 는 null. (#562) 수정 검증에 쓰는 날짜, 달력 종류, 윤달도 함께 */
+  findIdInGroup(groupId: number, anniversaryId: number): Promise<{ id: number; date: Date; calendar: CalendarType; isLeapMonth: boolean } | null> {
+    return this.prisma.anniversary.findFirst({ where: { id: anniversaryId, groupId }, select: { id: true, date: true, calendar: true, isLeapMonth: true } });
   }
 
   /**
@@ -127,7 +137,7 @@ export class AnniversariesRepository {
   /** 기념일 수정 + 이름, 날짜, 종류가 실제로 바뀐 경우만 새 소식 기록 (#191) 한 트랜잭션 */
   async updateWithActivityTx(anniversaryId: number, data: AnniversaryUpdateInput, actor: ActivityActor): Promise<AnniversaryRow> {
     const row = await this.prisma.$transaction(async (tx) => {
-      const before = await tx.anniversary.findUniqueOrThrow({ where: { id: anniversaryId }, select: { name: true, date: true, kind: true } });
+      const before = await tx.anniversary.findUniqueOrThrow({ where: { id: anniversaryId }, select: { name: true, date: true, kind: true, calendar: true, isLeapMonth: true } });
       const { rest, rows } = splitReminders(data);
       const updated = await tx.anniversary.update({
         where: { id: anniversaryId },
@@ -144,13 +154,19 @@ export class AnniversariesRepository {
   /** 기념일 삭제 + 삭제 전 값으로 새 소식 기록 (#191) 한 트랜잭션. 기록의 anniversaryId 는 비운다 */
   async deleteWithActivityTx(anniversaryId: number, actor: ActivityActor): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const removed = await tx.anniversary.delete({ where: { id: anniversaryId }, select: { groupId: true, name: true, date: true, kind: true } });
+      const removed = await tx.anniversary.delete({ where: { id: anniversaryId }, select: { groupId: true, name: true, date: true, kind: true, calendar: true, isLeapMonth: true } });
       await this.activities.recordTx(tx, { groupId: removed.groupId, type: 'ANNIVERSARY_DELETED', actor, anniversaryId: null, payload: valuesOf(removed) });
     });
   }
 }
 
-/** 새 소식 기록용 값. 날짜는 'YYYY-MM-DD' (@db.Date 는 UTC 자정) */
-function valuesOf(row: { name: string; date: Date; kind: AnniversaryKind }): AnniversaryValues {
-  return { name: row.name, date: row.date.toISOString().slice(0, 10), kind: row.kind };
+/** 새 소식 기록용 값. 날짜는 'YYYY-MM-DD' (@db.Date 는 UTC 자정). (#562) 음력이면 calendar, 윤달 키를 싣는다 */
+function valuesOf(row: { name: string; date: Date; kind: AnniversaryKind; calendar: CalendarType; isLeapMonth: boolean }): AnniversaryValues {
+  return pickValues({
+    name: row.name,
+    date: row.date.toISOString().slice(0, 10),
+    kind: row.kind,
+    ...(row.calendar === 'LUNAR' ? { calendar: 'LUNAR' as const } : {}),
+    ...(row.calendar === 'LUNAR' && row.isLeapMonth ? { isLeapMonth: true as const } : {}),
+  });
 }

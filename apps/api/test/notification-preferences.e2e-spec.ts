@@ -83,7 +83,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   const expectedSettings = new Map<number, NotificationSettings>();
   const expectedBirthday = new Map<
     number,
-    { date: string | null; reminders: OffsetName[] }
+    { date: string | null; calendar: 'SOLAR' | 'LUNAR'; isLeapMonth: boolean; reminders: OffsetName[] }
   >();
 
   const sql = <T>(query: string) => prisma.$queryRawUnsafe<T[]>(query);
@@ -126,7 +126,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   const sqlBirthdays = async (): Promise<BirthdayPlanRow[]> =>
     (
       await sql<Record<string, unknown>>(
-        `SELECT m.userId, m.groupId, g.name AS groupName, g.publicCode AS groupCode, COALESCE(m.displayName, u.nickname) AS name, u.birthday,
+        `SELECT m.userId, m.groupId, g.name AS groupName, g.publicCode AS groupCode, COALESCE(m.displayName, u.nickname) AS name, u.birthday, u.birthdayCalendar, u.birthdayLeapMonth,
          ${OFFSET_NAMES.map((o) => `${hasOffset('BirthdayReminder', 'userId', 'u.id', o)} AS \`${o}\``).join(', ')}
          FROM Membership m JOIN \`Group\` g ON g.id = m.groupId JOIN \`User\` u ON u.id = m.userId
          WHERE m.showBirthday = 1 AND g.type = 'TEAM' AND u.birthday IS NOT NULL
@@ -138,7 +138,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
       groupName: String(row.groupName),
       groupCode: String(row.groupCode),
       name: String(row.name),
-      birthday: String(row.birthday),
+      birthday: { date: String(row.birthday), calendar: row.birthdayCalendar as 'SOLAR' | 'LUNAR', isLeapMonth: b(row.birthdayLeapMonth) },
       ...flags(OFFSET_NAMES.filter((o) => b(row[o]))),
     }));
 
@@ -146,7 +146,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
   const sqlAnniversaries = async (): Promise<AnniversaryPlanRow[]> =>
     (
       await sql<Record<string, unknown>>(
-        `SELECT a.id, a.groupId, a.name, DATE_FORMAT(a.date, '%Y-%m-%d') AS date, a.kind, a.updatedAt,
+        `SELECT a.id, a.groupId, a.name, DATE_FORMAT(a.date, '%Y-%m-%d') AS date, a.kind, a.calendar, a.isLeapMonth, a.updatedAt,
          ${OFFSET_NAMES.map((o) => `${hasOffset('AnniversaryReminder', 'anniversaryId', 'a.id', o)} AS \`${o}\``).join(', ')},
          g.name AS groupName, g.publicCode AS groupCode
          FROM Anniversary a JOIN \`Group\` g ON g.id = a.groupId
@@ -158,6 +158,8 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
       name: String(row.name),
       date: String(row.date),
       kind: row.kind as AnniversaryPlanRow['kind'],
+      calendar: row.calendar as AnniversaryPlanRow['calendar'],
+      isLeapMonth: b(row.isLeapMonth),
       ...flags(OFFSET_NAMES.filter((o) => b(row[o]))),
       updatedAt: row.updatedAt as Date,
       groupName: String(row.groupName),
@@ -284,7 +286,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
           SETTINGS.map((s, k) => [s.key, values[k]]),
         ) as unknown as NotificationSettings,
       );
-      expectedBirthday.set(user.id, { date: birthday, reminders: offsets });
+      expectedBirthday.set(user.id, { date: birthday, calendar: 'SOLAR', isLeapMonth: false, reminders: offsets });
 
       const mine = new Set([groupIds[i % 4]]);
       if (i % 2 === 0) mine.add(groupIds[(i * 3) % 4]);
@@ -449,8 +451,8 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
         date: '05-05',
         reminders: [...reminders].reverse(),
       });
-      expect(saved).toEqual({ date: '05-05', reminders });
-      expectedBirthday.set(id, { date: '05-05', reminders });
+      expect(saved).toEqual({ date: '05-05', calendar: 'SOLAR', isLeapMonth: false, reminders });
+      expectedBirthday.set(id, { date: '05-05', calendar: 'SOLAR', isLeapMonth: false, reminders });
     }
     // 시점 생략은 그대로, 생일을 지워도 시점은 남는다 (#305 그대로)
     const id = userIds[3];
@@ -458,7 +460,7 @@ describe('알림 설정 자식 행 동치 (e2e, #369, #376)', () => {
     expect((await me.updateBirthday(id, { date: null })).reminders).toEqual(
       kept,
     );
-    expectedBirthday.set(id, { date: null, reminders: kept });
+    expectedBirthday.set(id, { date: null, calendar: 'SOLAR', isLeapMonth: false, reminders: kept });
 
     await expectSameAsRows();
     expect(await planning.listBirthdays()).toEqual(await sqlBirthdays());

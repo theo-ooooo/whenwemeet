@@ -6,6 +6,7 @@ import { RateLimit } from '../rate-limit/rate-limit.decorator.js';
 import { AvatarFileInterceptor } from './avatar-file.interceptor.js';
 import { UpdateBirthdayDto } from './dto/update-birthday.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
+import { UpdateLunarDisplayDto } from './dto/update-lunar-display.dto.js';
 import { UpdateStartCalendarDto } from './dto/update-start-calendar.dto.js';
 import { type BirthdaySettings, MeProfile, MeService, StartCalendar } from './me.service.js';
 
@@ -32,6 +33,12 @@ export class MeController {
   @Patch('birthday')
   updateBirthday(@CurrentUser() user: AuthUser, @Body() dto: UpdateBirthdayDto): Promise<BirthdaySettings> {
     return this.me.updateBirthday(user.id, dto);
+  }
+
+  /** (#562) 달력 칸에 음력 날짜 보이기 (D-297) */
+  @Patch('lunar-display')
+  updateLunarDisplay(@CurrentUser() user: AuthUser, @Body() dto: UpdateLunarDisplayDto): Promise<{ showLunar: boolean }> {
+    return this.me.updateLunarDisplay(user.id, dto.showLunar);
   }
 
   /** (#450) AI 비서 처음 안내 동의. 멱등이라 200 (api.md 2.15, D-270) */

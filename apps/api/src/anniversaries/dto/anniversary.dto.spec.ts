@@ -38,3 +38,21 @@ describe('기념일 알림 시점 DTO (#269, D-144)', () => {
     expect(fromReminderFlags(toReminderFlags([]))).toEqual([]);
   });
 });
+
+describe('(#562) 음력 기념일 DTO', () => {
+  it('음력은 2월 30일 모양도 받는다 (그 해에 있는지는 서비스가 본다), 양력은 실제 날짜만', async () => {
+    expect(await fields(CreateAnniversaryDto, { name: '제사', date: '2026-02-30', calendar: 'LUNAR' })).toEqual([]);
+    expect(await fields(CreateAnniversaryDto, { name: '제사', date: '2026-02-30' })).toEqual(['date']);
+    expect(await fields(CreateAnniversaryDto, { name: '제사', date: '2026-02-31', calendar: 'LUNAR' })).toEqual(['date']);
+    // 수정에서 달력 종류를 생략하면 모양만 본다
+    expect(await fields(UpdateAnniversaryDto, { date: '2026-02-30' })).toEqual([]);
+    expect(await fields(UpdateAnniversaryDto, { date: '2026-02-32' })).toEqual(['date']);
+  });
+
+  it('달력 종류와 윤달 값 검사 (null, 모르는 값 거부)', async () => {
+    expect(await fields(CreateAnniversaryDto, { name: '제사', date: '2025-06-15', calendar: 'LUNAR', isLeapMonth: true })).toEqual([]);
+    expect(await fields(CreateAnniversaryDto, { name: '제사', date: '2025-06-15', calendar: 'lunar' })).toEqual(['calendar']);
+    expect(await fields(UpdateAnniversaryDto, { calendar: null })).toEqual(['calendar']);
+    expect(await fields(UpdateAnniversaryDto, { isLeapMonth: 'yes' })).toEqual(['isLeapMonth']);
+  });
+});

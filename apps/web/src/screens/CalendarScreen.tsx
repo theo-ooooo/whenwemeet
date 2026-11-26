@@ -28,7 +28,7 @@ import { StartGuide } from "@/components/StartGuide";
 import { TogetherHint, togetherHintOf } from "@/components/TogetherHint";
 import { useToast } from "@/components/Toast";
 import { ConfirmDialog } from "@/components/ui";
-import { messageOf, useEvents } from "@/hooks";
+import { messageOf, useEvents, useMe } from "@/hooks";
 import type { EventRouteTarget } from "@/lib/calendar-url";
 import { CALENDAR_PATH, newEventHref } from "@/lib/routes";
 import { anniversariesOn } from "@/lib/day-detail";
@@ -69,6 +69,8 @@ export function CalendarScreen({ initialEvent = null }: Props) {
   const layout = useLayout();
   const wide = layout !== "phone";
   const { groupId, group, groups, eventsChanged, restoredVersion } = useGroupContext();
+  // (#562) 달력 칸 음력 표시 (내 정보 설정, D-297). 못 받았으면 끔
+  const showLunar = useMe().data?.showLunar === true;
   const together = togetherHintOf(group, groups);
   const today = todayKey();
   // 선택 날짜, 보는 달의 처음 값은 지금 주소에서 읽는다 (#81, useMonthNavigation)
@@ -408,6 +410,7 @@ export function CalendarScreen({ initialEvent = null }: Props) {
             phoneWeeks={phoneWeeks}
             byDay={byDay}
             annByDay={annByDay}
+            showLunar={showLunar}
             events={events}
             onKeyDown={onGridKey}
             onCell={onCell}
