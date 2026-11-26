@@ -4,6 +4,7 @@
 // 서버 컴포넌트와 route handler 에서도 import 하므로 React, next/* 를 import 하지 않는다.
 import type { KakaoFeedTemplate } from "./kakao-share";
 import type { WidgetSnapshot } from "./widget-snapshot";
+import type { CalendarSnapshot } from "./device-calendar";
 
 export const BRIDGE_VERSION = 1;
 
@@ -27,7 +28,12 @@ export type BridgeMessage =
   // (#419) 손가락을 댈 때 모달 안이거나 위로 스크롤된 안쪽 영역이면 allow=false. 옛 셸은 모르는 type 이라 버린다
   | { type: "pullRefresh"; allow: boolean }
   // (#198) 로그인 방법 연결. appSupportsAccountLink() 일 때만 보낸다 (앱.md 4.8, D-282). 응답은 wwm:app (lib/account-link.ts)
-  | { type: "linkAccount"; id: string; provider: "KAKAO" | "APPLE" };
+  | { type: "linkAccount"; id: string; provider: "KAKAO" | "APPLE" }
+  // (#549) 휴대폰 캘린더. appSupportsDeviceCalendar() 일 때만 보낸다 (앱.md 4.9, D-294). 응답은 wwm:app calendarStatus (lib/device-calendar.ts)
+  | { type: "calendarSync"; snapshot: CalendarSnapshot; id?: string }
+  | { type: "calendarSyncEnable"; id: string }
+  | { type: "calendarSyncDisable"; id: string }
+  | { type: "calendarSyncStatus"; id: string };
 
 /** 셸이 WebView applicationNameForUserAgent 로 붙이는 접미사: `WhenwemeetApp/<버전> (<ios|android>)` */
 const APP_UA = /\bWhenwemeetApp\/([0-9A-Za-z.+-]+) \((ios|android)\)/;
@@ -91,6 +97,17 @@ const WIDGET_UA = /(?:^|\s)Widget\/1(?:\s|$)/;
 /** 앱 셸이고 홈 화면 위젯 브리지를 처리하는지. 앱이 아니면 false */
 export function appSupportsWidget(ua: string | null | undefined): boolean {
   return isAppUserAgent(ua) && WIDGET_UA.test(ua ?? "");
+}
+
+/* ---------- (#549) 휴대폰 캘린더를 아는 셸 (앱.md 4.9, D-294) ---------- */
+
+/** 셸(1.3.0~)이 UA 끝에 붙이는 능력 표시. 그 전 셸은 calendarSync 를 모르고 버리므로 이 토큰이 있을 때만 설정을 보이고 보낸다 */
+export const DEVICE_CALENDAR_UA_TOKEN = "DeviceCalendar/1";
+const DEVICE_CALENDAR_UA = /(?:^|\s)DeviceCalendar\/1(?:\s|$)/;
+
+/** 앱 셸이고 휴대폰 캘린더 브리지를 처리하는지. 앱이 아니면 false */
+export function appSupportsDeviceCalendar(ua: string | null | undefined): boolean {
+  return isAppUserAgent(ua) && DEVICE_CALENDAR_UA.test(ua ?? "");
 }
 
 /* ---------- (#188) 푸시 지원 판정 (푸시-알림.md 2-1, D-81) ---------- */
