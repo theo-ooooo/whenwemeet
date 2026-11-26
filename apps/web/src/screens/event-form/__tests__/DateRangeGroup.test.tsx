@@ -21,11 +21,11 @@ describe("DateRangeGroup 음력 (#566)", () => {
   it("음력을 누르면 시작이 음력 칩이 되고 윤달 체크와 '양력 11월 24일 (화)' 가 보인다", () => {
     render(<Harness initial={start()} />);
     expect(screen.queryByLabelText("윤달")).toBeNull();
-    fireEvent.click(screen.getByRole("radio", { name: "음력" }));
+    fireEvent.click(screen.getByRole("switch", { name: /음력으로 입력/ }));
     expect(screen.getByRole("button", { name: /^시작 날짜 \(음력\), 음력 2026년 10월 16일$/ })).toBeTruthy();
     expect(screen.getByText("양력 11월 24일 (화)")).toBeTruthy();
     expect(screen.getByLabelText("윤달")).toBeTruthy();
-    fireEvent.click(screen.getByRole("radio", { name: "양력" }));
+    fireEvent.click(screen.getByRole("switch", { name: /음력으로 입력/ }));
     expect(screen.queryByText("양력 11월 24일 (화)")).toBeNull();
   });
 
@@ -38,6 +38,6 @@ describe("DateRangeGroup 음력 (#566)", () => {
 
   it("음력으로 넣은 일정을 다시 열면 음력으로 연다", () => {
     render(<Harness initial={{ ...start(), lunar: { year: 2026, month: 10, day: 16, leap: false } }} />);
-    expect(screen.getByRole("radio", { name: "음력" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("switch", { name: /음력으로 입력/ }).getAttribute("aria-checked")).toBe("true");
   });
 });
