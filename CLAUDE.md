@@ -20,15 +20,25 @@
 | 패키지 | pnpm workspace (`apps/*`) |
 | 언어 | 코드 주석, 문서, 커밋 메시지 한국어 |
 
-## 파이프라인
-```
-/기획 → 기획 승인 → /설계 → 설계 승인 → /백엔드 + /프론트 + /모바일 + /인프라 (병렬) → /QA
-```
-- 각 단계는 `agents/<역할>.md` 를 **먼저 읽고** 그 범위 안에서만 작업한다.
-- 승인은 사용자가 "기획 승인", "설계 승인" 으로 입력.
-- 승인 전 단계의 산출물(코드)을 미리 만들지 않는다. 현재 `apps/` 는 CLI 스캐폴드만 있고 기능 코드는 없다.
+## 작업 흐름 (pstack, #574)
+에이전트 작업 흐름은 pstack 플러그인(`michael-denyer/pstack-claude`, `.claude/settings.json` 에 프로젝트 범위로 켜 둠)을 따른다.
+- 여러 파일, 설계 선택, 원인 모르는 버그, 성능 문제는 `pstack:poteto-mode` 로 시작한다. 한 파일 작은 수정, 질문은 바로 한다
+- 의도가 분명하면 해당 스킬로 바로: `pstack:tdd`, `pstack:architect`, `pstack:how`, `pstack:why`
+- **이 파일과 아래 프로젝트 스킬이 pstack 기본값보다 우선한다**
 
-## 에이전트
+| 프로젝트 스킬 | 언제 |
+|---------------|------|
+| `wwm-release` | 머지 뒤 버전 올림, develop → main 릴리스, 태그, Railway, Vercel 확인, 앱 빌드 |
+| `wwm-test-db` | API 테스트, 마이그레이션, API 작업 위임 (전용 `wwm_<이슈>_test`) |
+| `wwm-mock-qa` | 화면 변경을 API_MOCK 서버와 ego-browser 로 확인 |
+| `wwm-decision-record` | 결정을 `docs/설계/결정기록.md` 에 D-번호로 |
+
+- 이슈는 묻지 않고 스스로 우선순위와 설계를 정한다. 결정은 PR 과 D-번호에 남긴다. 돈, 스토어 제출, 약관 동의는 먼저 보고
+- 큰 기능은 기획(`docs/기획/`) → 설계(`docs/설계/`) 문서를 먼저 쓰고 구현한다. 사용자 승인 대기는 사용자가 요청한 경우에만
+
+## 영역별 안내 (`agents/`)
+영역 작업 때 해당 md 의 규칙(계층, 수정 가능 영역, 금지)을 함께 따른다. 서브에이전트에는 이 파일 + 해당 md + 관련 스킬 경로만 넘긴다.
+
 | 역할 | 파일 | 수정 가능 영역 | 산출물 |
 |------|------|---------------|--------|
 | 기획 | `agents/planning.md` | `docs/기획/` | `docs/기획/<주제>.md` |
@@ -60,7 +70,8 @@
 ```
 whenwemeet/
   CLAUDE.md          ← 이 파일
-  agents/            ← 역할별 하네스
+  agents/            ← 영역별 규칙
+  .claude/           ← pstack 설정, 프로젝트 스킬
   docs/기획 docs/설계 docs/QA docs/status
   apps/web           ← Next.js
   apps/api           ← NestJS (+ prisma/)
