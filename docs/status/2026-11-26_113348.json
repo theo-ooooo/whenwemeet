@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-11-26T11:33:48+09:00",
+  "session_topic": "#247 스토어 스크린샷 v4 (볼까, 휴대폰 캘린더, 한 줄 머리줄, 아이폰 듀오 포함)",
+  "command": "(코디네이터 지시) #247 v4 스크린샷 생성, 문서 갱신, 커밋(푸시와 PR 금지)",
+  "agent": "Claude Code (문서, 스크립트)",
+  "status": "iPhone 6.9/6.3, Play, 듀오 바깥 2장, 안쪽 가로 4장, 세로 4장 생성과 검수 완료, 커밋",
+  "tasks": [
+    {"id": 1, "subject": "scripts/store-shots/shoot.mjs (Playwright, 가짜 셸 addInitScript, 목 서버) 와 compose.mjs (sharp, Pretendard fontconfig, 상태 표시줄, 테두리)", "status": "completed"},
+    {"id": 2, "subject": "폰 6장: 홈, 빈 시간, 볼까, 휴대폰 캘린더, 기념일, 초대 시트", "status": "completed"},
+    {"id": 3, "subject": "듀오: v3 이미지에서 Apple 베젤 떼어 내 재사용, 세로 669 넘침 재확인(없음)", "status": "completed"},
+    {"id": 4, "subject": "스토어-제출.md 5장, 스토어-문구.md 5장 갱신", "status": "completed"},
+    {"id": 5, "subject": "콘솔 업로드 (사용자)", "status": "pending"}
+  ],
+  "artifacts": ["docs/store/ios/iphone-v4", "docs/store/ios/iphone-v4-6.3", "docs/store/android/phone-v4", "docs/store/ios/duo-marketing-v4", "scripts/store-shots"],
+  "key_findings": "Play 캡처 폭을 360 에서 412 로 바꿔 넓은 독 모양으로 찍었다. 듀오 베젤 PNG 는 로컬에 없어 v3 합성본에서 테두리를 떼어 냈다(구멍 비율이 화면 비율과 0.1% 안). 669 세로는 가로 넘침 0",
+  "recommended_actions": "App Store Connect 6.9 칸에 iphone-v4, Play 휴대전화에 phone-v4, 듀오 칸(선택)에 duo-marketing-v4 업로드",
+  "pending_user_input": null
+}
