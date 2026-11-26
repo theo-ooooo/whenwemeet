@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconChevronLeft, IconChevronRight } from "../icons";
 import { RowIcon } from "../ui";
-import { PickerShell, triggerClassOf } from "./PickerShell";
+import { PickerShell, triggerClassOf, type PickerLook } from "./PickerShell";
 import { MONTH_DAYS } from "@/lib/birthday";
 import { formatLunar, LUNAR_MAX_YEAR } from "@/lib/lunar";
 
@@ -34,11 +34,13 @@ type Props = {
   /** (#562) 해도 고른다 (음력 기념일). 값이 없을 때 처음 보일 해 */
   withYear?: boolean;
   defaultYear?: number;
+  /** (#566) 트리거 모양. 기본 row("이름 ··· 값 ›"). chip 이면 값만 (일정 폼 시작 날짜, 해는 올해가 아닐 때만) */
+  look?: PickerLook;
 };
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-export function MonthDayPicker({ value, onChange, label, icon, id, disabled = false, lunar = false, leap = false, withYear = false, defaultYear }: Props) {
+export function MonthDayPicker({ value, onChange, label, icon, id, disabled = false, lunar = false, leap = false, withYear = false, defaultYear, look = "row" }: Props) {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const shown = value
@@ -46,6 +48,9 @@ export function MonthDayPicker({ value, onChange, label, icon, id, disabled = fa
       ? formatLunar(value.m, value.d, leap, withYear ? value.y : undefined)
       : `${withYear && value.y ? `${value.y}년 ` : ""}${value.m}월 ${value.d}일`
     : "고르기";
+  const row = look === "row";
+  // (#566) 칩은 좁아 해를 올해가 아닐 때만 ("음력 10월 16일", "음력 2027년 3월 15일")
+  const chipText = value && lunar && withYear && value.y === new Date().getFullYear() ? formatLunar(value.m, value.d, leap) : shown;
   return (
     <>
       <button
@@ -57,12 +62,18 @@ export function MonthDayPicker({ value, onChange, label, icon, id, disabled = fa
         aria-expanded={open}
         aria-label={`${label}, ${value ? shown : "선택 안 함"}`}
         onClick={() => setOpen((v) => !v)}
-        className={triggerClassOf("row")}
+        className={triggerClassOf(look)}
       >
-        {icon && <RowIcon>{icon}</RowIcon>}
-        <span className="shrink-0 text-[14px] font-semibold">{label}</span>
-        <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2 tabular-nums">{shown}</span>
-        <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+        {row ? (
+          <>
+            {icon && <RowIcon>{icon}</RowIcon>}
+            <span className="shrink-0 text-[14px] font-semibold">{label}</span>
+            <span className="ml-auto min-w-0 truncate text-[14px] text-ink-2 tabular-nums">{shown}</span>
+            <IconChevronRight size={16} className="-mr-1 shrink-0 text-ink-2" />
+          </>
+        ) : (
+          <span className="truncate tabular-nums">{chipText}</span>
+        )}
       </button>
       <PickerShell open={open} onClose={() => setOpen(false)} trigger={btn} title={label} width={312}>
         <Grid

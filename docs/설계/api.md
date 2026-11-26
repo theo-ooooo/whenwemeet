@@ -260,7 +260,8 @@ EventInput = { title: string(1~50), startsAt: ISO, endsAt: ISO, allDay: boolean,
                repeatUntil?: 'YYYY-MM-DD'|null,                        // KST, 그날 시작하는 회차 포함. 생략/null = 계속
                reminder?: EventReminder,                               // (#188) 생성에서 생략 = 'NONE', 수정에서 생략 = 그대로 (2.8)
                participants?: 'ALL'|number[],                          // (#248) 'ALL' = 지금 멤버 전원(#444 부터 id 목록으로 저장, D-263), 배열 = 멤버 userId. 생성에서 생략 = [요청자], 수정에서 생략 = 그대로
-               color?: string|null }                                   // (#343) MEMBER_COLORS 키 하나(대소문자 무시, 대문자로 저장). null = 자동. 생성에서 생략 = null, 수정에서 생략 = 그대로
+               color?: string|null,                                    // (#343) MEMBER_COLORS 키 하나(대소문자 무시, 대문자로 저장). null = 자동. 생성에서 생략 = null, 수정에서 생략 = 그대로
+               lunarInput?: boolean }                                  // (#566) 날짜를 음력으로 골라 넣었는지. 생성에서 생략 = false, 수정에서 생략 = 그대로
 Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, creator: Member|탈퇴자, createdAt, updatedAt,   // publicCode: (#311) 주소용 공개 코드 (`/events/<코드>`)
                repeat, repeatUntil,
                occurrence: 'YYYY-MM-DD'|null,   // 회차의 원래 날짜 (KST). 한 번짜리는 null
@@ -268,7 +269,8 @@ Event      = { id, groupId, publicCode, title, startsAt, endsAt, allDay, memo, c
                repeatAnchor: 'YYYY-MM-DD'|null,  // (#228) 반복 기준 날짜 (KST). 매월은 일, 매년은 월일. null = seriesStartsAt 의 KST 날짜. 응답에만 (입력 아님), 한 번짜리는 null
                reminder: EventReminder,          // (#188) 그 회차의 실제 알림 (예외 반영)
                participants: { all: boolean, members: Member[] },    // (#248) all 이면 지금 멤버 전원, 아니면 참여자(0 = 참여자 없음). 가입순. 반복 회차는 원본 값
-               color: string|null }                                  // (#343) 일정 색. null = 자동(화면은 참여자 색). 반복 회차는 원본 값
+               color: string|null,                                   // (#343) 일정 색. null = 자동(화면은 참여자 색). 반복 회차는 원본 값
+               lunarInput: boolean }                                 // (#566) 음력으로 넣은 일정. 반복 회차는 원본 값
 // 단건 GET 만: hasLaterExceptions: boolean   // 이 회차보다 뒤에 "이 일정만" 예외(취소 포함)가 있는지. 한 번짜리는 false
 // (#190) 목록, 단건, 생성, 수정 공통 (그 회차의 집계)
 Event += { rsvp: { going, notGoing, maybe, pending, mine: Rsvp|null },        // pending = 참여자 중 아직 응답 안 한 사람 수
@@ -310,6 +312,11 @@ Reaction = 'LIKE'|'EXCITED'|'ACK'      // 화면 글자: 좋아요, 기대돼요
   - **색만 바꾼 수정은 EventLog(새 소식)와 푸시를 만들지 않는다.** 색과 다른 값을 같이 바꾸면 보통 수정(UPDATED 한 줄, 색 포함). 같은 색이면 #62 규칙대로 저장 안 함
   - 반복 일정은 원본 단위(예외에 색 없음). `scope=this` 본문에 `color` 가 있으면(같은 값, null 이어도) 400 `field: 'color'` "반복 일정의 색은 이후 모두로만 바꿀 수 있어요". `following` 첫 회차는 원본 색, 그 뒤 회차는 새 원본에(생략이면 원본 색 복사). 색만 바꿨고 그 회차부터 예외가 없으면 첫 회차는 색만 저장(예외 유지), 그 뒤 회차는 로그 없이 나눈다
   - ICS 가져오기는 null(자동). 공유 미리보기 `EventSharePreview.event.color`
+- (#566) 음력으로 넣은 일정 (D-298, 설계 `음력.md` 7장). 저장은 `Event.lunarInput BOOLEAN NOT NULL DEFAULT false`. 날짜는 양력(`startsAt`, `endsAt`) 그대로이고 이 값은 화면이 음력 날짜를 같이 보이고 수정 폼을 음력으로 여는 표시일 뿐
+  - 불리언이 아니면 400 VALIDATION_FAILED `field: 'lunarInput'`
+  - 색과 같은 규칙: 이것만 바꾼 수정은 EventLog(새 소식)와 푸시를 만들지 않는다. 반복 일정은 원본 단위라 `scope=this` 본문에 있으면 400 `field: 'lunarInput'` "반복 일정의 음력 입력은 이후 모두로만 바꿀 수 있어요". `following` 은 생략이면 원본 값을 잇는다
+  - 구독 피드(2.12)는 `lunarInput` 이면 DESCRIPTION 첫 줄에 그 회차 시작 날짜의 음력 "음력 10월 16일"(윤달 "음력 윤4월 15일")
+  - 볼까 일정 초안(2.15 `eventDraft.draft`)은 날짜를 "음력 3월 15일"(`when.kind = lunarMonthDay`)로 말했으면 `lunarInput: true`, 아니면 키 없음
 - 조회 조건은 겹침: `startsAt < to AND endsAt > from` (인덱스 `(groupId, startsAt)`). 반복 회차는 최종 시각(예외 반영) 기준으로 같은 조건
 - `endsAt > startsAt` 이어야 하고 길이 30일 이하. 아니면 EVENT_RANGE_INVALID
 - 종일(`allDay: true`): 클라이언트가 `startsAt` = 그날 KST 00:00, `endsAt` = 다음 날 KST 00:00 (UTC 로 변환) 을 보낸다. 서버는 그 두 값이 KST 자정인지 검증하지 않는다 (표시는 allDay 플래그만 본다)
@@ -985,6 +992,7 @@ AdminStats = { range: 7 | 30, from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' /* KST, to = 
 | 일정 알림 시각 (#188) | `EventInput.reminder`, `Event.reminder` |
 | 일정 참여자 (#248) | `EventInput.participants`, `Event.participants` |
 | 일정 색 (#343) | `EventInput.color`, `Event.color`, `EventSharePreview.event.color` |
+| 음력으로 넣은 일정 (#566) | `EventInput.lunarInput`, `Event.lunarInput`, 볼까 `eventDraft.draft.lunarInput` |
 | 일정 카드 공유 (#274) | 2.10 전부 |
 | ICS 파일로 일정 가져오기 (#279) | `POST /groups/:id/imports/preview`, `POST /groups/:id/imports` (2.9) |
 | 팀 공유 할 일 목록 (#276) | 2.11 전부 |

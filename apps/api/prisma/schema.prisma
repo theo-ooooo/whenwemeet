@@ -654,6 +654,9 @@ model Event {
   placeProvider PlaceProvider?
   placeQuery    String?       @db.VarChar(100)
   placeText     String?       @db.VarChar(100)
+  /// (#566) 날짜를 음력으로 골라 넣은 일정 (D-298). 저장은 양력 그대로이고 상세, 입력 화면이 음력 날짜를 같이 보인다.
+  /// 반복 일정은 원본 단위 (색과 같이 회차 예외 없음)
+  lunarInput    Boolean       @default(false)
   /// (#515) 운영 숨김 (D-286). 값이 있으면 운영 정책 위반으로 숨긴 상태. 사유는 필수(200자), 숨긴 관리자는 탈퇴하면 null
   hiddenAt     DateTime?
   hiddenReason String?   @db.VarChar(200)

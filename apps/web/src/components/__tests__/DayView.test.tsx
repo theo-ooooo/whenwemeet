@@ -86,6 +86,14 @@ describe("DayView (C안)", () => {
     stop();
   });
 
+  it("(#566) 음력 표시를 켜면 제목 아래 '음력 10월 9일', 끄면 없다", () => {
+    view({ showLunar: true });
+    expect(screen.getByText("음력 10월 9일")).toBeTruthy();
+    cleanup();
+    view();
+    expect(screen.queryByText("음력 10월 9일")).toBeNull();
+  });
+
   it("기념일이 없으면 기념일 줄도, 예전 요약 카드(비는 시간)도 없다", () => {
     view();
     expect(screen.queryByRole("link", { name: /처음 만난 날/ })).toBeNull();

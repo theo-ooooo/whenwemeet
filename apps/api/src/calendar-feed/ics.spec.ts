@@ -182,6 +182,11 @@ describe('일정 → VEVENT', () => {
     // 개인 팀은 참여자 줄 없이 메모만
     expect(eventDescription(e, true, false)).toBe('창가 자리;예약');
     expect(eventDescription(e, false, false)).toBeNull();
+    // (#566) 음력으로 넣은 일정은 맨 앞에 그 회차 날짜의 음력 (2026-11-24 = 음력 10월 16일)
+    const lunar = { ...e, startsAt: kst('2026-11-24T19:00:00'), lunarInput: true };
+    expect(eventDescription(lunar, false)).toBe('음력 10월 16일\n참여: 민지, 지훈');
+    expect(eventDescription(lunar, false, false)).toBe('음력 10월 16일');
+    expect(eventDescription({ ...lunar, lunarInput: false }, false, false)).toBeNull();
     const lines = unfold(calendar([eventToIcs(e, { ...OPTIONS, includeMemo: true })]));
     expect(lines).toContain('DESCRIPTION:참여: 민지\\, 지훈\\n\\n창가 자리\\;예약');
   });

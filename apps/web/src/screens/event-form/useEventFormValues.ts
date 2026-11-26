@@ -9,6 +9,7 @@ import { copyPick, participantsChanged, participantsFromPick, showParticipantRow
 import { eventColorChanged, memberColor } from "@/lib/colors";
 import {
   eventInput,
+  lunarError as lunarErrorOf,
   rangeError as rangeErrorOf,
   ruleChangedOf,
   sentUntilOf,
@@ -67,6 +68,8 @@ export function useEventFormValues({
 
   const titleError = titleErrorOf(draft, touched);
   const rangeError = rangeErrorOf(draft, "range");
+  // (#566) 음력으로 고른 날짜가 없는 날이면 저장을 막는다 (D-298)
+  const lunarError = lunarErrorOf(draft);
   const sentUntil = sentUntilOf(draft, series);
   const timesKept = timesKeptOf(payload, series);
   // 반복 줄, 반복 시트의 설명 날짜. 규칙을 이어받으면 원본 기준 날짜("매월 31일"), 아니면 폼의 시작 날짜
@@ -98,7 +101,7 @@ export function useEventFormValues({
   // (#343) 색 줄. "이 일정만" 으로 들어온 반복 수정은 막고 안내 (참여자 줄과 같은 규칙, D-215)
   const colorChanged = eventColorChanged({ editing, current: color, initial: initialColor });
   const autoColors = participantsShown ? participantsShown.members.map((m) => memberColor(m.color)) : [];
-  const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !repeatError && !remindError && !saving && scopePending === null;
+  const canSave = Boolean(payload) && title.trim().length > 0 && !rangeError && !lunarError && !repeatError && !remindError && !saving && scopePending === null;
 
   return {
     payload,
@@ -108,6 +111,7 @@ export function useEventFormValues({
     ruleChanged,
     titleError,
     rangeError,
+    lunarError,
     ruleDateFor,
     repeatError,
     remindError,

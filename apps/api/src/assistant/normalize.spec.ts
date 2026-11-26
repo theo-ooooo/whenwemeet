@@ -181,6 +181,12 @@ describe('draft_event', () => {
     expect(normalizeDraftEvent(event({ endDate: '2026-11-28', endTime: '10:00' }), ctx)).toMatchObject({ endsAt: '2026-11-28T01:00:00.000Z' });
   });
 
+  it('(#566) 음력으로 말한 날짜면 lunarInput: true, 아니면 키 없음 (D-298)', () => {
+    const lunar = normalizeDraftEvent(event({ date: { ...NO_WHEN, kind: 'lunarMonthDay', month: 10, day: 16 }, allDay: true }), ctx);
+    expect(lunar).toMatchObject({ startsAt: '2026-11-23T15:00:00.000Z', allDay: true, lunarInput: true });
+    expect(normalizeDraftEvent(event(), ctx)).not.toHaveProperty('lunarInput');
+  });
+
   it('종일: 시각 무시, KST 자정 경계, 여러 날', () => {
     expect(normalizeDraftEvent(event({ allDay: true, startTime: '10:00' }), ctx)).toMatchObject({ startsAt: '2026-11-26T15:00:00.000Z', endsAt: '2026-11-27T15:00:00.000Z', allDay: true });
     expect(normalizeDraftEvent(event({ allDay: true, endDate: '2026-11-29' }), ctx)).toMatchObject({ endsAt: '2026-11-29T15:00:00.000Z' });

@@ -9,6 +9,7 @@ import { eventColorBody } from "./colors";
 import { draftPlaceOf, NO_PLACE, pickPlace, placeBody, placeSnapshot, typePlace, type DraftPlace } from "./place";
 import { normalizePick, participantsBody, pickOf, samePick, type ParticipantPick } from "./participants";
 import { participantsParam } from "./assistant";
+import { lunarPickError, lunarToSolar, solarToLunar, type CalendarKind, type LunarDate } from "./lunar";
 import { followingUntil, formRepeatOf, keepsLoadedTimes } from "./recurrence";
 import { reminderAfterAllDayChange, reminderOf, reminderToSend } from "./reminder";
 import type { EventDetailData, EventInput, EventPatchInput, EventReminder, EventScope, PlaceCandidate, Repeat } from "./types";
@@ -44,6 +45,11 @@ export type EventDraft = {
   color: string | null;
   /** (#199) 장소. 직접 적은 글자, 또는 검색에서 고른 장소(카카오 ID + 검색어만 보낸다, D-242) */
   place: DraftPlace;
+  /**
+   * (#566, D-298) 시작 날짜를 음력으로 고르는 중이면 그 음력 날짜, 양력이면 null.
+   * 맞는 날짜면 startDate 가 그 양력이고(길이 유지), 없는 날짜(그해에 없는 윤달, 29일 달의 30일)면 startDate 는 그대로 두고 lunarError 로 저장을 막는다
+   */
+  lunar: LunarDate | null;
 };
 
 export type DraftAction =
@@ -62,7 +68,11 @@ export type DraftAction =
   /** (#199) 장소 칸에 적기 (고른 장소 이름을 고치면 직접 적은 장소가 된다), 후보 고르기, 지우기 */
   | { type: "placeText"; value: string }
   | { type: "placePick"; value: PlaceCandidate; query: string }
-  | { type: "placeClear" };
+  | { type: "placeClear" }
+  /** (#566) 날짜 고르기 양력 / 음력 전환. 음력으로 바꾸면 지금 시작 날짜의 음력에서 시작한다 */
+  | { type: "calendar"; value: CalendarKind }
+  /** (#566) 음력 시작 날짜 (월일, 해, 윤달) */
+  | { type: "lunar"; value: LunarDate };
 
 const BLANK: EventDraft = {
   title: "",
@@ -79,6 +89,7 @@ const BLANK: EventDraft = {
   pick: null,
   color: null,
   place: NO_PLACE,
+  lunar: null,
 };
 
 /* ---------- 처음 값 ---------- */
@@ -111,6 +122,8 @@ export function newDraft(o: { start?: string | null; end?: string | null; query?
     // (#450) AI 비서 [고치기] (D-273): 참여자(쉼표 id, 지금 멤버가 아닌 id 는 폼이 거른다), 직접 적은 장소(100자)
     pick: participantsParam(q?.get("participants")),
     place: q?.get("place")?.trim() ? typePlace(q.get("place")!.trim()) : NO_PLACE,
+    // (#566) 볼까 "음력 3월 15일" 초안의 [고치기] (lunar=1): 음력으로 고르는 중으로 연다
+    lunar: q?.get("lunar") === "1" ? solarToLunar(dateKeyOf(start)) : null,
   };
 }
 
@@ -132,6 +145,8 @@ export function draftFromEvent(ev: EventDetailData, copy: boolean): EventDraft {
     pick: pickOf(ev),
     color: ev.color ?? null,
     place: draftPlaceOf(ev.place),
+    // (#566) 음력으로 넣은 일정은 다시 음력으로 연다 (양력 → 음력은 윤달까지 한 가지라 따로 저장하지 않는다)
+    lunar: ev.lunarInput ? solarToLunar(dateKeyOf(ev.startsAt)) : null,
   };
 }
 
@@ -145,8 +160,12 @@ export function applyDraft(d: EventDraft, a: DraftAction, span: DraftSpan): Even
       return { ...d, memo: clampChars(a.value, MEMO_MAX) };
     case "allDay":
       return toggleAllDay(d, a.value, span);
-    case "start":
-      return span === "day" ? startInDay(d, a.time) : startInRange(d, a.date, a.time);
+    case "start": {
+      if (span === "day") return startInDay(d, a.time);
+      const next = startInRange(d, a.date, a.time);
+      // (#566) 음력으로 고르는 중에 양력 날짜가 바뀌면(다른 경로) 음력도 따라간다
+      return d.lunar && next.startDate !== d.startDate ? { ...next, lunar: solarToLunar(next.startDate) ?? d.lunar } : next;
+    }
     case "end":
       return span === "day" ? endInDay(d, a.time) : endInRange(d, a.date, a.time, a.by);
     case "repeat":
@@ -168,7 +187,20 @@ export function applyDraft(d: EventDraft, a: DraftAction, span: DraftSpan): Even
       return { ...d, place: pickPlace(a.value, a.query) };
     case "placeClear":
       return { ...d, place: NO_PLACE };
+    case "calendar":
+      if (a.value === "SOLAR") return { ...d, lunar: null };
+      return d.lunar ? d : { ...d, lunar: solarToLunar(d.startDate) };
+    case "lunar":
+      return pickLunar(d, a.value, span);
   }
+}
+
+/** (#566) 음력 시작 날짜를 고른다. 있는 날짜면 그 양력으로 시작을 옮기고(여러 날, 시각 일정은 길이 유지), 없으면 음력만 바꾼다 */
+function pickLunar(d: EventDraft, lunar: LunarDate, span: DraftSpan): EventDraft {
+  const solar = lunarPickError(lunar) ? null : lunarToSolar(lunar);
+  if (!solar) return { ...d, lunar };
+  const moved = span === "day" ? { ...d, startDate: solar, endDate: solar } : startInRange(d, solar, d.startTime);
+  return { ...moved, lunar };
 }
 
 /** 종일 전환. 알림은 맞지 않으면 없음. 일정 폼은 종일을 켜면 종료일이 시작일보다 앞서지 않게, 끄면 같은 날 거꾸로 된 시각을 1시간 뒤로 */
@@ -260,6 +292,11 @@ export function rangeError(d: EventDraft, span: DraftSpan): string | null {
   return null;
 }
 
+/** (#566) 음력으로 고른 시작 날짜 오류 (그해에 없는 윤달, 29일 달의 30일, 2050년 뒤). 양력이면 null */
+export function lunarError(d: EventDraft): string | null {
+  return d.lunar ? lunarPickError(d.lunar) : null;
+}
+
 /** 메모 글자 수 표시 "12/500" */
 export function memoHint(d: EventDraft): string {
   return `${charCount(d.memo)}/${MEMO_MAX}`;
@@ -281,6 +318,7 @@ function snapshot(d: EventDraft): string {
     d.pick === null ? null : normalizePick(d.pick),
     d.color === null ? null : d.color.toUpperCase(),
     placeSnapshot(d.place),
+    d.lunar,
   ]);
 }
 
@@ -374,10 +412,13 @@ export function eventBody(o: {
     ? participantsBody({ editing, personal: o.personal, scope: series ? scope : null, current: o.currentPick, initial: o.initialPick })
     : undefined;
   const sentColor = eventColorBody({ editing, thisOnly: Boolean(series) && scope === "this", current: d.color, initial: o.initialColor });
+  // (#566) 음력 입력 표시: 생성은 켰을 때만, 수정은 늘 (서버가 같은 값이면 저장하지 않는다). 반복 "이 일정만" 은 싣지 않는다 (원본 단위, 서버 400)
+  const sentLunar = d.lunar ? true : editing ? false : undefined;
   const full = {
     ...input,
     ...(sentParticipants === undefined ? {} : { participants: sentParticipants }),
     ...(sentColor === undefined ? {} : { color: sentColor }),
+    ...(sentLunar === undefined ? {} : { lunarInput: sentLunar }),
   };
   if (series && scope === "following") {
     const { startsAt, endsAt, ...rest } = full;

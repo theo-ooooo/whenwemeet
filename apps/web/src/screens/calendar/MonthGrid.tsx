@@ -100,6 +100,7 @@ export function MonthGrid({
                   events={byDay.get(key) ?? []}
                   anniversaries={annByDay.get(key) ?? []}
                   lunar={lunarByDay?.get(key) ?? null}
+                  lunarRow={showLunar}
                   week={w.packed}
                   col={col}
                   fit2={w.fit2.days[col]}
@@ -137,7 +138,7 @@ export function MonthGrid({
         {events !== null && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid fold:hidden" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
             {phoneWeeks.map((pw, r) => (
-              <PhoneWeekChips key={weeks[r].packed.days[0]} chips={pw.chips} />
+              <PhoneWeekChips key={weeks[r].packed.days[0]} chips={pw.chips} lunarRow={showLunar} />
             ))}
           </div>
         )}

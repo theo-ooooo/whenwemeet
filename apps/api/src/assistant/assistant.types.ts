@@ -17,6 +17,8 @@ export interface EventDraftCard {
   place: { text: string } | null;
   participants: number[];
   members: Member[];
+  /** (#566) "음력 3월 15일" 처럼 음력으로 말한 날짜면 true (D-298). 아니면 생략 */
+  lunarInput?: true;
 }
 
 export interface FreeQuery {

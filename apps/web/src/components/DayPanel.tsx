@@ -19,6 +19,7 @@ import { dayBadge } from "@/lib/day-detail";
 import { panelDays, panelTitle } from "@/lib/day-panel";
 import { dowOf, formatDateKo, parseKey, WEEKDAYS, type DateKey } from "@/lib/date";
 import { holidayOf } from "@/lib/holidays";
+import { lunarLabelOf } from "@/lib/lunar";
 import { lastInputWasKeyboard } from "@/lib/input-modality";
 import { occurrenceTitle, type Occurrence } from "@/lib/anniversary";
 import type { Event, Member } from "@/lib/types";
@@ -57,6 +58,8 @@ type Props = {
   now?: number;
   /** 하루 막대의 빈 구간을 눌렀을 때: 그 시각(ms)으로 빠른 추가 */
   onAddAt?: (start: number) => void;
+  /** (#566) 머리 아래 "음력 10월 6일", 일정 상세 날짜 옆 음력 (내 정보 "달력에 음력 표시") */
+  showLunar?: boolean;
 };
 
 /** "10일 화요일" */
@@ -103,6 +106,7 @@ export function DayPanel(props: Props) {
             onClose={props.onClose}
             onDelete={props.onDelete}
             onResponded={props.onResponded}
+            showLunar={props.showLunar}
           />
         ) : (
           <div aria-busy="true" className="space-y-2.5 py-2">
@@ -121,7 +125,7 @@ export function DayPanel(props: Props) {
   );
 }
 
-function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay, members, now, onAddAt }: Props) {
+function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversaries, onClose, onOpenEvent, onPickDay, members, now, onAddAt, showLunar = false }: Props) {
   const bar = useMemo(() => (events && members ? busyByMember(events, members, dayWindow(date)) : null), [events, members, date]);
   const holiday = holidayOf(date);
   const [prev, , next] = panelDays(date);
@@ -140,6 +144,8 @@ function DayBody({ date, today, titleId, events, eventsError, onRetry, anniversa
         <span className="flex-1" />
         <CloseButton onClick={onClose} className="-mr-1.5 shrink-0" />
       </div>
+      {/* (#566) 음력 표시를 켰으면 제목 아래 한 줄 13 --mute */}
+      {showLunar && lunarLabelOf(date) && <p className="-mt-1 text-[13px] leading-[18px] font-medium text-ink-2 tabular-nums">{lunarLabelOf(date)}</p>}
 
       {/* 앞뒤 날짜 ‹ 13 [14] 15 › (#331). 패널만 바뀌고 기록은 쌓지 않는다 (CalendarScreen changeDay) */}
       <nav aria-label="날짜 이동" className="-ml-1.5 flex h-10 items-center gap-1">

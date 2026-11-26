@@ -34,6 +34,8 @@ export interface EventCreateInput {
   participants: ParticipantSet;
   /** (#343) 일정 색. 생략하면 null(자동). 가져오기(ICS)는 늘 생략 (D-215) */
   color?: string | null;
+  /** (#566) 음력으로 넣은 일정. 생략하면 false (D-298) */
+  lunarInput?: boolean;
   /** (#199) 장소. 생략하면 없음 */
   place?: PlaceValue | null;
 }
@@ -57,6 +59,8 @@ export interface EventUpdateInput {
   participants?: ParticipantSet;
   /** (#343) 생략하면 바꾸지 않는다 */
   color?: string | null;
+  /** (#566) 생략하면 바꾸지 않는다 */
+  lunarInput?: boolean;
   /** (#199) 장소. null 이면 없음 */
   place: PlaceValue | null;
 }

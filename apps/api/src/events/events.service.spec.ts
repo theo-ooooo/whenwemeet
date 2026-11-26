@@ -31,6 +31,7 @@ const ROW = {
   allMembers: true,
   participantIds: [] as number[],
   color: null,
+  lunarInput: false,
   place: null,
 };
 
@@ -107,7 +108,7 @@ describe('EventsService', () => {
     const created = await service.create(1, 10, { title: '회의', startsAt: '2026-12-01T10:00:00.000Z', endsAt: '2026-12-01T12:00:00.000Z', allDay: false });
     expect(created.id).toBe(100);
     expect(events.createWithLogTx).toHaveBeenCalledWith(
-      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, place: null },
+      { groupId: 10, title: '회의', startsAt: ROW.startsAt, endsAt: ROW.endsAt, allDay: false, memo: null, creatorId: 1, reminder: 'NONE', remindAt: null, reminderSetAt: expect.any(Date), participants: { allMembers: false, ids: [1] }, color: null, lunarInput: false, place: null },
       1,
     );
   });
@@ -149,6 +150,38 @@ describe('EventsService', () => {
     await service.update(1, 10, 100, { title: '변경', color: null });
     expect(events.updateWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ id: 100 }), expect.objectContaining({ title: '변경', color: null }), 1);
     expect(events.updateColor).not.toHaveBeenCalled();
+  });
+
+  it('create: (#566) lunarInput 을 싣으면 저장, 생략은 false', async () => {
+    events.createWithLogTx.mockResolvedValue({ ...ROW, lunarInput: true });
+    const created = await service.create(1, 10, { title: '제사', startsAt: ROW.startsAt.toISOString(), endsAt: ROW.endsAt.toISOString(), allDay: false, lunarInput: true });
+    expect(events.createWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ lunarInput: true }), 1);
+    expect(created.lunarInput).toBe(true);
+  });
+
+  it('update: (#566) 음력 입력 표시만 바꾸면 updateDisplay 만 (로그 없음), 다른 값과 같이면 보통 수정에 싣는다', async () => {
+    events.findInGroup.mockResolvedValue(ROW);
+    events.updateDisplay.mockResolvedValue({ ...ROW, lunarInput: true });
+    const updated = await service.update(1, 10, 100, { lunarInput: true });
+    expect(updated.lunarInput).toBe(true);
+    expect(events.updateDisplay).toHaveBeenCalledWith(100, { lunarInput: true });
+    expect(events.updateWithLogTx).not.toHaveBeenCalled();
+
+    // 색과 같이 바꾸면 한 번에
+    events.updateDisplay.mockClear();
+    await service.update(1, 10, 100, { lunarInput: true, color: '#f279b5' });
+    expect(events.updateDisplay).toHaveBeenCalledWith(100, { color: '#F279B5', lunarInput: true });
+    expect(events.updateColor).not.toHaveBeenCalled();
+
+    // 같은 값이면 저장하지 않는다
+    events.updateDisplay.mockClear();
+    await service.update(1, 10, 100, { lunarInput: false });
+    expect(events.updateDisplay).not.toHaveBeenCalled();
+
+    events.updateWithLogTx.mockResolvedValue({ ...ROW, title: '변경', lunarInput: true });
+    await service.update(1, 10, 100, { title: '변경', lunarInput: true });
+    expect(events.updateWithLogTx).toHaveBeenCalledWith(expect.objectContaining({ id: 100 }), expect.objectContaining({ title: '변경', lunarInput: true }), 1);
+    expect(events.updateDisplay).not.toHaveBeenCalled();
   });
 
   it('update: 빈 메모(\'\')를 보내면 메모를 지운다 (null 로 저장)', async () => {

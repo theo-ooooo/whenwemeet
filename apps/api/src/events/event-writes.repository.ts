@@ -62,4 +62,12 @@ export class EventWritesRepository {
     const updated = await this.prisma.event.update({ where: { id: eventId }, data: { color }, select: EVENT_SELECT });
     return toEventRow(updated, this.urls);
   }
+
+  /**
+   * (#566) 보이는 값(색, 음력 입력 표시)만 바꾼다. 색과 같이 로그, 새 소식, 푸시를 만들지 않는다 (D-298). 반복 원본이면 모든 회차
+   */
+  async updateDisplay(eventId: number, data: { color?: string | null; lunarInput?: boolean }): Promise<EventRow> {
+    const updated = await this.prisma.event.update({ where: { id: eventId }, data, select: EVENT_SELECT });
+    return toEventRow(updated, this.urls);
+  }
 }

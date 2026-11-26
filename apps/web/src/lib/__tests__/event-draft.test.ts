@@ -7,6 +7,7 @@ import {
   draftUntil,
   eventBody,
   eventInput,
+  lunarError,
   memoHint,
   newDraft,
   quickDetailQuery,
@@ -436,5 +437,60 @@ describe("(#450) AI 비서 [고치기] 로 연 새 일정 폼", () => {
     const plain = newDraft({ today: D, query: new URLSearchParams() });
     expect(plain.pick).toBeNull();
     expect(plain.place).toEqual({ text: "", picked: null });
+  });
+});
+
+// (#566, D-298) 시작 날짜를 음력으로 고르기
+describe("음력으로 고르기", () => {
+  const base = { editing: false, personal: false, showParticipants: true, currentPick: [1] as number[], initialPick: null, initialColor: null };
+  // 2026-11-20 = 음력 10월 12일, 2026-11-24 = 음력 10월 16일
+  it("음력으로 바꾸면 지금 시작 날짜의 음력, 양력으로 바꾸면 날짜는 그대로 두고 음력만 끈다", () => {
+    const d = run(range(), "range", { type: "calendar", value: "LUNAR" });
+    expect(d.lunar).toEqual({ year: 2026, month: 10, day: 12, leap: false });
+    expect(d.startDate).toBe(D);
+    const back = run(d, "range", { type: "calendar", value: "SOLAR" });
+    expect(back.lunar).toBeNull();
+    expect(back.startDate).toBe(D);
+  });
+
+  it("음력 날짜를 고르면 그 양력으로 시작을 옮기고 길이를 지킨다 (시각 일정, 여러 날 종일)", () => {
+    const timed = run(range({ endTime: "12:30" }), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } });
+    expect(timed).toMatchObject({ startDate: "2026-11-24", startTime: "10:00", endDate: "2026-11-24", endTime: "12:30" });
+    const multi = run(range({ allDay: true, endDate: "2026-11-22" }), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 10, day: 16, leap: false } });
+    expect(multi).toMatchObject({ startDate: "2026-11-24", endDate: "2026-11-26" });
+    expect(lunarError(multi)).toBeNull();
+  });
+
+  it("없는 날(29일 달의 30일, 그해에 없는 윤달)은 날짜를 옮기지 않고 오류 한 줄로 막는다", () => {
+    const d = run(range(), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 2, day: 30, leap: false } });
+    expect(d.startDate).toBe(D);
+    expect(lunarError(d)).toBe("음력 2026년 2월은 29일까지예요");
+    const leap = run(range(), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2026, month: 6, day: 1, leap: true } });
+    expect(lunarError(leap)).toBe("음력 2026년에는 윤6월이 없어요");
+    expect(lunarError(range())).toBeNull();
+    // 윤달이 있는 해면 윤달로 옮긴다 (2025 윤6월 1일 = 7월 25일)
+    const ok = run(range(), "range", { type: "calendar", value: "LUNAR" }, { type: "lunar", value: { year: 2025, month: 6, day: 1, leap: true } });
+    expect(ok.startDate).toBe("2025-07-25");
+  });
+
+  it("본문: 새 일정은 켰을 때만 lunarInput: true, 수정은 늘 싣고, 반복 이 일정만에는 싣지 않는다. 바꾸면 작성 중", () => {
+    const d = run(range({ title: "제사" }), "range", { type: "calendar", value: "LUNAR" });
+    expect(eventBody({ ...base, draft: d, input: eventInput(d, null)!, scope: null, series: null })).toMatchObject({ lunarInput: true });
+    const plain = range({ title: "a" });
+    expect(eventBody({ ...base, draft: plain, input: eventInput(plain, null)!, scope: null, series: null })).not.toHaveProperty("lunarInput");
+    const ev = loaded({ lunarInput: true });
+    const edit = draftFromEvent(ev, false);
+    expect(edit.lunar).toEqual({ year: 2026, month: 10, day: 6, leap: false });
+    const off = run(edit, "range", { type: "calendar", value: "SOLAR" });
+    expect(draftChanged(off, edit)).toBe(true);
+    expect(eventBody({ ...base, editing: true, draft: off, input: eventInput(off, ev)!, scope: null, series: null })).toMatchObject({ lunarInput: false });
+    const series = { startsAt: ev.startsAt, endsAt: ev.endsAt, repeat: "WEEKLY" as const, repeatUntil: null };
+    expect(eventBody({ ...base, editing: true, draft: edit, input: eventInput(edit, ev)!, scope: "this", series })).not.toHaveProperty("lunarInput");
+    expect(eventBody({ ...base, editing: true, draft: edit, input: eventInput(edit, ev)!, scope: "following", series })).toMatchObject({ lunarInput: true });
+  });
+
+  it("볼까 [고치기] 주소 lunar=1 은 음력으로 연다", () => {
+    const q = new URLSearchParams({ lunar: "1" });
+    expect(newDraft({ start: kstToIso("2026-11-24", "10:00"), end: kstToIso("2026-11-24", "11:00"), query: q }).lunar).toEqual({ year: 2026, month: 10, day: 16, leap: false });
   });
 });

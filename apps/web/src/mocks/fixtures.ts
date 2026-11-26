@@ -145,6 +145,8 @@ export type EventRow = {
   /** (#248) allMembers 가 false 일 때 참여자 userId. 비면 "참여자 없음" */
   participantIds?: number[];  /** (#343) 일정 색 (MEMBER_COLORS 키). 없거나 null 이면 자동 (D-215) */
   color?: string | null;
+  /** (#566) 음력으로 넣은 일정 (D-298). 생략 = false */
+  lunarInput?: boolean;
   /** (#199) 장소. 없거나 null 이면 없음 */
   place?: MockPlace | null;
 };
@@ -449,6 +451,8 @@ export function buildStore(): Store {
     { ...ev(43, TEAM_ID, "회사 워크숍 (양평 리조트)", d(19), "00:00", d(23), "00:00", OTHER_ID, true), color: MEMBER_COLORS[7] },
     { ...ev(44, TEAM_ID, "겨울 여행", addDays(today, 58), "00:00", addDays(today, 62), "00:00", ME_ID, true), color: MEMBER_COLORS[6] },
     ev(45, TEAM_ID, "새해 계획 세우기", addDays(today, 50), "10:00", addDays(today, 50), "11:00", OTHER_ID),
+    // (#566) 날짜를 음력으로 골라 넣은 한 번짜리 일정: 상세에 "음력 M월 D일", 수정은 음력으로 열린다
+    { ...ev(46, TEAM_ID, "할머니 생신 잔치", addDays(today, 6), "12:00", addDays(today, 6), "14:00", ME_ID, false, "음력 생신"), lunarInput: true },
     // 반복 일정 (#187): 2주 전 내일 요일부터 매주 19:30~21:00. 다음 주 회차는 "이 일정만" 20:00 으로 옮김
     {
       ...ev(10, TEAM_ID, "같이 요리하기", weeklyStart, "19:30", weeklyStart, "21:00", OTHER_ID, false, "장보기는 번갈아"),

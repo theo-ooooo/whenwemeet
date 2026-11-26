@@ -28,6 +28,7 @@ import {
   eventPatchOf,
   targetScope,
   ddayText,
+  draftLunarText,
   draftWhenText,
   eventEditHref,
   eventInputOf,
@@ -159,6 +160,8 @@ function EventDraftCardView({ card, resultKey, tone, onShowDate }: CardProps & {
           <IconClock size={16} className="shrink-0 text-ink-2" />
           {draftWhenText(d)}
         </p>
+        {/* (#566) 음력으로 말한 초안은 그 음력 날짜를 시각 줄 아래에 */}
+        {draftLunarText(d) && <p className="mt-0.5 pl-[22px] text-[13px] leading-[18px] font-medium text-ink-2">{draftLunarText(d)}</p>}
         {d.place?.text && (
           <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[14px] leading-5 text-ink">
             <IconPin size={16} className="shrink-0 text-ink-2" />

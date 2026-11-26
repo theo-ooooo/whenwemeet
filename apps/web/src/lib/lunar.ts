@@ -60,17 +60,30 @@ export function formatLunar(month: number, day: number, leap: boolean, year?: nu
 }
 
 /**
- * 달력 칸의 작은 음력 글자 (D-297).
- * - text: 넓은 칸(숫자 줄 오른쪽). 보통 "10.6", 초하루 "음 11.1", 윤달은 "윤4.6"
- * - short: 낮은 넓은 칸(왼쪽 위 모서리). "10.6", 초하루 "11.1"
- * - compact: 폰 칸(왼쪽 위 모서리). 칸마다 숫자가 둘이면 어느 게 날짜인지 헷갈려서 초하루와 보름만 "11.1", "11.15". 다른 날은 빈 문자열(안 그림)
- * first = 초하루 (글자를 조금 진하게), label = 읽기용 "음력 10월 6일"
+ * 달력 칸, 주 보기 머리의 작은 음력 글자 (D-297, #566 D-298).
+ * - text: 모든 날 "10.6" (달을 늘 붙여 날짜 숫자와 헷갈리지 않게), 윤달은 "윤4.6"
+ * - first: 초하루 (글자를 조금 진하게)
+ * - label: 읽기용 "음력 10월 6일"
  */
-export function lunarCellText(key: DateKey): { text: string; short: string; compact: string; first: boolean; label: string } | null {
+export function lunarCellText(key: DateKey): { text: string; first: boolean; label: string } | null {
   const l = solarToLunar(key);
   if (!l) return null;
-  const leap = l.leap ? "윤" : "";
-  const md = `${leap}${l.month}.${l.day}`;
-  const first = l.day === 1;
-  return { text: first && !l.leap ? `음 ${md}` : md, short: md, compact: first || l.day === 15 ? md : "", first, label: formatLunar(l.month, l.day, l.leap) };
+  return { text: `${l.leap ? "윤" : ""}${l.month}.${l.day}`, first: l.day === 1, label: formatLunar(l.month, l.day, l.leap) };
+}
+
+/** (#566) 그 양력 날짜의 음력 "음력 10월 16일" (일 상세 머리, 일정 상세). 범위 밖이면 null */
+export function lunarLabelOf(key: DateKey): string | null {
+  const l = solarToLunar(key);
+  return l ? formatLunar(l.month, l.day, l.leap) : null;
+}
+
+/**
+ * (#566) 일정 날짜를 음력으로 고를 때의 오류 한 줄 (D-298). 맞으면 null.
+ * 그 해에 없는 윤달, 29일 달의 30일, 변환표 밖(음력 2050년 뒤)은 저장을 막는다. 기념일 폼과 같은 문장
+ */
+export function lunarPickError(l: LunarDate): string | null {
+  if (l.year < LUNAR_MIN_YEAR || l.year > LUNAR_MAX_YEAR) return `음력 ${LUNAR_MAX_YEAR}년까지만 고를 수 있어요`;
+  if (l.leap && !hasLeapMonth(l.year, l.month)) return `음력 ${l.year}년에는 윤${l.month}월이 없어요`;
+  if (!isLunarDate(l)) return `음력 ${l.year}년 ${l.leap ? "윤" : ""}${l.month}월은 29일까지예요`;
+  return null;
 }

@@ -84,6 +84,9 @@ export type EventInput = {
   color?: string | null;
   /** (#199) 장소. 생성에서 생략 = 없음, 수정에서 생략 = 그대로, null = 지우기. 반복 "이 일정만" 으로도 바꿀 수 있다 */
   place?: PlaceInput | null;
+  /** (#566) 날짜를 음력으로 골라 넣었는지 (D-298). 생성에서 생략 = false, 수정에서 생략 = 그대로.
+   *  반복 "이 일정만" 수정에는 싣지 않는다 (서버 400, 색과 같은 원본 단위). 옛 API 응답에는 없음 = false */
+  lunarInput?: boolean;
 };
 
 /**

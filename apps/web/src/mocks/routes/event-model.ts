@@ -81,6 +81,14 @@ export function colorIn(v: unknown): string | null | undefined | MockResult {
   return key ?? colorErr("색은 정해진 8색 중 하나여야 해요");
 }
 
+/** (#566) 본문 lunarInput 읽기. 생략 = undefined, 불리언이 아니면 400 (API EventInputDto) */
+export function lunarIn(v: unknown): boolean | undefined | MockResult {
+  if (v === undefined) return undefined;
+  if (typeof v === "boolean") return v;
+  const message = "lunarInput 은 true/false 여야 해요";
+  return { status: 400, body: errorBody(400, "VALIDATION_FAILED", message, [{ field: "lunarInput", message }]) };
+}
+
 /** 빈 시간 (4장 isBusyForAny): 모두면 바쁨, 아니면 참여자 중 요청 팀 멤버가 있으면. 참여자 없음은 안 바쁨 */
 export function isBusyForAny(e: EventRow, memberIds: ReadonlySet<number>): boolean {
   if (e.allMembers !== false) return true;
@@ -111,6 +119,7 @@ export function eventOut(s: Store, e: EventRow, o?: MockOccurrence) {
     reminder: occ?.reminder ?? e.reminder ?? "NONE",
     participants: participantsOut(s, e),
     color: e.color ?? null,
+    lunarInput: e.lunarInput ?? false,
     // (#199) 회차 예외 장소(이름 '' 은 그 회차만 없음)
     place: placeOut(occ?.place ?? e.place),
   };
